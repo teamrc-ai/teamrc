@@ -12,6 +12,7 @@ defmodule TeambridgeWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug TeambridgeWeb.Plugs.VerifySignature
   end
 
   scope "/", TeambridgeWeb do

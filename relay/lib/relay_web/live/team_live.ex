@@ -50,6 +50,13 @@ defmodule TeambridgeWeb.TeamLive do
     {:noreply, assign(socket, members: members)}
   end
 
+  # Security note (v1 design decision):
+  # The LiveView generates Ed25519 keypairs server-side for web-created teams.
+  # The private key is discarded — only the public key is embedded in the token.
+  # This means web-created teams cannot sign API requests (the private key is lost).
+  # This is intentional: the web UI is a convenience for team creation only.
+  # Agents that need API access must generate their own keypairs client-side.
+  # The token shown to users IS the team identifier, not an authentication credential.
   def handle_event("create_team", _params, socket) do
     {pub, _priv} = :crypto.generate_key(:eddsa, :ed25519)
     token = Auth.to_token(pub)

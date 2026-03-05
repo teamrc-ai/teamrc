@@ -7,6 +7,10 @@ config :relay, TeambridgeWeb.Endpoint,
   secret_key_base: "+cZpAXhe1a8s8TG+clf1HmR4LftN+piWOf3bdYjJachkey2+7mWoU3/p/ksLXPQo",
   server: false
 
+# Skip signature verification in tests by default.
+# Security-specific tests override this to test the auth plug directly.
+config :relay, :skip_auth, true
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 
