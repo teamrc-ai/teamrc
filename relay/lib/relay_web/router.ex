@@ -17,7 +17,7 @@ defmodule TeambridgeWeb.Router do
   scope "/", TeambridgeWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", TeamLive, :index
   end
 
   scope "/api", TeambridgeWeb do
