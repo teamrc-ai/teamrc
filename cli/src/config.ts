@@ -33,20 +33,21 @@ export function loadConfig(): TeambridgeConfig | null {
 export function saveConfig(config: TeambridgeConfig): void {
   const dir = getConfigDir();
   if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
-  fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2));
+  fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2), { mode: 0o600 });
 }
 
-export function detectPlatform(): string | null {
+export function detectPlatforms(): string[] {
   const home = os.homedir();
+  const platforms: string[] = [];
   if (fs.existsSync(path.join(home, ".claude"))) {
-    return "claude-code";
+    platforms.push("claude-code");
   }
   if (fs.existsSync(path.join(home, ".openclaw"))) {
-    return "openclaw";
+    platforms.push("openclaw");
   }
-  return null;
+  return platforms;
 }
 
 export function getRelayUrl(overrideUrl?: string): string {

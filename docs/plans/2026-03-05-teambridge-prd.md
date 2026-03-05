@@ -1,356 +1,461 @@
 # TeamBridge PRD
 
 **Product Requirements Document**
+**Version:** v0.4
 **Date:** 2026-03-05
-**Status:** Draft
+**Status:** MVP Complete
+**Last Updated:** 2026-03-05
 
 ---
 
-## 1. Problem
+## 1. Overview
 
-Developers running multi-agent teams across platforms (Claude Code, OpenClaw, Claude Desktop) face:
+TeamBridge is a portable specification and synchronization tool for AI agent teams.
 
-- **Configuration drift** — teams defined on one platform don't match the other. Roles, personas, and constraints diverge silently.
-- **No shared memory** — an agent on Claude Code learns something; the agent on OpenClaw has no idea.
-- **Manual duplication** — setting up the same team on a new platform means recreating every agent from scratch.
-- **Cross-machine isolation** — platforms run on different machines with no shared filesystem.
+Developers define their agent team once in a project file (`agent-team.yaml`). TeamBridge then:
 
-The result: agents duplicate work, contradict each other, lose context, and teams can't be moved between platforms.
+1. Applies the team to local agent platforms (Claude Code, OpenClaw, etc.)
+2. Keeps agent teams synchronized across machines using a lightweight relay
 
-## 2. Solution
+The goal is to make agent teams portable, version controlled, and automatically synced across machines.
 
-TeamBridge is a stateless relay that keeps multi-agent teams in sync across platforms.
+## 2. Problem
 
-- **No signup** — identity is a locally-generated crypto keypair
-- **No data storage** — each platform is its own source of truth; the relay is a pass-through
-- **No background processes** — sync runs via platform hooks on session start
-- **Automatic** — after one-time setup, sync happens without user intervention
+Developers using AI agent tools frequently work across multiple platforms and multiple machines. Current problems:
 
-## 3. Users
+- **Agent configuration duplication** — teams must be recreated manually on each machine
+- **Configuration drift** — agent roles diverge across platforms
+- **Non-reproducible environments** — new developers cannot easily recreate the same agent team
+- **Missing cross-machine synchronization** — changes made on one machine are not reflected elsewhere
 
-- Developers running multi-agent teams across 2+ platforms
-- Primary platforms: Claude Code, OpenClaw, Claude Desktop
-- Technically proficient (comfortable with CLI, config files, npm)
+## 3. Solution
 
-## 4. User Experience
+TeamBridge introduces:
 
-### 4.1 First Machine (has existing team)
+- A portable team specification (`agent-team.yaml`)
+- A CLI tool (`npx teambridge`)
+- A lightweight relay for cross-machine synchronization
 
-```bash
-npx teambridge init
-```
+## 4. Key Principles
 
-Output:
+- **Git remains the source of truth** — team definitions live in the repo
+- **Relay is stateless for sync** — sync data (hashes, content) is in-memory only; Postgres stores teams and invites
+- **CLI first** — all functionality works from the CLI
+- **No accounts required** — identity is Ed25519 keypair per machine, team membership via invite codes
+- **Automatic synchronization** — daemon watches files and polls relay every 2 minutes
+- **Security first** — Ed25519 signed requests, replay protection, rate limiting, input validation
 
-```
-Detected platform: claude-code
-Generated keypair.
-Found team "my-project" (3 agents: architect, implementer, reviewer)
-Added SessionStart hook to ~/.claude/settings.json
-Registered with relay.
+## 5. Core User Experience
 
-To connect another machine:
-  npx teambridge join tb_ak_7f3a9c2b...
-```
+### 5.1 Create a Team (Web UI)
 
-What `init` does:
-1. Detects which platform is installed locally
-2. Generates a crypto keypair, saves to `~/.teambridge/key`
-3. Reads the existing team definition from the platform's native files
-4. Pushes it to the relay (buffered, not stored)
-5. Adds a `SessionStart` hook to the platform config that runs `npx teambridge sync`
-6. Adds a `PostToolUse` / post-response hook that runs `npx teambridge push` on memory writes
+Visit the TeamBridge web UI (LiveView). Users:
 
-### 4.2 Additional Machines
+1. Choose from team templates (fullstack, backend, security, marketing, research, devops, custom)
+2. Customize team name and members (name + role for each)
+3. Click "Create Team"
+4. Receive an invite code (`tb_inv_...`) with a ready-to-run join command
+
+### 5.2 Join a Team
 
 ```bash
-npx teambridge join tb_ak_7f3a9c2b...
+npx teambridge join tb_inv_XD3luzjtqCI7... --relay http://relay:4000
 ```
 
-Output:
+TeamBridge:
+1. Detects installed platforms (if multiple found, asks which to set up — or both)
+2. Generates Ed25519 keypair (stored at `~/.teambridge/key`)
+3. Downloads team definition from relay
+4. Writes `agent-team.yaml` locally
+5. For each selected platform:
+   - Asks scope (project vs global) for Claude Code
+   - Creates platform-native agent files (e.g., `.claude/agents/tb-*.md`)
+   - Installs sync hooks
+6. Saves configuration
+
+Example output with multiple platforms:
 
 ```
-Detected platform: openclaw
-Connecting to relay...
-Found team "my-project" from Claude Code:
-  - architect: "Focus on system design and API contracts"
-  - implementer: "Write clean, tested code"
-  - reviewer: "Review PRs for correctness and security"
+Multiple platforms detected:
+  1) claude-code
+  2) openclaw
+  3) Both
 
-Scaffolding OpenClaw agents...
-  Created ~/.openclaw/agents/architect/ with SOUL.md
-  Created ~/.openclaw/agents/implementer/ with SOUL.md
-  Created ~/.openclaw/agents/reviewer/ with SOUL.md
-  Updated ~/.openclaw/config.yaml with agent routing
-  Added bootstrap hook for automatic sync
-  Added MCP server config for mid-session reads
+Which platform? [1-3]: 3
 
-Done. Sync is automatic from now on.
+Joined team: fraudstory
+Created agent-team.yaml.
+
+Setting up claude-code...
+Where should this team be available?
+  1) This project only (creates agents in .claude/agents/ and updates CLAUDE.md)
+  2) All projects (creates agents in ~/.claude/agents/)
+Choice [1/2]: 1
+  claude-code configured.
+
+Setting up openclaw...
+  openclaw configured.
+
+Configuration saved.
 ```
 
-What `join` does:
-1. Detects which platform is installed locally
-2. Connects to relay using the provided team token
-3. Pulls the full team definition
-4. Translates to the local platform's format
-5. Scaffolds all agents locally (creates directories, writes config files, persona files)
-6. Adds sync hooks to the platform config
-7. Optionally adds MCP server config for mid-session memory reads
+Invites are multi-use — the same invite code works on multiple machines until it expires (24 hours).
 
-### 4.3 Ongoing Use (automatic, invisible)
-
-Every time an agent session starts on any platform:
-1. The `SessionStart` / bootstrap hook runs `npx teambridge sync`
-2. `sync` reads local state, sends hashes to relay, receives changes
-3. Creates/updates local files as needed (new agents, updated roles, new memory entries)
-4. Pushes local changes to relay for other platforms to pick up
-
-The user does nothing. Sync is invisible.
-
-### 4.4 Mid-Session Memory (optional MCP)
-
-For agents that want to read shared memory during a session (not just at startup), the relay exposes a lightweight MCP server:
-
-- `teambridge:read-memory` — query shared memory by topic
-- `teambridge:list-teammates` — see team members across platforms
-- `teambridge:get-role` — get a specific role's definition
-
-These are read-only. All writes go through the CLI hooks to ensure reliable file operations.
-
-## 5. Architecture
-
-```
-Machine A (Claude Code)              Machine B (OpenClaw)
-+-----------------------+           +-----------------------+
-| SessionStart hook:    |           | Bootstrap hook:       |
-|   npx teambridge sync |           |   npx teambridge sync |
-|                       |           |                       |
-| PostToolUse hook:     |           | Post-response hook:   |
-|   npx teambridge push |           |   npx teambridge push |
-|                       |           |                       |
-| MCP (optional):       |           | MCP (optional):       |
-|   teambridge:read-*   |           |   teambridge:read-*   |
-+-----------+-----------+           +-----------+-----------+
-            |                                   |
-            |           HTTPS                   |
-            +-----------+-----------------------+
-                        |
-               +--------v--------+
-               |  Relay          |
-               |  (stateless)    |
-               |                 |
-               |  In-memory      |
-               |  write buffer   |
-               |  Hash index     |
-               |  Auth verify    |
-               |                 |
-               |  No database.   |
-               |  No persistence.|
-               +-----------------+
-```
-
-### 5.1 CLI (`npx teambridge`)
-
-The core of the product. A Node.js CLI that:
-
-- **`init`** — detect platform, generate keypair, register team, add hooks
-- **`join <token>`** — connect to existing team, scaffold agents locally, add hooks
-- **`sync`** — bidirectional sync: pull remote changes, push local changes
-- **`push`** — push specific local changes (memory writes) to relay
-- **`serve`** — run the relay server (for self-hosting)
-- **`status`** — show current sync state, connected platforms, team members
-
-### 5.2 Relay Server
-
-A stateless HTTP server (Node.js). Endpoints:
-
-- `POST /sync` — receive local state hashes, return changes from other platforms
-- `POST /push` — receive a change (memory entry, config update), buffer it
-- `GET /pull` — get buffered changes for a specific platform
-- `GET /mcp` — Streamable HTTP MCP endpoint for mid-session reads
-- `POST /register` — register a new platform connection
-
-State held in memory only:
-- **Write buffer** — pending changes keyed by team token, with TTL
-- **Hash index** — last-known hashes per platform per team, for conflict detection
-- **Connection registry** — which platforms are connected to which team
-
-If the relay restarts, all in-memory state is lost. Next `sync` from any platform does a full reconciliation.
-
-### 5.3 Platform Adapters
-
-Each platform has an adapter that knows:
-- Where team config files live
-- Where memory files live
-- Where agent/role definitions live
-- How to scaffold a new agent (create dirs, write files, register)
-- How to read/write the platform's native formats
-
-Initial adapters:
-
-| Platform | Team config | Memory | Agent scaffold |
-|---|---|---|---|
-| Claude Code | `~/.claude/teams/{name}/config.json`, `CLAUDE.md` | Memory files in project | Write `config.json`, update `CLAUDE.md` |
-| OpenClaw | `~/.openclaw/config.yaml` | `MEMORY.md` in workspace | `openclaw agents add`, write `SOUL.md`/`AGENTS.md` |
-| Claude Desktop | `claude_desktop_config.json` | Project instructions | Update project config |
-
-Adding a new platform = writing a new adapter module.
-
-## 6. Sync Mechanics
-
-### 6.1 What Syncs
-
-| Data type | Direction | Mechanism |
-|---|---|---|
-| Team members & roles | Bidirectional | `sync` on session start |
-| Agent personas/constraints | Bidirectional | `sync` on session start |
-| Shared memory | Bidirectional | `push` on write, `sync` on session start |
-| Tasks | Bidirectional | `sync` on session start |
-
-### 6.2 Sync Flow
-
-```
-npx teambridge sync --platform claude-code
-  |
-  +-- Read local state
-  |     Parse team config, memory files, role definitions
-  |     Compute content hashes
-  |
-  +-- POST /sync to relay
-  |     Send: { platform, team_token, hashes: { file: hash, ... } }
-  |     Receive: { changes: [...], conflicts: [...] }
-  |
-  +-- Apply non-conflicting changes
-  |     Create new agent dirs if needed
-  |     Write/update config files, persona files, memory
-  |     Platform adapter handles format translation
-  |
-  +-- Handle conflicts
-  |     Write both versions to a conflict file
-  |     Inject context into session: "Conflict detected, resolve..."
-  |     Agent merges on next interaction
-  |
-  +-- Push local changes
-        Send new/updated content to relay buffer
-```
-
-### 6.3 Conflict Detection
-
-The relay tracks hashes per platform per file. A conflict occurs when:
-- Platform A changed file X since last sync
-- Platform B also changed file X since last sync
-
-Resolution: both versions are presented to the agent (injected via SessionStart hook stdout). The agent (an LLM) reads both and produces a merged version.
-
-### 6.4 Offline Handling
-
-If a platform is offline when changes are pushed:
-- Changes sit in the relay's in-memory buffer (TTL: configurable, default 24h on paid, 1h on free)
-- When the platform comes back and runs `sync`, it picks up buffered changes
-- If buffer expired (relay restarted or TTL hit), the syncing platform sends its full state; the other platform does a full reconciliation on its next sync
-
-## 7. Authentication
-
-### 7.1 Keypair Model
-
-- `teambridge init` generates an Ed25519 keypair
-- Private key stored at `~/.teambridge/key` (never leaves the machine)
-- Public key derived team token: `tb_ak_<base58(public_key)>`
-- All API requests signed with private key; relay verifies with public key
-
-### 7.2 Team Membership
-
-- The `init` machine creates the team and is the implicit owner
-- `join <token>` adds a platform to an existing team
-- The team token IS the public key — anyone with it can join
-- For access revocation: generate a new keypair (`teambridge rotate`), re-join other machines
-
-### 7.3 No Accounts
-
-- No email, no password, no OAuth
-- No server-side user records
-- Identity = keypair, membership = shared token
-
-## 8. Self-Hosting
+### 5.3 Initialize from Existing Agents
 
 ```bash
-npx teambridge serve
-# or
-docker run -p 3000:3000 teambridge/relay
+npx teambridge init --relay http://relay:4000
 ```
 
-Point your machines at your own relay:
+For users who already have agents configured locally. TeamBridge:
+- Detects platforms (prompts if multiple)
+- Reads existing agents and generates `agent-team.yaml`
+- Applies to all selected platforms' native format
+- Creates team on relay
+- Installs hooks and saves config
+
+### 5.4 Automatic Synchronization
+
+After setup, synchronization is automatic via a background daemon:
+
+```
+local file change detected (chokidar)
+  -> compute hash
+  -> POST /api/sync with hashes + changed content
+  -> relay stores and distributes
+  -> other machines pick up on next poll (every 2 minutes)
+  -> write changes locally
+  -> regenerate platform-native agent files if agent-team.yaml changed
+```
+
+When the daemon receives a remote `agent-team.yaml` change, it also regenerates platform-native agent files (e.g., `.claude/agents/tb-*.md`) so the agents are immediately available.
+
+No persistent connections. Pure HTTP polling. Scales to millions of users.
+
+### 5.5 Team Knowledge
+
+Agents are instructed (via CLAUDE.md) to read and write to `.claude/team-knowledge.md`. This file:
+- Contains shared findings, decisions, and debugging insights from all agents across all machines
+- Is synced automatically by the daemon (append-only merge — no data loss)
+- Is separate from individual agent memory (doesn't interfere)
+
+The CLAUDE.md section written by TeamBridge tells agents:
+
+> Shared findings and decisions are stored in `.claude/team-knowledge.md`. Read this file at the start of every session for context from other agents and machines. When you discover something important, append it to this file so other team members can benefit.
+
+### 5.6 Offline Commands
 
 ```bash
-npx teambridge init --relay https://my-server:3000
-npx teambridge join tb_ak_7f3a9c2b... --relay https://my-server:3000
+teambridge apply    # Apply agent-team.yaml to local platform (no relay needed)
+teambridge diff     # Compare local vs relay state
+teambridge status   # Show config, sync state, team info
+teambridge sync     # Manual one-shot sync
 ```
 
-Same codebase. Same npm package. Zero configuration for the relay (no database, no env vars required).
+### 5.7 CLI Distribution
 
-## 9. Hosted Service
+The CLI is distributed via npm:
 
-### 9.1 URL
+```bash
+npx teambridge                  # Run directly (no install)
+npm install -g teambridge       # Or install globally
+npm pack && npm install -g ./teambridge-0.1.0.tgz  # Or from tarball (no registry needed)
+```
 
-`relay.teambridge.app`
+## 6. Team Definition File
 
-### 9.2 Pricing
+The canonical source of truth, living in the repository:
 
-| | Free | Pro |
-|---|---|---|
-| Platforms connected | 2 | Unlimited |
-| Buffer retention | 1 hour | 24 hours |
-| Teams | 1 | Unlimited |
-| Sync | Session start only | Session start + push hooks |
-| Self-host | Always available | Always available |
+```yaml
+# agent-team.yaml
+name: fraudstory
 
-Pricing TBD. Launch free with generous limits. Add paid tier based on usage patterns.
+agents:
+  - name: architect
+    role: Design system architecture
 
-## 10. Technical Decisions
+  - name: implementer
+    role: Write production code
+
+  - name: reviewer
+    role: Review correctness and security
+    soul: |
+      You are a security-focused reviewer.
+      Always check for OWASP top 10 vulnerabilities.
+```
+
+Constraints:
+- Team name: required, lowercase alphanumeric + hyphens/underscores
+- Agents: at least one required
+- Each agent: name (required), role (required), soul (optional multiline)
+- Duplicate agent names rejected
+
+## 7. System Architecture
+
+```
+Machine A                    Machine B
+Claude Code + OpenClaw       OpenClaw
+
+teambridge daemon            teambridge daemon
+  chokidar watcher             chokidar watcher
+  2-min poll loop              2-min poll loop
+        |                            |
+        +--- HTTP polling ---+-------+
+                             |
+                     +-------v-------+
+                     |     Relay     |
+                     |   (Phoenix)   |
+                     |               |
+                     | Postgres:     |  In-Memory (GenServer):
+                     |  - teams      |  - file hashes per platform
+                     |  - members    |  - file content (24h TTL)
+                     |  - invites    |  - token -> team mapping
+                     |               |  - last_updated_at per team
+                     +---------------+
+```
+
+A single machine can have multiple platforms. The CLI detects all installed platforms and can configure them all at once.
+
+## 8. Components
+
+### 8.1 CLI
+
+Commands:
+
+| Command | Description |
+|---------|-------------|
+| `teambridge init` | Detect platform(s), create agent-team.yaml, register with relay |
+| `teambridge join <invite>` | Join team, write agent-team.yaml, apply to platform(s) |
+| `teambridge apply` | Apply agent-team.yaml to platform (offline) |
+| `teambridge diff` | Compare local vs relay state |
+| `teambridge status` | Show config, sync state, team info |
+| `teambridge sync` | Manual one-shot sync |
+| `teambridge daemon` | Start background sync daemon |
+
+All commands that need a platform support `--platform <name>` to override auto-detection. When multiple platforms are detected and no override is given, the CLI prompts with an option to configure both.
+
+### 8.2 Daemon
+
+Long-lived Node.js background process:
+
+- Watches files via chokidar (`agent-team.yaml`, platform-specific paths from `adapter.watchPaths()`)
+- On local file change: immediate push to relay
+- On poll interval (2 minutes): check relay for remote changes via lightweight `GET /api/sync/check`
+- On remote `agent-team.yaml` change: regenerates platform-native agent files automatically
+- Self-trigger prevention: caches hashes of files written from remote changes
+- Graceful reconnection on relay failure
+
+### 8.3 Relay
+
+Elixir/Phoenix application.
+
+**API Endpoints:**
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| POST | `/api/join` | Signed | Join team by invite code |
+| POST | `/api/teams` | Signed | Create a team |
+| GET | `/api/teams/:token` | Signed | Get team definition |
+| POST | `/api/sync` | Signed | Full sync (send hashes + files, receive changes) |
+| GET | `/api/sync/check` | Signed | Lightweight poll (changed since timestamp?) |
+| POST | `/api/push` | Signed | Push a single entry |
+| GET | `/api/pull` | Signed | Pull entries for a platform |
+
+**Web UI:**
+- `GET /` — LiveView team creation interface with templates
+
+**Storage:**
+- **Postgres** (persistent): teams, members (with soul field), invites
+- **GenServer** (in-memory): file hashes per platform, file content with 24h TTL, token-to-team mapping, per-team last_updated_at timestamps
+
+### 8.4 Platform Adapters
+
+Each adapter implements:
+
+```typescript
+interface PlatformAdapter {
+  readTeam(): TeamDefinition | null;
+  writeTeam(team: TeamDefinition, scope?: TeamScope): void;
+  readKnowledge(): string;
+  writeKnowledge(content: string): void;
+  appendKnowledge(entries: string[]): void;
+  getHashes(): Record<string, string>;
+  watchPaths(): string[];
+  writeFile(key: string, content: string): void;
+  readFile(key: string): string | null;
+  installHooks(relay: string, token: string): void;
+}
+```
+
+| Platform | Canonical Source | Native Format | Knowledge File | Scope Options |
+|----------|-----------------|---------------|----------------|---------------|
+| Claude Code | `agent-team.yaml` | `.claude/agents/tb-*.md` (YAML frontmatter + markdown) | `.claude/team-knowledge.md` | project / global |
+| OpenClaw | `agent-team.yaml` | `~/.openclaw/workspace/agents/` | `~/.openclaw/workspace/TEAM-KNOWLEDGE.md` | global only |
+
+**Claude Code native format:** Each agent becomes a subagent markdown file with YAML frontmatter:
+
+```markdown
+---
+name: architect
+description: "Design system architecture on the fraudstory team."
+model: inherit
+---
+
+# Team: fraudstory
+
+You are architect, a Design system architecture on the fraudstory team.
+```
+
+**CLAUDE.md integration:** TeamBridge appends a section to CLAUDE.md listing team members and instructing the agent to read/write `.claude/team-knowledge.md`.
+
+## 9. Sync Mechanics
+
+### 9.1 What Syncs
+
+| Data Type | Strategy | Reason |
+|-----------|----------|--------|
+| Agent definitions (`agent-team.yaml`) | Last-write-wins (timestamp) | Rare edits, simple resolution |
+| Team knowledge | Append-only merge | Entries are independent, both sides valid |
+| Task state (future) | State machine | Forward-only transitions |
+| Task comments (future) | Append-only merge | Both entries valid |
+
+### 9.2 Sync Flow
+
+```
+daemon detects file change (chokidar)
+  |
+  +-- Compute hashes of watched files
+  +-- POST /api/sync { token, platform, hashes, files }
+  |     Relay stores hashes + content
+  |     Returns files where other platforms have different hashes
+  |     Each change includes { content, updated_at }
+  |
+  +-- Apply changes via conflict resolution
+  |     Knowledge files: append-only merge (dedup by content hash)
+  |     Definition files: last-write-wins (compare timestamps)
+  |
+  +-- If agent-team.yaml changed: regenerate platform-native agent files
+  |
+  +-- Update local hash cache (prevent self-trigger)
+```
+
+### 9.3 Polling Flow
+
+```
+every 2 minutes:
+  GET /api/sync/check?token=X&since=T
+    -> { changed: false }  // nothing to do
+    -> { changed: true }   // do full sync
+```
+
+### 9.4 Offline Handling
+
+- Content is stored in relay memory with 24-hour TTL
+- If a machine is offline, changes wait in the relay buffer
+- When the machine comes back, next poll picks up all changes
+- If relay restarts, machines re-sync on next poll (send full state)
+
+## 10. Authentication & Security
+
+### 10.1 Keypair Model
+
+- Each machine generates an Ed25519 keypair on first use
+- Private key stored at `~/.teambridge/key` (mode 0o600, directory mode 0o700)
+- Public key derived token: `tb_ak_<base64url(public_key)>`
+- All API requests signed with private key
+
+### 10.2 Signature Verification
+
+- POST: sign raw JSON body, include signature as `x-tb-signature` header
+- GET: sign `"GET /path?query"`, include signature as `x-tb-signature` header
+- `x-tb-timestamp` header required, must be within 5 minutes of server time (replay protection)
+- Timestamp included in signed message (`{timestamp}.{body}`)
+- BOLA prevention: token in request must correspond to the public key that produced the signature
+
+### 10.3 Invite Codes
+
+- Created via web UI, `tb_inv_` prefix
+- Multi-use: multiple machines can join with the same code
+- 24-hour expiry
+- `POST /api/join` requires signature (authenticated)
+
+### 10.4 Security Hardening
+
+- **Rate limiting**: Token bucket per token (60 req/min for check, 10 req/min for sync)
+- **Input validation**: File paths (no traversal, no absolute paths), platform names (alphanumeric), hashes (max 128 chars), max 100 files per sync
+- **Content size limits**: 256KB per file
+- **CORS**: Restrictive by default, configurable allowlist
+- **Error responses**: Generic errors only, no stack traces or internal details
+- **Production guard**: `skip_auth` config ignored in production builds
+
+## 11. Technical Decisions
 
 | Decision | Choice | Rationale |
-|---|---|---|
-| Runtime | Node.js | Shared with npx distribution, same ecosystem as target users |
-| Relay storage | In-memory only | Stateless relay principle; no data persistence |
-| Auth | Ed25519 keypairs | No signup, no accounts, cryptographic identity |
-| Sync trigger | Platform hooks | No daemon, no background process, automatic |
-| Mid-session reads | MCP (Streamable HTTP) | Native integration with Claude Code + OpenClaw |
-| File operations | CLI (not MCP) | MCP can't write files reliably; CLI can |
-| Conflict resolution | Agent-driven | LLMs can read both versions and merge intelligently |
+|----------|--------|-----------|
+| Relay runtime | Elixir/Phoenix | Concurrency, LiveView for web UI, built-in PubSub |
+| CLI runtime | Node.js | npx distribution, same ecosystem as target users |
+| Persistent storage | Postgres (Ecto) | Teams, members, invites |
+| Sync data storage | GenServer (in-memory) | Fast, auto-cleaned, loss triggers re-sync |
+| Auth | Ed25519 keypairs | No signup, cryptographic identity, replay protection |
+| Sync mechanism | HTTP polling (2-min) | Stateless, scales to millions behind load balancer |
+| Team spec format | YAML | Human-editable, version-controllable |
+| File watching | chokidar | Reliable cross-platform filesystem events |
+| Conflict resolution | Strategy per data type | Append-only for knowledge, LWW for definitions |
 | Distribution | npm (npx) | Zero install for Node.js users |
-| Self-hosting | Same package | `npx teambridge serve` runs the relay |
 
-## 11. Non-Goals (v1)
+### Why not WebSockets?
 
-- Real-time sync (event-driven is sufficient)
-- Web dashboard for team configuration (CLI-first)
-- Support for non-agent platforms
-- Persistent storage or backup
-- Multi-tenancy or workspace isolation on the relay
-- End-to-end encryption (TLS in transit is sufficient for v1)
+At 5M users, persistent WebSocket connections would require ~40-80GB RAM for connection state alone. HTTP polling at 2-minute intervals = ~42K req/s, easily handled by a few nodes behind a load balancer. The trade-off (2-min max latency) is acceptable for files that change a few times a day.
 
-## 12. Future Considerations
+## 12. Installation
 
-- Web dashboard for visual team configuration
-- End-to-end encryption (encrypt buffer contents with team-shared key)
-- Platform adapters: Cursor, Windsurf, CrewAI, AutoGen, LangGraph
-- Diff-based memory sync (optimize for large memory files)
-- Real-time push via WebSocket (optional daemon mode)
-- Team roles and permissions (read-only members, admin)
+**CLI (on each machine):**
+
+```bash
+npx teambridge                     # Run directly (no install)
+npm install -g teambridge          # Install globally from npm
+npm install -g ./teambridge-0.1.0.tgz  # Install from tarball (no git/registry needed)
+```
+
+**Relay (self-hosted):**
+
+```bash
+cd relay && mix phx.server
+```
+
+Requires: Elixir 1.18+, Postgres. Binds to `0.0.0.0` in dev by default. For cross-machine access, ensure firewall allows port 4000 or use SSH tunneling:
+
+```bash
+ssh -L 4000:localhost:4000 user@relay-host
+```
 
 ## 13. Success Criteria
 
-- A developer can connect Claude Code and OpenClaw teams in under 5 minutes
+- A developer can create a team via web UI and join from CLI in under 5 minutes
 - Teams stay in sync without manual intervention after initial setup
-- Adding a new platform takes writing one adapter module
-- The relay can be self-hosted with a single command
-- Zero data is persisted on the relay server
+- Multiple platforms on the same machine are detected and configurable together
+- Adding a new platform = writing one adapter module
+- The relay can be self-hosted with `mix phx.server` + Postgres
+- Team definitions persist across relay restarts
 
-## 14. Open Questions
+## 14. Future Enhancements
 
-1. Should the team token be the raw public key, or a shorter derived identifier?
-2. How do we handle platforms that restructure their agent config format between versions?
-3. Should the free tier buffer retention be 1 hour or longer?
-4. Do we need a `teambridge diff` command to preview changes before applying?
-5. How do we handle large teams (10+ agents) — does scaffolding become slow?
-6. Should conflict files be auto-cleaned after resolution, or left for audit?
+- npm publish of CLI package
+- Auto-start daemon after `join`/`init`
+- End-to-end encryption (encrypt content with team-shared key)
+- Platform adapters: Cursor, Windsurf, CrewAI, AutoGen, LangGraph
+- Task coordination system (structured tasks for agents)
+- MCP server for mid-session reads (`teambridge:read-knowledge`, `teambridge:list-teammates`)
+- Web dashboard for team management
+- SOUL.md editing in web UI
+- Agent memory synchronization
+- Permissions and identity (agent credentials and capabilities)
+- Plugin architecture for more platforms
+- Daemon as system service (launchd / systemd)
+
+## 15. Open Questions
+
+1. How do we handle platforms that restructure their agent config format between versions?
+2. Should conflict warnings be surfaced to the user via a notification mechanism?
+3. How should task coordination work? (State machine transitions, assignment, comments)
+4. Should the daemon auto-start after `join`/`init`, or require manual `teambridge daemon`?

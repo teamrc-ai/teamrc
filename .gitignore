@@ -1,8 +1,8 @@
 # Elixir
-relay/_build/
-relay/deps/
-relay/.elixir_ls/
-relay/priv/static/assets/
+teambridge/_build/
+teambridge/deps/
+teambridge/.elixir_ls/
+teambridge/priv/static/assets/
 
 # Node
 cli/node_modules/

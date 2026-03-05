@@ -1,8 +1,29 @@
+import * as crypto from "node:crypto";
 import { createRequire } from "node:module";
+
+export function hashContent(content: string): string {
+  return crypto.createHash("sha256").update(content).digest("hex").slice(0, 16);
+}
+
+/** Validate that an agent name is safe for use in file paths */
+export function validateAgentName(name: string): void {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(name)) {
+    throw new Error(`Invalid agent name: ${JSON.stringify(name)}`);
+  }
+}
+
+/** Portable agent representation — the wire format sent to/from relay */
+export interface PortableAgent {
+  name: string;
+  role: string;
+  soul?: string;
+  teamName: string;
+}
 
 export interface TeamMember {
   name: string;
   role: string;
+  soul?: string;
 }
 
 export interface TeamDefinition {
@@ -10,13 +31,19 @@ export interface TeamDefinition {
   members: TeamMember[];
 }
 
+export type TeamScope = "project" | "global";
+
 export interface PlatformAdapter {
   readTeam(): TeamDefinition | null;
-  writeTeam(team: TeamDefinition): void;
-  readMemory(): string[];
-  writeMemory(entries: string[]): void;
+  writeTeam(team: TeamDefinition, scope?: TeamScope): void;
+  readKnowledge(): string;
+  writeKnowledge(content: string): void;
+  appendKnowledge(entries: string[]): void;
   getHashes(): Record<string, string>;
   installHooks(relay: string, token: string): void;
+  watchPaths(): string[];
+  writeFile(key: string, content: string): void;
+  readFile(key: string): string | null;
 }
 
 export function getAdapter(platform: string): PlatformAdapter {

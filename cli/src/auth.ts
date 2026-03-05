@@ -53,7 +53,7 @@ function getKeyPath(): string {
 export function saveKeypair(kp: Keypair): void {
   const dir = getKeyDir();
   if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
   const data = JSON.stringify({
     privateKey: base64UrlEncode(kp.privateKey),
