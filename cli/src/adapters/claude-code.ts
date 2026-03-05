@@ -258,50 +258,64 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     fs.writeFileSync(filePath, content);
   }
 
-  uninstallInstructions(): string[] {
-    const instructions: string[] = [];
+  uninstall(): string[] {
+    const actions: string[] = [];
     const { dir, scope } = this.resolveAgentsDir();
     const tbFiles = this.listTbFiles(dir);
 
+    // Delete agent files
+    for (const f of tbFiles) {
+      fs.unlinkSync(path.join(dir, f));
+    }
     if (tbFiles.length > 0) {
-      instructions.push(`Delete agent files:\n${tbFiles.map((f) => `  rm ${path.join(dir, f)}`).join("\n")}`);
+      actions.push(`Deleted ${tbFiles.length} agent file(s) from ${dir}`);
     }
 
-    // Team knowledge
+    // Delete team knowledge
     for (const s of ["project", "global"] as TeamScope[]) {
       const kPath = this.knowledgePath(s);
       if (fs.existsSync(kPath)) {
-        instructions.push(`Delete team knowledge:\n  rm ${kPath}`);
+        fs.unlinkSync(kPath);
+        actions.push(`Deleted ${kPath}`);
       }
     }
 
-    // CLAUDE.md section
+    // Remove TeamBridge section from CLAUDE.md
     if (scope === "project") {
       const claudeMdPath = path.join(process.cwd(), "CLAUDE.md");
       if (fs.existsSync(claudeMdPath)) {
         const content = fs.readFileSync(claudeMdPath, "utf-8");
-        if (content.includes("## TeamBridge Team:")) {
-          instructions.push(`Remove the "## TeamBridge Team: ..." section from:\n  ${claudeMdPath}`);
+        const cleaned = content.replace(
+          /\n## TeamBridge Team: .+?(?=\n## |\n# |$)/s,
+          "",
+        );
+        if (cleaned !== content) {
+          fs.writeFileSync(claudeMdPath, cleaned.trimEnd() + "\n");
+          actions.push(`Removed TeamBridge section from ${claudeMdPath}`);
         }
       }
     }
 
-    // Hook in settings.json
+    // Remove hook from settings.json
     const settingsPath = path.join(this.claudeDir, "settings.json");
     if (fs.existsSync(settingsPath)) {
-      const raw = fs.readFileSync(settingsPath, "utf-8");
-      if (raw.includes("teambridge sync")) {
-        instructions.push(`Remove the TeamBridge hook from:\n  ${settingsPath}\n  (delete the "npx teambridge sync" entry from hooks.SessionStart)`);
+      try {
+        const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
+        const hooks = (settings["hooks"] ?? {}) as Record<string, unknown>;
+        const sessionStart = (hooks["SessionStart"] ?? []) as Array<{ command: string }>;
+        const filtered = sessionStart.filter((h) => !h.command.includes("teambridge"));
+        if (filtered.length !== sessionStart.length) {
+          hooks["SessionStart"] = filtered;
+          settings["hooks"] = hooks;
+          fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+          actions.push(`Removed TeamBridge hook from ${settingsPath}`);
+        }
+      } catch {
+        // Leave settings alone if we can't parse them
       }
     }
 
-    // Config directory
-    const configDir = path.join(os.homedir(), ".teambridge");
-    if (fs.existsSync(configDir)) {
-      instructions.push(`Delete TeamBridge config:\n  rm -rf ${configDir}`);
-    }
-
-    return instructions;
+    return actions;
   }
 
   installHooks(relay: string, _token: string): void {

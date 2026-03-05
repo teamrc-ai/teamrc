@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 import * as readline from "node:readline";
 import { Command } from "commander";
 import {
@@ -492,32 +495,34 @@ program
       return;
     }
 
-    const platform = primaryPlatform(config.platform);
-    const adapter = getAdapter(platform);
+    const platforms = config.platform.split(",");
 
-    console.log("\nHow would you like to remove TeamBridge?\n");
-    console.log("  1) Break the sync — remove everything TeamBridge installed locally");
-    console.log("     (other team members keep their setup, you just disconnect)");
-    console.log("  2) Cancel");
+    console.log("\nThis will remove all TeamBridge agents, hooks, config, and team knowledge from this machine.");
+    console.log("Other team members will keep their setup — you're just disconnecting.\n");
+    const answer = await askQuestion("Continue? [y/N]: ");
 
-    const answer = await askQuestion("\nChoice [1/2]: ");
-
-    if (answer !== "1") {
+    if (answer.toLowerCase() !== "y") {
       console.log("Cancelled.");
       return;
     }
 
-    const instructions = adapter.uninstallInstructions();
-    if (instructions.length === 0) {
-      console.log("\nNothing to clean up.");
-      return;
+    // Uninstall from each platform
+    for (const p of platforms) {
+      const adapter = getAdapter(p);
+      const actions = adapter.uninstall();
+      for (const action of actions) {
+        console.log(`  ${action}`);
+      }
     }
 
-    console.log("\nTo fully remove TeamBridge, run the following:\n");
-    for (const instruction of instructions) {
-      console.log(instruction);
-      console.log();
+    // Delete ~/.teambridge/ config
+    const configDir = path.join(os.homedir(), ".teambridge");
+    if (fs.existsSync(configDir)) {
+      fs.rmSync(configDir, { recursive: true });
+      console.log(`  Deleted ${configDir}`);
     }
+
+    console.log("\nTeamBridge removed. Run `teambridge init` or `teambridge join` to set up again.");
   });
 
 program.parse();

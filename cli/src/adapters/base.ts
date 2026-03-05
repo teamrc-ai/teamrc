@@ -44,8 +44,8 @@ export interface PlatformAdapter {
   watchPaths(): string[];
   writeFile(key: string, content: string): void;
   readFile(key: string): string | null;
-  /** Return human-readable uninstall instructions listing what TeamBridge installed */
-  uninstallInstructions(): string[];
+  /** Remove everything TeamBridge installed for this platform. Returns list of actions taken. */
+  uninstall(): string[];
 }
 
 export function getAdapter(platform: string): PlatformAdapter {

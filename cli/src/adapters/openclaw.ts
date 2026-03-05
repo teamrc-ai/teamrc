@@ -400,50 +400,75 @@ export class OpenClawAdapter implements PlatformAdapter {
     }
   }
 
-  uninstallInstructions(): string[] {
-    const instructions: string[] = [];
+  uninstall(): string[] {
+    const actions: string[] = [];
 
-    // tb-* workspace directories
+    // Delete tb-* workspace directories
     const workspaces = this.listTbWorkspaces();
     if (workspaces.length > 0) {
       const wsBase = path.join(this.openclawDir, "workspaces");
-      instructions.push(`Delete agent workspaces:\n${workspaces.map((ws) => `  rm -rf ${path.join(wsBase, ws)}`).join("\n")}`);
+      for (const ws of workspaces) {
+        fs.rmSync(path.join(wsBase, ws), { recursive: true });
+      }
+      actions.push(`Deleted ${workspaces.length} agent workspace(s)`);
     }
 
-    // Team knowledge
+    // Delete team knowledge
     const kPath = this.knowledgePath();
     if (fs.existsSync(kPath)) {
-      instructions.push(`Delete team knowledge:\n  rm ${kPath}`);
+      fs.unlinkSync(kPath);
+      actions.push(`Deleted ${kPath}`);
     }
 
-    // Routing in default workspace AGENTS.md
+    // Remove routing section from AGENTS.md
     const agentsMdPath = path.join(this.openclawDir, "workspace", "AGENTS.md");
     if (fs.existsSync(agentsMdPath)) {
       const content = fs.readFileSync(agentsMdPath, "utf-8");
-      if (content.includes("<!-- teambridge:routing -->")) {
-        instructions.push(`Remove the TeamBridge routing section from:\n  ${agentsMdPath}\n  (delete everything between <!-- teambridge:routing --> and <!-- /teambridge:routing -->)`);
+      const marker = "<!-- teambridge:routing -->";
+      const markerEnd = "<!-- /teambridge:routing -->";
+      const markerRegex = new RegExp(
+        `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
+      );
+      const cleaned = content.replace(markerRegex, "\n");
+      if (cleaned !== content) {
+        fs.writeFileSync(agentsMdPath, cleaned.trimEnd() + "\n");
+        actions.push(`Removed TeamBridge routing from ${agentsMdPath}`);
       }
     }
 
-    // openclaw.json agent registrations
+    // Remove tb-* agents from openclaw.json
     const configPath = path.join(this.openclawDir, "openclaw.json");
-    if (fs.existsSync(configPath)) {
-      instructions.push(`Remove tb-* agents from:\n  ${configPath}\n  (delete tb-* entries from agents.list and subagents.allowAgents)`);
+    const config = this.readOpenClawConfig(configPath);
+    if (config) {
+      const agents = (config["agents"] ?? {}) as Record<string, unknown>;
+      const list = (agents["list"] ?? []) as Array<Record<string, unknown>>;
+      const filtered = list.filter((a) => !String(a["id"] ?? "").startsWith("tb-"));
+      if (filtered.length !== list.length) {
+        agents["list"] = filtered;
+        // Also clean allowAgents on remaining agents
+        for (const agent of filtered) {
+          const subagents = (agent["subagents"] ?? {}) as Record<string, unknown>;
+          const allow = (subagents["allowAgents"] ?? []) as string[];
+          const cleanedAllow = allow.filter((id) => !id.startsWith("tb-"));
+          if (cleanedAllow.length !== allow.length) {
+            subagents["allowAgents"] = cleanedAllow;
+            agent["subagents"] = subagents;
+          }
+        }
+        config["agents"] = agents;
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        actions.push(`Removed tb-* agents from ${configPath}`);
+      }
     }
 
-    // Hook
+    // Delete sync hook
     const hookDir = path.join(this.openclawDir, "hooks", "teambridge-sync");
     if (fs.existsSync(hookDir)) {
-      instructions.push(`Delete sync hook:\n  rm -rf ${hookDir}`);
+      fs.rmSync(hookDir, { recursive: true });
+      actions.push(`Deleted sync hook`);
     }
 
-    // Config directory
-    const configDir = path.join(os.homedir(), ".teambridge");
-    if (fs.existsSync(configDir)) {
-      instructions.push(`Delete TeamBridge config:\n  rm -rf ${configDir}`);
-    }
-
-    return instructions;
+    return actions;
   }
 
   installHooks(_relay: string, _token: string): void {
