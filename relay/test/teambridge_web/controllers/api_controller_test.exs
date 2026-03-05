@@ -106,4 +106,81 @@ defmodule TeambridgeWeb.ApiControllerTest do
       assert length(body["entries"]) == 1
     end
   end
+
+  describe "POST /api/sync edge cases" do
+    test "sync with new token still works", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/sync", %{
+          "token" => "tb_ak_new_team_#{:erlang.unique_integer([:positive])}",
+          "platform" => "claude-code",
+          "hashes" => %{"file.md" => "abc123"}
+        })
+
+      resp = json_response(conn, 200)
+      assert is_map(resp["changes"])
+    end
+  end
+
+  describe "push and pull round-trip" do
+    test "push and pull round-trip preserves data", %{conn: conn} do
+      token = "tb_ak_roundtrip_#{:erlang.unique_integer([:positive])}"
+      Teambridge.Teams.put_team(token, %{"name" => "test", "members" => []})
+
+      # Push from platform A
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/push", %{
+        "token" => token,
+        "platform" => "claude-code",
+        "entry" => %{
+          "type" => "memory",
+          "content" => "important finding",
+          "timestamp" => DateTime.utc_now() |> DateTime.to_iso8601()
+        }
+      })
+
+      # Pull from platform B
+      conn2 =
+        build_conn()
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/pull", %{"token" => token, "platform" => "openclaw"})
+
+      resp = json_response(conn2, 200)
+      assert length(resp["entries"]) == 1
+      assert hd(resp["entries"])["content"] == "important finding"
+
+      # Pull again from B — should be empty (already delivered)
+      conn3 =
+        build_conn()
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/pull", %{"token" => token, "platform" => "openclaw"})
+
+      resp2 = json_response(conn3, 200)
+      assert resp2["entries"] == []
+    end
+
+    test "push from platform A is not visible to platform A", %{conn: conn} do
+      token = "tb_ak_self_filter_#{:erlang.unique_integer([:positive])}"
+      Teambridge.Teams.put_team(token, %{"name" => "test", "members" => []})
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/push", %{
+        "token" => token,
+        "platform" => "claude-code",
+        "entry" => %{"type" => "memory", "content" => "my own note"}
+      })
+
+      # Pull from same platform — should NOT see own entry
+      conn2 =
+        build_conn()
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/pull", %{"token" => token, "platform" => "claude-code"})
+
+      resp = json_response(conn2, 200)
+      assert resp["entries"] == []
+    end
+  end
 end

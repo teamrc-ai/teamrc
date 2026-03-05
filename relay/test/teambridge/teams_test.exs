@@ -118,4 +118,47 @@ defmodule Teambridge.TeamsTest do
       assert length(entries) == 1
     end
   end
+
+  describe "multi-platform buffer" do
+    test "multiple platforms can push and pull independently", %{pid: pid} do
+      Teams.put_team(pid, "tb_ak_multi", %{"name" => "test", "members" => []})
+
+      # Push from 3 different platforms
+      Teams.push_buffer(pid, "tb_ak_multi", %{"content" => "from-a", "source_platform" => "a"})
+      Teams.push_buffer(pid, "tb_ak_multi", %{"content" => "from-b", "source_platform" => "b"})
+      Teams.push_buffer(pid, "tb_ak_multi", %{"content" => "from-c", "source_platform" => "c"})
+
+      # Platform A should see entries from B and C only
+      {:ok, a_entries} = Teams.pull_buffer(pid, "tb_ak_multi", "a")
+      assert length(a_entries) == 2
+      contents = Enum.map(a_entries, & &1["content"])
+      assert "from-b" in contents
+      assert "from-c" in contents
+      refute "from-a" in contents
+    end
+  end
+
+  describe "hash changes across platforms" do
+    test "get_changes returns hashes from other platforms only", %{pid: pid} do
+      Teams.put_team(pid, "tb_ak_new", %{"name" => "test", "members" => []})
+      Teams.put_hashes(pid, "tb_ak_new", "openclaw", %{"new-file.md" => "hash1"})
+
+      # claude-code has no files
+      Teams.put_hashes(pid, "tb_ak_new", "claude-code", %{})
+      {:ok, changes} = Teams.get_changes(pid, "tb_ak_new", "claude-code")
+      # changes should contain the openclaw hashes but not claude-code's own
+      assert changes == %{"openclaw" => %{"new-file.md" => "hash1"}}
+      refute Map.has_key?(changes, "claude-code")
+    end
+  end
+
+  describe "put_team overwrite" do
+    test "put_team overwrites existing team", %{pid: pid} do
+      Teams.put_team(pid, "tb_ak_overwrite", %{"name" => "v1", "members" => []})
+      Teams.put_team(pid, "tb_ak_overwrite", %{"name" => "v2", "members" => [%{"name" => "new"}]})
+      {:ok, team} = Teams.get_team(pid, "tb_ak_overwrite")
+      assert team["name"] == "v2"
+      assert length(team["members"]) == 1
+    end
+  end
 end

@@ -52,5 +52,22 @@ defmodule Teambridge.AuthTest do
     test "returns error for wrong prefix" do
       assert {:error, :invalid_token} = Auth.from_token("wrong_" <> Base.url_encode64(<<1, 2, 3>>, padding: false))
     end
+
+    test "returns error for invalid base64 in token" do
+      assert {:error, :invalid_token} = Auth.from_token("tb_ak_!!!invalid!!!")
+    end
+  end
+
+  describe "verify edge cases" do
+    test "verify with wrong message returns false", %{pub: pub, priv: priv} do
+      signature = :crypto.sign(:eddsa, :none, "correct message", [priv, :ed25519])
+      assert Auth.verify(pub, "wrong message", signature) == false
+    end
+
+    test "verify with wrong key returns false", %{priv: priv} do
+      {pub2, _priv2} = :crypto.generate_key(:eddsa, :ed25519)
+      signature = :crypto.sign(:eddsa, :none, "test", [priv, :ed25519])
+      assert Auth.verify(pub2, "test", signature) == false
+    end
   end
 end
