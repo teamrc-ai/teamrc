@@ -1,5 +1,5 @@
 import * as crypto from "node:crypto";
-import type { SyncChange } from "./relay-client.js";
+import type { SyncChange } from "./client.js";
 
 function hashLine(line: string): string {
   return crypto.createHash("sha256").update(line).digest("hex").slice(0, 16);
