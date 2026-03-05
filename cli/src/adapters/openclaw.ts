@@ -400,6 +400,52 @@ export class OpenClawAdapter implements PlatformAdapter {
     }
   }
 
+  uninstallInstructions(): string[] {
+    const instructions: string[] = [];
+
+    // tb-* workspace directories
+    const workspaces = this.listTbWorkspaces();
+    if (workspaces.length > 0) {
+      const wsBase = path.join(this.openclawDir, "workspaces");
+      instructions.push(`Delete agent workspaces:\n${workspaces.map((ws) => `  rm -rf ${path.join(wsBase, ws)}`).join("\n")}`);
+    }
+
+    // Team knowledge
+    const kPath = this.knowledgePath();
+    if (fs.existsSync(kPath)) {
+      instructions.push(`Delete team knowledge:\n  rm ${kPath}`);
+    }
+
+    // Routing in default workspace AGENTS.md
+    const agentsMdPath = path.join(this.openclawDir, "workspace", "AGENTS.md");
+    if (fs.existsSync(agentsMdPath)) {
+      const content = fs.readFileSync(agentsMdPath, "utf-8");
+      if (content.includes("<!-- teambridge:routing -->")) {
+        instructions.push(`Remove the TeamBridge routing section from:\n  ${agentsMdPath}\n  (delete everything between <!-- teambridge:routing --> and <!-- /teambridge:routing -->)`);
+      }
+    }
+
+    // openclaw.json agent registrations
+    const configPath = path.join(this.openclawDir, "openclaw.json");
+    if (fs.existsSync(configPath)) {
+      instructions.push(`Remove tb-* agents from:\n  ${configPath}\n  (delete tb-* entries from agents.list and subagents.allowAgents)`);
+    }
+
+    // Hook
+    const hookDir = path.join(this.openclawDir, "hooks", "teambridge-sync");
+    if (fs.existsSync(hookDir)) {
+      instructions.push(`Delete sync hook:\n  rm -rf ${hookDir}`);
+    }
+
+    // Config directory
+    const configDir = path.join(os.homedir(), ".teambridge");
+    if (fs.existsSync(configDir)) {
+      instructions.push(`Delete TeamBridge config:\n  rm -rf ${configDir}`);
+    }
+
+    return instructions;
+  }
+
   installHooks(_relay: string, _token: string): void {
     const hookDir = path.join(
       this.openclawDir,

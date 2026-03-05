@@ -481,4 +481,43 @@ program
     process.on("SIGTERM", shutdown);
   });
 
+// --- delete ---
+program
+  .command("delete")
+  .description("Remove TeamBridge from this machine")
+  .action(async () => {
+    const config = loadConfig();
+    if (!config) {
+      console.log("TeamBridge is not initialized. Nothing to remove.");
+      return;
+    }
+
+    const platform = primaryPlatform(config.platform);
+    const adapter = getAdapter(platform);
+
+    console.log("\nHow would you like to remove TeamBridge?\n");
+    console.log("  1) Break the sync — remove everything TeamBridge installed locally");
+    console.log("     (other team members keep their setup, you just disconnect)");
+    console.log("  2) Cancel");
+
+    const answer = await askQuestion("\nChoice [1/2]: ");
+
+    if (answer !== "1") {
+      console.log("Cancelled.");
+      return;
+    }
+
+    const instructions = adapter.uninstallInstructions();
+    if (instructions.length === 0) {
+      console.log("\nNothing to clean up.");
+      return;
+    }
+
+    console.log("\nTo fully remove TeamBridge, run the following:\n");
+    for (const instruction of instructions) {
+      console.log(instruction);
+      console.log();
+    }
+  });
+
 program.parse();
