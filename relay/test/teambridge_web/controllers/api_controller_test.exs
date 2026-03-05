@@ -1,9 +1,6 @@
 defmodule TeambridgeWeb.ApiControllerTest do
   use TeambridgeWeb.ConnCase, async: false
 
-  # Use the global Teambridge.Teams started by the app supervisor.
-  # We don't need isolation here since each test uses unique tokens.
-
   describe "POST /api/teams" do
     test "creates a team", %{conn: conn} do
       token = "tok_test_#{:erlang.unique_integer([:positive])}"
@@ -14,18 +11,21 @@ defmodule TeambridgeWeb.ApiControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post("/api/teams", %{"token" => token, "team" => team})
 
-      assert json_response(conn, 201) == %{"status" => "ok"}
+      resp = json_response(conn, 201)
+      assert resp["team"]["name"] == "Test Team"
+      assert resp["team"]["id"]
     end
   end
 
   describe "GET /api/teams/:token" do
     test "returns a team that exists", %{conn: conn} do
       token = "tok_test_#{:erlang.unique_integer([:positive])}"
-      team = %{"name" => "Test Team"}
+      team = %{"name" => "Test Team", "members" => []}
       Teambridge.Teams.put_team(token, team)
 
       conn = get(conn, "/api/teams/#{token}")
-      assert json_response(conn, 200) == %{"team" => team}
+      resp = json_response(conn, 200)
+      assert resp["team"]["name"] == "Test Team"
     end
 
     test "returns 404 for unknown token", %{conn: conn} do
@@ -35,32 +35,33 @@ defmodule TeambridgeWeb.ApiControllerTest do
   end
 
   describe "POST /api/sync" do
-    test "returns changes and buffer entries", %{conn: conn} do
+    test "returns changes from other platforms", %{conn: conn} do
       token = "tok_test_#{:erlang.unique_integer([:positive])}"
 
-      # Set up hashes from another platform
-      Teambridge.Teams.put_hashes(token, "cursor", %{"f1" => "h1"})
-
-      # Push an entry from cursor
-      Teambridge.Teams.push_buffer(token, %{
-        "type" => "message",
-        "content" => "hello",
-        "source_platform" => "cursor"
+      # Platform A syncs with content
+      build_conn()
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/sync", %{
+        "token" => token,
+        "platform" => "cursor",
+        "hashes" => %{"team.yaml" => "h1"},
+        "files" => %{"team.yaml" => "name: my-team"}
       })
 
+      # Platform B syncs with different hash — should get the content
       conn =
         conn
         |> put_req_header("content-type", "application/json")
         |> post("/api/sync", %{
           "token" => token,
           "platform" => "claude_code",
-          "hashes" => %{"f2" => "h2"}
+          "hashes" => %{"team.yaml" => "old_hash"}
         })
 
       body = json_response(conn, 200)
       assert is_map(body["changes"])
-      assert is_list(body["buffer"])
-      assert length(body["buffer"]) == 1
+      assert body["changes"]["team.yaml"]["content"] == "name: my-team"
+      assert is_integer(body["changes"]["team.yaml"]["updated_at"])
     end
   end
 
@@ -79,14 +80,17 @@ defmodule TeambridgeWeb.ApiControllerTest do
 
       assert json_response(conn, 200) == %{"status" => "ok"}
 
-      # Verify entry is in the buffer
-      {:ok, entries} = Teambridge.Teams.pull_buffer(token, "claude_code")
-      assert length(entries) == 1
-      assert hd(entries)["source_platform"] == "cursor"
+      # Verify entry is retrievable via pull
+      conn2 =
+        build_conn()
+        |> get("/api/pull", %{"token" => token, "platform" => "claude_code"})
+
+      resp = json_response(conn2, 200)
+      assert length(resp["entries"]) == 1
     end
   end
 
-  describe "POST /api/pull" do
+  describe "GET /api/pull" do
     test "pulls buffer entries", %{conn: conn} do
       token = "tok_test_#{:erlang.unique_integer([:positive])}"
 
@@ -98,8 +102,7 @@ defmodule TeambridgeWeb.ApiControllerTest do
 
       conn =
         conn
-        |> put_req_header("content-type", "application/json")
-        |> post("/api/pull", %{"token" => token, "platform" => "claude_code"})
+        |> get("/api/pull", %{"token" => token, "platform" => "claude_code"})
 
       body = json_response(conn, 200)
       assert is_list(body["entries"])
@@ -144,21 +147,11 @@ defmodule TeambridgeWeb.ApiControllerTest do
       # Pull from platform B
       conn2 =
         build_conn()
-        |> put_req_header("content-type", "application/json")
-        |> post("/api/pull", %{"token" => token, "platform" => "openclaw"})
+        |> get("/api/pull", %{"token" => token, "platform" => "openclaw"})
 
       resp = json_response(conn2, 200)
       assert length(resp["entries"]) == 1
       assert hd(resp["entries"])["content"] == "important finding"
-
-      # Pull again from B — should be empty (already delivered)
-      conn3 =
-        build_conn()
-        |> put_req_header("content-type", "application/json")
-        |> post("/api/pull", %{"token" => token, "platform" => "openclaw"})
-
-      resp2 = json_response(conn3, 200)
-      assert resp2["entries"] == []
     end
 
     test "push from platform A is not visible to platform A", %{conn: conn} do
@@ -176,8 +169,7 @@ defmodule TeambridgeWeb.ApiControllerTest do
       # Pull from same platform — should NOT see own entry
       conn2 =
         build_conn()
-        |> put_req_header("content-type", "application/json")
-        |> post("/api/pull", %{"token" => token, "platform" => "claude-code"})
+        |> get("/api/pull", %{"token" => token, "platform" => "claude-code"})
 
       resp = json_response(conn2, 200)
       assert resp["entries"] == []

@@ -9,6 +9,7 @@ defmodule Teambridge.Application do
   def start(_type, _args) do
     children = [
       TeambridgeWeb.Telemetry,
+      Teambridge.Repo,
       {DNSCluster, query: Application.get_env(:relay, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Teambridge.PubSub},
       {Teambridge.Teams, name: Teambridge.Teams},

@@ -12,7 +12,9 @@ defmodule TeambridgeWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug TeambridgeWeb.Plugs.CORS
     plug TeambridgeWeb.Plugs.VerifySignature
+    plug TeambridgeWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
   end
 
   scope "/", TeambridgeWeb do
@@ -24,10 +26,12 @@ defmodule TeambridgeWeb.Router do
   scope "/api", TeambridgeWeb do
     pipe_through :api
 
+    post "/join", ApiController, :join_team
     post "/teams", ApiController, :create_team
     get "/teams/:token", ApiController, :get_team
     post "/sync", ApiController, :sync
+    get "/sync/check", ApiController, :sync_check
     post "/push", ApiController, :push
-    post "/pull", ApiController, :pull
+    get "/pull", ApiController, :pull
   end
 end

@@ -7,12 +7,13 @@
 # General application configuration
 import Config
 
-config :relay,
+config :teambridge,
   namespace: Teambridge,
+  ecto_repos: [Teambridge.Repo],
   generators: [timestamp_type: :utc_datetime]
 
 # Configure the endpoint
-config :relay, TeambridgeWeb.Endpoint,
+config :teambridge, TeambridgeWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
@@ -25,7 +26,7 @@ config :relay, TeambridgeWeb.Endpoint,
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.25.4",
-  relay: [
+  teambridge: [
     args:
       ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js --external:/fonts/* --external:/images/* --alias:@=.),
     cd: Path.expand("../assets", __DIR__),
@@ -35,7 +36,7 @@ config :esbuild,
 # Configure tailwind (the version is required)
 config :tailwind,
   version: "4.1.12",
-  relay: [
+  teambridge: [
     args: ~w(
       --input=assets/css/app.css
       --output=priv/static/assets/css/app.css

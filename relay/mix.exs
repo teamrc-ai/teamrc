@@ -3,7 +3,7 @@ defmodule Teambridge.MixProject do
 
   def project do
     [
-      app: :relay,
+      app: :teambridge,
       version: "0.1.0",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -58,6 +58,8 @@ defmodule Teambridge.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
+      {:ecto_sql, "~> 3.12"},
+      {:postgrex, ">= 0.0.0"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"}
     ]
@@ -71,12 +73,14 @@ defmodule Teambridge.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      setup: ["deps.get", "assets.setup", "assets.build"],
+      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
+      "ecto.setup": ["ecto.create", "ecto.migrate"],
+      "ecto.reset": ["ecto.drop", "ecto.setup"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["compile", "tailwind relay", "esbuild relay"],
+      "assets.build": ["compile", "tailwind teambridge", "esbuild teambridge"],
       "assets.deploy": [
-        "tailwind relay --minify",
-        "esbuild relay --minify",
+        "tailwind teambridge --minify",
+        "esbuild teambridge --minify",
         "phx.digest"
       ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
