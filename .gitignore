@@ -1,0 +1,15 @@
+# Elixir
+relay/_build/
+relay/deps/
+relay/.elixir_ls/
+relay/priv/static/assets/
+
+# Node
+cli/node_modules/
+cli/dist/
+
+# TeamBridge
+.teambridge/
+
+# OS
+.DS_Store
