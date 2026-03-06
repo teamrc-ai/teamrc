@@ -6,6 +6,8 @@ defmodule Teambridge.Schema.Team do
 
   schema "teams" do
     field :name, :string
+    field :rules, {:array, :map}, default: []
+    field :skills, {:array, :map}, default: []
     has_many :members, Teambridge.Schema.Member
     has_many :invites, Teambridge.Schema.Invite
 
@@ -14,7 +16,7 @@ defmodule Teambridge.Schema.Team do
 
   def changeset(team, attrs) do
     team
-    |> cast(attrs, [:name])
+    |> cast(attrs, [:name, :rules, :skills])
     |> validate_required([:name])
     |> validate_length(:name, max: 64)
     |> validate_format(:name, ~r/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/)

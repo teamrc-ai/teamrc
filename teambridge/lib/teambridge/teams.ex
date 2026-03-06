@@ -356,12 +356,12 @@ defmodule Teambridge.Teams do
     Repo.transaction(fn ->
       {:ok, team} =
         %Team{}
-        |> Team.changeset(%{name: team_data.name})
+        |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills})
         |> Repo.insert()
 
       for m <- team_data.members do
         %Member{team_id: team.id}
-        |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul]})
+        |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], rules: m.rules, skills: m.skills})
         |> Repo.insert!()
       end
 
@@ -372,20 +372,21 @@ defmodule Teambridge.Teams do
   defp update_team_in_db(team_id, team_data) do
     team = Repo.get!(Team, team_id)
 
-    team
-    |> Team.changeset(%{name: team_data.name})
-    |> Repo.update!()
+    team =
+      team
+      |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills})
+      |> Repo.update!()
 
     # Replace members
     from(m in Member, where: m.team_id == ^team_id) |> Repo.delete_all()
 
     for m <- team_data.members do
       %Member{team_id: team_id}
-      |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul]})
+      |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], rules: m.rules, skills: m.skills})
       |> Repo.insert!()
     end
 
-    Repo.get!(Team, team_id) |> Repo.preload(:members)
+    Repo.preload(team, :members, force: true)
   end
 
   defp normalize_team(attrs) when is_map(attrs) do
@@ -395,12 +396,43 @@ defmodule Teambridge.Teams do
         %{
           name: m["name"] || m[:name] || "",
           role: m["role"] || m[:role] || "",
-          soul: m["soul"] || m[:soul]
+          soul: m["soul"] || m[:soul],
+          rules: m["rules"] || m[:rules] || [],
+          skills: m["skills"] || m[:skills] || []
         }
       end)
 
-    %{name: attrs["name"] || attrs[:name] || "", members: members}
+    rules =
+      (attrs["rules"] || attrs[:rules] || [])
+      |> Enum.map(fn r ->
+        %{
+          "id" => r["id"] || r[:id] || "",
+          "title" => r["title"] || r[:title],
+          "body" => r["body"] || r[:body] || ""
+        }
+        |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+        |> Map.new()
+      end)
+
+    skills =
+      (attrs["skills"] || attrs[:skills] || [])
+      |> Enum.map(fn s ->
+        %{
+          "id" => s["id"] || s[:id] || "",
+          "title" => s["title"] || s[:title],
+          "description" => s["description"] || s[:description],
+          "body" => s["body"] || s[:body]
+        }
+        |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+        |> Map.new()
+      end)
+
+    %{name: attrs["name"] || attrs[:name] || "", members: members, rules: rules, skills: skills}
   end
+
+  defp put_if_present(map, _key, nil), do: map
+  defp put_if_present(map, _key, []), do: map
+  defp put_if_present(map, key, val), do: Map.put(map, key, val)
 
   defp team_to_map(%Team{} = team) do
     %{
@@ -408,9 +440,13 @@ defmodule Teambridge.Teams do
       "name" => team.name,
       "members" =>
         Enum.map(team.members, fn m ->
-          member = %{"name" => m.name, "role" => m.role}
-          if m.soul, do: Map.put(member, "soul", m.soul), else: member
+          %{"name" => m.name, "role" => m.role}
+          |> put_if_present("soul", m.soul)
+          |> put_if_present("rules", m.rules)
+          |> put_if_present("skills", m.skills)
         end)
     }
+    |> put_if_present("rules", team.rules)
+    |> put_if_present("skills", team.skills)
   end
 end

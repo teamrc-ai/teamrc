@@ -11,7 +11,7 @@ import {
   loadKeypair,
   toToken,
 } from "./auth.js";
-import { TeamBridgeClient } from "./client.js";
+import { TeamBridgeClient, remoteTeamToDefinition } from "./client.js";
 import {
   loadConfig,
   saveConfig,
@@ -239,6 +239,8 @@ program
       const joinedTeam = await client.joinByInvite(joinToken);
       console.log(`Joined team: ${joinedTeam.name}`);
 
+      const teamDef = remoteTeamToDefinition(joinedTeam);
+
       // Apply to each platform's native format
       for (const p of platforms) {
         console.log(`Setting up ${p}...`);
@@ -246,25 +248,13 @@ program
         const scope: TeamScope = opts.scope === "project" || opts.scope === "global"
           ? opts.scope
           : await askScope(p);
-        adapter.writeTeam({
-          name: joinedTeam.name,
-          members: joinedTeam.members.map((m) => ({
-            name: m.name,
-            role: m.role,
-          })),
-        }, scope);
+        adapter.writeTeam(teamDef, scope);
         adapter.installHooks(relayUrl, token);
         console.log(`  ${p} configured.`);
       }
 
       // Write canonical YAML
-      writeTeamYaml("agent-team.yaml", {
-        name: joinedTeam.name,
-        members: joinedTeam.members.map((m) => ({
-          name: m.name,
-          role: m.role,
-        })),
-      });
+      writeTeamYaml("agent-team.yaml", teamDef);
       console.log("Wrote agent-team.yaml.");
 
       saveConfig({
@@ -518,13 +508,7 @@ program
     try {
       const remoteTeam = await client.getTeam(config.token);
       validateTeamName(remoteTeam.name);
-      const team: TeamDefinition = {
-        name: remoteTeam.name,
-        members: remoteTeam.members.map((m) => ({
-          name: m.name,
-          role: m.role,
-        })),
-      };
+      const team = remoteTeamToDefinition(remoteTeam);
       writeTeamYaml("agent-team.yaml", team);
       console.log(`Exported "${team.name}" (${team.members.length} agents) to agent-team.yaml.`);
     } catch (err) {
@@ -547,13 +531,7 @@ program
     try {
       const remoteTeam = await client.getTeam(config.token);
       validateTeamName(remoteTeam.name);
-      const team: TeamDefinition = {
-        name: remoteTeam.name,
-        members: remoteTeam.members.map((m) => ({
-          name: m.name,
-          role: m.role,
-        })),
-      };
+      const team = remoteTeamToDefinition(remoteTeam);
 
       // Write YAML
       writeTeamYaml("agent-team.yaml", team);

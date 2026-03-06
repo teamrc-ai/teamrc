@@ -1,10 +1,27 @@
 import { signMessage } from "./auth.js";
+import type { Rule, Skill, TeamDefinition } from "./adapters/base.js";
 
 export interface TeamBridgeTeam {
   id: string;
   name: string;
-  members: Array<{ name: string; role: string; platform: string }>;
+  members: Array<{ name: string; role: string; platform?: string; rules?: string[]; skills?: string[] }>;
+  rules?: Rule[];
+  skills?: Skill[];
   created_at?: string;
+}
+
+export function remoteTeamToDefinition(team: TeamBridgeTeam): TeamDefinition {
+  return {
+    name: team.name,
+    members: team.members.map((m) => ({
+      name: m.name,
+      role: m.role,
+      ...(m.rules?.length ? { rules: m.rules } : {}),
+      ...(m.skills?.length ? { skills: m.skills } : {}),
+    })),
+    ...(team.rules?.length ? { rules: team.rules } : {}),
+    ...(team.skills?.length ? { skills: team.skills } : {}),
+  };
 }
 
 export interface SyncChange {

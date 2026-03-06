@@ -305,7 +305,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
         const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
         const hooks = (settings["hooks"] ?? {}) as Record<string, unknown>;
         const sessionStart = (hooks["SessionStart"] ?? []) as Array<{
-          matcher: Record<string, unknown>;
+          matcher?: string;
           hooks: Array<{ type: string; command: string }>;
         }>;
         const filtered = sessionStart.filter(
@@ -341,7 +341,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
 
     const hooks = (settings["hooks"] ?? {}) as Record<string, unknown>;
     const sessionStart = (hooks["SessionStart"] ?? []) as Array<{
-      matcher: Record<string, unknown>;
+      matcher?: string;
       hooks: Array<{ type: string; command: string }>;
     }>;
 
@@ -352,7 +352,6 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
 
     if (!alreadyInstalled) {
       sessionStart.push({
-        matcher: {},
         hooks: [{ type: "command", command: hookCommand }],
       });
     }

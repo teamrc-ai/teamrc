@@ -174,14 +174,21 @@ defmodule TeambridgeWeb.ApiController do
   end
   defp validate_files(_), do: :ok
 
+  defp put_if_present(map, _key, nil), do: map
+  defp put_if_present(map, key, val), do: Map.put(map, key, val)
+
   defp sanitize_team(team) do
     members =
       (team["members"] || [])
       |> Enum.map(fn m ->
         %{"name" => to_string(m["name"] || ""), "role" => to_string(m["role"] || "")}
+        |> put_if_present("rules", m["rules"])
+        |> put_if_present("skills", m["skills"])
       end)
 
     %{"name" => team["name"], "members" => members}
+    |> put_if_present("rules", team["rules"])
+    |> put_if_present("skills", team["skills"])
   end
 
   defp validate_entry_size(entry) do

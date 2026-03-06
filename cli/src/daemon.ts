@@ -4,6 +4,7 @@ import { watch } from "chokidar";
 import { hashContent, validateAgentName, type PlatformAdapter } from "./adapters/base.js";
 import type { TeamBridgeClient, SyncChange } from "./client.js";
 import { resolveChange } from "./merge.js";
+import { readTeamYaml } from "./team-yaml.js";
 
 const POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_CONTENT_SIZE = 1024 * 1024; // 1 MB per file
@@ -33,6 +34,8 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   const localModTimes = new Map<string, number>();
 
   let stopped = false;
+  let syncing = false;
+  let syncQueued = false;
 
   function log(msg: string): void {
     const ts = new Date().toISOString().slice(11, 19);
@@ -54,8 +57,26 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
     }
   }
 
-  // Push local changes to relay
+  // Push local changes to relay (with mutex to prevent overlapping syncs)
   async function pushChanges(): Promise<void> {
+    if (syncing) {
+      syncQueued = true;
+      return;
+    }
+    syncing = true;
+
+    try {
+      await doPushChanges();
+    } finally {
+      syncing = false;
+      if (syncQueued) {
+        syncQueued = false;
+        void pushChanges();
+      }
+    }
+  }
+
+  async function doPushChanges(): Promise<void> {
     const currentHashes = adapter.getHashes();
     const changedFiles: Record<string, string> = {};
     const now = Math.floor(Date.now() / 1000);
@@ -125,6 +146,7 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       adapter.writeFile(key, result.content);
       const hash = hashContent(result.content);
       selfWrittenHashes.add(hash);
+      lastHashes[key] = hash;
 
       // Update local mod time to match remote after accepting
       if (result.action === "accept-remote") {
@@ -134,8 +156,6 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
         localModTimes.set(key, Math.floor(Date.now() / 1000));
       }
     }
-    // Update lastHashes to include newly written files
-    lastHashes = adapter.getHashes();
   }
 
   // Poll relay for remote changes
@@ -163,16 +183,34 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   }
 
   // File watcher — only watch paths that exist (or whose parent dir exists)
-  const watchPaths = adapter.watchPaths().filter((p) =>
+  const yamlPath = path.resolve("agent-team.yaml");
+  const adapterPaths = adapter.watchPaths().filter((p) =>
     fs.existsSync(p) || fs.existsSync(path.dirname(p)),
   );
+  const watchPaths = [...adapterPaths, yamlPath];
 
   const watcher = watch(watchPaths, {
     ignoreInitial: true,
     awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
   });
 
+  async function handleYamlChange(): Promise<void> {
+    const team = readTeamYaml(yamlPath);
+    if (!team) return;
+
+    log("agent-team.yaml changed. Applying to platform...");
+    adapter.writeTeam(team);
+
+    // Push changes to relay
+    void pushChanges();
+  }
+
   watcher.on("change", (filePath: string) => {
+    if (path.resolve(filePath) === yamlPath) {
+      void handleYamlChange();
+      return;
+    }
+
     const file = readAndHash(filePath);
     if (!file) return;
 
@@ -187,6 +225,11 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   });
 
   watcher.on("add", (filePath: string) => {
+    if (path.resolve(filePath) === yamlPath) {
+      void handleYamlChange();
+      return;
+    }
+
     log(`File added: ${filePath}`);
     void pushChanges();
   });
