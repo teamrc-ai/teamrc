@@ -10,6 +10,7 @@ defmodule Teambridge.Schema.Team do
     field :skills, {:array, :map}, default: []
     has_many :members, Teambridge.Schema.Member
     has_many :invites, Teambridge.Schema.Invite
+    belongs_to :owner_account, Teambridge.Schema.Account, type: :binary_id, foreign_key: :owner_account_id
 
     timestamps(type: :utc_datetime)
   end
@@ -18,7 +19,7 @@ defmodule Teambridge.Schema.Team do
 
   def changeset(team, attrs) do
     team
-    |> cast(attrs, [:name, :rules, :skills])
+    |> cast(attrs, [:name, :rules, :skills, :owner_account_id])
     |> validate_required([:name])
     |> validate_length(:name, max: 64)
     |> validate_format(:name, ~r/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/)

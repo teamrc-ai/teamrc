@@ -7,12 +7,18 @@ defmodule Teambridge.Application do
 
   @impl true
   def start(_type, _args) do
+    # Create ETS table for JWKS caching before endpoint starts
+    if :ets.whereis(:clerk_jwks_cache) == :undefined do
+      :ets.new(:clerk_jwks_cache, [:named_table, :set, :public])
+    end
+
     children = [
       TeambridgeWeb.Telemetry,
       Teambridge.Repo,
       {DNSCluster, query: Application.get_env(:relay, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Teambridge.PubSub},
       {Teambridge.Teams, name: Teambridge.Teams},
+      {Teambridge.DeviceAuth, name: Teambridge.DeviceAuth},
       # Start to serve requests, typically the last entry
       TeambridgeWeb.Endpoint
     ]

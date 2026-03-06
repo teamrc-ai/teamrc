@@ -169,6 +169,46 @@ export class TeamBridgeClient {
     }
   }
 
+  async createDeviceAuth(): Promise<{
+    device_code: string;
+    user_code: string;
+    verification_url: string;
+    expires_in: number;
+    interval: number;
+  }> {
+    const body = JSON.stringify({ token: this.token });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/auth/device`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (!res.ok) {
+      throw new Error(`createDeviceAuth failed: ${res.status} ${await res.text()}`);
+    }
+    return (await res.json()) as {
+      device_code: string;
+      user_code: string;
+      verification_url: string;
+      expires_in: number;
+      interval: number;
+    };
+  }
+
+  async pollDeviceAuth(deviceCode: string): Promise<{
+    status: "pending" | "confirmed";
+    email?: string;
+    machine_count?: number;
+    team_count?: number;
+  }> {
+    return this.signedGet<{
+      status: "pending" | "confirmed";
+      email?: string;
+      machine_count?: number;
+      team_count?: number;
+    }>(`/api/auth/device/${encodeURIComponent(deviceCode)}`);
+  }
+
   async pull(
     platform: string,
   ): Promise<Array<{ key: string; value: string; author: string }>> {

@@ -4,6 +4,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import * as readline from "node:readline";
+import { execFileSync } from "node:child_process";
 import { Command } from "commander";
 import {
   generateKeypair,
@@ -136,6 +137,65 @@ function requireClient(): ConnectedContext {
   };
 }
 
+async function deviceAuthFlow(client: TeamBridgeClient, machineName: string): Promise<boolean> {
+  let deviceAuth;
+  try {
+    deviceAuth = await client.createDeviceAuth();
+  } catch (err) {
+    console.error("Failed to start device auth:", err);
+    return false;
+  }
+
+  console.log(`\n  Open in browser: ${deviceAuth.verification_url}`);
+  console.log(`  Enter code: ${deviceAuth.user_code}\n`);
+
+  // Try to open browser automatically
+  try {
+    const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
+    execFileSync(openCmd, [deviceAuth.verification_url], { stdio: "ignore" });
+  } catch {
+    // Ignore — user can open manually
+  }
+
+  console.log("  Waiting for confirmation... (press Ctrl+C to cancel)\n");
+
+  const startTime = Date.now();
+  const timeoutMs = deviceAuth.expires_in * 1000;
+  const intervalMs = deviceAuth.interval * 1000;
+
+  while (Date.now() - startTime < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+
+    try {
+      const result = await client.pollDeviceAuth(deviceAuth.device_code);
+      if (result.status === "confirmed") {
+        console.log(`  Signed in as ${result.email}`);
+        console.log(`  Machine "${machineName}" linked.`);
+        console.log(`  ${result.team_count ?? 0} team(s) across ${result.machine_count ?? 0} machine(s).`);
+
+        // Save account info to config
+        const config = loadConfig();
+        if (config) {
+          saveConfig({
+            ...config,
+            machineName,
+            account: {
+              email: result.email!,
+            },
+          });
+        }
+        return true;
+      }
+    } catch (err) {
+      console.error("Polling error:", err);
+      return false;
+    }
+  }
+
+  console.error("Device authorization timed out. Please try again.");
+  return false;
+}
+
 const program = new Command();
 
 program
@@ -210,6 +270,15 @@ program
       });
       console.log("Configuration saved.");
       console.log(`\nShare this token to invite others: ${token}`);
+
+      // Offer account linking
+      const linkAnswer = await askQuestion("\nLink your account for recovery and dashboard access?\n[Y/n]: ");
+      if (linkAnswer.toLowerCase() !== "n") {
+        const machineName = os.hostname();
+        await deviceAuthFlow(client, machineName);
+      } else {
+        console.log("Tip: Run `teambridge login` anytime to link your account.");
+      }
     } catch (err) {
       console.error("Failed to initialize with relay:", err);
       saveConfig({ platform: platforms.join(","), relay: relayUrl, token });
@@ -262,6 +331,15 @@ program
         teamId: joinedTeam.id,
       });
       console.log("Configuration saved.");
+
+      // Offer account linking
+      const linkAnswer = await askQuestion("\nLink your account for recovery and dashboard access?\n[Y/n]: ");
+      if (linkAnswer.toLowerCase() !== "n") {
+        const machineName = os.hostname();
+        await deviceAuthFlow(client, machineName);
+      } else {
+        console.log("Tip: Run `teambridge login` anytime to link your account.");
+      }
     } catch (err) {
       console.error("Failed to join team:", err);
       process.exit(1);
@@ -547,6 +625,25 @@ program
       }
     } catch (err) {
       console.error("Pull failed:", err);
+      process.exit(1);
+    }
+  });
+
+// --- login ---
+program
+  .command("login")
+  .description("Link this machine to your TeamBridge account")
+  .option("--name <machine-name>", "Machine name (defaults to hostname)")
+  .action(async (opts: { name?: string }) => {
+    const kp = await requireKeypair();
+    const token = toToken(kp.publicKey);
+    const config = loadConfig();
+    const relayUrl = config?.relay ?? getRelayUrl();
+    const client = new TeamBridgeClient(relayUrl, kp.privateKey, token);
+    const machineName = opts.name ?? os.hostname();
+
+    const success = await deviceAuthFlow(client, machineName);
+    if (!success) {
       process.exit(1);
     }
   });

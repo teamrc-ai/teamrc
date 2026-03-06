@@ -7,6 +7,10 @@ export interface TeambridgeConfig {
   relay: string;
   token: string;
   teamId?: string;
+  account?: {
+    email: string;
+  };
+  machineName?: string;
 }
 
 function getConfigDir(): string {

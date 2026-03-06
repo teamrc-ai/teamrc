@@ -262,6 +262,11 @@ defmodule Teambridge.Teams do
   end
 
   @impl true
+  def handle_cast({:token_revoked, token}, state) do
+    {:noreply, update_in(state.token_teams, &Map.delete(&1, token))}
+  end
+
+  @impl true
   def handle_info(:cleanup, state) do
     now = DateTime.utc_now()
 
