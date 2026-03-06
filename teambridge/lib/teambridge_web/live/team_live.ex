@@ -1,6 +1,7 @@
 defmodule TeambridgeWeb.TeamLive do
   use TeambridgeWeb, :live_view
 
+  alias Phoenix.LiveView.JS
   alias Teambridge.Teams
 
   @templates %{
@@ -157,6 +158,32 @@ defmodule TeambridgeWeb.TeamLive do
   def handle_event("update_member", params, socket),
     do: update_list_item(socket, :members, params, %{"name" => :name, "role" => :role})
 
+  def handle_event("toggle_member_rule", %{"member-index" => member_idx, "rule-id" => rule_id}, socket) do
+    index = String.to_integer(member_idx)
+    members = List.update_at(socket.assigns.members, index, fn member ->
+      current = member[:rules] || []
+      if rule_id in current do
+        Map.put(member, :rules, List.delete(current, rule_id))
+      else
+        Map.put(member, :rules, current ++ [rule_id])
+      end
+    end)
+    {:noreply, assign(socket, members: members)}
+  end
+
+  def handle_event("toggle_member_skill", %{"member-index" => member_idx, "skill-id" => skill_id}, socket) do
+    index = String.to_integer(member_idx)
+    members = List.update_at(socket.assigns.members, index, fn member ->
+      current = member[:skills] || []
+      if skill_id in current do
+        Map.put(member, :skills, List.delete(current, skill_id))
+      else
+        Map.put(member, :skills, current ++ [skill_id])
+      end
+    end)
+    {:noreply, assign(socket, members: members)}
+  end
+
   def handle_event("add_member", _params, socket),
     do: add_list_item(socket, :members, %{name: "", role: ""})
 
@@ -209,12 +236,21 @@ defmodule TeambridgeWeb.TeamLive do
         base
       end)
 
+    rule_ids = MapSet.new(rules, & &1.id)
+    skill_ids = MapSet.new(skills, & &1.id)
+
     team = %{
       name: socket.assigns.team_name,
       members:
         socket.assigns.members
         |> Enum.filter(fn m -> m.name != "" end)
-        |> Enum.map(fn m -> %{name: m.name, role: m.role} end),
+        |> Enum.map(fn m ->
+          member = %{name: m.name, role: m.role}
+          member_rules = (m[:rules] || []) |> Enum.filter(&MapSet.member?(rule_ids, &1))
+          member_skills = (m[:skills] || []) |> Enum.filter(&MapSet.member?(skill_ids, &1))
+          member = if member_rules != [], do: Map.put(member, :rules, member_rules), else: member
+          if member_skills != [], do: Map.put(member, :skills, member_skills), else: member
+        end),
       rules: rules,
       skills: skills
     }
@@ -294,6 +330,9 @@ defmodule TeambridgeWeb.TeamLive do
   defp template_icon("plus") do
     ~s(<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />)
   end
+
+  defp has_defined_rules?(rules), do: Enum.any?(rules, & &1.id != "")
+  defp has_defined_skills?(skills), do: Enum.any?(skills, & &1.id != "")
 
   defp item_count(items, label) do
     count = Enum.count(items, fn i -> i.id != "" end)
@@ -403,6 +442,7 @@ defmodule TeambridgeWeb.TeamLive do
               type="text"
               value={@team_name}
               phx-keyup="update_team_name"
+              phx-mounted={JS.focus()}
               placeholder="e.g. backend-squad"
               class="tb-focus w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-sm font-mono placeholder:text-base-content/25 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
             />
@@ -440,12 +480,51 @@ defmodule TeambridgeWeb.TeamLive do
                     placeholder="Role description"
                     class="tb-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm placeholder:text-base-content/25 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
                   />
+                  <%!-- Per-member rule/skill assignment (shown when advanced + rules/skills exist) --%>
+                  <div :if={@show_advanced && (has_defined_rules?(@rules) || has_defined_skills?(@skills))} class="pt-1 space-y-1.5">
+                    <div :if={has_defined_rules?(@rules)} class="flex flex-wrap items-center gap-1.5">
+                      <span class="text-[10px] uppercase tracking-wider text-base-content/30 font-medium mr-0.5">Rules</span>
+                      <button
+                        :for={rule <- Enum.filter(@rules, & &1.id != "")}
+                        phx-click="toggle_member_rule"
+                        phx-value-member-index={idx}
+                        phx-value-rule-id={rule.id}
+                        class={[
+                          "tb-focus inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-mono transition-colors",
+                          if(rule.id in (member[:rules] || []),
+                            do: "bg-primary/15 text-primary border border-primary/30",
+                            else: "bg-base-200/50 text-base-content/30 border border-transparent hover:border-base-300"
+                          )
+                        ]}
+                      >
+                        <%= rule.id %>
+                      </button>
+                    </div>
+                    <div :if={has_defined_skills?(@skills)} class="flex flex-wrap items-center gap-1.5">
+                      <span class="text-[10px] uppercase tracking-wider text-base-content/30 font-medium mr-0.5">Skills</span>
+                      <button
+                        :for={skill <- Enum.filter(@skills, & &1.id != "")}
+                        phx-click="toggle_member_skill"
+                        phx-value-member-index={idx}
+                        phx-value-skill-id={skill.id}
+                        class={[
+                          "tb-focus inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-mono transition-colors",
+                          if(skill.id in (member[:skills] || []),
+                            do: "bg-primary/15 text-primary border border-primary/30",
+                            else: "bg-base-200/50 text-base-content/30 border border-transparent hover:border-base-300"
+                          )
+                        ]}
+                      >
+                        <%= skill.id %>
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <button
                   :if={length(@members) > 1}
                   phx-click="remove_member"
                   phx-value-index={idx}
-                  class="tb-focus mt-1.5 rounded p-1 text-base-content/20 hover:bg-error/10 hover:text-error transition-colors opacity-0 group-hover:opacity-100"
+                  class="tb-focus mt-1.5 rounded p-1 text-base-content/20 hover:bg-error/10 hover:text-error transition-colors sm:opacity-0 sm:group-hover:opacity-100"
                   aria-label="Remove member"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -498,7 +577,7 @@ defmodule TeambridgeWeb.TeamLive do
                   Rules
                 </label>
                 <span class="text-xs text-base-content/30">
-                  Policies all agents follow
+                  Policies for agents — assign per member or all inherit
                 </span>
               </div>
               <div class="space-y-2">
@@ -528,7 +607,7 @@ defmodule TeambridgeWeb.TeamLive do
                   <button
                     phx-click="remove_rule"
                     phx-value-index={idx}
-                    class="tb-focus mt-1.5 rounded p-1 text-base-content/20 hover:bg-error/10 hover:text-error transition-colors opacity-0 group-hover:opacity-100"
+                    class="tb-focus mt-1.5 rounded p-1 text-base-content/20 hover:bg-error/10 hover:text-error transition-colors sm:opacity-0 sm:group-hover:opacity-100"
                     aria-label="Remove rule"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -555,7 +634,7 @@ defmodule TeambridgeWeb.TeamLive do
                   Skills
                 </label>
                 <span class="text-xs text-base-content/30">
-                  Capabilities agents can use
+                  Capabilities — assign per member or all inherit
                 </span>
               </div>
               <div class="space-y-2">
@@ -594,7 +673,7 @@ defmodule TeambridgeWeb.TeamLive do
                   <button
                     phx-click="remove_skill"
                     phx-value-index={idx}
-                    class="tb-focus mt-1.5 rounded p-1 text-base-content/20 hover:bg-error/10 hover:text-error transition-colors opacity-0 group-hover:opacity-100"
+                    class="tb-focus mt-1.5 rounded p-1 text-base-content/20 hover:bg-error/10 hover:text-error transition-colors sm:opacity-0 sm:group-hover:opacity-100"
                     aria-label="Remove skill"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -619,6 +698,7 @@ defmodule TeambridgeWeb.TeamLive do
           <div class="pt-2 pb-12">
             <button
               phx-click="create_team"
+              phx-disable-with="Creating..."
               disabled={@team_name == ""}
               class={[
                 "tb-focus w-full rounded-md px-4 py-2.5 text-sm font-semibold shadow-sm transition-all duration-150",
@@ -656,13 +736,22 @@ defmodule TeambridgeWeb.TeamLive do
 
         <%!-- Terminal block --%>
         <div class="terminal-block rounded-lg overflow-hidden mb-6">
-          <div class="flex items-center gap-2 px-4 py-2.5 border-b border-white/5">
-            <div class="flex gap-1.5">
-              <div class="w-2.5 h-2.5 rounded-full bg-white/10"></div>
-              <div class="w-2.5 h-2.5 rounded-full bg-white/10"></div>
-              <div class="w-2.5 h-2.5 rounded-full bg-white/10"></div>
+          <div class="flex items-center justify-between px-4 py-2.5 border-b border-white/5">
+            <div class="flex items-center gap-2">
+              <div class="flex gap-1.5">
+                <div class="w-2.5 h-2.5 rounded-full bg-white/10"></div>
+                <div class="w-2.5 h-2.5 rounded-full bg-white/10"></div>
+                <div class="w-2.5 h-2.5 rounded-full bg-white/10"></div>
+              </div>
+              <span class="text-[10px] font-mono text-white/25 ml-2">terminal</span>
             </div>
-            <span class="text-[10px] font-mono text-white/25 ml-2">terminal</span>
+            <button
+              id="copy-btn"
+              phx-click={JS.dispatch("tb:copy", detail: %{text: "npx teambridge join #{@token}"})}
+              class="tb-focus text-[10px] font-mono text-white/30 hover:text-white/60 transition-colors rounded px-1.5 py-0.5 hover:bg-white/5"
+            >
+              copy
+            </button>
           </div>
           <div class="p-4">
             <div class="flex items-start gap-2">
@@ -716,13 +805,19 @@ defmodule TeambridgeWeb.TeamLive do
       <div class={[
         "flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-semibold transition-colors",
         if(@current, do: "bg-primary text-primary-content", else:
-          if(@active, do: "bg-primary/15 text-primary", else: "bg-base-300 text-base-content/30")
+          if(@active && !@current, do: "bg-primary/15 text-primary", else: "bg-base-300 text-base-content/30")
         )
       ]}>
-        <%= @number %>
+        <%= if @active && !@current do %>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+          </svg>
+        <% else %>
+          <%= @number %>
+        <% end %>
       </div>
       <span class={[
-        "text-xs transition-colors",
+        "text-xs transition-colors hidden sm:inline",
         if(@current, do: "text-base-content font-medium", else:
           if(@active, do: "text-base-content/50", else: "text-base-content/30")
         )
