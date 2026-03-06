@@ -1,5 +1,6 @@
 import { signMessage } from "./auth.js";
 import type { Rule, Skill, TeamDefinition } from "./adapters/base.js";
+import { validateRuleId } from "./team-yaml.js";
 
 export interface TeamBridgeTeam {
   id: string;
@@ -11,6 +12,14 @@ export interface TeamBridgeTeam {
 }
 
 export function remoteTeamToDefinition(team: TeamBridgeTeam): TeamDefinition {
+  // Validate rule/skill IDs from the relay to prevent path traversal
+  const rules = team.rules?.filter((r) => {
+    try { validateRuleId(r.id); return true; } catch { return false; }
+  });
+  const skills = team.skills?.filter((s) => {
+    try { validateRuleId(s.id); return true; } catch { return false; }
+  });
+
   return {
     name: team.name,
     members: team.members.map((m) => ({
@@ -19,8 +28,8 @@ export function remoteTeamToDefinition(team: TeamBridgeTeam): TeamDefinition {
       ...(m.rules?.length ? { rules: m.rules } : {}),
       ...(m.skills?.length ? { skills: m.skills } : {}),
     })),
-    ...(team.rules?.length ? { rules: team.rules } : {}),
-    ...(team.skills?.length ? { skills: team.skills } : {}),
+    ...(rules?.length ? { rules } : {}),
+    ...(skills?.length ? { skills } : {}),
   };
 }
 
