@@ -304,8 +304,13 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       try {
         const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
         const hooks = (settings["hooks"] ?? {}) as Record<string, unknown>;
-        const sessionStart = (hooks["SessionStart"] ?? []) as Array<{ command: string }>;
-        const filtered = sessionStart.filter((h) => !h.command.includes("teambridge"));
+        const sessionStart = (hooks["SessionStart"] ?? []) as Array<{
+          matcher: Record<string, unknown>;
+          hooks: Array<{ type: string; command: string }>;
+        }>;
+        const filtered = sessionStart.filter(
+          (entry) => !entry.hooks?.some((h) => h.command?.includes("teambridge")),
+        );
         if (filtered.length !== sessionStart.length) {
           hooks["SessionStart"] = filtered;
           settings["hooks"] = hooks;
@@ -336,16 +341,20 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
 
     const hooks = (settings["hooks"] ?? {}) as Record<string, unknown>;
     const sessionStart = (hooks["SessionStart"] ?? []) as Array<{
-      command: string;
+      matcher: Record<string, unknown>;
+      hooks: Array<{ type: string; command: string }>;
     }>;
 
     const hookCommand = "npx teambridge sync 2>/dev/null || true";
     const alreadyInstalled = sessionStart.some(
-      (h) => h.command === hookCommand,
+      (entry) => entry.hooks?.some((h) => h.command === hookCommand),
     );
 
     if (!alreadyInstalled) {
-      sessionStart.push({ command: hookCommand });
+      sessionStart.push({
+        matcher: {},
+        hooks: [{ type: "command", command: hookCommand }],
+      });
     }
 
     hooks["SessionStart"] = sessionStart;
