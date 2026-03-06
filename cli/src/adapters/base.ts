@@ -52,6 +52,11 @@ export interface TeamDefinition {
 
 export type TeamScope = "project" | "global";
 
+/** Strip HTML comment sequences to prevent marker injection */
+export function sanitizeMarkerContent(s: string): string {
+  return s.replace(/<!--/g, "").replace(/-->/g, "");
+}
+
 export interface PlatformAdapter {
   readTeam(): TeamDefinition | null;
   writeTeam(team: TeamDefinition, scope?: TeamScope): void;
@@ -82,6 +87,24 @@ export function getAdapter(platform: string): PlatformAdapter {
         OpenClawAdapter: new () => PlatformAdapter;
       };
       return new mod.OpenClawAdapter();
+    }
+    case "cursor": {
+      const mod = require("./cursor.js") as {
+        CursorAdapter: new () => PlatformAdapter;
+      };
+      return new mod.CursorAdapter();
+    }
+    case "codex": {
+      const mod = require("./codex.js") as {
+        CodexAdapter: new () => PlatformAdapter;
+      };
+      return new mod.CodexAdapter();
+    }
+    case "gemini": {
+      const mod = require("./gemini.js") as {
+        GeminiAdapter: new () => PlatformAdapter;
+      };
+      return new mod.GeminiAdapter();
     }
     default:
       throw new Error(`Unknown platform: ${platform}`);

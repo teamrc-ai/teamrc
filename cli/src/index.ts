@@ -20,6 +20,8 @@ import {
 } from "./config.js";
 import { getAdapter, type TeamScope, type TeamDefinition } from "./adapters/base.js";
 import { resolveChange } from "./merge.js";
+import { writeTeamYaml, validateTeamName } from "./team-yaml.js";
+import { resolveTeamSource } from "./resolve-source.js";
 
 function askQuestion(question: string): Promise<string> {
   const rl = readline.createInterface({
@@ -52,7 +54,7 @@ async function askScope(platform: string): Promise<TeamScope> {
 
 async function requirePlatform(override?: string): Promise<string> {
   if (override) {
-    const valid = ["claude-code", "openclaw"];
+    const valid = ["claude-code", "openclaw", "cursor", "codex", "gemini"];
     if (!valid.includes(override)) {
       console.error(`Unknown platform: ${override}. Valid options: ${valid.join(", ")}`);
       process.exit(1);
@@ -169,6 +171,10 @@ program
       console.log(`Found existing team "${team.name}" with ${team.members.length} agent(s).`);
     }
 
+    // Write canonical YAML file
+    writeTeamYaml("agent-team.yaml", team);
+    console.log("Wrote agent-team.yaml.");
+
     // Apply to each platform's native format
     for (const p of platforms) {
       console.log(`Setting up ${p}...`);
@@ -251,6 +257,16 @@ program
         console.log(`  ${p} configured.`);
       }
 
+      // Write canonical YAML
+      writeTeamYaml("agent-team.yaml", {
+        name: joinedTeam.name,
+        members: joinedTeam.members.map((m) => ({
+          name: m.name,
+          role: m.role,
+        })),
+      });
+      console.log("Wrote agent-team.yaml.");
+
       saveConfig({
         platform: platforms.join(","),
         relay: relayUrl,
@@ -274,13 +290,15 @@ program
     const selected = await requirePlatform(opts.platform);
     const platforms = selected === "both" ? detectPlatforms() : [selected];
 
-    // Read the team from whichever adapter has it
+    // Priority: YAML > platform adapters
     const sourceAdapter = getAdapter(platforms[0]);
-    const team = sourceAdapter.readTeam();
+    const { source, team } = resolveTeamSource("agent-team.yaml", sourceAdapter.readTeam());
     if (!team) {
       console.error("No team agents found. Run `teambridge init` or `teambridge join` first.");
       process.exit(1);
     }
+
+    console.log(`Using team from ${source}${source === "yaml" ? " (agent-team.yaml)" : ""}.`);
 
     for (const p of platforms) {
       const scope: TeamScope = opts.scope === "project" || opts.scope === "global"
@@ -290,6 +308,12 @@ program
       const adapter = getAdapter(p);
       adapter.writeTeam(team, scope);
       console.log(`Applied "${team.name}" (${team.members.length} agents) to ${p} (${scope} scope).`);
+    }
+
+    // If source was platform, generate the YAML for future use
+    if (source === "platform") {
+      writeTeamYaml("agent-team.yaml", team);
+      console.log("Generated agent-team.yaml from platform agents.");
     }
   });
 
@@ -484,6 +508,73 @@ program
     process.on("SIGTERM", shutdown);
   });
 
+// --- export ---
+program
+  .command("export")
+  .description("Export team from relay to agent-team.yaml")
+  .action(async () => {
+    const { config, client } = requireClient();
+
+    try {
+      const remoteTeam = await client.getTeam(config.token);
+      validateTeamName(remoteTeam.name);
+      const team: TeamDefinition = {
+        name: remoteTeam.name,
+        members: remoteTeam.members.map((m) => ({
+          name: m.name,
+          role: m.role,
+        })),
+      };
+      writeTeamYaml("agent-team.yaml", team);
+      console.log(`Exported "${team.name}" (${team.members.length} agents) to agent-team.yaml.`);
+    } catch (err) {
+      console.error("Failed to fetch team from relay:", err);
+      process.exit(1);
+    }
+  });
+
+// --- pull ---
+program
+  .command("pull")
+  .description("Pull team from relay and apply to local platforms")
+  .option("--platform <platform>", "Override platform detection")
+  .option("--scope <scope>", "Team scope: project or global")
+  .action(async (opts: { platform?: string; scope?: string }) => {
+    const { config, client } = requireClient();
+    const selected = await requirePlatform(opts.platform);
+    const platforms = selected === "both" ? detectPlatforms() : [selected];
+
+    try {
+      const remoteTeam = await client.getTeam(config.token);
+      validateTeamName(remoteTeam.name);
+      const team: TeamDefinition = {
+        name: remoteTeam.name,
+        members: remoteTeam.members.map((m) => ({
+          name: m.name,
+          role: m.role,
+        })),
+      };
+
+      // Write YAML
+      writeTeamYaml("agent-team.yaml", team);
+      console.log(`Pulled "${team.name}" (${team.members.length} agents).`);
+
+      // Apply to platforms
+      for (const p of platforms) {
+        const scope: TeamScope = opts.scope === "project" || opts.scope === "global"
+          ? opts.scope
+          : await askScope(p);
+
+        const adapter = getAdapter(p);
+        adapter.writeTeam(team, scope);
+        console.log(`Applied to ${p} (${scope} scope).`);
+      }
+    } catch (err) {
+      console.error("Pull failed:", err);
+      process.exit(1);
+    }
+  });
+
 // --- delete ---
 program
   .command("delete")
@@ -520,6 +611,12 @@ program
     if (fs.existsSync(configDir)) {
       fs.rmSync(configDir, { recursive: true });
       console.log(`  Deleted ${configDir}`);
+    }
+
+    // Delete agent-team.yaml if present
+    if (fs.existsSync("agent-team.yaml")) {
+      fs.unlinkSync("agent-team.yaml");
+      console.log("  Deleted agent-team.yaml");
     }
 
     console.log("\nTeamBridge removed. Run `teambridge init` or `teambridge join` to set up again.");
