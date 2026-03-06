@@ -37,7 +37,7 @@ export class OpenClawAdapter implements PlatformAdapter {
     }
   }
 
-  /** Directory for a TeamBridge agent's workspace */
+  /** Directory for a teamrc agent's workspace */
   private agentWorkspace(agentName: string): string {
     return path.join(this.openclawDir, "workspaces", `tb-${agentName}`);
   }
@@ -230,7 +230,7 @@ export class OpenClawAdapter implements PlatformAdapter {
     }
   }
 
-  /** Configure the main agent to dispatch to TeamBridge sub-agents */
+  /** Configure the main agent to dispatch to teamrc sub-agents */
   private wireRouting(team: TeamDefinition, agentIds: string[]): void {
     this.updateAllowAgents(agentIds);
     this.writeRoutingInstructions(team, agentIds);
@@ -264,12 +264,12 @@ export class OpenClawAdapter implements PlatformAdapter {
     const defaultWorkspace = path.join(this.openclawDir, "workspace");
     const agentsMdPath = path.join(defaultWorkspace, "AGENTS.md");
 
-    const marker = "<!-- teambridge:routing -->";
-    const markerEnd = "<!-- /teambridge:routing -->";
+    const marker = "<!-- teamrc:routing -->";
+    const markerEnd = "<!-- /teamrc:routing -->";
 
     const routingBlock = [
       marker,
-      `## TeamBridge: ${team.name}`,
+      `## teamrc: ${team.name}`,
       "",
       "You have access to specialized team agents. Dispatch tasks to the right specialist using `sessions_spawn`.",
       "",
@@ -364,7 +364,7 @@ export class OpenClawAdapter implements PlatformAdapter {
     } else {
       fs.writeFileSync(
         filePath,
-        `# Team Knowledge\n\nShared findings and decisions synced by TeamBridge. Do not edit manually.\n\n${newContent}\n`,
+        `# Team Knowledge\n\nShared findings and decisions synced by teamrc. Do not edit manually.\n\n${newContent}\n`,
       );
     }
   }
@@ -505,15 +505,15 @@ export class OpenClawAdapter implements PlatformAdapter {
     const agentsMdPath = path.join(this.openclawDir, "workspace", "AGENTS.md");
     if (fs.existsSync(agentsMdPath)) {
       const content = fs.readFileSync(agentsMdPath, "utf-8");
-      const marker = "<!-- teambridge:routing -->";
-      const markerEnd = "<!-- /teambridge:routing -->";
+      const marker = "<!-- teamrc:routing -->";
+      const markerEnd = "<!-- /teamrc:routing -->";
       const markerRegex = new RegExp(
         `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
       );
       const cleaned = content.replace(markerRegex, "\n");
       if (cleaned !== content) {
         fs.writeFileSync(agentsMdPath, cleaned.trimEnd() + "\n");
-        actions.push(`Removed TeamBridge routing from ${agentsMdPath}`);
+        actions.push(`Removed teamrc routing from ${agentsMdPath}`);
       }
     }
 

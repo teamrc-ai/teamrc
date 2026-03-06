@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { watch } from "chokidar";
 import { hashContent, validateAgentName, type PlatformAdapter } from "./adapters/base.js";
-import type { TeamBridgeClient, SyncChange } from "./client.js";
+import type { TeamrcClient, SyncChange } from "./client.js";
 import { resolveChange } from "./merge.js";
 import { readTeamYaml } from "./team-yaml.js";
 
@@ -12,7 +12,7 @@ const MAX_CHANGES_PER_SYNC = 100;
 
 export interface DaemonOptions {
   adapter: PlatformAdapter;
-  client: TeamBridgeClient;
+  client: TeamrcClient;
   platform: string;
   pollInterval?: number;
 }

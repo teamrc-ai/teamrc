@@ -2,7 +2,7 @@
 
 ## Problem
 
-TeamBridge syncs agent teams across platforms, but currently only handles agent definitions (name, role, soul). Modern AI coding platforms support **rules** (coding conventions, guidelines) and **skills** (reusable capabilities). We need to extend the YAML schema to support these concepts and map them to 10 target platforms.
+teamrc syncs agent teams across platforms, but currently only handles agent definitions (name, role, soul). Modern AI coding platforms support **rules** (coding conventions, guidelines) and **skills** (reusable capabilities). We need to extend the YAML schema to support these concepts and map them to 10 target platforms.
 
 ## Target Platforms
 

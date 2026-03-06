@@ -7,13 +7,13 @@
 Create `accounts` and `account_tokens` tables. Add `owner_account_id` to `teams`.
 
 **Files to create:**
-- `teambridge/priv/repo/migrations/20260307000001_create_accounts.exs`
-- `teambridge/lib/teambridge/schema/account.ex`
-- `teambridge/lib/teambridge/schema/account_token.ex`
+- `teamrc/priv/repo/migrations/20260307000001_create_accounts.exs`
+- `teamrc/lib/teamrc/schema/account.ex`
+- `teamrc/lib/teamrc/schema/account_token.ex`
 
 **Files to modify:**
-- `teambridge/lib/teambridge/schema/team.ex` — add `owner_account_id` field
-- `teambridge/priv/repo/migrations/20260307000001_create_accounts.exs` — single migration for both tables + teams alter
+- `teamrc/lib/teamrc/schema/team.ex` — add `owner_account_id` field
+- `teamrc/priv/repo/migrations/20260307000001_create_accounts.exs` — single migration for both tables + teams alter
 
 **Schema details (from design doc):**
 ```sql
@@ -49,8 +49,8 @@ ALTER TABLE teams ADD COLUMN owner_account_id UUID REFERENCES accounts(id);
 New plug that verifies Clerk JWTs for web/dashboard endpoints.
 
 **Files to create:**
-- `teambridge/lib/teambridge_web/plugs/verify_clerk_jwt.ex`
-- `teambridge/test/teambridge_web/plugs/verify_clerk_jwt_test.exs`
+- `teamrc/lib/teamrc_web/plugs/verify_clerk_jwt.ex`
+- `teamrc/test/teamrc_web/plugs/verify_clerk_jwt_test.exs`
 
 **Requirements:**
 - Extract Bearer token from Authorization header
@@ -65,13 +65,13 @@ New plug that verifies Clerk JWTs for web/dashboard endpoints.
 
 ## Task 3: Device auth flow — ephemeral storage + endpoints (backend-dev)
 
-Implement the device authorization flow for `teambridge login`.
+Implement the device authorization flow for `teamrc login`.
 
 **Files to create:**
-- `teambridge/lib/teambridge/device_auth.ex` — GenServer for ephemeral device requests
-- `teambridge/lib/teambridge_web/controllers/auth_controller.ex` — device auth API endpoints
-- `teambridge/test/teambridge/device_auth_test.exs`
-- `teambridge/test/teambridge_web/controllers/auth_controller_test.exs`
+- `teamrc/lib/teamrc/device_auth.ex` — GenServer for ephemeral device requests
+- `teamrc/lib/teamrc_web/controllers/auth_controller.ex` — device auth API endpoints
+- `teamrc/test/teamrc/device_auth_test.exs`
+- `teamrc/test/teamrc_web/controllers/auth_controller_test.exs`
 
 **Endpoints:**
 - `POST /api/auth/device` — initiate device auth (ed25519 signed)
@@ -82,7 +82,7 @@ Implement the device authorization flow for `teambridge login`.
 %DeviceRequest{
   device_code: "abc123...",      # 32-byte hex
   user_code: "ABCD-1234",       # 8-char human-readable
-  token: "tb_ak_...",           # originating machine token
+  token: "trc_ak_...",           # originating machine token
   status: :pending | :confirmed,
   clerk_user_id: nil,
   expires_at: ~U[...],
@@ -107,9 +107,9 @@ Implement the device authorization flow for `teambridge login`.
 The browser side of device auth: user signs in with Clerk, enters user_code, links machine.
 
 **Files to create/modify:**
-- `teambridge/lib/teambridge_web/live/auth_verify_live.ex` — LiveView page
-- `teambridge/lib/teambridge_web/templates/auth_verify_live.html.heex` (or inline)
-- `teambridge/lib/teambridge_web/router.ex` — add route
+- `teamrc/lib/teamrc_web/live/auth_verify_live.ex` — LiveView page
+- `teamrc/lib/teamrc_web/templates/auth_verify_live.html.heex` (or inline)
+- `teamrc/lib/teamrc_web/router.ex` — add route
 
 **Flow:**
 1. User visits `/auth/verify` (optionally with `?code=ABCD-1234`)
@@ -129,8 +129,8 @@ The browser side of device auth: user signs in with Clerk, enters user_code, lin
 Dashboard data endpoints for the web UI.
 
 **Files to create:**
-- `teambridge/lib/teambridge_web/controllers/account_controller.ex`
-- `teambridge/test/teambridge_web/controllers/account_controller_test.exs`
+- `teamrc/lib/teamrc_web/controllers/account_controller.ex`
+- `teamrc/test/teamrc_web/controllers/account_controller_test.exs`
 
 **Endpoints:**
 - `GET /api/account` — account info + machines (Clerk JWT auth)
@@ -145,7 +145,7 @@ Dashboard data endpoints for the web UI.
 - Participants resolved via: team → token_teams → account_tokens → accounts
 - Truncate tokens in response (show first 12 chars)
 
-## Task 6: CLI `teambridge login` command (backend-dev)
+## Task 6: CLI `teamrc login` command (backend-dev)
 
 Device authorization flow from the CLI side.
 
@@ -161,7 +161,7 @@ Device authorization flow from the CLI side.
 2. `POST /api/auth/device` with signed request
 3. Open browser to verification URL with user_code
 4. Poll `GET /api/auth/device/:device_code` every 5 seconds
-5. On confirmation: save account info to `~/.teambridge/config.json`
+5. On confirmation: save account info to `~/.teamrc/config.json`
 6. Show: email, machine count, team count
 
 **Config changes:**
@@ -171,7 +171,7 @@ Device authorization flow from the CLI side.
 
 ## Task 7: Inline account linking in join/init (backend-dev)
 
-After `teambridge join` or `teambridge init`, prompt to link account.
+After `teamrc join` or `teamrc init`, prompt to link account.
 
 **Files to modify:**
 - `cli/src/index.ts` — add prompt after join/init commands
@@ -194,7 +194,7 @@ Machine "Bens-MacBook-Pro" linked.
 Web dashboard showing machines and teams.
 
 **Files to create:**
-- `teambridge/lib/teambridge_web/live/dashboard_live.ex`
+- `teamrc/lib/teamrc_web/live/dashboard_live.ex`
 - Route in router.ex
 
 **Sections:**
@@ -211,7 +211,7 @@ Web dashboard showing machines and teams.
 ## Task 9: Security hardening (backend-dev)
 
 **Files to modify:**
-- `teambridge/lib/teambridge_web/plugs/verify_signature.ex` — remove `:dev` from `skip_auth_allowed`
+- `teamrc/lib/teamrc_web/plugs/verify_signature.ex` — remove `:dev` from `skip_auth_allowed`
 
 **Additions:**
 - Email notification on new machine linking (via Clerk webhooks or simple SMTP)

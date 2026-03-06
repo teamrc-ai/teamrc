@@ -2,7 +2,7 @@ import { signMessage } from "./auth.js";
 import type { Rule, Skill, TeamDefinition } from "./adapters/base.js";
 import { validateRuleId } from "./team-yaml.js";
 
-export interface TeamBridgeTeam {
+export interface teamrcTeam {
   id: string;
   name: string;
   members: Array<{ name: string; role: string; platform?: string; rules?: string[]; skills?: string[] }>;
@@ -11,7 +11,7 @@ export interface TeamBridgeTeam {
   created_at?: string;
 }
 
-export function remoteTeamToDefinition(team: TeamBridgeTeam): TeamDefinition {
+export function remoteTeamToDefinition(team: teamrcTeam): TeamDefinition {
   // Validate rule/skill IDs from the relay to prevent path traversal
   const rules = team.rules?.filter((r) => {
     try { validateRuleId(r.id); return true; } catch { return false; }
@@ -42,7 +42,7 @@ export interface SyncResult {
   changes: Record<string, SyncChange>;
 }
 
-export class TeamBridgeClient {
+export class TeamrcClient {
   private baseUrl: string;
   private privateKey: Uint8Array;
   private token: string;
@@ -86,7 +86,7 @@ export class TeamBridgeClient {
   async createTeam(
     name: string,
     members: Array<{ name: string; role: string; platform: string }>,
-  ): Promise<TeamBridgeTeam> {
+  ): Promise<teamrcTeam> {
     const body = JSON.stringify({
       token: this.token,
       team: { name, members },
@@ -100,16 +100,16 @@ export class TeamBridgeClient {
     if (!res.ok) {
       throw new Error(`createTeam failed: ${res.status} ${await res.text()}`);
     }
-    const data = (await res.json()) as { team: TeamBridgeTeam };
+    const data = (await res.json()) as { team: teamrcTeam };
     return data.team;
   }
 
-  async getTeam(token: string): Promise<TeamBridgeTeam> {
-    const data = await this.signedGet<{ team: TeamBridgeTeam }>(`/api/teams/${token}`);
+  async getTeam(token: string): Promise<teamrcTeam> {
+    const data = await this.signedGet<{ team: teamrcTeam }>(`/api/teams/${token}`);
     return data.team;
   }
 
-  async joinByInvite(inviteCode: string): Promise<TeamBridgeTeam> {
+  async joinByInvite(inviteCode: string): Promise<teamrcTeam> {
     const body = JSON.stringify({ invite_code: inviteCode, token: this.token });
     const headers = await this.signedHeaders(body);
     const res = await fetch(`${this.baseUrl}/api/join`, {
@@ -120,7 +120,7 @@ export class TeamBridgeClient {
     if (!res.ok) {
       throw new Error(`join failed: ${res.status} ${await res.text()}`);
     }
-    const data = (await res.json()) as { team: TeamBridgeTeam };
+    const data = (await res.json()) as { team: teamrcTeam };
     return data.team;
   }
 

@@ -195,8 +195,8 @@ ${body}
     if (!fs.existsSync(cursorDir)) fs.mkdirSync(cursorDir, { recursive: true });
 
     const agentsMdPath = path.join(cursorDir, "AGENTS.md");
-    const marker = "<!-- teambridge -->";
-    const markerEnd = "<!-- /teambridge -->";
+    const marker = "<!-- teamrc -->";
+    const markerEnd = "<!-- /teamrc -->";
 
     const sections = [`# Team: ${sanitizeMarkerContent(team.name)}`, ""];
     sections.push("You have access to specialized subagents. Delegate tasks to the right specialist.", "");
@@ -264,28 +264,28 @@ ${body}
       fs.unlinkSync(path.join(this.rulesDir(), f));
     }
     if (tbRules.length > 0) {
-      actions.push(`Deleted ${tbRules.length} TeamBridge cursor rule(s)`);
+      actions.push(`Deleted ${tbRules.length} teamrc cursor rule(s)`);
     }
 
     // Clean up skill directories
     const skillCount = cleanupSkillDirs(this.skillsDir());
     if (skillCount > 0) {
-      actions.push(`Deleted ${skillCount} TeamBridge cursor skill(s)`);
+      actions.push(`Deleted ${skillCount} teamrc cursor skill(s)`);
     }
 
     // Clean up AGENTS.md marker block
     const agentsMdPath = path.join(this.cursorDir(), "AGENTS.md");
     if (fs.existsSync(agentsMdPath)) {
       const content = fs.readFileSync(agentsMdPath, "utf-8");
-      const marker = "<!-- teambridge -->";
-      const markerEnd = "<!-- /teambridge -->";
+      const marker = "<!-- teamrc -->";
+      const markerEnd = "<!-- /teamrc -->";
       const regex = new RegExp(
         `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
       );
       const cleaned = content.replace(regex, "\n");
       if (cleaned !== content) {
         fs.writeFileSync(agentsMdPath, cleaned.trimEnd() + "\n");
-        actions.push("Removed TeamBridge section from .cursor/AGENTS.md");
+        actions.push("Removed teamrc section from .cursor/AGENTS.md");
       }
     }
 

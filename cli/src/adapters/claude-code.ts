@@ -200,7 +200,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       } else {
         const existing = fs.readFileSync(claudeMdPath, "utf-8");
         const cleaned = existing.replace(
-          /\n## TeamBridge Team: .+?(?=\n## |\n# |$)/s,
+          /\n## teamrc Team: .+?(?=\n## |\n# |$)/s,
           "",
         );
         fs.writeFileSync(claudeMdPath, cleaned.trimEnd() + "\n" + teamSection);
@@ -252,7 +252,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     } else {
       fs.writeFileSync(
         filePath,
-        `# Team Knowledge\n\nShared findings and decisions synced by TeamBridge. Do not edit manually.\n\n${newContent}\n`,
+        `# Team Knowledge\n\nShared findings and decisions synced by teamrc. Do not edit manually.\n\n${newContent}\n`,
       );
     }
   }
@@ -449,18 +449,18 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       }
     }
 
-    // Remove TeamBridge section from CLAUDE.md
+    // Remove teamrc section from CLAUDE.md
     if (scope === "project") {
       const claudeMdPath = path.join(process.cwd(), "CLAUDE.md");
       if (fs.existsSync(claudeMdPath)) {
         const content = fs.readFileSync(claudeMdPath, "utf-8");
         const cleaned = content.replace(
-          /\n## TeamBridge Team: .+?(?=\n## |\n# |$)/s,
+          /\n## teamrc Team: .+?(?=\n## |\n# |$)/s,
           "",
         );
         if (cleaned !== content) {
           fs.writeFileSync(claudeMdPath, cleaned.trimEnd() + "\n");
-          actions.push(`Removed TeamBridge section from ${claudeMdPath}`);
+          actions.push(`Removed teamrc section from ${claudeMdPath}`);
         }
       }
     }
@@ -618,9 +618,9 @@ function buildClaudeMdSection(team: TeamDefinition): string {
     .join("\n");
 
   return `
-## TeamBridge Team: ${safeName}
+## teamrc Team: ${safeName}
 
-This project has a synced agent team managed by TeamBridge.
+This project has a synced agent team managed by teamrc.
 
 Members:
 ${memberLines}

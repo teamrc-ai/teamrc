@@ -1,4 +1,4 @@
-# TeamBridge PRD
+# teamrc PRD
 
 **Product Requirements Document**
 **Version:** v0.4
@@ -10,9 +10,9 @@
 
 ## 1. Overview
 
-TeamBridge is a portable specification and synchronization tool for AI agent teams.
+teamrc is a portable specification and synchronization tool for AI agent teams.
 
-Developers define their agent team once in a project file (`agent-team.yaml`). TeamBridge then:
+Developers define their agent team once in a project file (`agent-team.yaml`). teamrc then:
 
 1. Applies the team to local agent platforms (Claude Code, OpenClaw, etc.)
 2. Keeps agent teams synchronized across machines using a lightweight relay
@@ -30,10 +30,10 @@ Developers using AI agent tools frequently work across multiple platforms and mu
 
 ## 3. Solution
 
-TeamBridge introduces:
+teamrc introduces:
 
 - A portable team specification (`agent-team.yaml`)
-- A CLI tool (`npx teambridge`)
+- A CLI tool (`npx teamrc`)
 - A lightweight relay for cross-machine synchronization
 
 ## 4. Key Principles
@@ -49,22 +49,22 @@ TeamBridge introduces:
 
 ### 5.1 Create a Team (Web UI)
 
-Visit the TeamBridge web UI (LiveView). Users:
+Visit the teamrc web UI (LiveView). Users:
 
 1. Choose from team templates (fullstack, backend, security, marketing, research, devops, custom)
 2. Customize team name and members (name + role for each)
 3. Click "Create Team"
-4. Receive an invite code (`tb_inv_...`) with a ready-to-run join command
+4. Receive an invite code (`trc_inv_...`) with a ready-to-run join command
 
 ### 5.2 Join a Team
 
 ```bash
-npx teambridge join tb_inv_XD3luzjtqCI7... --relay http://relay:4000
+npx teamrc join trc_inv_XD3luzjtqCI7... --relay http://relay:4000
 ```
 
-TeamBridge:
+teamrc:
 1. Detects installed platforms (if multiple found, asks which to set up — or both)
-2. Generates Ed25519 keypair (stored at `~/.teambridge/key`)
+2. Generates Ed25519 keypair (stored at `~/.teamrc/key`)
 3. Downloads team definition from relay
 4. Writes `agent-team.yaml` locally
 5. For each selected platform:
@@ -104,10 +104,10 @@ Invites are multi-use — the same invite code works on multiple machines until 
 ### 5.3 Initialize from Existing Agents
 
 ```bash
-npx teambridge init --relay http://relay:4000
+npx teamrc init --relay http://relay:4000
 ```
 
-For users who already have agents configured locally. TeamBridge:
+For users who already have agents configured locally. teamrc:
 - Detects platforms (prompts if multiple)
 - Reads existing agents and generates `agent-team.yaml`
 - Applies to all selected platforms' native format
@@ -139,17 +139,17 @@ Agents are instructed (via CLAUDE.md) to read and write to `.claude/team-knowled
 - Is synced automatically by the daemon (append-only merge — no data loss)
 - Is separate from individual agent memory (doesn't interfere)
 
-The CLAUDE.md section written by TeamBridge tells agents:
+The CLAUDE.md section written by teamrc tells agents:
 
 > Shared findings and decisions are stored in `.claude/team-knowledge.md`. Read this file at the start of every session for context from other agents and machines. When you discover something important, append it to this file so other team members can benefit.
 
 ### 5.6 Offline Commands
 
 ```bash
-teambridge apply    # Apply agent-team.yaml to local platform (no relay needed)
-teambridge diff     # Compare local vs relay state
-teambridge status   # Show config, sync state, team info
-teambridge sync     # Manual one-shot sync
+teamrc apply    # Apply agent-team.yaml to local platform (no relay needed)
+teamrc diff     # Compare local vs relay state
+teamrc status   # Show config, sync state, team info
+teamrc sync     # Manual one-shot sync
 ```
 
 ### 5.7 CLI Distribution
@@ -157,9 +157,9 @@ teambridge sync     # Manual one-shot sync
 The CLI is distributed via npm:
 
 ```bash
-npx teambridge                  # Run directly (no install)
-npm install -g teambridge       # Or install globally
-npm pack && npm install -g ./teambridge-0.1.0.tgz  # Or from tarball (no registry needed)
+npx teamrc                  # Run directly (no install)
+npm install -g teamrc       # Or install globally
+npm pack && npm install -g ./teamrc-0.1.0.tgz  # Or from tarball (no registry needed)
 ```
 
 ## 6. Team Definition File
@@ -196,7 +196,7 @@ Constraints:
 Machine A                    Machine B
 Claude Code + OpenClaw       OpenClaw
 
-teambridge daemon            teambridge daemon
+teamrc daemon            teamrc daemon
   chokidar watcher             chokidar watcher
   2-min poll loop              2-min poll loop
         |                            |
@@ -224,13 +224,13 @@ Commands:
 
 | Command | Description |
 |---------|-------------|
-| `teambridge init` | Detect platform(s), create agent-team.yaml, register with relay |
-| `teambridge join <invite>` | Join team, write agent-team.yaml, apply to platform(s) |
-| `teambridge apply` | Apply agent-team.yaml to platform (offline) |
-| `teambridge diff` | Compare local vs relay state |
-| `teambridge status` | Show config, sync state, team info |
-| `teambridge sync` | Manual one-shot sync |
-| `teambridge daemon` | Start background sync daemon |
+| `teamrc init` | Detect platform(s), create agent-team.yaml, register with relay |
+| `teamrc join <invite>` | Join team, write agent-team.yaml, apply to platform(s) |
+| `teamrc apply` | Apply agent-team.yaml to platform (offline) |
+| `teamrc diff` | Compare local vs relay state |
+| `teamrc status` | Show config, sync state, team info |
+| `teamrc sync` | Manual one-shot sync |
+| `teamrc daemon` | Start background sync daemon |
 
 All commands that need a platform support `--platform <name>` to override auto-detection. When multiple platforms are detected and no override is given, the CLI prompts with an option to configure both.
 
@@ -306,7 +306,7 @@ model: inherit
 You are architect, a Design system architecture on the fraudstory team.
 ```
 
-**CLAUDE.md integration:** TeamBridge appends a section to CLAUDE.md listing team members and instructing the agent to read/write `.claude/team-knowledge.md`.
+**CLAUDE.md integration:** teamrc appends a section to CLAUDE.md listing team members and instructing the agent to read/write `.claude/team-knowledge.md`.
 
 ## 9. Sync Mechanics
 
@@ -360,8 +360,8 @@ every 2 minutes:
 ### 10.1 Keypair Model
 
 - Each machine generates an Ed25519 keypair on first use
-- Private key stored at `~/.teambridge/key` (mode 0o600, directory mode 0o700)
-- Public key derived token: `tb_ak_<base64url(public_key)>`
+- Private key stored at `~/.teamrc/key` (mode 0o600, directory mode 0o700)
+- Public key derived token: `trc_ak_<base64url(public_key)>`
 - All API requests signed with private key
 
 ### 10.2 Signature Verification
@@ -374,7 +374,7 @@ every 2 minutes:
 
 ### 10.3 Invite Codes
 
-- Created via web UI, `tb_inv_` prefix
+- Created via web UI, `trc_inv_` prefix
 - Multi-use: multiple machines can join with the same code
 - 24-hour expiry
 - `POST /api/join` requires signature (authenticated)
@@ -412,9 +412,9 @@ At 5M users, persistent WebSocket connections would require ~40-80GB RAM for con
 **CLI (on each machine):**
 
 ```bash
-npx teambridge                     # Run directly (no install)
-npm install -g teambridge          # Install globally from npm
-npm install -g ./teambridge-0.1.0.tgz  # Install from tarball (no git/registry needed)
+npx teamrc                     # Run directly (no install)
+npm install -g teamrc          # Install globally from npm
+npm install -g ./teamrc-0.1.0.tgz  # Install from tarball (no git/registry needed)
 ```
 
 **Relay (self-hosted):**
@@ -445,7 +445,7 @@ ssh -L 4000:localhost:4000 user@relay-host
 - End-to-end encryption (encrypt content with team-shared key)
 - Platform adapters: Cursor, Windsurf, CrewAI, AutoGen, LangGraph
 - Task coordination system (structured tasks for agents)
-- MCP server for mid-session reads (`teambridge:read-knowledge`, `teambridge:list-teammates`)
+- MCP server for mid-session reads (`teamrc:read-knowledge`, `teamrc:list-teammates`)
 - Web dashboard for team management
 - SOUL.md editing in web UI
 - Agent memory synchronization
@@ -458,4 +458,4 @@ ssh -L 4000:localhost:4000 user@relay-host
 1. How do we handle platforms that restructure their agent config format between versions?
 2. Should conflict warnings be surfaced to the user via a notification mechanism?
 3. How should task coordination work? (State machine transitions, assignment, comments)
-4. Should the daemon auto-start after `join`/`init`, or require manual `teambridge daemon`?
+4. Should the daemon auto-start after `join`/`init`, or require manual `teamrc daemon`?

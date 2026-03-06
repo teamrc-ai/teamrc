@@ -12,7 +12,7 @@ import {
   loadKeypair,
   toToken,
 } from "./auth.js";
-import { TeamBridgeClient, remoteTeamToDefinition } from "./client.js";
+import { TeamrcClient, remoteTeamToDefinition } from "./client.js";
 import {
   loadConfig,
   saveConfig,
@@ -106,8 +106,8 @@ async function requireKeypair() {
 }
 
 interface ConnectedContext {
-  config: import("./config.js").TeambridgeConfig & { teamId: string };
-  client: TeamBridgeClient;
+  config: import("./config.js").TeamrcConfig & { teamId: string };
+  client: TeamrcClient;
   platform: string;
   adapter: import("./adapters/base.js").PlatformAdapter;
 }
@@ -116,7 +116,7 @@ interface ConnectedContext {
 function requireClient(): ConnectedContext {
   const config = loadConfig();
   if (!config) {
-    console.error("Not initialized. Run `teambridge init` first.");
+    console.error("Not initialized. Run `teamrc init` first.");
     process.exit(1);
   }
   if (!config.teamId) {
@@ -131,13 +131,13 @@ function requireClient(): ConnectedContext {
   const platform = primaryPlatform(config.platform);
   return {
     config: config as ConnectedContext["config"],
-    client: new TeamBridgeClient(config.relay, kp.privateKey, config.token),
+    client: new TeamrcClient(config.relay, kp.privateKey, config.token),
     platform,
     adapter: getAdapter(platform),
   };
 }
 
-async function deviceAuthFlow(client: TeamBridgeClient, machineName: string): Promise<boolean> {
+async function deviceAuthFlow(client: TeamrcClient, machineName: string): Promise<boolean> {
   let deviceAuth;
   try {
     deviceAuth = await client.createDeviceAuth();
@@ -199,14 +199,14 @@ async function deviceAuthFlow(client: TeamBridgeClient, machineName: string): Pr
 const program = new Command();
 
 program
-  .name("teambridge")
-  .description("TeamBridge — sync multi-agent teams across platforms")
+  .name("teamrc")
+  .description("teamrc — sync multi-agent teams across platforms")
   .version("0.1.0");
 
 // --- init ---
 program
   .command("init")
-  .description("Initialize TeamBridge: detect platform, create agents, connect to relay")
+  .description("Initialize teamrc: detect platform, create agents, connect to relay")
   .option("--relay <url>", "Relay server URL")
   .option("--platform <platform>", "Override platform detection (claude-code, openclaw)")
   .action(async (opts: { relay?: string; platform?: string }) => {
@@ -245,7 +245,7 @@ program
     }
 
     // Create team on relay
-    const client = new TeamBridgeClient(relayUrl, kp.privateKey, token);
+    const client = new TeamrcClient(relayUrl, kp.privateKey, token);
     try {
       const relayTeam = await client.createTeam(
         team.name,
@@ -277,7 +277,7 @@ program
         const machineName = os.hostname();
         await deviceAuthFlow(client, machineName);
       } else {
-        console.log("Tip: Run `teambridge login` anytime to link your account.");
+        console.log("Tip: Run `teamrc login` anytime to link your account.");
       }
     } catch (err) {
       console.error("Failed to initialize with relay:", err);
@@ -301,7 +301,7 @@ program
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
     const relayUrl = getRelayUrl(opts.relay);
-    const client = new TeamBridgeClient(relayUrl, kp.privateKey, token);
+    const client = new TeamrcClient(relayUrl, kp.privateKey, token);
 
     try {
       const joinedTeam = await client.joinByInvite(joinToken);
@@ -338,7 +338,7 @@ program
         const machineName = os.hostname();
         await deviceAuthFlow(client, machineName);
       } else {
-        console.log("Tip: Run `teambridge login` anytime to link your account.");
+        console.log("Tip: Run `teamrc login` anytime to link your account.");
       }
     } catch (err) {
       console.error("Failed to join team:", err);
@@ -360,7 +360,7 @@ program
     const sourceAdapter = getAdapter(platforms[0]);
     const { source, team } = resolveTeamSource("agent-team.yaml", sourceAdapter.readTeam());
     if (!team) {
-      console.error("No team agents found. Run `teambridge init` or `teambridge join` first.");
+      console.error("No team agents found. Run `teamrc init` or `teamrc join` first.");
       process.exit(1);
     }
 
@@ -503,12 +503,12 @@ program
   .action(async () => {
     const config = loadConfig();
     if (!config) {
-      console.log("TeamBridge is not initialized.");
-      console.log("Run `teambridge init` to get started.");
+      console.log("teamrc is not initialized.");
+      console.log("Run `teamrc init` to get started.");
       return;
     }
 
-    console.log("TeamBridge Status:");
+    console.log("teamrc Status:");
     console.log(`  Platform: ${config.platform}`);
     console.log(`  Relay:    ${config.relay}`);
     console.log(`  Token:    ${config.token.slice(0, 12)}...`);
@@ -534,7 +534,7 @@ program
     if (config.teamId) {
       const kp = loadKeypair();
       if (kp) {
-        const client = new TeamBridgeClient(config.relay, kp.privateKey, config.token);
+        const client = new TeamrcClient(config.relay, kp.privateKey, config.token);
         try {
           const remoteTeam = await client.getTeam(config.token);
           console.log(`\nRelay Team: ${remoteTeam.name}`);
@@ -632,14 +632,14 @@ program
 // --- login ---
 program
   .command("login")
-  .description("Link this machine to your TeamBridge account")
+  .description("Link this machine to your teamrc account")
   .option("--name <machine-name>", "Machine name (defaults to hostname)")
   .action(async (opts: { name?: string }) => {
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
     const config = loadConfig();
     const relayUrl = config?.relay ?? getRelayUrl();
-    const client = new TeamBridgeClient(relayUrl, kp.privateKey, token);
+    const client = new TeamrcClient(relayUrl, kp.privateKey, token);
     const machineName = opts.name ?? os.hostname();
 
     const success = await deviceAuthFlow(client, machineName);
@@ -651,17 +651,17 @@ program
 // --- delete ---
 program
   .command("delete")
-  .description("Remove TeamBridge from this machine")
+  .description("Remove teamrc from this machine")
   .action(async () => {
     const config = loadConfig();
     if (!config) {
-      console.log("TeamBridge is not initialized. Nothing to remove.");
+      console.log("teamrc is not initialized. Nothing to remove.");
       return;
     }
 
     const platforms = config.platform.split(",");
 
-    console.log("\nThis will remove all TeamBridge agents, config, and team knowledge from this machine.");
+    console.log("\nThis will remove all teamrc agents, config, and team knowledge from this machine.");
     console.log("Other team members will keep their setup — you're just disconnecting.\n");
     const answer = await askQuestion("Continue? [y/N]: ");
 
@@ -679,8 +679,8 @@ program
       }
     }
 
-    // Delete ~/.teambridge/ config
-    const configDir = path.join(os.homedir(), ".teambridge");
+    // Delete ~/.teamrc/ config
+    const configDir = path.join(os.homedir(), ".teamrc");
     if (fs.existsSync(configDir)) {
       fs.rmSync(configDir, { recursive: true });
       console.log(`  Deleted ${configDir}`);
@@ -692,7 +692,7 @@ program
       console.log("  Deleted agent-team.yaml");
     }
 
-    console.log("\nTeamBridge removed. Run `teambridge init` or `teambridge join` to set up again.");
+    console.log("\nteamrc removed. Run `teamrc init` or `teamrc join` to set up again.");
   });
 
 program.parse();

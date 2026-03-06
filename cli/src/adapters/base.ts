@@ -69,7 +69,7 @@ export interface PlatformAdapter {
   watchPaths(): string[];
   writeFile(key: string, content: string): void;
   readFile(key: string): string | null;
-  /** Remove everything TeamBridge installed for this platform. Returns list of actions taken. */
+  /** Remove everything teamrc installed for this platform. Returns list of actions taken. */
   uninstall(): string[];
 }
 

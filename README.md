@@ -1,4 +1,4 @@
-# TeamBridge
+# teamrc
 
 Sync multi-agent teams across platforms with a shared, version-controllable source of truth.
 
@@ -6,13 +6,13 @@ Sync multi-agent teams across platforms with a shared, version-controllable sour
 
 ```bash
 # Create a new team
-npx teambridge init
+npx teamrc init
 
 # Join an existing team
-npx teambridge join <invite-token>
+npx teamrc join <invite-token>
 
 # Edit agent-team.yaml, then apply
-npx teambridge apply
+npx teamrc apply
 ```
 
 ## Architecture
@@ -56,17 +56,17 @@ Fields:
 
 | Command | Description |
 |---------|-------------|
-| `teambridge init` | Detect platform, create agents, write `agent-team.yaml`, connect to relay |
-| `teambridge join <token>` | Join an existing team and set up locally |
-| `teambridge apply` | Apply `agent-team.yaml` to local platform(s) |
-| `teambridge pull` | Pull team from relay → YAML → local platforms |
-| `teambridge export` | Export team from relay to `agent-team.yaml` |
-| `teambridge sync` | One-time sync with relay server |
-| `teambridge push` | Push team knowledge to relay |
-| `teambridge diff` | Show differences between local and relay |
-| `teambridge status` | Show current config and team state |
-| `teambridge daemon` | Start background sync (file watching + polling) |
-| `teambridge delete` | Remove all TeamBridge setup from this machine |
+| `teamrc init` | Detect platform, create agents, write `agent-team.yaml`, connect to relay |
+| `teamrc join <token>` | Join an existing team and set up locally |
+| `teamrc apply` | Apply `agent-team.yaml` to local platform(s) |
+| `teamrc pull` | Pull team from relay → YAML → local platforms |
+| `teamrc export` | Export team from relay to `agent-team.yaml` |
+| `teamrc sync` | One-time sync with relay server |
+| `teamrc push` | Push team knowledge to relay |
+| `teamrc diff` | Show differences between local and relay |
+| `teamrc status` | Show current config and team state |
+| `teamrc daemon` | Start background sync (file watching + polling) |
+| `teamrc delete` | Remove all teamrc setup from this machine |
 
 ## Platforms
 
@@ -78,7 +78,7 @@ Fields:
 Elixir/Phoenix server for cross-machine sync. Stores team definitions in PostgreSQL, sync state in memory (24h TTL).
 
 ```bash
-cd teambridge
+cd teamrc
 mix deps.get
 mix ecto.setup
 mix phx.server  # http://localhost:4000

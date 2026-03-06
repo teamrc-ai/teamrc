@@ -380,7 +380,7 @@ Replace the apply action body (lines 273-293). Current code:
     const sourceAdapter = getAdapter(platforms[0]);
     const team = sourceAdapter.readTeam();
     if (!team) {
-      console.error("No team agents found. Run `teambridge init` or `teambridge join` first.");
+      console.error("No team agents found. Run `teamrc init` or `teamrc join` first.");
       process.exit(1);
     }
 
@@ -407,7 +407,7 @@ Replace with:
     const sourceAdapter = getAdapter(platforms[0]);
     const { source, team } = resolveTeamSource("agent-team.yaml", sourceAdapter.readTeam());
     if (!team) {
-      console.error("No team agents found. Run `teambridge init` or `teambridge join` first.");
+      console.error("No team agents found. Run `teamrc init` or `teamrc join` first.");
       process.exit(1);
     }
 

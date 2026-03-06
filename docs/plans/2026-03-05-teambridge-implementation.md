@@ -1,4 +1,4 @@
-# TeamBridge v1 Implementation Plan
+# teamrc v1 Implementation Plan
 
 **Status:** MVP Complete
 **Date:** 2026-03-05
@@ -15,10 +15,10 @@ All MVP tasks are complete. 108 tests passing (38 CLI + 70 relay). The system im
 ## Architecture
 
 ```
-teambridge/
+teamrc/
   relay/                        # Elixir Phoenix app
     lib/
-      teambridge/
+      teamrc/
         teams.ex                # GenServer — sync state + team management
         auth.ex                 # Ed25519 signature verification
         repo.ex                 # Ecto Repo
@@ -26,7 +26,7 @@ teambridge/
           team.ex               # Ecto schema
           member.ex             # Ecto schema (with soul field)
           invite.ex             # Ecto schema (multi-use, 24h expiry)
-      teambridge_web/
+      teamrc_web/
         router.ex               # API + web routes
         controllers/
           api_controller.ex     # REST API with input validation
@@ -45,7 +45,7 @@ teambridge/
       index.ts                  # CLI entry (Commander.js): init, join, apply, diff, status, sync, daemon
       auth.ts                   # Ed25519 keypair gen, storage, signing
       relay-client.ts           # HTTP client: sync, syncCheck, push, pull, createTeam, joinByInvite
-      config.ts                 # ~/.teambridge/ config management
+      config.ts                 # ~/.teamrc/ config management
       team-spec.ts              # agent-team.yaml parser/validator
       daemon.ts                 # Background sync: chokidar + 2-min polling
       merge.ts                  # Conflict resolution: append-only + last-write-wins
@@ -61,8 +61,8 @@ teambridge/
     tsconfig.json
   docs/
     plans/
-      2026-03-05-teambridge-prd.md
-      2026-03-05-teambridge-implementation.md
+      2026-03-05-teamrc-prd.md
+      2026-03-05-teamrc-implementation.md
     security-audit.md
 ```
 
@@ -80,7 +80,7 @@ Reviewed Ed25519 signing system end-to-end. Found 13 issues (2 critical, 4 high,
 - Moved `/api/join` behind auth pipeline (was unauthenticated)
 - Fixed `pull` method signing empty string instead of `"GET /path"`
 - Added BOLA check (token must match signing key)
-- Fixed directory permissions (`~/.teambridge` now 0o700)
+- Fixed directory permissions (`~/.teamrc` now 0o700)
 
 Audit documented in `docs/security-audit.md`.
 
@@ -218,10 +218,10 @@ Multiple platforms detected:
 Selecting "Both" configures all platforms in one go. All commands support `--platform` override. Changes in `config.ts` (`detectPlatforms()`) and `index.ts` (async `requirePlatform()`).
 
 ### Fix 12: Daemon regenerates native agent files
-When the daemon receives a remote `agent-team.yaml` change, it now calls `adapter.writeTeam()` to regenerate platform-native files (e.g., `.claude/agents/tb-*.md`). Previously it only wrote the yaml file — agents wouldn't update until manual `teambridge apply`.
+When the daemon receives a remote `agent-team.yaml` change, it now calls `adapter.writeTeam()` to regenerate platform-native files (e.g., `.claude/agents/tb-*.md`). Previously it only wrote the yaml file — agents wouldn't update until manual `teamrc apply`.
 
 ### Fix 13: CLAUDE.md team knowledge integration
-The CLAUDE.md section written by TeamBridge now instructs agents to read and write `.claude/team-knowledge.md`. This enables agents to naturally share findings — the daemon's file watcher picks up changes and syncs them via the relay.
+The CLAUDE.md section written by teamrc now instructs agents to read and write `.claude/team-knowledge.md`. This enables agents to naturally share findings — the daemon's file watcher picks up changes and syncs them via the relay.
 
 ### Fix 14: Scope prompt text corrected
 Changed from incorrect "writes to ~/.claude/teams/" to accurate "creates agents in .claude/agents/ and updates CLAUDE.md" for project scope, and "creates agents in ~/.claude/agents/" for global scope.
@@ -243,13 +243,13 @@ Changed from incorrect "writes to ~/.claude/teams/" to accurate "creates agents 
 
 ### Priority 2: Features
 - Task coordination system (state machine, assignment, comments)
-- MCP server for mid-session reads (`teambridge:read-knowledge`, `teambridge:list-teammates`)
+- MCP server for mid-session reads (`teamrc:read-knowledge`, `teamrc:list-teammates`)
 - Additional platform adapters (Cursor, Windsurf)
 - SOUL.md editing in web UI
 - End-to-end encryption
 
 ### Priority 3: Polish
-- `teambridge doctor` command (diagnose setup issues)
+- `teamrc doctor` command (diagnose setup issues)
 - Daemon as system service (launchd / systemd)
 - Better diff output (colored, side-by-side)
 - Conflict resolution UI (show what was merged/overwritten)

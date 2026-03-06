@@ -13,7 +13,7 @@ function createMockFetch(response: { status: number; body: unknown }) {
 }
 
 // We test the client methods by importing the class directly
-import { TeamBridgeClient } from "../client.js";
+import { TeamrcClient } from "../client.js";
 
 describe("device auth client methods", () => {
   it("createDeviceAuth sends signed POST and returns device info", async () => {
@@ -23,7 +23,7 @@ describe("device auth client methods", () => {
     const deviceResponse = {
       device_code: "dc_test123",
       user_code: "ABCD-1234",
-      verification_url: "https://teambridge.dev/auth/verify",
+      verification_url: "https://teamrc.dev/auth/verify",
       expires_in: 300,
       interval: 5,
     };
@@ -48,7 +48,7 @@ describe("device auth client methods", () => {
     };
 
     try {
-      const client = new TeamBridgeClient("http://localhost:4000", kp.privateKey, token);
+      const client = new TeamrcClient("http://localhost:4000", kp.privateKey, token);
       const result = await client.createDeviceAuth();
 
       assert.equal(capturedUrl, "http://localhost:4000/api/auth/device");
@@ -59,7 +59,7 @@ describe("device auth client methods", () => {
 
       assert.equal(result.device_code, "dc_test123");
       assert.equal(result.user_code, "ABCD-1234");
-      assert.equal(result.verification_url, "https://teambridge.dev/auth/verify");
+      assert.equal(result.verification_url, "https://teamrc.dev/auth/verify");
       assert.equal(result.expires_in, 300);
       assert.equal(result.interval, 5);
     } finally {
@@ -89,7 +89,7 @@ describe("device auth client methods", () => {
     };
 
     try {
-      const client = new TeamBridgeClient("http://localhost:4000", kp.privateKey, token);
+      const client = new TeamrcClient("http://localhost:4000", kp.privateKey, token);
       const result = await client.pollDeviceAuth("dc_test123");
 
       assert.equal(capturedUrl, "http://localhost:4000/api/auth/device/dc_test123");
@@ -123,7 +123,7 @@ describe("device auth client methods", () => {
     };
 
     try {
-      const client = new TeamBridgeClient("http://localhost:4000", kp.privateKey, token);
+      const client = new TeamrcClient("http://localhost:4000", kp.privateKey, token);
       const result = await client.pollDeviceAuth("dc_test123");
 
       assert.equal(result.status, "confirmed");

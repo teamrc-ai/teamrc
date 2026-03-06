@@ -23,8 +23,8 @@ export class GeminiAdapter implements PlatformAdapter {
       }
     }
 
-    const marker = "<!-- teambridge -->";
-    const markerEnd = "<!-- /teambridge -->";
+    const marker = "<!-- teamrc -->";
+    const markerEnd = "<!-- /teamrc -->";
 
     const sections = [`# Team: ${sanitizeMarkerContent(team.name)}`, ""];
 
@@ -82,21 +82,21 @@ export class GeminiAdapter implements PlatformAdapter {
     // Clean up skill directories
     const skillCount = cleanupSkillDirs(this.skillsDir());
     if (skillCount > 0) {
-      actions.push(`Deleted ${skillCount} TeamBridge gemini skill(s)`);
+      actions.push(`Deleted ${skillCount} teamrc gemini skill(s)`);
     }
 
     const filePath = this.geminiMdPath();
     if (!fs.existsSync(filePath)) return actions;
     const content = fs.readFileSync(filePath, "utf-8");
-    const marker = "<!-- teambridge -->";
-    const markerEnd = "<!-- /teambridge -->";
+    const marker = "<!-- teamrc -->";
+    const markerEnd = "<!-- /teamrc -->";
     const regex = new RegExp(
       `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
     );
     const cleaned = content.replace(regex, "\n");
     if (cleaned !== content) {
       fs.writeFileSync(filePath, cleaned.trimEnd() + "\n");
-      actions.push("Removed TeamBridge section from GEMINI.md");
+      actions.push("Removed teamrc section from GEMINI.md");
     }
     return actions;
   }
