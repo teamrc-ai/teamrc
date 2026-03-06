@@ -11,6 +11,7 @@ import {
   type TeamMember,
   type TeamScope,
 } from "./base.js";
+import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
 
 export class ClaudeCodeAdapter implements PlatformAdapter {
   private claudeDir: string;
@@ -74,9 +75,10 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     }
 
     for (const member of team.members) {
+      validateAgentName(member.name);
       const fileName = `tb-${slugify(member.name)}.md`;
       const filePath = path.join(dir, fileName);
-      const content = buildAgentFile(team.name, member, team.members);
+      const content = buildAgentFile(team.name, member, team.members, team);
       fs.writeFileSync(filePath, content);
     }
 
@@ -425,27 +427,64 @@ function toPortableJson(parsed: ParsedAgent): string {
   return JSON.stringify(obj);
 }
 
-function buildAgentFile(teamName: string, member: TeamMember, allMembers: TeamMember[]): string {
+function sanitizeText(s: string): string {
+  return s.replace(/[\n\r]/g, " ").trim();
+}
+
+function escapeYamlString(s: string): string {
+  // Escape backslashes, double quotes, and newlines for YAML double-quoted strings
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+}
+
+function buildAgentFile(teamName: string, member: TeamMember, allMembers: TeamMember[], team?: TeamDefinition): string {
   const name = `tb-${slugify(member.name)}`;
+  const safeRole = escapeYamlString(member.role);
+  const safeTeamName = escapeYamlString(teamName);
+  const safeTeamNameText = sanitizeText(teamName);
+  const safeRoleText = sanitizeText(member.role);
   const body = member.soul
     ? member.soul
-    : `You are ${member.name}, a ${member.role} on the ${teamName} team.\n\nFocus on your role and collaborate with your teammates.`;
+    : `You are ${member.name}, a ${safeRoleText} on the ${safeTeamNameText} team.\n\nFocus on your role and collaborate with your teammates.`;
+
+  let rulesSection = "";
+  if (team) {
+    const resolvedRules = resolveAgentRules(member, team);
+    if (resolvedRules.length > 0) {
+      const ruleBlocks = resolvedRules.map((r) => {
+        const title = r.title || r.id;
+        const body = typeof r.body === "string" ? r.body : "";
+        return `### ${title}\n\n${body}`;
+      }).join("\n\n");
+      rulesSection += `\n## Rules\n\n${ruleBlocks}\n`;
+    }
+
+    const resolvedSkills = resolveAgentSkills(member, team);
+    if (resolvedSkills.length > 0) {
+      const skillBlocks = resolvedSkills.map((s) => {
+        const title = s.title || s.id;
+        const desc = s.description ? `${s.description}\n\n` : "";
+        const body = s.body ? (typeof s.body === "string" ? s.body : "") : "";
+        return `### ${title}\n\n${desc}${body}`;
+      }).join("\n\n");
+      rulesSection += `\n## Skills\n\n${skillBlocks}\n`;
+    }
+  }
 
   const teammates = allMembers
     .filter((m) => m.name !== member.name)
-    .map((m) => `- **${m.name}** — ${m.role}`)
+    .map((m) => `- **${sanitizeText(m.name)}** — ${sanitizeText(m.role)}`)
     .join("\n");
 
   return `---
 name: ${name}
-description: "${member.role} on the ${teamName} team. Use when tasks relate to ${member.role.toLowerCase()}."
+description: "${safeRole} on the ${safeTeamName} team. Use when tasks relate to ${safeRole.toLowerCase()}."
 model: inherit
 ---
 
-# Team: ${teamName}
+# Team: ${safeTeamNameText}
 
 ${body}
-
+${rulesSection}
 ## Teammates
 
 ${teammates}
@@ -456,13 +495,18 @@ Shared findings and decisions are stored in \`.claude/team-knowledge.md\`. Read 
 `;
 }
 
+function sanitizeTeamName(name: string): string {
+  return name.replace(/[\n\r]/g, " ").trim();
+}
+
 function buildClaudeMdSection(team: TeamDefinition): string {
+  const safeName = sanitizeTeamName(team.name);
   const memberLines = team.members
-    .map((m) => `- **${m.name}** — ${m.role}`)
+    .map((m) => `- **${m.name}** — ${sanitizeText(m.role)}`)
     .join("\n");
 
   return `
-## TeamBridge Team: ${team.name}
+## TeamBridge Team: ${safeName}
 
 This project has a synced agent team managed by TeamBridge.
 
