@@ -20,15 +20,34 @@ export interface PortableAgent {
   teamName: string;
 }
 
+export interface Rule {
+  id: string;
+  title?: string;
+  globs?: string[];
+  alwaysApply?: boolean;
+  body: string | { source: string };
+}
+
+export interface Skill {
+  id: string;
+  title?: string;
+  description?: string;
+  body?: string | { source: string };
+}
+
 export interface TeamMember {
   name: string;
   role: string;
   soul?: string;
+  rules?: string[];   // references Rule.id
+  skills?: string[];  // references Skill.id
 }
 
 export interface TeamDefinition {
   name: string;
   members: TeamMember[];
+  rules?: Rule[];
+  skills?: Skill[];
 }
 
 export type TeamScope = "project" | "global";
