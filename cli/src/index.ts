@@ -181,7 +181,6 @@ program
       const adapter = getAdapter(p);
       const scope = await askScope(p);
       adapter.writeTeam(team, scope);
-      adapter.installHooks(relayUrl, token);
       console.log(`  ${p} configured.`);
     }
 
@@ -249,7 +248,6 @@ program
           ? opts.scope
           : await askScope(p);
         adapter.writeTeam(teamDef, scope);
-        adapter.installHooks(relayUrl, token);
         console.log(`  ${p} configured.`);
       }
 
@@ -566,7 +564,7 @@ program
 
     const platforms = config.platform.split(",");
 
-    console.log("\nThis will remove all TeamBridge agents, hooks, config, and team knowledge from this machine.");
+    console.log("\nThis will remove all TeamBridge agents, config, and team knowledge from this machine.");
     console.log("Other team members will keep their setup — you're just disconnecting.\n");
     const answer = await askQuestion("Continue? [y/N]: ");
 

@@ -73,7 +73,6 @@ export class GeminiAdapter implements PlatformAdapter {
   writeKnowledge(_content: string): void {}
   appendKnowledge(_entries: string[]): void {}
   getHashes(): Record<string, string> { return {}; }
-  installHooks(_relay: string, _token: string): void {}
   watchPaths(): string[] { return []; }
   writeFile(_key: string, _content: string): void {}
   readFile(_key: string): string | null { return null; }

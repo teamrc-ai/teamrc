@@ -465,72 +465,9 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       }
     }
 
-    // Remove hook from settings.json
-    const settingsPath = path.join(this.claudeDir, "settings.json");
-    if (fs.existsSync(settingsPath)) {
-      try {
-        const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
-        const hooks = (settings["hooks"] ?? {}) as Record<string, unknown>;
-        const sessionStart = (hooks["SessionStart"] ?? []) as Array<{
-          matcher?: string;
-          hooks: Array<{ type: string; command: string }>;
-        }>;
-        const filtered = sessionStart.filter(
-          (entry) => !entry.hooks?.some((h) => h.command?.includes("teambridge")),
-        );
-        if (filtered.length !== sessionStart.length) {
-          hooks["SessionStart"] = filtered;
-          settings["hooks"] = hooks;
-          fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-          actions.push(`Removed TeamBridge hook from ${settingsPath}`);
-        }
-      } catch {
-        // Leave settings alone if we can't parse them
-      }
-    }
-
     return actions;
   }
 
-  installHooks(relay: string, _token: string): void {
-    const settingsPath = path.join(this.claudeDir, "settings.json");
-    let settings: Record<string, unknown> = {};
-
-    if (fs.existsSync(settingsPath)) {
-      try {
-        settings = JSON.parse(
-          fs.readFileSync(settingsPath, "utf-8"),
-        ) as Record<string, unknown>;
-      } catch {
-        // Start fresh if settings file is corrupted
-      }
-    }
-
-    const hooks = (settings["hooks"] ?? {}) as Record<string, unknown>;
-    const sessionStart = (hooks["SessionStart"] ?? []) as Array<{
-      matcher?: string;
-      hooks: Array<{ type: string; command: string }>;
-    }>;
-
-    const hookCommand = "npx teambridge sync 2>/dev/null || true";
-    const alreadyInstalled = sessionStart.some(
-      (entry) => entry.hooks?.some((h) => h.command === hookCommand),
-    );
-
-    if (!alreadyInstalled) {
-      sessionStart.push({
-        hooks: [{ type: "command", command: hookCommand }],
-      });
-    }
-
-    hooks["SessionStart"] = sessionStart;
-    settings["hooks"] = hooks;
-
-    if (!fs.existsSync(this.claudeDir)) {
-      fs.mkdirSync(this.claudeDir, { recursive: true });
-    }
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-  }
 }
 
 // --- Helpers ---

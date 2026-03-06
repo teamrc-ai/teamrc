@@ -542,42 +542,7 @@ export class OpenClawAdapter implements PlatformAdapter {
       }
     }
 
-    // Delete sync hook
-    const hookDir = path.join(this.openclawDir, "hooks", "teambridge-sync");
-    if (fs.existsSync(hookDir)) {
-      fs.rmSync(hookDir, { recursive: true });
-      actions.push(`Deleted sync hook`);
-    }
-
     return actions;
   }
 
-  installHooks(_relay: string, _token: string): void {
-    const hookDir = path.join(
-      this.openclawDir,
-      "hooks",
-      "teambridge-sync",
-    );
-    if (!fs.existsSync(hookDir)) {
-      fs.mkdirSync(hookDir, { recursive: true });
-    }
-
-    const hookPath = path.join(hookDir, "index.ts");
-    const hookContent = `// TeamBridge sync hook for OpenClaw
-// Runs on session start to sync team state
-
-import { execFileSync } from "node:child_process";
-
-export default function teambridgeSync() {
-  try {
-    execFileSync("npx", ["teambridge", "sync"], {
-      stdio: "ignore",
-    });
-  } catch {
-    // Sync failures are non-fatal
-  }
-}
-`;
-    fs.writeFileSync(hookPath, hookContent);
-  }
 }

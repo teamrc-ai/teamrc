@@ -66,7 +66,6 @@ export interface PlatformAdapter {
   writeKnowledge(content: string): void;
   appendKnowledge(entries: string[]): void;
   getHashes(): Record<string, string>;
-  installHooks(relay: string, token: string): void;
   watchPaths(): string[];
   writeFile(key: string, content: string): void;
   readFile(key: string): string | null;
