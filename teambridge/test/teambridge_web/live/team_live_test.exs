@@ -4,8 +4,8 @@ defmodule TeambridgeWeb.TeamLiveTest do
 
   test "renders template chooser on mount", %{conn: conn} do
     {:ok, _view, html} = live(conn, "/")
-    assert html =~ "Create a Team"
-    assert html =~ "Choose a starting point"
+    assert html =~ "Create a team"
+    assert html =~ "Pick a starting point"
     assert html =~ "Full-Stack Product"
     assert html =~ "Security Testing"
     assert html =~ "Marketing"
@@ -18,7 +18,7 @@ defmodule TeambridgeWeb.TeamLiveTest do
     view |> element("button[phx-value-template='fullstack']") |> render_click()
     html = render(view)
 
-    assert html =~ "Customize Your Team"
+    assert html =~ "Configure your team"
     assert html =~ "product-manager"
     assert html =~ "team-lead"
     assert html =~ "ux-designer"
@@ -31,10 +31,10 @@ defmodule TeambridgeWeb.TeamLiveTest do
     {:ok, view, _html} = live(conn, "/")
 
     view |> element("button[phx-value-template='backend']") |> render_click()
-    assert render(view) =~ "Customize Your Team"
+    assert render(view) =~ "Configure your team"
 
-    view |> element("button", "Back to templates") |> render_click()
-    assert render(view) =~ "Choose a starting point"
+    view |> element("button", "Templates") |> render_click()
+    assert render(view) =~ "Pick a starting point"
   end
 
   test "updates team name and enables create button", %{conn: conn} do
@@ -43,13 +43,12 @@ defmodule TeambridgeWeb.TeamLiveTest do
     # Select custom template (empty name)
     view |> element("button[phx-value-template='custom']") |> render_click()
     html = render(view)
-    assert html =~ "bg-zinc-300"
     assert html =~ "cursor-not-allowed"
 
     # Set a team name
     view |> element("#team-name") |> render_keyup(%{"value" => "my-project"})
     html = render(view)
-    assert html =~ "bg-zinc-900"
+    assert html =~ "bg-primary"
   end
 
   test "adds and removes team members", %{conn: conn} do
@@ -60,12 +59,12 @@ defmodule TeambridgeWeb.TeamLiveTest do
     # Add a member
     view |> element("button", "Add member") |> render_click()
     html = render(view)
-    assert length(Regex.scan(~r/Agent name/, html)) == 2
+    assert length(Regex.scan(~r/agent-name/, html)) == 2
 
     # Remove second member (index 1)
-    view |> element("button[phx-value-index='1']") |> render_click()
+    view |> element("button[phx-click='remove_member'][phx-value-index='1']") |> render_click()
     html = render(view)
-    assert length(Regex.scan(~r/Agent name/, html)) == 1
+    assert length(Regex.scan(~r/agent-name/, html)) == 1
   end
 
   test "creates team and shows join command", %{conn: conn} do
@@ -75,7 +74,7 @@ defmodule TeambridgeWeb.TeamLiveTest do
     view |> element("button[phx-value-template='fullstack']") |> render_click()
 
     # Create team
-    view |> element("button", "Create Team") |> render_click()
+    view |> element("button", "Create team") |> render_click()
 
     html = render(view)
     assert html =~ "product-team"
@@ -87,11 +86,11 @@ defmodule TeambridgeWeb.TeamLiveTest do
     {:ok, view, _html} = live(conn, "/")
 
     view |> element("button[phx-value-template='backend']") |> render_click()
-    view |> element("button", "Create Team") |> render_click()
+    view |> element("button", "Create team") |> render_click()
     assert render(view) =~ "npx teambridge join"
 
     view |> element("button", "Create another team") |> render_click()
-    assert render(view) =~ "Choose a starting point"
+    assert render(view) =~ "Pick a starting point"
   end
 
   test "security template has expected members", %{conn: conn} do
@@ -116,5 +115,25 @@ defmodule TeambridgeWeb.TeamLiveTest do
     assert html =~ "copywriter"
     assert html =~ "seo-specialist"
     assert html =~ "analytics-lead"
+  end
+
+  test "per-member rule assignment toggles", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/")
+
+    # Select fullstack template (has rules)
+    view |> element("button[phx-value-template='fullstack']") |> render_click()
+
+    # Enable advanced mode
+    view |> element("button", "Advanced") |> render_click()
+    html = render(view)
+
+    # Rules should appear as toggleable chips on each member
+    assert html =~ "write-tests"
+    assert html =~ "small-commits"
+
+    # Toggle a rule on a member
+    view |> element("button[phx-click='toggle_member_rule'][phx-value-member-index='0'][phx-value-rule-id='write-tests']") |> render_click()
+    html = render(view)
+    assert html =~ "bg-primary/15"
   end
 end

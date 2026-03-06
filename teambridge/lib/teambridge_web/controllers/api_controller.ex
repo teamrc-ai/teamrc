@@ -70,10 +70,15 @@ defmodule TeambridgeWeb.ApiController do
          :ok <- validate_hashes(hashes),
          :ok <- validate_file_paths(hashes),
          :ok <- validate_file_paths(files),
-         :ok <- validate_files(files) do
-      {:ok, result} = Teams.sync(token, platform, hashes, files)
+         :ok <- validate_files(files),
+         {:ok, result} <- Teams.sync(token, platform, hashes, files) do
       json(conn, %{changes: result.files})
     else
+      {:error, :not_joined} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "token not associated with any team — run 'teambridge init' first"})
+
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
@@ -91,6 +96,11 @@ defmodule TeambridgeWeb.ApiController do
         :ok ->
           json(conn, %{status: "ok"})
 
+        {:error, :not_joined} ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "token not associated with any team — run 'teambridge init' first"})
+
         {:error, :buffer_full} ->
           conn
           |> put_status(429)
@@ -105,16 +115,29 @@ defmodule TeambridgeWeb.ApiController do
   end
 
   def pull(conn, %{"token" => token, "platform" => platform}) do
-    {:ok, entries} = Teams.pull_buffer(token, platform)
+    case Teams.pull_buffer(token, platform) do
+      {:ok, entries} ->
+        json(conn, %{entries: entries})
 
-    json(conn, %{entries: entries})
+      {:error, :not_joined} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "token not associated with any team — run 'teambridge init' first"})
+    end
   end
 
   def sync_check(conn, %{"token" => token, "since" => since_str}) do
     case Integer.parse(since_str) do
       {since, ""} ->
-        {:ok, changed} = Teams.check_changed(token, since)
-        json(conn, %{changed: changed})
+        case Teams.check_changed(token, since) do
+          {:ok, changed} ->
+            json(conn, %{changed: changed})
+
+          {:error, :not_joined} ->
+            conn
+            |> put_status(:forbidden)
+            |> json(%{error: "token not associated with any team — run 'teambridge init' first"})
+        end
 
       _ ->
         conn

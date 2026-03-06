@@ -181,12 +181,7 @@ defmodule Teambridge.Teams do
   def handle_call({:sync, token, platform, incoming_hashes, incoming_files}, _from, state) do
     case Map.get(state.token_teams, token) do
       nil ->
-        # Unknown token — auto-register as a new "anonymous" team
-        # This allows sync to work even without a formal join
-        team_id = token
-        state = put_in(state, [:token_teams, token], team_id)
-        {result, state} = do_sync(state, team_id, platform, incoming_hashes, incoming_files)
-        {:reply, {:ok, result}, state}
+        {:reply, {:error, :not_joined}, state}
 
       team_id ->
         {result, state} = do_sync(state, team_id, platform, incoming_hashes, incoming_files)
@@ -196,7 +191,60 @@ defmodule Teambridge.Teams do
 
   # Legacy support for tests — push_buffer, pull_buffer, put_hashes, get_changes
   def handle_call({:push_buffer, token, entry}, _from, state) do
-    team_id = Map.get(state.token_teams, token, token)
+    case Map.get(state.token_teams, token) do
+      nil -> {:reply, {:error, :not_joined}, state}
+      team_id -> do_push_buffer(state, team_id, entry)
+    end
+  end
+
+  def handle_call({:pull_buffer, token, platform}, _from, state) do
+    case Map.get(state.token_teams, token) do
+      nil -> {:reply, {:error, :not_joined}, state}
+      team_id ->
+        team_content = Map.get(state.content, team_id, %{})
+
+        entries =
+          team_content
+          |> Enum.reject(fn {_file, meta} -> meta.source == platform end)
+          |> Enum.map(fn {file, meta} ->
+            %{"type" => file, "content" => meta.content, "source_platform" => meta.source, "timestamp" => meta.timestamp}
+          end)
+
+        {:reply, {:ok, entries}, state}
+    end
+  end
+
+  def handle_call({:put_hashes, token, platform, hashes}, _from, state) do
+    case Map.get(state.token_teams, token) do
+      nil -> {:reply, {:error, :not_joined}, state}
+      team_id ->
+        team_hashes = Map.get(state.hashes, team_id, %{})
+        team_hashes = Map.put(team_hashes, platform, hashes)
+        state = put_in(state, [:hashes, team_id], team_hashes)
+        {:reply, :ok, state}
+    end
+  end
+
+  def handle_call({:get_changes, token, requesting_platform}, _from, state) do
+    case Map.get(state.token_teams, token) do
+      nil -> {:reply, {:error, :not_joined}, state}
+      team_id ->
+        team_hashes = Map.get(state.hashes, team_id, %{})
+        changes = Map.drop(team_hashes, [requesting_platform])
+        {:reply, {:ok, changes}, state}
+    end
+  end
+
+  def handle_call({:check_changed, token, since}, _from, state) do
+    case Map.get(state.token_teams, token) do
+      nil -> {:reply, {:error, :not_joined}, state}
+      team_id ->
+        last = Map.get(state.last_updated_at, team_id, 0)
+        {:reply, {:ok, last > since}, state}
+    end
+  end
+
+  defp do_push_buffer(state, team_id, entry) do
     source = Map.get(entry, "source_platform") || Map.get(entry, :source_platform) || "unknown"
     file_key = Map.get(entry, "type") || Map.get(entry, :type) || "buffer"
     content_val = Map.get(entry, "content") || Map.get(entry, :content) || ""
@@ -211,41 +259,6 @@ defmodule Teambridge.Teams do
     state = put_in(state, [:last_updated_at, team_id], System.system_time(:second))
 
     {:reply, :ok, state}
-  end
-
-  def handle_call({:pull_buffer, token, platform}, _from, state) do
-    team_id = Map.get(state.token_teams, token, token)
-    team_content = Map.get(state.content, team_id, %{})
-
-    entries =
-      team_content
-      |> Enum.reject(fn {_file, meta} -> meta.source == platform end)
-      |> Enum.map(fn {file, meta} ->
-        %{"type" => file, "content" => meta.content, "source_platform" => meta.source, "timestamp" => meta.timestamp}
-      end)
-
-    {:reply, {:ok, entries}, state}
-  end
-
-  def handle_call({:put_hashes, token, platform, hashes}, _from, state) do
-    team_id = Map.get(state.token_teams, token, token)
-    team_hashes = Map.get(state.hashes, team_id, %{})
-    team_hashes = Map.put(team_hashes, platform, hashes)
-    state = put_in(state, [:hashes, team_id], team_hashes)
-    {:reply, :ok, state}
-  end
-
-  def handle_call({:get_changes, token, requesting_platform}, _from, state) do
-    team_id = Map.get(state.token_teams, token, token)
-    team_hashes = Map.get(state.hashes, team_id, %{})
-    changes = Map.drop(team_hashes, [requesting_platform])
-    {:reply, {:ok, changes}, state}
-  end
-
-  def handle_call({:check_changed, token, since}, _from, state) do
-    team_id = Map.get(state.token_teams, token, token)
-    last = Map.get(state.last_updated_at, team_id, 0)
-    {:reply, {:ok, last > since}, state}
   end
 
   @impl true
