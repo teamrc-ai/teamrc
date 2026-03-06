@@ -72,7 +72,33 @@ describe("Cursor adapter", () => {
     assert.ok(content.includes("Use grep."));
   });
 
-  it("writes agent instructions to AGENTS.md", async () => {
+  it("writes subagent .md files to .cursor/agents/", async () => {
+    const { CursorAdapter } = await import("../adapters/cursor.js");
+    const adapter = new CursorAdapter();
+
+    const team = {
+      name: "test-team",
+      members: [
+        { name: "architect", role: "design architecture", rules: ["rule_style"] },
+        { name: "coder", role: "write code" },
+      ],
+      rules: [{ id: "rule_style", title: "Code Style", body: "Use prettier." }],
+    };
+
+    adapter.writeTeam(team);
+
+    const agentFile = path.join(tmpDir, ".cursor", "agents", "tb-architect.md");
+    assert.ok(fs.existsSync(agentFile), "Subagent .md file should exist");
+
+    const content = fs.readFileSync(agentFile, "utf-8");
+    assert.ok(content.includes("name: tb-architect"));
+    assert.ok(content.includes("design architecture"));
+    assert.ok(content.includes("Code Style"));
+    assert.ok(content.includes("Use prettier."));
+    assert.ok(content.includes("coder"));
+  });
+
+  it("writes routing instructions to AGENTS.md", async () => {
     const { CursorAdapter } = await import("../adapters/cursor.js");
     const adapter = new CursorAdapter();
 
@@ -90,6 +116,29 @@ describe("Cursor adapter", () => {
     assert.ok(fs.existsSync(agentsMd));
     const content = fs.readFileSync(agentsMd, "utf-8");
     assert.ok(content.includes("test-team"));
-    assert.ok(content.includes("architect"));
+    assert.ok(content.includes("tb-architect"));
+    assert.ok(content.includes("subagents"));
+  });
+
+  it("cleans up subagent files on uninstall", async () => {
+    const { CursorAdapter } = await import("../adapters/cursor.js");
+    const adapter = new CursorAdapter();
+
+    const team = {
+      name: "test-team",
+      members: [{ name: "architect", role: "design" }],
+      rules: [{ id: "rule_style", title: "Code Style", body: "Use prettier." }],
+    };
+
+    adapter.writeTeam(team);
+
+    // Verify files exist
+    assert.ok(fs.existsSync(path.join(tmpDir, ".cursor", "agents", "tb-architect.md")));
+    assert.ok(fs.existsSync(path.join(tmpDir, ".cursor", "rules", "tb-rule_style.mdc")));
+
+    const actions = adapter.uninstall();
+    assert.ok(actions.length > 0);
+    assert.ok(!fs.existsSync(path.join(tmpDir, ".cursor", "agents", "tb-architect.md")));
+    assert.ok(!fs.existsSync(path.join(tmpDir, ".cursor", "rules", "tb-rule_style.mdc")));
   });
 });

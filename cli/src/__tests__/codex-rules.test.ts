@@ -39,14 +39,59 @@ describe("Codex adapter", () => {
     assert.ok(content.includes("Search code"));
   });
 
-  it("writes team and rules to AGENTS.md", async () => {
+  it("writes subagent TOML files to .codex/agents/", async () => {
     const { CodexAdapter } = await import("../adapters/codex.js");
     const adapter = new CodexAdapter();
 
     const team = {
       name: "test-team",
-      members: [{ name: "architect", role: "design", rules: ["rule_style"] }],
+      members: [
+        { name: "architect", role: "design architecture", rules: ["rule_style"] },
+        { name: "coder", role: "write code" },
+      ],
       rules: [{ id: "rule_style", title: "Code Style", body: "Use prettier." }],
+    };
+
+    adapter.writeTeam(team);
+
+    // Check TOML agent file
+    const tomlFile = path.join(tmpDir, ".codex", "agents", "tb-architect.toml");
+    assert.ok(fs.existsSync(tomlFile), "TOML agent file should exist");
+
+    const content = fs.readFileSync(tomlFile, "utf-8");
+    assert.ok(content.includes("developer_instructions"));
+    assert.ok(content.includes("design architecture"));
+    assert.ok(content.includes("Code Style"));
+    assert.ok(content.includes("Use prettier."));
+    assert.ok(content.includes("coder"));
+  });
+
+  it("registers subagents in .codex/config.toml", async () => {
+    const { CodexAdapter } = await import("../adapters/codex.js");
+    const adapter = new CodexAdapter();
+
+    const team = {
+      name: "test-team",
+      members: [{ name: "architect", role: "design" }],
+    };
+
+    adapter.writeTeam(team);
+
+    const configPath = path.join(tmpDir, ".codex", "config.toml");
+    assert.ok(fs.existsSync(configPath), "config.toml should exist");
+
+    const content = fs.readFileSync(configPath, "utf-8");
+    assert.ok(content.includes("[agents.tb-architect]"));
+    assert.ok(content.includes('config_file = "agents/tb-architect.toml"'));
+  });
+
+  it("writes routing AGENTS.md", async () => {
+    const { CodexAdapter } = await import("../adapters/codex.js");
+    const adapter = new CodexAdapter();
+
+    const team = {
+      name: "test-team",
+      members: [{ name: "architect", role: "design" }],
     };
 
     adapter.writeTeam(team);
@@ -56,8 +101,28 @@ describe("Codex adapter", () => {
 
     const content = fs.readFileSync(agentsMd, "utf-8");
     assert.ok(content.includes("test-team"));
-    assert.ok(content.includes("architect"));
-    assert.ok(content.includes("Code Style"));
-    assert.ok(content.includes("Use prettier."));
+    assert.ok(content.includes("tb-architect"));
+  });
+
+  it("cleans up on uninstall", async () => {
+    const { CodexAdapter } = await import("../adapters/codex.js");
+    const adapter = new CodexAdapter();
+
+    const team = {
+      name: "test-team",
+      members: [{ name: "architect", role: "design" }],
+      skills: [{ id: "skill_search", description: "Search code", body: "Use grep." }],
+    };
+
+    adapter.writeTeam(team);
+
+    // Verify files exist
+    assert.ok(fs.existsSync(path.join(tmpDir, ".codex", "agents", "tb-architect.toml")));
+    assert.ok(fs.existsSync(path.join(tmpDir, ".codex", "config.toml")));
+    assert.ok(fs.existsSync(path.join(tmpDir, "AGENTS.md")));
+
+    const actions = adapter.uninstall();
+    assert.ok(actions.length > 0);
+    assert.ok(!fs.existsSync(path.join(tmpDir, ".codex", "agents", "tb-architect.toml")));
   });
 });
