@@ -4,7 +4,24 @@ import { validateAgentName, type TeamDefinition, type TeamMember, type Rule, typ
 
 const MAX_YAML_SIZE = 256 * 1024; // 256 KB
 const MAX_MEMBERS = 100;
+const MAX_RULES = 200;
+const MAX_SKILLS = 200;
 const TEAM_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9 _-]{0,63}$/;
+const RULE_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
+
+export function validateRuleId(id: string): void {
+  if (!RULE_ID_RE.test(id)) {
+    throw new Error(`Invalid rule/skill ID: ${JSON.stringify(id)}. Must be 1-64 alphanumeric characters, hyphens, or underscores.`);
+  }
+}
+
+function parseBody(raw: unknown): string | { source: string } {
+  if (typeof raw === "string") return raw;
+  if (raw && typeof raw === "object" && "source" in raw && typeof (raw as Record<string, unknown>).source === "string") {
+    return { source: (raw as Record<string, unknown>).source as string };
+  }
+  return "";
+}
 
 export function validateTeamName(name: string): void {
   if (!TEAM_NAME_RE.test(name)) {
@@ -35,30 +52,44 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
     validateAgentName(name);
     const member: TeamMember = { name, role: String(m.role || "") };
     if (m.soul) member.soul = String(m.soul);
-    if (Array.isArray(m.rules)) member.rules = m.rules as string[];
-    if (Array.isArray(m.skills)) member.skills = m.skills as string[];
+    if (Array.isArray(m.rules)) member.rules = m.rules.map((r: unknown) => String(r));
+    if (Array.isArray(m.skills)) member.skills = m.skills.map((s: unknown) => String(s));
     return member;
   });
 
   const rawRules = data.rules || [];
+  if (Array.isArray(rawRules) && rawRules.length > MAX_RULES) {
+    throw new Error(`agent-team.yaml rules must have at most ${MAX_RULES} entries`);
+  }
   const rules: Rule[] = Array.isArray(rawRules)
-    ? rawRules.map((r: Record<string, unknown>) => ({
-        id: String(r.id || ""),
-        ...(r.title ? { title: String(r.title) } : {}),
-        ...(r.globs ? { globs: r.globs as string[] } : {}),
-        ...(r.alwaysApply !== undefined ? { alwaysApply: Boolean(r.alwaysApply) } : {}),
-        body: r.body as string | { source: string },
-      }))
+    ? rawRules.map((r: Record<string, unknown>) => {
+        const id = String(r.id || "");
+        validateRuleId(id);
+        return {
+          id,
+          ...(r.title ? { title: String(r.title) } : {}),
+          ...(Array.isArray(r.globs) ? { globs: r.globs.filter((g: unknown): g is string => typeof g === "string") } : {}),
+          ...(r.alwaysApply !== undefined ? { alwaysApply: Boolean(r.alwaysApply) } : {}),
+          body: parseBody(r.body),
+        };
+      })
     : [];
 
   const rawSkills = data.skills || [];
+  if (Array.isArray(rawSkills) && rawSkills.length > MAX_SKILLS) {
+    throw new Error(`agent-team.yaml skills must have at most ${MAX_SKILLS} entries`);
+  }
   const skills: Skill[] = Array.isArray(rawSkills)
-    ? rawSkills.map((s: Record<string, unknown>) => ({
-        id: String(s.id || ""),
-        ...(s.title ? { title: String(s.title) } : {}),
-        ...(s.description ? { description: String(s.description) } : {}),
-        ...(s.body !== undefined ? { body: s.body as string | { source: string } } : {}),
-      }))
+    ? rawSkills.map((s: Record<string, unknown>) => {
+        const id = String(s.id || "");
+        validateRuleId(id);
+        return {
+          id,
+          ...(s.title ? { title: String(s.title) } : {}),
+          ...(s.description ? { description: String(s.description) } : {}),
+          ...(s.body !== undefined ? { body: parseBody(s.body) } : {}),
+        };
+      })
     : [];
 
   const teamName = data.name || "";

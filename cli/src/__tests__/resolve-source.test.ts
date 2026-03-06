@@ -80,4 +80,25 @@ describe("resolveBody", () => {
     const result = resolveBody(undefined, tmpDir);
     assert.equal(result, "");
   });
+
+  it("blocks absolute path traversal", () => {
+    assert.throws(
+      () => resolveBody({ source: "/etc/hosts" }, tmpDir),
+      /Path traversal blocked/,
+    );
+  });
+
+  it("blocks relative path traversal", () => {
+    assert.throws(
+      () => resolveBody({ source: "../../etc/hosts" }, tmpDir),
+      /Path traversal blocked/,
+    );
+  });
+
+  it("blocks parent directory escape", () => {
+    assert.throws(
+      () => resolveBody({ source: "../outside.txt" }, tmpDir),
+      /Path traversal blocked/,
+    );
+  });
 });

@@ -26,6 +26,8 @@ export function resolveTeamSource(
   return { source: "none", team: null };
 }
 
+const MAX_SOURCE_SIZE = 1024 * 1024; // 1 MB
+
 export function resolveBody(
   body: string | { source: string } | undefined,
   basePath: string,
@@ -33,11 +35,25 @@ export function resolveBody(
   if (body === undefined) return "";
   if (typeof body === "string") return body;
   if (body.source) {
+    if (typeof body.source !== "string") return "";
     const resolved = path.resolve(basePath, body.source);
-    if (fs.existsSync(resolved)) {
-      return fs.readFileSync(resolved, "utf-8");
+    // Prevent path traversal: resolved path must stay within basePath
+    const realBase = path.resolve(basePath);
+    if (!resolved.startsWith(realBase + path.sep) && resolved !== realBase) {
+      throw new Error(`Path traversal blocked: source "${body.source}" resolves outside project directory`);
     }
-    return "";
+    if (!fs.existsSync(resolved)) return "";
+    // Re-check after resolving symlinks to prevent symlink-based traversal
+    const realResolved = fs.realpathSync(resolved);
+    const realBaseResolved = fs.realpathSync(realBase);
+    if (!realResolved.startsWith(realBaseResolved + path.sep) && realResolved !== realBaseResolved) {
+      throw new Error(`Path traversal blocked: source "${body.source}" resolves outside project directory via symlink`);
+    }
+    const stat = fs.statSync(resolved);
+    if (stat.size > MAX_SOURCE_SIZE) {
+      throw new Error(`Source file "${body.source}" exceeds maximum size of ${MAX_SOURCE_SIZE} bytes`);
+    }
+    return fs.readFileSync(resolved, "utf-8");
   }
   return "";
 }

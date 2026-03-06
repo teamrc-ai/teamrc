@@ -144,6 +144,66 @@ Team-to-token mappings in `Teambridge.Teams` GenServer are in-memory only. A ser
 
 ---
 
+---
+
+## YAML Source-of-Truth Security (2026-03-06)
+
+### 14. CRITICAL — Missing validateAgentName in writeTeam() (FIXED)
+
+**Files:** `cli/src/adapters/claude-code.ts:77`, `cli/src/adapters/openclaw.ts:105`
+
+Agent names from YAML were passed to adapters without validation. A malicious `agent-team.yaml` with path traversal names could write files outside the agents directory.
+
+**Fix applied:** Added `validateAgentName(member.name)` in both adapters' `writeTeam()` methods, and at YAML parse time in `readTeamYaml()`.
+
+### 15. HIGH — YAML frontmatter injection via role/teamName (FIXED)
+
+**File:** `cli/src/adapters/claude-code.ts:440-453`
+
+Member roles were interpolated directly into YAML double-quoted strings in agent file frontmatter. A role containing `"` could break out and inject arbitrary YAML fields.
+
+**Fix applied:** Added `escapeYamlString()` helper that escapes `\`, `"`, and newlines. Applied to role and team name in frontmatter.
+
+### 16. HIGH — No YAML file size limit (FIXED)
+
+**File:** `cli/src/team-yaml.ts:5-6`
+
+No size check before `fs.readFileSync()` and `YAML.parse()`. A multi-GB YAML file or YAML bomb could cause memory exhaustion.
+
+**Fix applied:** Added `MAX_YAML_SIZE = 256KB` check before reading, and `MAX_MEMBERS = 100` limit on the members array.
+
+### 17. MEDIUM — CLAUDE.md injection via team name (FIXED)
+
+**File:** `cli/src/adapters/claude-code.ts:471-485`
+
+Team names with newlines could inject arbitrary content into CLAUDE.md, a high-trust file.
+
+**Fix applied:** Added `sanitizeTeamName()` and `sanitizeText()` that strip newlines. Applied to team name and member names/roles in all template outputs.
+
+### 18. MEDIUM — Daemon race conditions (FIXED)
+
+**File:** `cli/src/daemon.ts:60-90`
+
+Multiple file changes could trigger overlapping `pushChanges()` calls via `void` fire-and-forget.
+
+**Fix applied:** Added sync mutex (`syncing`/`syncQueued` flags) so only one sync runs at a time, with subsequent triggers queued.
+
+### 19. MEDIUM — No team name validation (FIXED)
+
+**File:** `cli/src/team-yaml.ts:8-12`, `cli/src/index.ts:519,548`
+
+Team names from YAML and relay were not validated. Malicious names could contain control characters or be excessively long.
+
+**Fix applied:** Added `validateTeamName()` regex (`^[a-zA-Z0-9][a-zA-Z0-9 _-]{0,63}$`). Applied at YAML parse time and in export/pull commands.
+
+### 20. MEDIUM — Prompt injection via soul content (BY DESIGN)
+
+Agent `soul` fields are intentionally user-controlled persona text. A malicious `agent-team.yaml` committed to a shared repo could inject adversarial instructions.
+
+**Mitigation:** `agent-team.yaml` should be treated as a trusted configuration file (like `.env`). Review YAML changes in PRs just as you would review code changes.
+
+---
+
 ## Summary of Required Fixes
 
 | # | Severity | Issue | Status |
@@ -161,3 +221,10 @@ Team-to-token mappings in `Teambridge.Teams` GenServer are in-memory only. A ser
 | 11 | LOW | Transparent token format | Noted |
 | 12 | LOW | No key rotation | Noted |
 | 13 | LOW | GenServer state loss | Noted |
+| 14 | CRITICAL | Missing validateAgentName in writeTeam | Fixed |
+| 15 | HIGH | YAML frontmatter injection | Fixed |
+| 16 | HIGH | No YAML file size limit | Fixed |
+| 17 | MEDIUM | CLAUDE.md injection via team name | Fixed |
+| 18 | MEDIUM | Daemon race conditions | Fixed |
+| 19 | MEDIUM | No team name validation | Fixed |
+| 20 | MEDIUM | Prompt injection via soul | By design |
