@@ -2,10 +2,13 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import {
   sanitizeMarkerContent,
+  writeSkillDir,
+  cleanupSkillDirs,
   type PlatformAdapter,
   type TeamDefinition,
   type Rule,
 } from "./base.js";
+import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
 
 export class CursorAdapter implements PlatformAdapter {
   private cursorDir(): string {
@@ -14,6 +17,10 @@ export class CursorAdapter implements PlatformAdapter {
 
   private rulesDir(): string {
     return path.join(this.cursorDir(), "rules");
+  }
+
+  private skillsDir(): string {
+    return path.join(this.cursorDir(), "skills");
   }
 
   private listTbRules(): string[] {
@@ -27,9 +34,17 @@ export class CursorAdapter implements PlatformAdapter {
   }
 
   writeTeam(team: TeamDefinition): void {
+    // Write all rules as .mdc files (project-level, Cursor's native format)
     if (team.rules) {
       for (const rule of team.rules) {
         this.writeRuleMdc(rule);
+      }
+    }
+    // Write native skill directories
+    if (team.skills) {
+      const dir = this.skillsDir();
+      for (const skill of team.skills) {
+        writeSkillDir(dir, skill);
       }
     }
     this.writeAgentsMd(team);
@@ -66,11 +81,33 @@ export class CursorAdapter implements PlatformAdapter {
     const marker = "<!-- teambridge -->";
     const markerEnd = "<!-- /teambridge -->";
 
-    const memberLines = team.members
-      .map((m) => `- **${sanitizeMarkerContent(m.name)}** — ${sanitizeMarkerContent(m.role)}`)
-      .join("\n");
+    const sections = [`# Team: ${sanitizeMarkerContent(team.name)}`, ""];
 
-    const block = [marker, `# Team: ${sanitizeMarkerContent(team.name)}`, "", memberLines, markerEnd].join("\n");
+    for (const member of team.members) {
+      sections.push(`## ${sanitizeMarkerContent(member.name)}`, "");
+      sections.push(`**Role:** ${sanitizeMarkerContent(member.role)}`, "");
+
+      const agentRules = resolveAgentRules(member, team);
+      if (agentRules.length > 0) {
+        sections.push("**Rules:**");
+        for (const r of agentRules) {
+          sections.push(`- \`${sanitizeMarkerContent(r.id)}\`: ${sanitizeMarkerContent(typeof r.body === "string" ? r.body : "")}`);
+        }
+        sections.push("");
+      }
+
+      const agentSkills = resolveAgentSkills(member, team);
+      if (agentSkills.length > 0) {
+        sections.push("**Skills:**");
+        for (const s of agentSkills) {
+          const desc = s.description ? sanitizeMarkerContent(s.description) : (s.title || s.id);
+          sections.push(`- \`${sanitizeMarkerContent(s.id)}\`: ${desc}`);
+        }
+        sections.push("");
+      }
+    }
+
+    const block = [marker, ...sections, markerEnd].join("\n");
 
     if (fs.existsSync(agentsMdPath)) {
       let content = fs.readFileSync(agentsMdPath, "utf-8");
@@ -100,6 +137,12 @@ export class CursorAdapter implements PlatformAdapter {
     }
     if (tbRules.length > 0) {
       actions.push(`Deleted ${tbRules.length} TeamBridge cursor rule(s)`);
+    }
+
+    // Clean up skill directories
+    const skillCount = cleanupSkillDirs(this.skillsDir());
+    if (skillCount > 0) {
+      actions.push(`Deleted ${skillCount} TeamBridge cursor skill(s)`);
     }
 
     // Clean up AGENTS.md marker block

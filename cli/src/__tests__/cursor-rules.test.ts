@@ -51,6 +51,27 @@ describe("Cursor adapter", () => {
     assert.ok(secContent.includes("alwaysApply: true"));
   });
 
+  it("writes native skill directories to .cursor/skills/", async () => {
+    const { CursorAdapter } = await import("../adapters/cursor.js");
+    const adapter = new CursorAdapter();
+
+    const team = {
+      name: "test-team",
+      members: [{ name: "architect", role: "design" }],
+      skills: [{ id: "skill_search", description: "Search code", body: "Use grep." }],
+    };
+
+    adapter.writeTeam(team);
+
+    const skillFile = path.join(tmpDir, ".cursor", "skills", "tb-skill_search", "SKILL.md");
+    assert.ok(fs.existsSync(skillFile), "SKILL.md should exist");
+
+    const content = fs.readFileSync(skillFile, "utf-8");
+    assert.ok(content.includes("name: tb-skill_search"));
+    assert.ok(content.includes("Search code"));
+    assert.ok(content.includes("Use grep."));
+  });
+
   it("writes agent instructions to AGENTS.md", async () => {
     const { CursorAdapter } = await import("../adapters/cursor.js");
     const adapter = new CursorAdapter();
