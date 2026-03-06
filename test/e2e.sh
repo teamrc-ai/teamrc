@@ -1,9 +1,9 @@
 #!/bin/bash
-# test/e2e.sh — End-to-end test for TeamBridge
+# test/e2e.sh — End-to-end test for teamrc
 # Tests the relay API with curl (auth skipped in test mode)
 set -e
 
-echo "=== TeamBridge E2E Test ==="
+echo "=== teamrc E2E Test ==="
 
 cd "$(dirname "$0")/.."
 
@@ -212,7 +212,7 @@ fi
 echo ""
 echo "--- Test: LiveView renders ---"
 HTML=$(curl -s "$RELAY_URL/")
-if echo "$HTML" | grep -q "TeamBridge\|Create a Team\|team"; then
+if echo "$HTML" | grep -q "teamrc\|Create a Team\|team"; then
   pass "LiveView renders"
 else
   fail "LiveView not rendering"
