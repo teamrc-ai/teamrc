@@ -1,14 +1,26 @@
 name: product-team
-agents:
+members:
   - name: product-manager
-    role: Define requirements, prioritize the backlog, write user stories and acceptance criteria
+    role: Define requirements, prioritize the backlog, write user stories and
+      acceptance criteria
   - name: team-lead
-    role: Break down work, coordinate across agents, make technical decisions, unblock the team
+    role: Break down work, coordinate across agents, make technical decisions,
+      unblock the team
   - name: ux-designer
-    role: Design user flows, wireframes, and UI components. Ensure accessibility and usability
+    role: Design user flows, wireframes, and UI components. Ensure accessibility and
+      usability
   - name: frontend-dev
-    role: Build UI components, integrate APIs, implement responsive layouts and interactions
+    role: Build UI components, integrate APIs, implement responsive layouts and
+      interactions
   - name: backend-dev
     role: Design APIs, write business logic, manage data models and database queries
   - name: qa-engineer
-    role: Write test plans, automate E2E and integration tests, validate edge cases and regressions
+    role: Write test plans, automate E2E and integration tests, validate edge cases
+      and regressions
+rules:
+  - id: write-tests
+    body: Always write tests for new code. Include unit tests and integration tests
+      where appropriate.
+  - id: small-commits
+    body: Prefer small, reviewable commits. Each commit should represent a single
+      logical change.
