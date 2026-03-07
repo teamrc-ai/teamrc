@@ -123,6 +123,7 @@ describe("daemon", () => {
       client,
       platform: "claude-code",
       pollInterval: 60000,
+      syncMode: "all",
     });
 
     await new Promise((r) => setTimeout(r, 200));

@@ -44,24 +44,34 @@ defmodule TeamrcWeb.Plugs.VerifySignature do
         _ -> conn
       end
     else
-      with {:ok, token} <- extract_token(conn),
-           {:ok, signature} <- extract_signature(conn),
-           {:ok, timestamp} <- extract_timestamp(conn),
-           :ok <- validate_timestamp(timestamp),
-           {:ok, public_key} <- Auth.from_token(token),
-           {:ok, raw_message} <- get_sign_message(conn),
+      with {:token, {:ok, token}} <- {:token, extract_token(conn)},
+           {:signature, {:ok, signature}} <- {:signature, extract_signature(conn)},
+           {:timestamp, {:ok, timestamp}} <- {:timestamp, extract_timestamp(conn)},
+           {:timestamp_valid, :ok} <- {:timestamp_valid, validate_timestamp(timestamp)},
+           {:key, {:ok, public_key}} <- {:key, Auth.from_token(token)},
+           {:message, {:ok, raw_message}} <- {:message, get_sign_message(conn)},
            message = "#{timestamp}.#{raw_message}",
-           true <- Auth.verify(public_key, message, signature),
-           :ok <- verify_token_matches_key(token, public_key) do
+           {:verify, true} <- {:verify, Auth.verify(public_key, message, signature)},
+           {:key_match, :ok} <- {:key_match, verify_token_matches_key(token, public_key)} do
         assign(conn, :verified_token, token)
       else
-        _ ->
-          conn
-          |> put_status(401)
-          |> Phoenix.Controller.json(%{error: "unauthorized"})
-          |> halt()
+        {:token, _} -> reject(conn, "missing or invalid token")
+        {:signature, _} -> reject(conn, "missing or invalid signature header")
+        {:timestamp, _} -> reject(conn, "missing timestamp header")
+        {:timestamp_valid, _} -> reject(conn, "timestamp out of range")
+        {:key, _} -> reject(conn, "invalid token format")
+        {:verify, _} -> reject(conn, "signature verification failed")
+        {:key_match, _} -> reject(conn, "token does not match signing key")
+        {:message, _} -> reject(conn, "unable to construct sign message")
       end
     end
+  end
+
+  defp reject(conn, reason) do
+    conn
+    |> put_status(401)
+    |> Phoenix.Controller.json(%{error: "unauthorized", reason: reason})
+    |> halt()
   end
 
   defp extract_timestamp(conn) do

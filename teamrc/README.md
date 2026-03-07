@@ -24,9 +24,25 @@ Requires Elixir 1.18+, PostgreSQL.
 
 | Pipeline | Auth | Endpoints |
 |----------|------|-----------|
-| `:api` | Ed25519 signature + rate limit | `/api/sync`, `/api/push`, `/api/join`, `/api/teams` |
+| `:api` | Ed25519 signature + rate limit | `/api/sync`, `/api/push`, `/api/join`, `/api/teams`, `/api/teams/preview`, `/api/teams/invite`, `/api/log` |
 | `:clerk_api` | Clerk JWT + rate limit | `/api/account`, `/api/account/teams` |
 | `:clerk_and_signature_api` | Both | `/api/account/reassociate` |
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/teams` | Create a new team |
+| `GET` | `/api/teams/:token` | Get team for a token |
+| `POST` | `/api/teams/preview` | Preview a team by invite code (read-only, no join) |
+| `POST` | `/api/teams/invite` | Generate a new invite code for your team |
+| `POST` | `/api/join` | Join a team by invite code |
+| `POST` | `/api/sync` | Sync local state with relay (push + pull) |
+| `GET` | `/api/sync/check` | Check if remote has changes since timestamp |
+| `POST` | `/api/push` | Push team knowledge entries |
+| `GET` | `/api/log` | Get recent sync activity with attribution |
+| `POST` | `/api/auth/device` | Start device auth flow |
+| `GET` | `/api/auth/device/:device_code` | Poll device auth status |
 
 ## Testing
 

@@ -210,6 +210,18 @@ Agent `soul` fields are intentionally user-controlled persona text. A malicious 
 
 Invite codes are intentionally multi-use — any number of machines can join a team using the same code before it expires (24h TTL). Security relies on the code's 144-bit entropy (not brute-forceable) and time-bounded expiry, not single-use semantics.
 
+### 33. Sync attribution (MITIGATED)
+
+Synced content (agents, rules, skills, knowledge) is automatically distributed to all team members. This creates a prompt injection surface — a compromised team member could push adversarial instructions via agent definitions.
+
+**Mitigations applied:**
+- Every content entry tracks `pushed_by` token for accountability
+- `teamrc log` exposes attribution so teams can audit who pushed what
+- Daemon defaults to `knowledge` sync mode — only knowledge files sync automatically; agent/rule/skill changes require explicit `teamrc sync`
+- `teamrc clone` allows copying a team without joining sync (no ongoing exposure)
+- `--no-sync` flag on `join` registers on relay for attribution but disables automatic sync
+- Trust boundary is the invite code: sharing an invite code = granting sync access
+
 ### 22. HIGH — `create_team_in_db` crash on error (FIXED)
 
 `create_team_in_db` did not handle database error tuples, causing unmatched function clause crashes instead of returning a proper error to the caller.
@@ -282,9 +294,9 @@ Unused routes and functions were left in the codebase, increasing the attack sur
 | 4 | HIGH | No BOLA check | Fixed |
 | 5 | HIGH | Token not verified against signing key | Fixed |
 | 6 | HIGH | Directory perms | Fixed |
-| 7 | MEDIUM | Catch-all error handling | Noted |
-| 8 | MEDIUM | skip_auth guard | Noted |
-| 9 | MEDIUM | No rate limiting | Noted |
+| 7 | MEDIUM | Catch-all error handling | Fixed (specific error reasons) |
+| 8 | MEDIUM | skip_auth guard | Fixed (compile-time `Mix.env()` check) |
+| 9 | MEDIUM | No rate limiting | Fixed (per-IP + per-token, ETS) |
 | 10 | MEDIUM | WebSocket auth design | Noted |
 | 11 | LOW | Transparent token format | Noted |
 | 12 | LOW | No key rotation | Noted |
@@ -308,3 +320,4 @@ Unused routes and functions were left in the codebase, increasing the attack sur
 | 30 | LOW | Duplicate utility functions across adapters | Fixed (shared in base.ts) |
 | 31 | LOW | N+1 in `resolve_participants` | Fixed (batch query) |
 | 32 | LOW | ETS table missing `read_concurrency` | Fixed |
+| 33 | MEDIUM | Sync content prompt injection surface | Mitigated (attribution, sync modes, clone) |

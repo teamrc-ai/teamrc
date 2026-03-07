@@ -10,16 +10,20 @@ const POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_CONTENT_SIZE = 1024 * 1024; // 1 MB per file
 const MAX_CHANGES_PER_SYNC = 100;
 
+export type SyncMode = "all" | "knowledge" | "none";
+
 export interface DaemonOptions {
   adapter: PlatformAdapter;
   client: TeamrcClient;
   platform: string;
   pollInterval?: number;
+  syncMode?: SyncMode;
 }
 
 export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   const { adapter, client, platform } = opts;
   const pollInterval = opts.pollInterval ?? POLL_INTERVAL_MS;
+  const syncMode: SyncMode = opts.syncMode ?? "knowledge";
 
   // Cache of hashes for files we've written ourselves (self-trigger prevention)
   // Maps hash → write timestamp for lazy age-based expiry
@@ -90,6 +94,10 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
 
     for (const [key, hash] of Object.entries(currentHashes)) {
       if (lastHashes[key] !== hash) {
+        // Filter by syncMode
+        if (syncMode === "knowledge" && !key.startsWith("knowledge:")) continue;
+        if (syncMode === "none") continue;
+
         const content = adapter.readFile(key);
         if (content !== null) {
           changedFiles[key] = content;
@@ -128,6 +136,16 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
     for (const [key, remoteChange] of entries.slice(0, MAX_CHANGES_PER_SYNC)) {
       if (remoteChange.content.length > MAX_CONTENT_SIZE) {
         warn(`Skipping ${key}: content exceeds ${MAX_CONTENT_SIZE} bytes.`);
+        continue;
+      }
+
+      // Filter by syncMode
+      if (syncMode === "knowledge" && !key.startsWith("knowledge:")) {
+        log(`Skipping ${key} (sync mode: knowledge)`);
+        continue;
+      }
+      if (syncMode === "none") {
+        log(`Remote change: ${key} (sync mode: none, not applying)`);
         continue;
       }
 

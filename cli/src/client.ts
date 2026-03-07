@@ -36,6 +36,7 @@ export function remoteTeamToDefinition(team: TeamrcTeam): TeamDefinition {
 export interface SyncChange {
   content: string;
   updated_at: number; // unix timestamp
+  pushed_by?: string;
 }
 
 export interface SyncResult {
@@ -216,6 +217,36 @@ export class TeamrcClient {
       machine_count?: number;
       team_count?: number;
     }>(`/api/auth/device/${encodeURIComponent(deviceCode)}`);
+  }
+
+  async previewByInvite(inviteCode: string): Promise<TeamrcTeam> {
+    const body = JSON.stringify({ invite_code: inviteCode, token: this.token });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/teams/preview`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (!res.ok) throw new Error(await this.errorMessage(res, "preview failed"));
+    const data = (await res.json()) as { team: TeamrcTeam };
+    return data.team;
+  }
+
+  async getLog(): Promise<Array<{ type: string; content: string; source_platform: string; pushed_by?: string; timestamp: string }>> {
+    const data = await this.signedGet<{ entries: Array<{ type: string; content: string; source_platform: string; pushed_by?: string; timestamp: string }> }>(`/api/log?token=${encodeURIComponent(this.token)}`);
+    return data.entries;
+  }
+
+  async createInvite(ttlHours: number = 24): Promise<{ invite_code: string; expires_at: string }> {
+    const body = JSON.stringify({ token: this.token, ttl_hours: ttlHours });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/teams/invite`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (!res.ok) throw new Error(await this.errorMessage(res, "createInvite failed"));
+    return (await res.json()) as { invite_code: string; expires_at: string };
   }
 
 }

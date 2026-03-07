@@ -5,6 +5,8 @@ defmodule Teamrc.Repo.Migrations.CreateTeams do
     create table(:teams, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :name, :string, null: false
+      add :rules, :jsonb, default: "[]"
+      add :skills, :jsonb, default: "[]"
 
       timestamps(type: :utc_datetime)
     end
@@ -12,8 +14,10 @@ defmodule Teamrc.Repo.Migrations.CreateTeams do
     create table(:members, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :name, :string, null: false
-      add :role, :string
+      add :role, :string, null: false, default: ""
       add :soul, :text
+      add :rules, :jsonb, default: "[]"
+      add :skills, :jsonb, default: "[]"
       add :team_id, references(:teams, type: :binary_id, on_delete: :delete_all), null: false
 
       timestamps(type: :utc_datetime)
@@ -25,8 +29,6 @@ defmodule Teamrc.Repo.Migrations.CreateTeams do
       add :id, :binary_id, primary_key: true
       add :code, :string, null: false
       add :expires_at, :utc_datetime, null: false
-      add :claimed_at, :utc_datetime
-      add :claimed_by_token, :string
       add :team_id, references(:teams, type: :binary_id, on_delete: :delete_all), null: false
 
       timestamps(type: :utc_datetime)
@@ -34,5 +36,16 @@ defmodule Teamrc.Repo.Migrations.CreateTeams do
 
     create unique_index(:invites, [:code])
     create index(:invites, [:team_id])
+
+    create table(:token_teams, primary_key: false) do
+      add :id, :binary_id, primary_key: true
+      add :token, :string, null: false
+      add :team_id, references(:teams, type: :binary_id, on_delete: :delete_all), null: false
+
+      timestamps(type: :utc_datetime)
+    end
+
+    create unique_index(:token_teams, [:token, :team_id])
+    create index(:token_teams, [:team_id])
   end
 end

@@ -77,12 +77,16 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("content-type", "application/json")
         |> post("/api/push", body)
 
-      assert json_response(conn, 401) == %{"error" => "unauthorized"}
+      resp = json_response(conn, 401)
+      assert resp["error"] == "unauthorized"
+      assert resp["reason"] == "missing or invalid signature header"
     end
 
     test "returns 401 for GET without signature header", %{conn: conn, token: token} do
       conn = get(conn, "/api/teams/#{token}")
-      assert json_response(conn, 401) == %{"error" => "unauthorized"}
+      resp = json_response(conn, 401)
+      assert resp["error"] == "unauthorized"
+      assert resp["reason"] == "missing or invalid signature header"
     end
   end
 
@@ -99,7 +103,9 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/push", body)
 
-      assert json_response(conn, 401) == %{"error" => "unauthorized"}
+      resp = json_response(conn, 401)
+      assert resp["error"] == "unauthorized"
+      assert resp["reason"] == "signature verification failed"
     end
 
     test "returns 401 for tampered body", %{conn: conn, priv: priv, token: token} do
@@ -115,7 +121,9 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/push", tampered_body)
 
-      assert json_response(conn, 401) == %{"error" => "unauthorized"}
+      resp = json_response(conn, 401)
+      assert resp["error"] == "unauthorized"
+      assert resp["reason"] == "signature verification failed"
     end
   end
 
@@ -134,7 +142,9 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/push", body)
 
-      assert json_response(conn, 401) == %{"error" => "unauthorized"}
+      resp = json_response(conn, 401)
+      assert resp["error"] == "unauthorized"
+      assert resp["reason"] == "timestamp out of range"
     end
 
     test "returns 401 for missing timestamp", %{conn: conn, priv: priv, token: token} do
@@ -148,7 +158,9 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
         |> post("/api/push", body)
 
-      assert json_response(conn, 401) == %{"error" => "unauthorized"}
+      resp = json_response(conn, 401)
+      assert resp["error"] == "unauthorized"
+      assert resp["reason"] == "missing timestamp header"
     end
   end
 
@@ -166,7 +178,9 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/push", body)
 
-      assert json_response(conn, 401) == %{"error" => "unauthorized"}
+      resp = json_response(conn, 401)
+      assert resp["error"] == "unauthorized"
+      assert resp["reason"] == "signature verification failed"
     end
   end
 
@@ -183,7 +197,9 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/push", body)
 
-      assert json_response(conn, 401) == %{"error" => "unauthorized"}
+      resp = json_response(conn, 401)
+      assert resp["error"] == "unauthorized"
+      assert resp["reason"] == "invalid token format"
     end
 
     test "returns 401 for malformed base64 in token", %{conn: conn} do
@@ -198,7 +214,9 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/push", body)
 
-      assert json_response(conn, 401) == %{"error" => "unauthorized"}
+      resp = json_response(conn, 401)
+      assert resp["error"] == "unauthorized"
+      assert resp["reason"] == "invalid token format"
     end
   end
 

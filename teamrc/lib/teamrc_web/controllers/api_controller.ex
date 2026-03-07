@@ -155,6 +155,40 @@ defmodule TeamrcWeb.ApiController do
     |> json(%{error: "token and since parameters are required"})
   end
 
+  def preview_team(conn, %{"invite_code" => invite_code}) do
+    case Teams.preview_by_invite(invite_code) do
+      {:ok, team} -> json(conn, %{team: team})
+      :error -> conn |> put_status(:not_found) |> json(%{error: "invalid_invite"})
+    end
+  end
+
+  def get_log(conn, _params) do
+    token = conn.assigns[:verified_token]
+
+    case Teams.get_log(token) do
+      {:ok, entries} ->
+        json(conn, %{entries: entries})
+
+      {:error, :not_joined} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "not a team member"})
+    end
+  end
+
+  def create_invite(conn, params) do
+    token = conn.assigns[:verified_token]
+    ttl = min(safe_integer(params["ttl_hours"], 24), 168)
+
+    case Teams.create_invite(token, ttl) do
+      {:ok, code, expires_at} ->
+        json(conn, %{invite_code: code, expires_at: DateTime.to_iso8601(expires_at)})
+
+      :error ->
+        conn |> put_status(:forbidden) |> json(%{error: "not a team member"})
+    end
+  end
+
   # --- Input Validation ---
 
   defp validate_team(team) do
@@ -297,4 +331,14 @@ defmodule TeamrcWeb.ApiController do
     end
   end
   defp validate_file_paths(_), do: :ok
+
+  defp safe_integer(nil, default), do: default
+  defp safe_integer(val, default) when is_binary(val) do
+    case Integer.parse(val) do
+      {n, ""} -> n
+      _ -> default
+    end
+  end
+  defp safe_integer(val, _default) when is_integer(val), do: val
+  defp safe_integer(_, default), do: default
 end

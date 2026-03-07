@@ -7,6 +7,7 @@ export interface TeamrcConfig {
   relay: string;
   token: string;
   teamId?: string;
+  noSync?: boolean;
   account?: {
     email: string;
   };

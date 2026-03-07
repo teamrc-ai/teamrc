@@ -66,9 +66,28 @@ defmodule Teamrc.Teams do
     GenServer.call(pid, {:pull_buffer, token, platform})
   end
 
+  @doc "Preview a team by invite code without joining. Returns {:ok, team_map} or :error."
+  def preview_by_invite(pid \\ __MODULE__, invite_code) do
+    GenServer.call(pid, {:preview_by_invite, invite_code})
+  end
+
+  @doc "Create a new invite code for a team the token belongs to. Returns {:ok, code, expires_at} or :error."
+  def create_invite(token, ttl_hours) do
+    GenServer.call(__MODULE__, {:create_invite, token, ttl_hours})
+  end
+
+  def create_invite(pid, token, ttl_hours) do
+    GenServer.call(pid, {:create_invite, token, ttl_hours})
+  end
+
   @doc "Check if a team has changes since a given Unix timestamp. Returns {:ok, boolean}."
   def check_changed(pid \\ __MODULE__, token, since) do
     GenServer.call(pid, {:check_changed, token, since})
+  end
+
+  @doc "Get all content entries for a team (for audit log). Returns {:ok, entries} or {:error, :not_joined}."
+  def get_log(pid \\ __MODULE__, token) do
+    GenServer.call(pid, {:get_log, token})
   end
 
   # --- GenServer Callbacks ---
@@ -177,7 +196,7 @@ defmodule Teamrc.Teams do
         {:reply, {:error, :not_joined}, state}
 
       team_id ->
-        {result, state} = do_sync(state, team_id, platform, incoming_hashes, incoming_files)
+        {result, state} = do_sync(state, team_id, platform, incoming_hashes, incoming_files, token)
         {:reply, {:ok, result}, state}
     end
   end
@@ -186,7 +205,7 @@ defmodule Teamrc.Teams do
   def handle_call({:push_buffer, token, entry}, _from, state) do
     case Map.get(state.token_teams, token) do
       nil -> {:reply, {:error, :not_joined}, state}
-      team_id -> do_push_buffer(state, team_id, entry)
+      team_id -> do_push_buffer(state, team_id, entry, token)
     end
   end
 
@@ -200,10 +219,47 @@ defmodule Teamrc.Teams do
           team_content
           |> Enum.reject(fn {_file, meta} -> meta.source == platform end)
           |> Enum.map(fn {file, meta} ->
-            %{"type" => file, "content" => meta.content, "source_platform" => meta.source, "timestamp" => meta.timestamp}
+            %{"type" => file, "content" => meta.content, "source_platform" => meta.source,
+              "pushed_by" => meta[:pushed_by], "timestamp" => meta.timestamp}
           end)
 
         {:reply, {:ok, entries}, state}
+    end
+  end
+
+  def handle_call({:preview_by_invite, invite_code}, _from, state) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    result =
+      from(i in Invite,
+        where: i.code == ^invite_code and i.expires_at > ^now,
+        preload: [team: :members]
+      )
+      |> Repo.one()
+
+    case result do
+      nil ->
+        {:reply, :error, state}
+
+      %Invite{team: team} ->
+        {:reply, {:ok, team_to_map(team)}, state}
+    end
+  end
+
+  def handle_call({:create_invite, token, ttl_hours}, _from, state) do
+    case Map.get(state.token_teams, token) do
+      nil ->
+        {:reply, :error, state}
+
+      team_id ->
+        invite_code = generate_invite_code()
+        expires_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(ttl_hours * 3600)
+
+        %Invite{}
+        |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team_id})
+        |> Repo.insert!()
+
+        {:reply, {:ok, invite_code, expires_at}, state}
     end
   end
 
@@ -216,7 +272,32 @@ defmodule Teamrc.Teams do
     end
   end
 
-  defp do_push_buffer(state, team_id, entry) do
+  def handle_call({:get_log, token}, _from, state) do
+    case Map.get(state.token_teams, token) do
+      nil ->
+        {:reply, {:error, :not_joined}, state}
+
+      team_id ->
+        team_content = Map.get(state.content, team_id, %{})
+
+        entries =
+          team_content
+          |> Enum.map(fn {file, meta} ->
+            %{
+              "type" => file,
+              "content" => String.slice(meta.content, 0, 100),
+              "source_platform" => meta.source,
+              "pushed_by" => meta[:pushed_by],
+              "timestamp" => meta.timestamp
+            }
+          end)
+          |> Enum.sort_by(& &1["timestamp"], :desc)
+
+        {:reply, {:ok, entries}, state}
+    end
+  end
+
+  defp do_push_buffer(state, team_id, entry, token) do
     source = Map.get(entry, "source_platform") || Map.get(entry, :source_platform) || "unknown"
     file_key = Map.get(entry, "type") || Map.get(entry, :type) || "buffer"
     content_val = Map.get(entry, "content") || Map.get(entry, :content) || ""
@@ -229,6 +310,7 @@ defmodule Teamrc.Teams do
       team_content = Map.put(team_content, file_key, %{
         content: content_val,
         source: source,
+        pushed_by: token,
         timestamp: DateTime.to_iso8601(DateTime.utc_now())
       })
       state = put_in(state, [:content, team_id], team_content)
@@ -271,7 +353,7 @@ defmodule Teamrc.Teams do
 
   # --- Private: Sync Logic ---
 
-  defp do_sync(state, team_id, platform, incoming_hashes, incoming_files) do
+  defp do_sync(state, team_id, platform, incoming_hashes, incoming_files, token) do
     # Check per-team content size cap before accepting new files
     new_content_size = incoming_files |> Enum.reduce(0, fn {_f, c}, acc -> acc + byte_size(c) end)
 
@@ -289,7 +371,7 @@ defmodule Teamrc.Teams do
 
       team_content =
         Enum.reduce(incoming_files, team_content, fn {file, content}, acc ->
-          Map.put(acc, file, %{content: content, source: platform, timestamp: now})
+          Map.put(acc, file, %{content: content, source: platform, pushed_by: token, timestamp: now})
         end)
 
       state = put_in(state, [:content, team_id], team_content)
@@ -313,14 +395,14 @@ defmodule Teamrc.Teams do
             if my_hash != hash do
               # Check if we have the content stored
               case Map.get(team_content, file) do
-                %{content: content, timestamp: ts} ->
+                %{content: content, timestamp: ts} = meta ->
                   updated_at =
                     case DateTime.from_iso8601(ts) do
                       {:ok, dt, _} -> DateTime.to_unix(dt)
                       _ -> 0
                     end
 
-                  Map.put(acc2, file, %{content: content, updated_at: updated_at})
+                  Map.put(acc2, file, %{content: content, updated_at: updated_at, pushed_by: meta[:pushed_by]})
 
                 nil ->
                   acc2

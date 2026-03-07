@@ -80,14 +80,20 @@ Fields:
 | Command | Description |
 |---------|-------------|
 | `teamrc init` | Detect platform, create agents, write `agent-team.yaml`, connect to relay |
-| `teamrc join <token>` | Join an existing team and set up locally |
+| `teamrc join <token>` | Join an existing team and set up locally. `--no-sync` for local-only |
+| `teamrc clone <token>` | Copy a team locally without joining sync. `--name` to override name |
+| `teamrc invite` | Generate an invite code for your team. `--ttl <hours>` (default: 24, max: 168) |
 | `teamrc apply` | Apply `agent-team.yaml` to local platform(s) |
 | `teamrc export` | Export team from relay to `agent-team.yaml` |
 | `teamrc sync` | One-time sync with relay server |
 | `teamrc push` | Push team knowledge to relay |
-| `teamrc diff` | Show differences between local and relay |
-| `teamrc status` | Show current config and team state |
-| `teamrc daemon` | Start background sync (file watching + polling) |
+| `teamrc diff` | Show differences between local and relay. `--json` for machine-readable output |
+| `teamrc status` | Show current config and team state. `--json` for machine-readable output |
+| `teamrc whoami` | Show local identity (token, machine, account, team). No network calls |
+| `teamrc log` | Show recent sync activity with attribution. `--limit <n>` (default: 20) |
+| `teamrc doctor` | Run health checks on config, relay, auth, and team state |
+| `teamrc daemon` | Start background sync. `--sync-mode <all\|knowledge\|none>` (default: knowledge) |
+| `teamrc login` | Link this machine to a Clerk account via device auth |
 | `teamrc delete` | Remove all teamrc setup from this machine |
 
 ## Platforms
@@ -118,7 +124,9 @@ mix phx.server  # http://localhost:4000
 - YAML file size limited to 256KB, max 100 members
 - Team names and roles sanitized in all template outputs
 - Daemon sync operations serialized with mutex
-- Invite codes are single-use (atomic claim with race protection)
+- Invite codes are multi-use with 144-bit entropy and 24h TTL
+- Sync attribution: every content change tracks `pushed_by` token for accountability
+- Daemon defaults to knowledge-only sync mode (agent definitions require explicit `teamrc sync`)
 - Content cap: 50MB per team for sync state
 - Rules/skills validated: max 50 each, max 10KB per rule body
 - Clerk JWT validation for account endpoints (fail-closed)
