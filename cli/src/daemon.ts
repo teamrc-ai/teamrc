@@ -22,7 +22,8 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   const pollInterval = opts.pollInterval ?? POLL_INTERVAL_MS;
 
   // Cache of hashes for files we've written ourselves (self-trigger prevention)
-  const selfWrittenHashes = new Set<string>();
+  // Maps hash → write timestamp for lazy age-based expiry
+  const selfWrittenHashes = new Map<string, number>();
 
   // Last known hashes for change detection
   let lastHashes: Record<string, string> = adapter.getHashes();
@@ -77,6 +78,12 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   }
 
   async function doPushChanges(): Promise<void> {
+    // Clean up stale self-written hashes (older than 60s)
+    const cleanupThreshold = Date.now() - 60_000;
+    for (const [hash, time] of selfWrittenHashes) {
+      if (time < cleanupThreshold) selfWrittenHashes.delete(hash);
+    }
+
     const currentHashes = adapter.getHashes();
     const changedFiles: Record<string, string> = {};
     const now = Math.floor(Date.now() / 1000);
@@ -149,9 +156,7 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       // Write the resolved content
       adapter.writeFile(key, result.content);
       const hash = hashContent(result.content);
-      selfWrittenHashes.add(hash);
-      // Evict after a delay in case file watcher doesn't fire
-      setTimeout(() => selfWrittenHashes.delete(hash), 5000);
+      selfWrittenHashes.set(hash, Date.now());
       lastHashes[key] = hash;
 
       // Update local mod time to match remote after accepting
@@ -224,8 +229,9 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
     const file = readAndHash(filePath);
     if (!file) return;
 
-    // Check if this was a self-triggered write
-    if (selfWrittenHashes.has(file.hash)) {
+    // Check if this was a self-triggered write (generous 30s window for slow filesystems)
+    const writeTime = selfWrittenHashes.get(file.hash);
+    if (writeTime !== undefined && Date.now() - writeTime < 30_000) {
       selfWrittenHashes.delete(file.hash);
       return;
     }

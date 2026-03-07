@@ -14,6 +14,7 @@ import {
 import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
 
 export class CodexAdapter implements PlatformAdapter {
+  readonly supportsSync = false;
   private codexDir(): string {
     return path.join(process.cwd(), ".codex");
   }
@@ -238,6 +239,7 @@ export class CodexAdapter implements PlatformAdapter {
   watchPaths(): string[] { return []; }
   writeFile(_key: string, _content: string): void {}
   readFile(_key: string): string | null { return null; }
+  getFileMtime(_key: string): number { return 0; }
   uninstall(): string[] {
     const actions: string[] = [];
 

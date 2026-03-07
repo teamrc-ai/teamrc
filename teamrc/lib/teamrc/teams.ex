@@ -137,10 +137,9 @@ defmodule Teamrc.Teams do
   def handle_call({:join_by_invite, invite_code, token}, _from, state) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    # Atomically claim the invite: only succeed if not already claimed
     result =
       from(i in Invite,
-        where: i.code == ^invite_code and i.expires_at > ^now and is_nil(i.claimed_at),
+        where: i.code == ^invite_code and i.expires_at > ^now,
         preload: [team: :members]
       )
       |> Repo.one()
@@ -149,22 +148,10 @@ defmodule Teamrc.Teams do
       nil ->
         {:reply, :error, state}
 
-      %Invite{team: team} = invite ->
-        # Attempt atomic claim — if another request claimed it between our read
-        # and this update, the where clause ensures 0 rows are updated
-        {count, _} =
-          from(i in Invite,
-            where: i.id == ^invite.id and is_nil(i.claimed_at)
-          )
-          |> Repo.update_all(set: [claimed_at: now, claimed_by_token: token])
-
-        if count == 0 do
-          {:reply, :error, state}
-        else
-          upsert_token_team(token, team.id)
-          state = put_in(state, [:token_teams, token], team.id)
-          {:reply, {:ok, team_to_map(team)}, state}
-        end
+      %Invite{team: team} ->
+        upsert_token_team(token, team.id)
+        state = put_in(state, [:token_teams, token], team.id)
+        {:reply, {:ok, team_to_map(team)}, state}
     end
   end
 

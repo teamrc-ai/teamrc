@@ -4,6 +4,7 @@ import { sanitizeMarkerContent, writeSkillDir, cleanupSkillDirs, type PlatformAd
 import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
 
 export class GeminiAdapter implements PlatformAdapter {
+  readonly supportsSync = false;
   private geminiMdPath(): string {
     return path.join(process.cwd(), "GEMINI.md");
   }
@@ -76,6 +77,7 @@ export class GeminiAdapter implements PlatformAdapter {
   watchPaths(): string[] { return []; }
   writeFile(_key: string, _content: string): void {}
   readFile(_key: string): string | null { return null; }
+  getFileMtime(_key: string): number { return 0; }
   uninstall(): string[] {
     const actions: string[] = [];
 

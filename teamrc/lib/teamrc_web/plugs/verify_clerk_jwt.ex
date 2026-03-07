@@ -24,6 +24,15 @@ defmodule TeamrcWeb.Plugs.VerifyClerkJWT do
   # Only allow skipping auth in test environment
   @skip_auth_allowed Mix.env() == :test
 
+  @doc "Verify a Clerk JWT token string. Returns {:ok, claims} or {:error, reason}."
+  def verify_token(token) do
+    with {:ok, jwks} <- fetch_jwks(),
+         {:ok, claims} <- verify_and_decode(token, jwks),
+         :ok <- validate_claims(claims) do
+      {:ok, claims}
+    end
+  end
+
   def init(opts), do: opts
 
   def call(conn, _opts) do
@@ -117,10 +126,9 @@ defmodule TeamrcWeb.Plugs.VerifyClerkJWT do
     end
   end
 
-  defp get_email(claims) do
-    # Clerk stores email in different claim locations depending on config
-    claims["email"] || get_in(claims, ["unsafe_metadata", "email"]) ||
-      claims["primary_email_address"]
+  @doc "Extract email from verified Clerk JWT claims."
+  def get_email(claims) do
+    claims["email"] || claims["primary_email_address"]
   end
 
   # --- JWKS Caching via ETS ---

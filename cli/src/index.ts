@@ -443,6 +443,11 @@ program
   .action(async () => {
     const { client, platform, adapter } = requireClient();
 
+    if (!adapter.supportsSync) {
+      console.error(`Sync is not supported for ${platform}. Use \`teamrc apply\` to apply team changes.`);
+      process.exit(1);
+    }
+
     try {
       const hashes = adapter.getHashes();
       const result = await client.sync(platform, hashes);
@@ -452,7 +457,8 @@ program
         let applied = 0;
         for (const [key, remoteChange] of entries) {
           const localContent = adapter.readFile(key);
-          const merged = resolveChange(key, localContent, remoteChange, 0);
+          const localMtime = adapter.getFileMtime(key);
+          const merged = resolveChange(key, localContent, remoteChange, localMtime);
           if (merged.warning) {
             console.warn(`  WARN: ${merged.warning}`);
           }
@@ -556,6 +562,11 @@ program
   .option("--poll-interval <ms>", "Poll interval in milliseconds", "120000")
   .action(async (opts: { pollInterval: string }) => {
     const { client, platform, adapter } = requireClient();
+
+    if (!adapter.supportsSync) {
+      console.error(`Daemon sync is not supported for ${platform}. Use \`teamrc apply\` to apply team changes.`);
+      process.exit(1);
+    }
 
     const { startDaemon } = await import("./daemon.js");
     const daemon = startDaemon({

@@ -71,6 +71,10 @@ export interface PlatformAdapter {
   readFile(key: string): string | null;
   /** Remove everything teamrc installed for this platform. Returns list of actions taken. */
   uninstall(): string[];
+  /** Whether this adapter supports real-time sync (daemon, sync command). */
+  readonly supportsSync: boolean;
+  /** Get the modification time (Unix seconds) of the file backing a sync key. */
+  getFileMtime(key: string): number;
 }
 
 /** Write a native SKILL.md file for a skill in the given base directory */

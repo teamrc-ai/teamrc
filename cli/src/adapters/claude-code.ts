@@ -18,6 +18,7 @@ import {
 import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
 
 export class ClaudeCodeAdapter implements PlatformAdapter {
+  readonly supportsSync = true;
   private claudeDir: string;
 
   constructor() {
@@ -409,6 +410,35 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     const filePath = path.join(dir, `trc-${slugify(portable.name)}.md`);
     const content = buildAgentFile(portable.teamName, member, allMembers);
     fs.writeFileSync(filePath, content);
+  }
+
+  getFileMtime(key: string): number {
+    if (key.startsWith("agent:")) {
+      const name = key.replace("agent:", "");
+      const { dir } = this.resolveAgentsDir();
+      return this.statMtime(path.join(dir, `trc-${slugify(name)}.md`));
+    }
+    if (key === "knowledge:project") return this.statMtime(this.knowledgePath("project"));
+    if (key === "knowledge:global") return this.statMtime(this.knowledgePath("global"));
+    if (key.startsWith("rule:")) {
+      const { scope } = this.resolveAgentsDir();
+      const ruleId = key.replace("rule:", "");
+      return this.statMtime(path.join(this.rulesDir(scope), `trc-${ruleId}.md`));
+    }
+    if (key.startsWith("skill:")) {
+      const { scope } = this.resolveAgentsDir();
+      const skillId = key.replace("skill:", "");
+      return this.statMtime(path.join(this.skillsDir(scope), `trc-${skillId}`, "SKILL.md"));
+    }
+    return 0;
+  }
+
+  private statMtime(filePath: string): number {
+    try {
+      return Math.floor(fs.statSync(filePath).mtimeMs / 1000);
+    } catch {
+      return 0;
+    }
   }
 
   uninstall(): string[] {

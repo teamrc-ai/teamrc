@@ -206,11 +206,9 @@ Agent `soul` fields are intentionally user-controlled persona text. A malicious 
 
 ## Code Audit Fixes (2026-03-07)
 
-### 21. HIGH — Invite codes not single-use (race condition) (FIXED)
+### 21. Invite codes are multi-use (BY DESIGN)
 
-Invite codes could be reused due to a TOCTOU race: the code was checked for validity and then consumed in separate steps. Two concurrent join requests with the same invite code could both succeed.
-
-**Fix applied:** Atomic single-use consumption via a single database operation that checks and invalidates the invite code in one transaction.
+Invite codes are intentionally multi-use — any number of machines can join a team using the same code before it expires (24h TTL). Security relies on the code's 144-bit entropy (not brute-forceable) and time-bounded expiry, not single-use semantics.
 
 ### 22. HIGH — `create_team_in_db` crash on error (FIXED)
 
@@ -298,7 +296,7 @@ Unused routes and functions were left in the codebase, increasing the attack sur
 | 18 | MEDIUM | Daemon race conditions | Fixed |
 | 19 | MEDIUM | No team name validation | Fixed |
 | 20 | MEDIUM | Prompt injection via soul | By design |
-| 21 | HIGH | Invite codes not single-use (race condition) | Fixed |
+| 21 | — | Invite codes are multi-use | By design |
 | 22 | HIGH | `create_team_in_db` crash on error | Fixed |
 | 23 | HIGH | `update_team_in_db` not transactional | Fixed |
 | 24 | MEDIUM | No content cap on sync state | Fixed (50MB/team) |

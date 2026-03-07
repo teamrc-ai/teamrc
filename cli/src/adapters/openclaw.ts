@@ -14,6 +14,7 @@ import {
 import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
 
 export class OpenClawAdapter implements PlatformAdapter {
+  readonly supportsSync = true;
   private openclawDir: string;
 
   constructor() {
@@ -467,6 +468,24 @@ export class OpenClawAdapter implements PlatformAdapter {
       ], { stdio: "ignore" });
     } catch {
       this.registerAgentInConfig(agentId, wsDir);
+    }
+  }
+
+  getFileMtime(key: string): number {
+    if (key.startsWith("agent:")) {
+      const name = key.replace("agent:", "");
+      const soulPath = path.join(this.agentWorkspace(name), "SOUL.md");
+      return this.statMtime(soulPath);
+    }
+    if (key === "knowledge:team") return this.statMtime(this.knowledgePath());
+    return 0;
+  }
+
+  private statMtime(filePath: string): number {
+    try {
+      return Math.floor(fs.statSync(filePath).mtimeMs / 1000);
+    } catch {
+      return 0;
     }
   }
 
