@@ -38,7 +38,7 @@ window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 // Copy to clipboard handler
-window.addEventListener("tb:copy", (e) => {
+window.addEventListener("trc:copy", (e) => {
   const text = e.detail.text
   navigator.clipboard.writeText(text).then(() => {
     const btn = e.target.closest("button")

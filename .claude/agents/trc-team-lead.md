@@ -1,5 +1,5 @@
 ---
-name: tb-team-lead
+name: trc-team-lead
 description: "Break down work, coordinate across agents, make technical decisions, unblock the team on the product-team team. Use when tasks relate to break down work, coordinate across agents, make technical decisions, unblock the team."
 model: inherit
 ---

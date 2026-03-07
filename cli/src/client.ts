@@ -2,7 +2,7 @@ import { signMessage } from "./auth.js";
 import type { Rule, Skill, TeamDefinition } from "./adapters/base.js";
 import { validateRuleId } from "./team-yaml.js";
 
-export interface teamrcTeam {
+export interface TeamrcTeam {
   id: string;
   name: string;
   members: Array<{ name: string; role: string; platform?: string; rules?: string[]; skills?: string[] }>;
@@ -11,7 +11,7 @@ export interface teamrcTeam {
   created_at?: string;
 }
 
-export function remoteTeamToDefinition(team: teamrcTeam): TeamDefinition {
+export function remoteTeamToDefinition(team: TeamrcTeam): TeamDefinition {
   // Validate rule/skill IDs from the relay to prevent path traversal
   const rules = team.rules?.filter((r) => {
     try { validateRuleId(r.id); return true; } catch { return false; }
@@ -70,8 +70,8 @@ export class TeamrcClient {
     const signature = await signMessage(this.privateKey, message);
     return {
       "Content-Type": "application/json",
-      "x-tb-signature": signature,
-      "x-tb-timestamp": timestamp,
+      "x-trc-signature": signature,
+      "x-trc-timestamp": timestamp,
     };
   }
 
@@ -82,8 +82,8 @@ export class TeamrcClient {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: "GET",
       headers: {
-        "x-tb-signature": signature,
-        "x-tb-timestamp": timestamp,
+        "x-trc-signature": signature,
+        "x-trc-timestamp": timestamp,
       },
     });
     if (!res.ok) {
@@ -95,7 +95,7 @@ export class TeamrcClient {
   async createTeam(
     name: string,
     members: Array<{ name: string; role: string; platform: string }>,
-  ): Promise<teamrcTeam> {
+  ): Promise<TeamrcTeam> {
     const body = JSON.stringify({
       token: this.token,
       team: { name, members },
@@ -109,16 +109,16 @@ export class TeamrcClient {
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "createTeam failed"));
     }
-    const data = (await res.json()) as { team: teamrcTeam };
+    const data = (await res.json()) as { team: TeamrcTeam };
     return data.team;
   }
 
-  async getTeam(token: string): Promise<teamrcTeam> {
-    const data = await this.signedGet<{ team: teamrcTeam }>(`/api/teams/${token}`);
+  async getTeam(token: string): Promise<TeamrcTeam> {
+    const data = await this.signedGet<{ team: TeamrcTeam }>(`/api/teams/${token}`);
     return data.team;
   }
 
-  async joinByInvite(inviteCode: string): Promise<teamrcTeam> {
+  async joinByInvite(inviteCode: string): Promise<TeamrcTeam> {
     const body = JSON.stringify({ invite_code: inviteCode, token: this.token });
     const headers = await this.signedHeaders(body);
     const res = await fetch(`${this.baseUrl}/api/join`, {
@@ -129,7 +129,7 @@ export class TeamrcClient {
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "join failed"));
     }
-    const data = (await res.json()) as { team: teamrcTeam };
+    const data = (await res.json()) as { team: TeamrcTeam };
     return data.team;
   }
 

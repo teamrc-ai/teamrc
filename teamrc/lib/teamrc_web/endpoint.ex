@@ -6,7 +6,7 @@ defmodule TeamrcWeb.Endpoint do
   # Set :encryption_salt if you would also like to encrypt it.
   @session_options [
     store: :cookie,
-    key: "_relay_key",
+    key: "_teamrc_key",
     signing_salt: "46xYNHT2",
     same_site: "Lax"
   ]

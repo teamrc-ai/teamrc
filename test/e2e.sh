@@ -23,7 +23,7 @@ trap cleanup EXIT
 # Wait for server to be ready
 echo "Waiting for relay to start..."
 for i in $(seq 1 10); do
-  if curl -s http://localhost:4002/api/teams/tb_ak_nonexistent -H "x-tb-signature: test" > /dev/null 2>&1; then
+  if curl -s http://localhost:4002/api/teams/tb_ak_nonexistent -H "x-trc-signature: test" > /dev/null 2>&1; then
     break
   fi
   sleep 1
@@ -48,7 +48,7 @@ echo ""
 echo "--- Test: Create team ---"
 RESPONSE=$(curl -s -X POST "$RELAY_URL/api/teams" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
     "token": "tb_ak_testtoken123",
     "team": {
@@ -70,7 +70,7 @@ fi
 echo ""
 echo "--- Test: Get team ---"
 TEAM=$(curl -s "$RELAY_URL/api/teams/tb_ak_testtoken123" \
-  -H "x-tb-signature: test")
+  -H "x-trc-signature: test")
 
 if echo "$TEAM" | grep -q "test-project"; then
   pass "Team retrieved"
@@ -88,7 +88,7 @@ fi
 echo ""
 echo "--- Test: Get nonexistent team ---"
 NOT_FOUND=$(curl -s -o /dev/null -w "%{http_code}" "$RELAY_URL/api/teams/tb_ak_doesnotexist" \
-  -H "x-tb-signature: test")
+  -H "x-trc-signature: test")
 
 if [ "$NOT_FOUND" = "404" ]; then
   pass "Nonexistent team returns 404"
@@ -101,7 +101,7 @@ echo ""
 echo "--- Test: Push memory ---"
 PUSH_RESP=$(curl -s -X POST "$RELAY_URL/api/push" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
     "token": "tb_ak_testtoken123",
     "platform": "claude-code",
@@ -123,7 +123,7 @@ echo ""
 echo "--- Test: Pull memory from other platform ---"
 PULL=$(curl -s -X POST "$RELAY_URL/api/pull" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
     "token": "tb_ak_testtoken123",
     "platform": "openclaw"
@@ -140,7 +140,7 @@ echo ""
 echo "--- Test: Second pull is empty ---"
 PULL2=$(curl -s -X POST "$RELAY_URL/api/pull" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
     "token": "tb_ak_testtoken123",
     "platform": "openclaw"
@@ -158,7 +158,7 @@ echo "--- Test: Self-filtering (no echo) ---"
 # Push another entry
 curl -s -X POST "$RELAY_URL/api/push" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
     "token": "tb_ak_testtoken123",
     "platform": "openclaw",
@@ -167,7 +167,7 @@ curl -s -X POST "$RELAY_URL/api/push" \
 
 SELF_PULL=$(curl -s -X POST "$RELAY_URL/api/pull" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
     "token": "tb_ak_testtoken123",
     "platform": "openclaw"
@@ -185,7 +185,7 @@ echo "--- Test: Sync detects changes ---"
 # Set hashes for openclaw
 curl -s -X POST "$RELAY_URL/api/sync" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
     "token": "tb_ak_testtoken123",
     "platform": "openclaw",
@@ -195,7 +195,7 @@ curl -s -X POST "$RELAY_URL/api/sync" \
 # Sync from claude-code with different hash
 SYNC_RESP=$(curl -s -X POST "$RELAY_URL/api/sync" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
     "token": "tb_ak_testtoken123",
     "platform": "claude-code",

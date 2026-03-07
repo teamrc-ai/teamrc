@@ -13,7 +13,8 @@ defmodule TeamrcWeb.Plugs.RateLimiter do
 
   @default_limit 60
   @default_window_ms 60_000
-  @table :tb_rate_limiter
+  @table :trc_rate_limiter
+  @cleanup_interval_ms 300_000
 
   def init(opts) do
     ensure_table()
@@ -37,21 +38,24 @@ defmodule TeamrcWeb.Plugs.RateLimiter do
   defp check_rate(conn, token, %{limit: limit, window_ms: window_ms}) do
     now = System.system_time(:millisecond)
 
+    # Atomically increment counter, inserting a default entry if key doesn't exist
+    count = :ets.update_counter(@table, token, {2, 1}, {token, 0, now})
+
     case :ets.lookup(@table, token) do
-      [{^token, count, window_start}] when now - window_start < window_ms ->
-        if count >= limit do
+      [{^token, _count, window_start}] when now - window_start >= window_ms ->
+        # Window expired — reset atomically
+        :ets.insert(@table, {token, 1, now})
+        conn
+
+      _ ->
+        if count > limit do
           conn
           |> put_status(429)
           |> Phoenix.Controller.json(%{error: "rate limit exceeded"})
           |> halt()
         else
-          :ets.update_counter(@table, token, {2, 1})
           conn
         end
-
-      _ ->
-        :ets.insert(@table, {token, 1, now})
-        conn
     end
   end
 
@@ -67,6 +71,15 @@ defmodule TeamrcWeb.Plugs.RateLimiter do
   defp ensure_table do
     if :ets.whereis(@table) == :undefined do
       :ets.new(@table, [:named_table, :public, :set, read_concurrency: true])
+      # Periodically purge expired entries to prevent unbounded growth
+      :timer.apply_interval(@cleanup_interval_ms, __MODULE__, :purge_expired, [])
     end
+  end
+
+  @doc false
+  def purge_expired do
+    cutoff = System.system_time(:millisecond) - @cleanup_interval_ms
+    :ets.select_delete(@table, [{{:_, :_, :"$1"}, [{:<, :"$1", cutoff}], [true]}])
+    :ok
   end
 end

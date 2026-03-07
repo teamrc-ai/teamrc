@@ -65,7 +65,7 @@ async function requirePlatform(override?: string): Promise<string> {
   const platforms = detectPlatforms();
   if (platforms.length === 0) {
     console.error(
-      "Could not detect platform. Ensure ~/.claude or ~/.openclaw exists, or use --platform.",
+      "Could not detect platform. Ensure a supported platform is installed (claude-code, cursor, codex, gemini, openclaw), or use --platform.",
     );
     process.exit(1);
   }
@@ -78,7 +78,7 @@ async function requirePlatform(override?: string): Promise<string> {
   for (let i = 0; i < platforms.length; i++) {
     console.log(`  ${i + 1}) ${platforms[i]}`);
   }
-  console.log(`  ${platforms.length + 1}) Both`);
+  console.log(`  ${platforms.length + 1}) All detected`);
   const answer = await askQuestion(`\nWhich platform? [1-${platforms.length + 1}]: `);
   const choice = parseInt(answer, 10);
   if (choice >= 1 && choice <= platforms.length) {
@@ -208,7 +208,7 @@ program
   .command("init")
   .description("Initialize teamrc: detect platform, create agents, connect to relay")
   .option("--relay <url>", "Relay server URL")
-  .option("--platform <platform>", "Override platform detection (claude-code, openclaw)")
+  .option("--platform <platform>", "Override platform detection (claude-code, cursor, codex, gemini, openclaw)")
   .action(async (opts: { relay?: string; platform?: string }) => {
     const selected = await requirePlatform(opts.platform);
     const platforms = selected === "both" ? detectPlatforms() : [selected];
@@ -280,7 +280,7 @@ program
         console.log("Tip: Run `teamrc login` anytime to link your account.");
       }
     } catch (err) {
-      console.error("Failed to initialize with relay:", err);
+      console.error("Failed to initialize with relay:", (err as Error).message);
       saveConfig({ platform: platforms.join(","), relay: relayUrl, token });
       console.log("Configuration saved (relay unreachable).");
     }
@@ -292,7 +292,7 @@ program
   .description("Join an existing team and create local agents")
   .argument("<token>", "Team invitation token")
   .option("--relay <url>", "Relay server URL")
-  .option("--platform <platform>", "Override platform detection (claude-code, openclaw)")
+  .option("--platform <platform>", "Override platform detection (claude-code, cursor, codex, gemini, openclaw)")
   .option("--scope <scope>", "Team scope: project or global (skips prompt)")
   .action(async (joinToken: string, opts: { relay?: string; platform?: string; scope?: string }) => {
     const selected = await requirePlatform(opts.platform);
@@ -341,7 +341,7 @@ program
         console.log("Tip: Run `teamrc login` anytime to link your account.");
       }
     } catch (err) {
-      console.error("Failed to join team:", err);
+      console.error("Failed to join team:", (err as Error).message);
       process.exit(1);
     }
   });
@@ -350,7 +350,7 @@ program
 program
   .command("apply")
   .description("Re-apply team agents to local platform native format")
-  .option("--platform <platform>", "Override platform detection (claude-code, openclaw)")
+  .option("--platform <platform>", "Override platform detection (claude-code, cursor, codex, gemini, openclaw)")
   .option("--scope <scope>", "Team scope: project or global")
   .action(async (opts: { platform?: string; scope?: string }) => {
     const selected = await requirePlatform(opts.platform);
@@ -431,7 +431,7 @@ program
         console.log("No differences between local and relay.");
       }
     } catch (err) {
-      console.error("Failed to fetch relay state:", err);
+      console.error("Failed to fetch relay state:", (err as Error).message);
       process.exit(1);
     }
   });
@@ -466,7 +466,7 @@ program
         console.log("Already up to date.");
       }
     } catch (err) {
-      console.error("Sync failed:", err);
+      console.error("Sync failed:", (err as Error).message);
       process.exit(1);
     }
   });
@@ -474,7 +474,7 @@ program
 // --- push ---
 program
   .command("push")
-  .description("Push local memory to relay")
+  .description("Push local knowledge to relay")
   .action(async () => {
     const { client, platform, adapter } = requireClient();
 
@@ -491,7 +491,7 @@ program
       });
       console.log("Pushed team knowledge.");
     } catch (err) {
-      console.error("Push failed:", err);
+      console.error("Push failed:", (err as Error).message);
       process.exit(1);
     }
   });
@@ -588,7 +588,7 @@ program
       writeTeamYaml("agent-team.yaml", team);
       console.log(`Exported "${team.name}" (${team.members.length} agents) to agent-team.yaml.`);
     } catch (err) {
-      console.error("Failed to fetch team from relay:", err);
+      console.error("Failed to fetch team from relay:", (err as Error).message);
       process.exit(1);
     }
   });
@@ -624,7 +624,7 @@ program
         console.log(`Applied to ${p} (${scope} scope).`);
       }
     } catch (err) {
-      console.error("Pull failed:", err);
+      console.error("Pull failed:", (err as Error).message);
       process.exit(1);
     }
   });

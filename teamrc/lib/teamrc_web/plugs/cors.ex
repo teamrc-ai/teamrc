@@ -18,7 +18,7 @@ defmodule TeamrcWeb.Plugs.CORS do
       conn
       |> put_resp_header("access-control-allow-origin", origin)
       |> put_resp_header("access-control-allow-methods", "GET, POST, OPTIONS")
-      |> put_resp_header("access-control-allow-headers", "content-type, x-tb-signature, x-tb-timestamp")
+      |> put_resp_header("access-control-allow-headers", "content-type, x-trc-signature, x-trc-timestamp")
       |> put_resp_header("access-control-max-age", "86400")
       |> handle_preflight()
     else

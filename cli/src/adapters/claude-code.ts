@@ -5,6 +5,7 @@ import { parse as parseYaml } from "yaml";
 import {
   hashContent,
   validateAgentName,
+  sanitizeMarkerContent,
   sanitizeText,
   slugify,
   escapeYamlString,
@@ -59,7 +60,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
 
   private listTbFiles(dir: string): string[] {
     if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir).filter((f) => f.startsWith("tb-") && f.endsWith(".md"));
+    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".md"));
   }
 
   readTeam(): TeamDefinition | null {
@@ -93,7 +94,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
 
     for (const member of team.members) {
       validateAgentName(member.name);
-      const fileName = `tb-${slugify(member.name)}.md`;
+      const fileName = `trc-${slugify(member.name)}.md`;
       const filePath = path.join(dir, fileName);
       const content = buildAgentFile(team.name, member, team.members, team);
       fs.writeFileSync(filePath, content);
@@ -116,13 +117,13 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    // Clean up old tb- rule files before writing new ones
+    // Clean up old trc- rule files before writing new ones
     this.cleanTbRuleFiles(dir);
 
     for (const rule of team.rules) {
       if (typeof rule.body !== "string") continue;
 
-      const fileName = `tb-${rule.id}.md`;
+      const fileName = `trc-${rule.id}.md`;
       const filePath = path.join(dir, fileName);
 
       let content: string;
@@ -145,19 +146,19 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    // Clean up old tb- skill directories before writing new ones
+    // Clean up old trc- skill directories before writing new ones
     this.cleanTbSkillDirs(dir);
 
     for (const skill of team.skills) {
       if (skill.body && typeof skill.body !== "string") continue;
 
-      const skillDir = path.join(dir, `tb-${skill.id}`);
+      const skillDir = path.join(dir, `trc-${skill.id}`);
       if (!fs.existsSync(skillDir)) {
         fs.mkdirSync(skillDir, { recursive: true });
       }
 
       const frontmatterLines: string[] = [];
-      frontmatterLines.push(`name: tb-${skill.id}`);
+      frontmatterLines.push(`name: trc-${skill.id}`);
       if (skill.title) {
         frontmatterLines.push(`title: "${escapeYamlString(skill.title)}"`);
       }
@@ -175,7 +176,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
   private cleanTbRuleFiles(dir: string): void {
     if (!fs.existsSync(dir)) return;
     for (const f of fs.readdirSync(dir)) {
-      if (f.startsWith("tb-") && f.endsWith(".md")) {
+      if (f.startsWith("trc-") && f.endsWith(".md")) {
         fs.unlinkSync(path.join(dir, f));
       }
     }
@@ -184,7 +185,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
   private cleanTbSkillDirs(dir: string): void {
     if (!fs.existsSync(dir)) return;
     for (const f of fs.readdirSync(dir)) {
-      if (f.startsWith("tb-")) {
+      if (f.startsWith("trc-")) {
         const fullPath = path.join(dir, f);
         if (fs.statSync(fullPath).isDirectory()) {
           fs.rmSync(fullPath, { recursive: true, force: true });
@@ -255,7 +256,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     } else {
       fs.writeFileSync(
         filePath,
-        `# Team Knowledge\n\nShared findings and decisions synced by teamrc. Do not edit manually.\n\n${newContent}\n`,
+        `# Team Knowledge\n\nShared findings and decisions synced by teamrc.\n\n${newContent}\n`,
       );
     }
   }
@@ -277,9 +278,9 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     const rulesDir = this.rulesDir(scope);
     if (fs.existsSync(rulesDir)) {
       for (const f of fs.readdirSync(rulesDir)) {
-        if (f.startsWith("tb-") && f.endsWith(".md")) {
+        if (f.startsWith("trc-") && f.endsWith(".md")) {
           const content = fs.readFileSync(path.join(rulesDir, f), "utf-8");
-          const ruleId = f.replace(/^tb-/, "").replace(/\.md$/, "");
+          const ruleId = f.replace(/^trc-/, "").replace(/\.md$/, "");
           hashes[`rule:${ruleId}`] = hashContent(content);
         }
       }
@@ -289,11 +290,11 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     const skillsDir = this.skillsDir(scope);
     if (fs.existsSync(skillsDir)) {
       for (const f of fs.readdirSync(skillsDir)) {
-        if (f.startsWith("tb-")) {
+        if (f.startsWith("trc-")) {
           const skillFile = path.join(skillsDir, f, "SKILL.md");
           if (fs.existsSync(skillFile)) {
             const content = fs.readFileSync(skillFile, "utf-8");
-            const skillId = f.replace(/^tb-/, "");
+            const skillId = f.replace(/^trc-/, "");
             hashes[`skill:${skillId}`] = hashContent(content);
           }
         }
@@ -370,7 +371,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
   private readAgentAsPortable(key: string): string | null {
     const agentName = key.replace("agent:", "");
     const { dir } = this.resolveAgentsDir();
-    const filePath = path.join(dir, `tb-${slugify(agentName)}.md`);
+    const filePath = path.join(dir, `trc-${slugify(agentName)}.md`);
     if (!fs.existsSync(filePath)) return null;
 
     const content = fs.readFileSync(filePath, "utf-8");
@@ -385,7 +386,8 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     try {
       portable = JSON.parse(json) as PortableAgent;
     } catch {
-      return; // skip malformed JSON from relay
+      console.warn(`Skipping malformed JSON for ${key}`);
+      return;
     }
     validateAgentName(portable.name);
     const { dir } = this.resolveAgentsDir();
@@ -404,7 +406,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       allMembers.push(member);
     }
 
-    const filePath = path.join(dir, `tb-${slugify(portable.name)}.md`);
+    const filePath = path.join(dir, `trc-${slugify(portable.name)}.md`);
     const content = buildAgentFile(portable.teamName, member, allMembers);
     fs.writeFileSync(filePath, content);
   }
@@ -425,7 +427,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     // Delete native rule files
     const rulesDir = this.rulesDir(scope);
     if (fs.existsSync(rulesDir)) {
-      const tbRuleFiles = fs.readdirSync(rulesDir).filter((f) => f.startsWith("tb-") && f.endsWith(".md"));
+      const tbRuleFiles = fs.readdirSync(rulesDir).filter((f) => f.startsWith("trc-") && f.endsWith(".md"));
       for (const f of tbRuleFiles) {
         fs.unlinkSync(path.join(rulesDir, f));
       }
@@ -438,7 +440,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     const skillsDir = this.skillsDir(scope);
     if (fs.existsSync(skillsDir)) {
       const tbSkillDirs = fs.readdirSync(skillsDir).filter((f) => {
-        return f.startsWith("tb-") && fs.statSync(path.join(skillsDir, f)).isDirectory();
+        return f.startsWith("trc-") && fs.statSync(path.join(skillsDir, f)).isDirectory();
       });
       for (const f of tbSkillDirs) {
         fs.rmSync(path.join(skillsDir, f), { recursive: true, force: true });
@@ -503,8 +505,8 @@ function parseAgentFile(content: string): ParsedAgent | null {
   const description = String(frontmatter.description ?? "");
   const body = match[2].trim();
 
-  // Extract agent name: strip tb- prefix
-  const agentName = name.startsWith("tb-") ? name.slice(3) : name;
+  // Extract agent name: strip trc- prefix
+  const agentName = name.startsWith("trc-") ? name.slice(4) : name;
 
   // Extract role from description: "Role on the teamName team. Use when..."
   const roleMatch = description.match(/^(.+?)\s+on the\s+/);
@@ -540,7 +542,7 @@ function toPortableJson(parsed: ParsedAgent): string {
 }
 
 function buildAgentFile(teamName: string, member: TeamMember, allMembers: TeamMember[], team?: TeamDefinition): string {
-  const name = `tb-${slugify(member.name)}`;
+  const name = `trc-${slugify(member.name)}`;
   const safeRole = escapeYamlString(member.role);
   const safeTeamName = escapeYamlString(teamName);
   const safeTeamNameText = sanitizeText(teamName);
@@ -599,9 +601,9 @@ Shared findings and decisions are stored in \`.claude/team-knowledge.md\`. Read 
 }
 
 function buildClaudeMdSection(team: TeamDefinition): string {
-  const safeName = sanitizeText(team.name);
+  const safeName = sanitizeMarkerContent(team.name);
   const memberLines = team.members
-    .map((m) => `- **${m.name}** — ${sanitizeText(m.role)}`)
+    .map((m) => `- **${sanitizeMarkerContent(m.name)}** — ${sanitizeMarkerContent(m.role)}`)
     .join("\n");
 
   return `

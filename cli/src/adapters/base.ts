@@ -76,11 +76,11 @@ export interface PlatformAdapter {
 /** Write a native SKILL.md file for a skill in the given base directory */
 export function writeSkillDir(baseDir: string, skill: Skill): void {
   if (skill.body && typeof skill.body !== "string") return; // skip source-referenced skills
-  const skillDir = path.join(baseDir, `tb-${skill.id}`);
+  const skillDir = path.join(baseDir, `trc-${skill.id}`);
   if (!fs.existsSync(skillDir)) fs.mkdirSync(skillDir, { recursive: true });
 
   const lines: string[] = ["---"];
-  lines.push(`name: tb-${skill.id}`);
+  lines.push(`name: trc-${skill.id}`);
   if (skill.description) lines.push(`description: ${JSON.stringify(skill.description)}`);
   lines.push("---", "");
   if (skill.body && typeof skill.body === "string") lines.push(skill.body);
@@ -88,10 +88,10 @@ export function writeSkillDir(baseDir: string, skill: Skill): void {
   fs.writeFileSync(path.join(skillDir, "SKILL.md"), lines.join("\n") + "\n");
 }
 
-/** Remove all tb-* skill directories under a base directory */
+/** Remove all trc-* skill directories under a base directory */
 export function cleanupSkillDirs(baseDir: string): number {
   if (!fs.existsSync(baseDir)) return 0;
-  const dirs = fs.readdirSync(baseDir).filter((d) => d.startsWith("tb-"));
+  const dirs = fs.readdirSync(baseDir).filter((d) => d.startsWith("trc-"));
   for (const d of dirs) {
     fs.rmSync(path.join(baseDir, d), { recursive: true, force: true });
   }

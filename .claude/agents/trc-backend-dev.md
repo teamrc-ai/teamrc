@@ -1,5 +1,5 @@
 ---
-name: tb-backend-dev
+name: trc-backend-dev
 description: "Design APIs, write business logic, manage data models and database queries on the product-team team. Use when tasks relate to design apis, write business logic, manage data models and database queries."
 model: inherit
 ---

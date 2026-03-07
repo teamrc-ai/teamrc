@@ -33,7 +33,7 @@ export class CodexAdapter implements PlatformAdapter {
   private listTbAgentFiles(): string[] {
     const dir = this.agentsConfigDir();
     if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir).filter((f) => f.startsWith("tb-") && f.endsWith(".toml"));
+    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".toml"));
   }
 
   readTeam(): TeamDefinition | null { return null; }
@@ -66,7 +66,7 @@ export class CodexAdapter implements PlatformAdapter {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     const slug = slugify(member.name);
-    const filePath = path.join(dir, `tb-${slug}.toml`);
+    const filePath = path.join(dir, `trc-${slug}.toml`);
 
     const safeName = sanitizeText(member.name);
     const safeRole = sanitizeText(member.role);
@@ -126,11 +126,11 @@ export class CodexAdapter implements PlatformAdapter {
       instructionParts.push("");
     }
 
-    const instructions = instructionParts.join("\n").trim();
+    // Escape triple quotes to prevent TOML injection
+    const instructions = instructionParts.join("\n").trim().replace(/"""/g, '"\\""');
 
-    // Escape for TOML multi-line string
     const tomlContent = [
-      `# teamrc subagent: ${safeName}`,
+      `# teamrc agent: ${safeName}`,
       `# Role: ${safeRole}`,
       "",
       `developer_instructions = """`,
@@ -163,9 +163,9 @@ export class CodexAdapter implements PlatformAdapter {
     for (const member of team.members) {
       const slug = slugify(member.name);
       const safeRole = sanitizeText(member.role);
-      lines.push(`[agents.tb-${slug}]`);
+      lines.push(`[agents.trc-${slug}]`);
       lines.push(`description = ${JSON.stringify(safeRole)}`);
-      lines.push(`config_file = "agents/tb-${slug}.toml"`);
+      lines.push(`config_file = "agents/trc-${slug}.toml"`);
       lines.push("");
     }
 
@@ -194,7 +194,7 @@ export class CodexAdapter implements PlatformAdapter {
 
     for (const member of team.members) {
       const slug = slugify(member.name);
-      sections.push(`## ${sanitizeMarkerContent(member.name)} (\`tb-${slug}\`)`, "");
+      sections.push(`## ${sanitizeMarkerContent(member.name)} (\`trc-${slug}\`)`, "");
       sections.push(`**Role:** ${sanitizeMarkerContent(member.role)}`, "");
 
       const agentRules = resolveAgentRules(member, team);

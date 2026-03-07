@@ -37,7 +37,7 @@ describe("Cursor adapter", () => {
     const rulesDir = path.join(tmpDir, ".cursor", "rules");
     assert.ok(fs.existsSync(rulesDir));
 
-    const styleFile = path.join(rulesDir, "tb-rule_style.mdc");
+    const styleFile = path.join(rulesDir, "trc-rule_style.mdc");
     assert.ok(fs.existsSync(styleFile));
 
     const content = fs.readFileSync(styleFile, "utf-8");
@@ -46,7 +46,7 @@ describe("Cursor adapter", () => {
     assert.ok(content.includes("alwaysApply: false"));
     assert.ok(content.includes("Use prettier."));
 
-    const secFile = path.join(rulesDir, "tb-rule_security.mdc");
+    const secFile = path.join(rulesDir, "trc-rule_security.mdc");
     const secContent = fs.readFileSync(secFile, "utf-8");
     assert.ok(secContent.includes("alwaysApply: true"));
   });
@@ -63,11 +63,11 @@ describe("Cursor adapter", () => {
 
     adapter.writeTeam(team);
 
-    const skillFile = path.join(tmpDir, ".cursor", "skills", "tb-skill_search", "SKILL.md");
+    const skillFile = path.join(tmpDir, ".cursor", "skills", "trc-skill_search", "SKILL.md");
     assert.ok(fs.existsSync(skillFile), "SKILL.md should exist");
 
     const content = fs.readFileSync(skillFile, "utf-8");
-    assert.ok(content.includes("name: tb-skill_search"));
+    assert.ok(content.includes("name: trc-skill_search"));
     assert.ok(content.includes("Search code"));
     assert.ok(content.includes("Use grep."));
   });
@@ -87,11 +87,11 @@ describe("Cursor adapter", () => {
 
     adapter.writeTeam(team);
 
-    const agentFile = path.join(tmpDir, ".cursor", "agents", "tb-architect.md");
+    const agentFile = path.join(tmpDir, ".cursor", "agents", "trc-architect.md");
     assert.ok(fs.existsSync(agentFile), "Subagent .md file should exist");
 
     const content = fs.readFileSync(agentFile, "utf-8");
-    assert.ok(content.includes("name: tb-architect"));
+    assert.ok(content.includes("name: trc-architect"));
     assert.ok(content.includes("design architecture"));
     assert.ok(content.includes("Code Style"));
     assert.ok(content.includes("Use prettier."));
@@ -116,7 +116,7 @@ describe("Cursor adapter", () => {
     assert.ok(fs.existsSync(agentsMd));
     const content = fs.readFileSync(agentsMd, "utf-8");
     assert.ok(content.includes("test-team"));
-    assert.ok(content.includes("tb-architect"));
+    assert.ok(content.includes("trc-architect"));
     assert.ok(content.includes("subagents"));
   });
 
@@ -133,12 +133,12 @@ describe("Cursor adapter", () => {
     adapter.writeTeam(team);
 
     // Verify files exist
-    assert.ok(fs.existsSync(path.join(tmpDir, ".cursor", "agents", "tb-architect.md")));
-    assert.ok(fs.existsSync(path.join(tmpDir, ".cursor", "rules", "tb-rule_style.mdc")));
+    assert.ok(fs.existsSync(path.join(tmpDir, ".cursor", "agents", "trc-architect.md")));
+    assert.ok(fs.existsSync(path.join(tmpDir, ".cursor", "rules", "trc-rule_style.mdc")));
 
     const actions = adapter.uninstall();
     assert.ok(actions.length > 0);
-    assert.ok(!fs.existsSync(path.join(tmpDir, ".cursor", "agents", "tb-architect.md")));
-    assert.ok(!fs.existsSync(path.join(tmpDir, ".cursor", "rules", "tb-rule_style.mdc")));
+    assert.ok(!fs.existsSync(path.join(tmpDir, ".cursor", "agents", "trc-architect.md")));
+    assert.ok(!fs.existsSync(path.join(tmpDir, ".cursor", "rules", "trc-rule_style.mdc")));
   });
 });

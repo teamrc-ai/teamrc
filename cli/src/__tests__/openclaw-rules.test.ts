@@ -38,7 +38,7 @@ describe("OpenClaw agent files with rules and skills", () => {
 
     adapter.writeTeam(team);
 
-    const agentsPath = path.join(tmpDir, ".openclaw", "workspaces", "tb-architect", "AGENTS.md");
+    const agentsPath = path.join(tmpDir, ".openclaw", "workspaces", "trc-architect", "AGENTS.md");
     assert.ok(fs.existsSync(agentsPath), "AGENTS.md should exist");
 
     const content = fs.readFileSync(agentsPath, "utf-8");

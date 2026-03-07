@@ -26,8 +26,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/push", body)
 
       assert json_response(conn, 200) == %{"status" => "ok"}
@@ -40,8 +40,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/teams", body)
 
       resp = json_response(conn, 201)
@@ -60,8 +60,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
 
       conn =
         conn
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> get("/api/teams/#{token}")
 
       assert json_response(conn, 200)["team"]["name"] == "test"
@@ -95,8 +95,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(bad_sig, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(bad_sig, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/push", body)
 
       assert json_response(conn, 401) == %{"error" => "unauthorized"}
@@ -111,8 +111,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/push", tampered_body)
 
       assert json_response(conn, 401) == %{"error" => "unauthorized"}
@@ -130,8 +130,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/push", body)
 
       assert json_response(conn, 401) == %{"error" => "unauthorized"}
@@ -145,7 +145,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
         |> post("/api/push", body)
 
       assert json_response(conn, 401) == %{"error" => "unauthorized"}
@@ -162,8 +162,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/push", body)
 
       assert json_response(conn, 401) == %{"error" => "unauthorized"}
@@ -179,8 +179,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(bad_sig, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(bad_sig, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/push", body)
 
       assert json_response(conn, 401) == %{"error" => "unauthorized"}
@@ -194,8 +194,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(bad_sig, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(bad_sig, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/push", body)
 
       assert json_response(conn, 401) == %{"error" => "unauthorized"}
@@ -211,8 +211,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/teams", body)
 
       assert json_response(conn, 400)["error"] =~ "64 characters"
@@ -225,8 +225,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/teams", body)
 
       assert json_response(conn, 400)["error"] =~ "alphanumeric"
@@ -240,8 +240,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/teams", body)
 
       assert json_response(conn, 400)["error"] =~ "20 members"
@@ -260,8 +260,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/sync", body)
 
       assert json_response(conn, 400)["error"] =~ "invalid file path"
@@ -278,8 +278,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/sync", body)
 
       assert json_response(conn, 400)["error"] =~ "invalid file path"
@@ -296,8 +296,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/sync", body)
 
       assert json_response(conn, 400)["error"] =~ "platform"
@@ -313,8 +313,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/sync", body)
 
       assert json_response(conn, 400)["error"] =~ "platform"
@@ -331,8 +331,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-tb-timestamp", timestamp)
+        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+        |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/sync", body)
 
       assert json_response(conn, 200)["changes"]
@@ -349,8 +349,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
 
           build_conn()
           |> put_req_header("content-type", "application/json")
-          |> put_req_header("x-tb-signature", Base.url_encode64(signature, padding: false))
-          |> put_req_header("x-tb-timestamp", timestamp)
+          |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
+          |> put_req_header("x-trc-timestamp", timestamp)
           |> post("/api/push", body)
         end
 

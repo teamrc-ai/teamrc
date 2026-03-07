@@ -39,7 +39,7 @@ describe("Claude Code agent file with rules and skills", () => {
     adapter.writeTeam(team, "global");
 
     const agentDir = path.join(tmpDir, ".claude", "agents");
-    const files = fs.readdirSync(agentDir).filter((f: string) => f.startsWith("tb-"));
+    const files = fs.readdirSync(agentDir).filter((f: string) => f.startsWith("trc-"));
     assert.equal(files.length, 1);
 
     const content = fs.readFileSync(path.join(agentDir, files[0]), "utf-8");
@@ -69,12 +69,12 @@ describe("Claude Code agent file with rules and skills", () => {
     const rulesDir = path.join(tmpDir, ".claude", "rules");
     assert.ok(fs.existsSync(rulesDir), "rules dir should exist");
 
-    const styleFile = path.join(rulesDir, "tb-rule_style.md");
+    const styleFile = path.join(rulesDir, "trc-rule_style.md");
     const styleContent = fs.readFileSync(styleFile, "utf-8");
     assert.ok(!styleContent.includes("---"), "No frontmatter for unscoped rule");
     assert.ok(styleContent.includes("Use prettier."));
 
-    const scopedFile = path.join(rulesDir, "tb-rule_scoped.md");
+    const scopedFile = path.join(rulesDir, "trc-rule_scoped.md");
     const scopedContent = fs.readFileSync(scopedFile, "utf-8");
     assert.ok(scopedContent.includes("paths:"), "Should have paths frontmatter");
     assert.ok(scopedContent.includes("src/**/*.ts"));
@@ -93,11 +93,11 @@ describe("Claude Code agent file with rules and skills", () => {
 
     adapter.writeTeam(team, "global");
 
-    const skillFile = path.join(tmpDir, ".claude", "skills", "tb-skill_search", "SKILL.md");
+    const skillFile = path.join(tmpDir, ".claude", "skills", "trc-skill_search", "SKILL.md");
     assert.ok(fs.existsSync(skillFile), "SKILL.md should exist");
 
     const content = fs.readFileSync(skillFile, "utf-8");
-    assert.ok(content.includes("name: tb-skill_search"));
+    assert.ok(content.includes("name: trc-skill_search"));
     assert.ok(content.includes("Search code"));
     assert.ok(content.includes("Use grep."));
   });
@@ -114,7 +114,7 @@ describe("Claude Code agent file with rules and skills", () => {
     adapter.writeTeam(team, "global");
 
     const agentDir = path.join(tmpDir, ".claude", "agents");
-    const files = fs.readdirSync(agentDir).filter((f: string) => f.startsWith("tb-"));
+    const files = fs.readdirSync(agentDir).filter((f: string) => f.startsWith("trc-"));
     const content = fs.readFileSync(path.join(agentDir, files[0]), "utf-8");
     assert.ok(!content.includes("## Rules"), "Should NOT have Rules section");
     assert.ok(!content.includes("## Skills"), "Should NOT have Skills section");

@@ -22,7 +22,7 @@ defmodule Teamrc.Application do
     children = [
       TeamrcWeb.Telemetry,
       Teamrc.Repo,
-      {DNSCluster, query: Application.get_env(:relay, :dns_cluster_query) || :ignore},
+      {DNSCluster, query: Application.get_env(:teamrc, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Teamrc.PubSub},
       {Teamrc.Teams, name: Teamrc.Teams},
       {Teamrc.DeviceAuth, name: Teamrc.DeviceAuth},

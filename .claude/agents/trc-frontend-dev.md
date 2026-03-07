@@ -1,5 +1,5 @@
 ---
-name: tb-frontend-dev
+name: trc-frontend-dev
 description: "Build UI components, integrate APIs, implement responsive layouts and interactions on the product-team team. Use when tasks relate to build ui components, integrate apis, implement responsive layouts and interactions."
 model: inherit
 ---

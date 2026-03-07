@@ -35,13 +35,13 @@ export class CursorAdapter implements PlatformAdapter {
   private listTbRules(): string[] {
     const dir = this.rulesDir();
     if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir).filter((f) => f.startsWith("tb-") && f.endsWith(".mdc"));
+    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".mdc"));
   }
 
   private listTbAgentFiles(): string[] {
     const dir = this.agentsDir();
     if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir).filter((f) => f.startsWith("tb-") && f.endsWith(".md"));
+    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".md"));
   }
 
   readTeam(): TeamDefinition | null {
@@ -77,7 +77,7 @@ export class CursorAdapter implements PlatformAdapter {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     const slug = slugify(member.name);
-    const filePath = path.join(dir, `tb-${slug}.md`);
+    const filePath = path.join(dir, `trc-${slug}.md`);
 
     const safeName = sanitizeText(member.name);
     const safeRole = sanitizeText(member.role);
@@ -144,7 +144,7 @@ export class CursorAdapter implements PlatformAdapter {
     const body = bodyParts.join("\n").trim();
 
     const content = `---
-name: tb-${slug}
+name: trc-${slug}
 description: "${escapeYamlString(safeRole)} on the ${escapeYamlString(safeTeamName)} team. Use when tasks relate to ${escapeYamlString(safeRole.toLowerCase())}."
 ---
 
@@ -158,7 +158,7 @@ ${body}
     const dir = this.rulesDir();
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    const fileName = `tb-${rule.id}.mdc`;
+    const fileName = `trc-${rule.id}.mdc`;
     const filePath = path.join(dir, fileName);
 
     const description = JSON.stringify((rule.title || rule.id).replace(/[\n\r]/g, " "));
@@ -190,7 +190,7 @@ ${body}
 
     for (const member of team.members) {
       const slug = slugify(member.name);
-      sections.push(`## ${sanitizeMarkerContent(member.name)} (\`tb-${slug}\`)`, "");
+      sections.push(`## ${sanitizeMarkerContent(member.name)} (\`trc-${slug}\`)`, "");
       sections.push(`**Role:** ${sanitizeMarkerContent(member.role)}`, "");
 
       const agentRules = resolveAgentRules(member, team);

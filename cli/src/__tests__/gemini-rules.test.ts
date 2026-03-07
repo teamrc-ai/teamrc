@@ -31,11 +31,11 @@ describe("Gemini CLI adapter", () => {
 
     adapter.writeTeam(team);
 
-    const skillFile = path.join(tmpDir, ".gemini", "skills", "tb-skill_search", "SKILL.md");
+    const skillFile = path.join(tmpDir, ".gemini", "skills", "trc-skill_search", "SKILL.md");
     assert.ok(fs.existsSync(skillFile), "SKILL.md should exist");
 
     const content = fs.readFileSync(skillFile, "utf-8");
-    assert.ok(content.includes("name: tb-skill_search"));
+    assert.ok(content.includes("name: trc-skill_search"));
     assert.ok(content.includes("Search code"));
   });
 

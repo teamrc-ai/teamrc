@@ -54,8 +54,8 @@ describe("device auth client methods", () => {
       assert.equal(capturedUrl, "http://localhost:4000/api/auth/device");
       assert.equal(capturedMethod, "POST");
       assert.equal(capturedHeaders["Content-Type"], "application/json");
-      assert.ok(capturedHeaders["x-tb-signature"]);
-      assert.ok(capturedHeaders["x-tb-timestamp"]);
+      assert.ok(capturedHeaders["x-trc-signature"]);
+      assert.ok(capturedHeaders["x-trc-timestamp"]);
 
       assert.equal(result.device_code, "dc_test123");
       assert.equal(result.user_code, "ABCD-1234");

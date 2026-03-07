@@ -36,15 +36,15 @@ export class OpenClawAdapter implements PlatformAdapter {
 
   /** Directory for a teamrc agent's workspace */
   private agentWorkspace(agentName: string): string {
-    return path.join(this.openclawDir, "workspaces", `tb-${agentName}`);
+    return path.join(this.openclawDir, "workspaces", `trc-${agentName}`);
   }
 
-  /** List all tb-* workspace directories */
+  /** List all trc-* workspace directories */
   private listTbWorkspaces(): string[] {
     const dir = path.join(this.openclawDir, "workspaces");
     if (!fs.existsSync(dir)) return [];
     return fs.readdirSync(dir).filter((d) =>
-      d.startsWith("tb-") && fs.statSync(path.join(dir, d)).isDirectory(),
+      d.startsWith("trc-") && fs.statSync(path.join(dir, d)).isDirectory(),
     );
   }
 
@@ -56,7 +56,7 @@ export class OpenClawAdapter implements PlatformAdapter {
     const members: TeamMember[] = [];
 
     for (const ws of workspaces) {
-      const agentName = ws.replace("tb-", "");
+      const agentName = ws.replace("trc-", "");
       const wsDir = path.join(this.openclawDir, "workspaces", ws);
       const parsed = this.parseWorkspace(agentName, wsDir);
       if (!parsed) continue;
@@ -101,7 +101,7 @@ export class OpenClawAdapter implements PlatformAdapter {
 
     for (const member of team.members) {
       validateAgentName(member.name);
-      const agentName = `tb-${member.name}`;
+      const agentName = `trc-${member.name}`;
       agentIds.push(agentName);
       const workspaceDir = this.agentWorkspace(member.name);
       if (!fs.existsSync(workspaceDir)) {
@@ -200,16 +200,16 @@ export class OpenClawAdapter implements PlatformAdapter {
     fs.writeFileSync(agentsPath, agentsContent);
   }
 
-  /** Write native OpenClaw skill directories (skills/tb-{id}/SKILL.md) into a workspace */
+  /** Write native OpenClaw skill directories (skills/trc-{id}/SKILL.md) into a workspace */
   private writeNativeSkillFiles(wsDir: string, skills: import("./base.js").Skill[]): void {
     for (const skill of skills) {
       const body = skill.body ? (typeof skill.body === "string" ? skill.body : null) : null;
-      const skillDir = path.join(wsDir, "skills", `tb-${skill.id}`);
+      const skillDir = path.join(wsDir, "skills", `trc-${skill.id}`);
       if (!fs.existsSync(skillDir)) {
         fs.mkdirSync(skillDir, { recursive: true });
       }
 
-      const frontmatterLines = [`name: tb-${skill.id}`];
+      const frontmatterLines = [`name: trc-${skill.id}`];
       if (skill.description) {
         frontmatterLines.push(`description: "${skill.description}"`);
       }
@@ -243,7 +243,7 @@ export class OpenClawAdapter implements PlatformAdapter {
 
     let mainAgent = list.find((a) => a["default"] === true);
     if (!mainAgent && list.length > 0) {
-      mainAgent = list.find((a) => !String(a["id"] ?? "").startsWith("tb-")) ?? list[0];
+      mainAgent = list.find((a) => !String(a["id"] ?? "").startsWith("trc-")) ?? list[0];
     }
     if (!mainAgent) return;
 
@@ -361,7 +361,7 @@ export class OpenClawAdapter implements PlatformAdapter {
     } else {
       fs.writeFileSync(
         filePath,
-        `# Team Knowledge\n\nShared findings and decisions synced by teamrc. Do not edit manually.\n\n${newContent}\n`,
+        `# Team Knowledge\n\nShared findings and decisions synced by teamrc.\n\n${newContent}\n`,
       );
     }
   }
@@ -371,7 +371,7 @@ export class OpenClawAdapter implements PlatformAdapter {
 
     // Hash each agent workspace as portable JSON
     for (const ws of this.listTbWorkspaces()) {
-      const agentName = ws.replace("tb-", "");
+      const agentName = ws.replace("trc-", "");
       const wsDir = path.join(this.openclawDir, "workspaces", ws);
       const parsed = this.parseWorkspace(agentName, wsDir);
       if (!parsed) continue;
@@ -391,7 +391,7 @@ export class OpenClawAdapter implements PlatformAdapter {
 
   watchPaths(): string[] {
     const paths = [this.knowledgePath()];
-    // Watch all tb-* workspace directories
+    // Watch all trc-* workspace directories
     const wsBase = path.join(this.openclawDir, "workspaces");
     if (fs.existsSync(wsBase)) {
       for (const ws of this.listTbWorkspaces()) {
@@ -435,7 +435,8 @@ export class OpenClawAdapter implements PlatformAdapter {
     try {
       portable = JSON.parse(json) as PortableAgent;
     } catch {
-      return; // skip malformed JSON from relay
+      console.warn(`Skipping malformed JSON for ${key}`);
+      return;
     }
     validateAgentName(portable.name);
     const wsDir = this.agentWorkspace(portable.name);
@@ -457,7 +458,7 @@ export class OpenClawAdapter implements PlatformAdapter {
     this.writeNativeAgentFiles(wsDir, portable.teamName, member, allMembers);
 
     // Register if not already
-    const agentId = `tb-${portable.name}`;
+    const agentId = `trc-${portable.name}`;
     try {
       execFileSync("openclaw", [
         "agents", "add", agentId,
@@ -472,7 +473,7 @@ export class OpenClawAdapter implements PlatformAdapter {
   uninstall(): string[] {
     const actions: string[] = [];
 
-    // Delete tb-* workspace directories
+    // Delete trc-* workspace directories
     const workspaces = this.listTbWorkspaces();
     if (workspaces.length > 0) {
       const wsBase = path.join(this.openclawDir, "workspaces");
@@ -482,11 +483,11 @@ export class OpenClawAdapter implements PlatformAdapter {
       actions.push(`Deleted ${workspaces.length} agent workspace(s)`);
     }
 
-    // Delete tb-* skill directories from the default workspace
+    // Delete trc-* skill directories from the default workspace
     const defaultSkillsDir = path.join(this.openclawDir, "workspace", "skills");
     if (fs.existsSync(defaultSkillsDir)) {
       const tbSkills = fs.readdirSync(defaultSkillsDir).filter((d) =>
-        d.startsWith("tb-") && fs.statSync(path.join(defaultSkillsDir, d)).isDirectory(),
+        d.startsWith("trc-") && fs.statSync(path.join(defaultSkillsDir, d)).isDirectory(),
       );
       for (const sd of tbSkills) {
         fs.rmSync(path.join(defaultSkillsDir, sd), { recursive: true });
@@ -519,20 +520,20 @@ export class OpenClawAdapter implements PlatformAdapter {
       }
     }
 
-    // Remove tb-* agents from openclaw.json
+    // Remove trc-* agents from openclaw.json
     const configPath = path.join(this.openclawDir, "openclaw.json");
     const config = this.readOpenClawConfig(configPath);
     if (config) {
       const agents = (config["agents"] ?? {}) as Record<string, unknown>;
       const list = (agents["list"] ?? []) as Array<Record<string, unknown>>;
-      const filtered = list.filter((a) => !String(a["id"] ?? "").startsWith("tb-"));
+      const filtered = list.filter((a) => !String(a["id"] ?? "").startsWith("trc-"));
       if (filtered.length !== list.length) {
         agents["list"] = filtered;
         // Also clean allowAgents on remaining agents
         for (const agent of filtered) {
           const subagents = (agent["subagents"] ?? {}) as Record<string, unknown>;
           const allow = (subagents["allowAgents"] ?? []) as string[];
-          const cleanedAllow = allow.filter((id) => !id.startsWith("tb-"));
+          const cleanedAllow = allow.filter((id) => !id.startsWith("trc-"));
           if (cleanedAllow.length !== allow.length) {
             subagents["allowAgents"] = cleanedAllow;
             agent["subagents"] = subagents;
@@ -540,7 +541,7 @@ export class OpenClawAdapter implements PlatformAdapter {
         }
         config["agents"] = agents;
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-        actions.push(`Removed tb-* agents from ${configPath}`);
+        actions.push(`Removed trc-* agents from ${configPath}`);
       }
     }
 

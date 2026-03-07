@@ -577,7 +577,7 @@ defmodule TeamrcWeb.TeamLive do
                   Rules
                 </label>
                 <span class="text-xs text-base-content/30">
-                  Policies for agents — assign per member or all inherit
+                  Policies for agents — assign per member above
                 </span>
               </div>
               <div class="space-y-2">
@@ -634,7 +634,7 @@ defmodule TeamrcWeb.TeamLive do
                   Skills
                 </label>
                 <span class="text-xs text-base-content/30">
-                  Capabilities — assign per member or all inherit
+                  Capabilities — assign per member above
                 </span>
               </div>
               <div class="space-y-2">
@@ -747,7 +747,7 @@ defmodule TeamrcWeb.TeamLive do
             </div>
             <button
               id="copy-btn"
-              phx-click={JS.dispatch("tb:copy", detail: %{text: "npx teamrc join #{@invite_code}"})}
+              phx-click={JS.dispatch("trc:copy", detail: %{text: "npx teamrc join #{@invite_code}"})}
               class="trc-focus text-[10px] font-mono text-white/30 hover:text-white/60 transition-colors rounded px-1.5 py-0.5 hover:bg-white/5"
             >
               copy

@@ -21,5 +21,5 @@ defmodule TeamrcWeb.Gettext do
 
   See the [Gettext Docs](https://hexdocs.pm/gettext) for detailed usage.
   """
-  use Gettext.Backend, otp_app: :relay
+  use Gettext.Backend, otp_app: :teamrc
 end

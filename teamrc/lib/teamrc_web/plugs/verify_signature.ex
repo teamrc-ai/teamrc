@@ -3,7 +3,7 @@ defmodule TeamrcWeb.Plugs.VerifySignature do
   Plug that verifies Ed25519 request signatures for API authentication.
 
   Clients sign requests with their Ed25519 private key and include the
-  base64url-encoded signature in the `x-tb-signature` header.
+  base64url-encoded signature in the `x-trc-signature` header.
 
   The token (`trc_ak_<base64url(public_key)>`) is extracted from:
   - `body_params["token"]` for POST requests
@@ -13,7 +13,7 @@ defmodule TeamrcWeb.Plugs.VerifySignature do
   - For POST: the raw request body (exact bytes sent by the client)
   - For GET: "GET /path" (method + space + request path)
 
-  The `x-tb-timestamp` header is required and must be within 5 minutes
+  The `x-trc-timestamp` header is required and must be within 5 minutes
   of server time to prevent replay attacks.
 
   This prevents BOLA because the token embeds the public key, and only
@@ -65,7 +65,7 @@ defmodule TeamrcWeb.Plugs.VerifySignature do
   end
 
   defp extract_timestamp(conn) do
-    case get_req_header(conn, "x-tb-timestamp") do
+    case get_req_header(conn, "x-trc-timestamp") do
       [ts | _] -> {:ok, ts}
       _ -> :error
     end
@@ -105,7 +105,7 @@ defmodule TeamrcWeb.Plugs.VerifySignature do
   end
 
   defp extract_signature(conn) do
-    case get_req_header(conn, "x-tb-signature") do
+    case get_req_header(conn, "x-trc-signature") do
       [sig | _] ->
         case Base.url_decode64(sig, padding: false) do
           {:ok, decoded} -> {:ok, decoded}
