@@ -1,10 +1,10 @@
 # teamrc PRD
 
 **Product Requirements Document**
-**Version:** v0.4
-**Date:** 2026-03-05
+**Version:** v0.5
+**Date:** 2026-03-07
 **Status:** MVP Complete
-**Last Updated:** 2026-03-05
+**Last Updated:** 2026-03-07
 
 ---
 
@@ -14,7 +14,7 @@ teamrc is a portable specification and synchronization tool for AI agent teams.
 
 Developers define their agent team once in a project file (`agent-team.yaml`). teamrc then:
 
-1. Applies the team to local agent platforms (Claude Code, OpenClaw, etc.)
+1. Applies the team to local agent platforms (Claude Code, Cursor, Codex, Gemini, etc.)
 2. Keeps agent teams synchronized across machines using a lightweight relay
 
 The goal is to make agent teams portable, version controlled, and automatically synced across machines.
@@ -41,7 +41,7 @@ teamrc introduces:
 - **Git remains the source of truth** — team definitions live in the repo
 - **Relay is stateless for sync** — sync data (hashes, content) is in-memory only; Postgres stores teams and invites
 - **CLI first** — all functionality works from the CLI
-- **No accounts required** — identity is Ed25519 keypair per machine, team membership via invite codes
+- **Accounts optional** — identity is Ed25519 keypair per machine, team membership via invite codes. A device auth flow via Clerk is available for linking machines to accounts, but not required.
 - **Automatic synchronization** — daemon watches files and polls relay every 2 minutes
 - **Security first** — Ed25519 signed requests, replay protection, rate limiting, input validation
 
@@ -70,7 +70,6 @@ teamrc:
 5. For each selected platform:
    - Asks scope (project vs global) for Claude Code
    - Creates platform-native agent files (e.g., `.claude/agents/tb-*.md`)
-   - Installs sync hooks
 6. Saves configuration
 
 Example output with multiple platforms:
@@ -78,7 +77,7 @@ Example output with multiple platforms:
 ```
 Multiple platforms detected:
   1) claude-code
-  2) openclaw
+  2) cursor
   3) Both
 
 Which platform? [1-3]: 3
@@ -93,13 +92,13 @@ Where should this team be available?
 Choice [1/2]: 1
   claude-code configured.
 
-Setting up openclaw...
-  openclaw configured.
+Setting up cursor...
+  cursor configured.
 
 Configuration saved.
 ```
 
-Invites are multi-use — the same invite code works on multiple machines until it expires (24 hours).
+Invites are single-use — each invite code can only be claimed once.
 
 ### 5.3 Initialize from Existing Agents
 
@@ -112,7 +111,7 @@ For users who already have agents configured locally. teamrc:
 - Reads existing agents and generates `agent-team.yaml`
 - Applies to all selected platforms' native format
 - Creates team on relay
-- Installs hooks and saves config
+- Saves config
 
 ### 5.4 Automatic Synchronization
 
@@ -182,6 +181,19 @@ agents:
     soul: |
       You are a security-focused reviewer.
       Always check for OWASP top 10 vulnerabilities.
+
+rules:
+  - id: code-style
+    title: Code Style
+    globs: ["*.ts", "*.js"]
+    body: |
+      Use eslint + prettier defaults.
+
+skills:
+  - id: deploy
+    description: Deploy to staging
+    body: |
+      Run the deployment pipeline...
 ```
 
 Constraints:
@@ -189,12 +201,13 @@ Constraints:
 - Agents: at least one required
 - Each agent: name (required), role (required), soul (optional multiline)
 - Duplicate agent names rejected
+- Rules: max 50, max 10KB per body. Skills: max 50.
 
 ## 7. System Architecture
 
 ```
 Machine A                    Machine B
-Claude Code + OpenClaw       OpenClaw
+Claude Code + Cursor         Cursor + Codex
 
 teamrc daemon            teamrc daemon
   chokidar watcher             chokidar watcher
@@ -230,7 +243,9 @@ Commands:
 | `teamrc diff` | Compare local vs relay state |
 | `teamrc status` | Show config, sync state, team info |
 | `teamrc sync` | Manual one-shot sync |
+| `teamrc push` | Push local state to relay |
 | `teamrc daemon` | Start background sync daemon |
+| `teamrc delete` | Delete team from relay |
 
 All commands that need a platform support `--platform <name>` to override auto-detection. When multiple platforms are detected and no override is given, the CLI prompts with an option to configure both.
 
@@ -259,7 +274,12 @@ Elixir/Phoenix application.
 | POST | `/api/sync` | Signed | Full sync (send hashes + files, receive changes) |
 | GET | `/api/sync/check` | Signed | Lightweight poll (changed since timestamp?) |
 | POST | `/api/push` | Signed | Push a single entry |
-| GET | `/api/pull` | Signed | Pull entries for a platform |
+| POST | `/api/auth/device` | Signed | Start device auth flow |
+| GET | `/api/auth/device/:device_code` | Signed | Poll device auth status |
+| GET | `/api/account` | Clerk JWT | Get account info |
+| GET | `/api/account/teams` | Clerk JWT | List account's teams |
+| DELETE | `/api/account/machines/:token` | Clerk JWT | Revoke a machine |
+| POST | `/api/account/reassociate` | Clerk JWT + Signed | Reassociate machine |
 
 **Web UI:**
 - `GET /` — LiveView team creation interface with templates
@@ -283,14 +303,15 @@ interface PlatformAdapter {
   watchPaths(): string[];
   writeFile(key: string, content: string): void;
   readFile(key: string): string | null;
-  installHooks(relay: string, token: string): void;
 }
 ```
 
 | Platform | Canonical Source | Native Format | Knowledge File | Scope Options |
 |----------|-----------------|---------------|----------------|---------------|
 | Claude Code | `agent-team.yaml` | `.claude/agents/tb-*.md` (YAML frontmatter + markdown) | `.claude/team-knowledge.md` | project / global |
-| OpenClaw | `agent-team.yaml` | `~/.openclaw/workspace/agents/` | `~/.openclaw/workspace/TEAM-KNOWLEDGE.md` | global only |
+| Cursor | `agent-team.yaml` | `.cursor/rules/trc-*.mdc` | `.cursor/team-knowledge.md` | project only |
+| Codex | `agent-team.yaml` | `AGENTS.md` | `codex-knowledge.md` | project only |
+| Gemini | `agent-team.yaml` | `GEMINI.md` | `.gemini/team-knowledge.md` | project only |
 
 **Claude Code native format:** Each agent becomes a subagent markdown file with YAML frontmatter:
 
@@ -420,10 +441,10 @@ npm install -g ./teamrc-0.1.0.tgz  # Install from tarball (no git/registry neede
 **Relay (self-hosted):**
 
 ```bash
-cd relay && mix phx.server
+cd teamrc && mix phx.server
 ```
 
-Requires: Elixir 1.18+, Postgres. Binds to `0.0.0.0` in dev by default. For cross-machine access, ensure firewall allows port 4000 or use SSH tunneling:
+Requires: Elixir 1.18+, Postgres. Binds to `127.0.0.1` in dev by default. For cross-machine access, ensure firewall allows port 4000 or use SSH tunneling:
 
 ```bash
 ssh -L 4000:localhost:4000 user@relay-host
@@ -443,7 +464,7 @@ ssh -L 4000:localhost:4000 user@relay-host
 - npm publish of CLI package
 - Auto-start daemon after `join`/`init`
 - End-to-end encryption (encrypt content with team-shared key)
-- Platform adapters: Cursor, Windsurf, CrewAI, AutoGen, LangGraph
+- Platform adapters: Windsurf, Continue.dev, GitHub Copilot, Aider
 - Task coordination system (structured tasks for agents)
 - MCP server for mid-session reads (`teamrc:read-knowledge`, `teamrc:list-teammates`)
 - Web dashboard for team management

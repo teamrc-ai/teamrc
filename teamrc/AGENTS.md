@@ -1,3 +1,19 @@
+# teamrc Backend Guidelines
+
+## Project-Specific
+
+- The main GenServer is `Teamrc.Teams` — it manages all in-memory sync state
+- Database schemas are in `Teamrc.Schema.*` (Team, Member, Invite, AccountToken, TokenTeam)
+- API controllers: `ApiController` (sync/push/join/teams), `AccountController` (Clerk-authed account management), `AuthController` (device auth flow)
+- Auth plugs: `VerifySignature` (Ed25519), `VerifyClerkJWT` (Clerk), `RateLimiter`, `CORS`
+- Invite codes are single-use with atomic claim (`update_all` with `where: is_nil(claimed_at)`)
+- Content cap: 50MB per team for sync state
+- Rules/skills validation: max 50 each, max 10KB per rule body
+- The `pull` route was removed — clients use `sync` for bidirectional exchange
+- Run `mix test` to verify changes; all 108 tests should pass
+
+---
+
 This is a web application written using the Phoenix web framework.
 
 ## Project guidelines

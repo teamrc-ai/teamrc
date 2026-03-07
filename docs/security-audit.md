@@ -1,6 +1,6 @@
 # teamrc Security Audit
 
-**Date:** 2026-03-05
+**Date:** 2026-03-07
 **Scope:** Authentication, authorization, and input validation across CLI and relay
 
 ---
@@ -9,7 +9,7 @@
 
 ### 1. No Replay Attack Protection (Timestamp Validation Missing)
 
-**Files:** `relay/lib/teamrc_web/plugs/verify_signature.ex`, `cli/src/relay-client.ts`
+**Files:** `teamrc/lib/teamrc_web/plugs/verify_signature.ex`, `cli/src/client.ts`
 
 The `VerifySignature` plug's moduledoc claims that `x-tb-timestamp` is required and checked within a 5-minute window, but **no code actually validates timestamps**. The client never sends an `x-tb-timestamp` header either.
 
@@ -22,7 +22,7 @@ An attacker who intercepts a valid signed request can replay it indefinitely.
 
 ### 2. `joinByInvite` Sends No Signature
 
-**Files:** `cli/src/relay-client.ts:72-84`, `relay/lib/relay_web/router.ex:29-33`
+**Files:** `cli/src/client.ts:72-84`, `teamrc/lib/teamrc_web/router.ex:29-33`
 
 The `/api/join` route bypasses the `:api` pipeline entirely (uses `:accepts_json` only). The client's `joinByInvite` method sends no `x-tb-signature` header.
 
@@ -39,7 +39,7 @@ While the invite code itself provides some auth, this means:
 
 ### 3. `pull` Method Signs Empty String Instead of Request Path
 
-**File:** `cli/src/relay-client.ts:120-136`
+**File:** `cli/src/client.ts:120-136`
 
 The `pull` method sends a GET request but calls `signedHeaders("")` which signs an empty string. Meanwhile, the server's `get_sign_message` for GET requests constructs `"GET /path"`. This means either:
 - Pull requests always fail auth (if the server verifies correctly), or
@@ -49,7 +49,7 @@ The `pull` method sends a GET request but calls `signedHeaders("")` which signs 
 
 ### 4. No BOLA Check in Controller
 
-**Files:** `relay/lib/teamrc_web/controllers/api_controller.ex`, `relay/lib/teamrc_web/plugs/verify_signature.ex:43`
+**Files:** `teamrc/lib/teamrc_web/controllers/api_controller.ex`, `teamrc/lib/teamrc_web/plugs/verify_signature.ex:43`
 
 The `VerifySignature` plug sets `conn.assigns.verified_token`, but **no controller action checks that `verified_token` matches the `token` parameter in the request**. This means:
 - User A can sign a request with their own key
@@ -63,7 +63,7 @@ For POST requests, the token is extracted from `body_params["token"]`, but the s
 
 ### 5. `sync`, `push`, `pull` Routes Don't Include Token in URL
 
-**Files:** `relay/lib/relay_web/router.ex:36-43`, `relay/lib/teamrc_web/plugs/verify_signature.ex:54-59`
+**Files:** `teamrc/lib/teamrc_web/router.ex:36-43`, `teamrc/lib/teamrc_web/plugs/verify_signature.ex:54-59`
 
 Routes like `post "/sync"`, `post "/push"`, `post "/pull"` don't have `:token` in the path. The `extract_token` plug tries `body_params["token"]` first, then `path_params["token"]`.
 
@@ -90,7 +90,7 @@ fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
 
 ### 7. Catch-All Error Handling Hides Auth Failures
 
-**File:** `relay/lib/teamrc_web/plugs/verify_signature.ex:44-50`
+**File:** `teamrc/lib/teamrc_web/plugs/verify_signature.ex:44-50`
 
 The `else` clause catches all failures with `_ ->` and returns a generic 401. This makes debugging difficult and could mask unexpected errors (e.g., database failures returning as auth errors).
 
@@ -98,7 +98,7 @@ The `else` clause catches all failures with `_ ->` and returns a generic 401. Th
 
 ### 8. `skip_auth` Configuration Could Leak to Production
 
-**File:** `relay/lib/teamrc_web/plugs/verify_signature.ex:35`
+**File:** `teamrc/lib/teamrc_web/plugs/verify_signature.ex:35`
 
 `Application.get_env(:relay, :skip_auth, false)` reads at runtime. If this config accidentally gets set in production, all auth is bypassed. There is no compile-time guard.
 
@@ -204,6 +204,76 @@ Agent `soul` fields are intentionally user-controlled persona text. A malicious 
 
 ---
 
+## Code Audit Fixes (2026-03-07)
+
+### 21. HIGH — Invite codes not single-use (race condition) (FIXED)
+
+Invite codes could be reused due to a TOCTOU race: the code was checked for validity and then consumed in separate steps. Two concurrent join requests with the same invite code could both succeed.
+
+**Fix applied:** Atomic single-use consumption via a single database operation that checks and invalidates the invite code in one transaction.
+
+### 22. HIGH — `create_team_in_db` crash on error (FIXED)
+
+`create_team_in_db` did not handle database error tuples, causing unmatched function clause crashes instead of returning a proper error to the caller.
+
+**Fix applied:** Added pattern matching on `{:error, changeset}` to return structured error responses.
+
+### 23. HIGH — `update_team_in_db` not transactional (FIXED)
+
+Multi-step team updates (members, rules, skills) were not wrapped in a transaction. A failure partway through could leave the team in an inconsistent state.
+
+**Fix applied:** Wrapped the full update sequence in `Repo.transaction/1`.
+
+### 24. MEDIUM — No content cap on sync state (FIXED)
+
+Sync state payloads had no size limit, allowing a single team to store unbounded data on the server and potentially exhaust storage.
+
+**Fix applied:** Enforced a 50MB cap per team on sync state size.
+
+### 25. MEDIUM — No validation on rules/skills count or size (FIXED)
+
+Teams could have unlimited rules and skills of arbitrary size, creating potential for abuse and resource exhaustion.
+
+**Fix applied:** Limited to 50 rules and 50 skills per team, with a 10KB maximum size per individual rule or skill.
+
+### 26. MEDIUM — Member schema missing required validations (FIXED)
+
+The member schema accepted records without enforcing presence of required fields (name, role), allowing incomplete or malformed member entries.
+
+**Fix applied:** Added `validate_required` for all mandatory member fields in the changeset.
+
+### 27. MEDIUM — Clerk JWT issuer validation fail-open (FIXED)
+
+When validating Clerk JWTs, an unrecognized or missing issuer would fall through without rejecting the token, effectively allowing tokens from any issuer.
+
+**Fix applied:** Changed to fail-closed validation that explicitly rejects tokens unless the issuer matches the expected Clerk instance.
+
+### 28. MEDIUM — No prod config validation at boot (FIXED)
+
+Missing or invalid production configuration (database URL, secret keys, Clerk config) would only surface at runtime when the affected code path was hit, rather than failing fast at startup.
+
+**Fix applied:** Added boot-time config validation that checks all required environment variables and raises immediately if any are missing or malformed.
+
+### 29. LOW — Dead code: `pull` route and method, `revoked?/1`, `put_hashes`/`get_changes` (FIXED)
+
+Unused routes and functions were left in the codebase, increasing the attack surface and maintenance burden.
+
+**Fix applied:** Removed all dead code.
+
+### 30. LOW — Duplicate utility functions across adapters (FIXED)
+
+**Fix applied:** Consolidated shared utilities into `base.ts`.
+
+### 31. LOW — N+1 in `resolve_participants` (FIXED)
+
+**Fix applied:** Replaced individual queries with a batch query.
+
+### 32. LOW — ETS table missing `read_concurrency` (FIXED)
+
+**Fix applied:** Added `read_concurrency: true` to ETS table options.
+
+---
+
 ## Summary of Required Fixes
 
 | # | Severity | Issue | Status |
@@ -212,7 +282,7 @@ Agent `soul` fields are intentionally user-controlled persona text. A malicious 
 | 2 | CRITICAL | joinByInvite unsigned | Fixed |
 | 3 | HIGH | pull signs empty string | Fixed |
 | 4 | HIGH | No BOLA check | Fixed |
-| 5 | HIGH | Token not verified against signing key | Fixed (via #4 fix) |
+| 5 | HIGH | Token not verified against signing key | Fixed |
 | 6 | HIGH | Directory perms | Fixed |
 | 7 | MEDIUM | Catch-all error handling | Noted |
 | 8 | MEDIUM | skip_auth guard | Noted |
@@ -228,3 +298,15 @@ Agent `soul` fields are intentionally user-controlled persona text. A malicious 
 | 18 | MEDIUM | Daemon race conditions | Fixed |
 | 19 | MEDIUM | No team name validation | Fixed |
 | 20 | MEDIUM | Prompt injection via soul | By design |
+| 21 | HIGH | Invite codes not single-use (race condition) | Fixed |
+| 22 | HIGH | `create_team_in_db` crash on error | Fixed |
+| 23 | HIGH | `update_team_in_db` not transactional | Fixed |
+| 24 | MEDIUM | No content cap on sync state | Fixed (50MB/team) |
+| 25 | MEDIUM | No validation on rules/skills count or size | Fixed (50/50, 10KB) |
+| 26 | MEDIUM | Member schema missing required validations | Fixed |
+| 27 | MEDIUM | Clerk JWT issuer validation fail-open | Fixed (fail-closed) |
+| 28 | MEDIUM | No prod config validation at boot | Fixed |
+| 29 | LOW | Dead code: `pull` route and method, `revoked?/1`, `put_hashes`/`get_changes` | Fixed (removed) |
+| 30 | LOW | Duplicate utility functions across adapters | Fixed (shared in base.ts) |
+| 31 | LOW | N+1 in `resolve_participants` | Fixed (batch query) |
+| 32 | LOW | ETS table missing `read_concurrency` | Fixed |
