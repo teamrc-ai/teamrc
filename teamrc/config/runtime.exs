@@ -25,6 +25,11 @@ config :teamrc, TeamrcWeb.Endpoint,
 
 config :teamrc, env: config_env()
 
+# Clerk frontend publishable key (optional — enables Sign In button on web UI)
+if clerk_pk = System.get_env("CLERK_PUBLISHABLE_KEY") do
+  config :teamrc, :clerk_publishable_key, clerk_pk
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

@@ -734,6 +734,21 @@ defmodule TeamrcWeb.TeamLive do
           </p>
         </div>
 
+        <%!-- Account linking prompt for non-signed-in users --%>
+        <div :if={!@clerk_email} class="rounded-lg border border-info/30 bg-info/5 p-4 mb-6">
+          <div class="flex items-start gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-info shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
+            </svg>
+            <div>
+              <p class="text-sm font-medium text-info">Link your account</p>
+              <p class="text-sm text-base-content/60 mt-1">
+                Sign in to manage your teams from the dashboard, link multiple machines, and recover access if you lose a key.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <%!-- Terminal block --%>
         <div class="terminal-block rounded-lg overflow-hidden mb-6">
           <div class="flex items-center justify-between px-4 py-2.5 border-b border-white/5">

@@ -36,8 +36,16 @@ defmodule TeamrcWeb.Router do
   scope "/", TeamrcWeb do
     pipe_through :browser
 
-    live "/", TeamLive, :index
-    live "/auth/verify", AuthVerifyLive
+    get "/", PageController, :index
+    get "/auth/sign-out", PageController, :sign_out
+
+    live_session :default,
+      layout: {TeamrcWeb.Layouts, :app},
+      on_mount: [TeamrcWeb.Hooks.AssignAuth] do
+      live "/new", TeamLive, :index
+      live "/dashboard", DashboardLive
+      live "/auth/verify", AuthVerifyLive
+    end
   end
 
   scope "/api", TeamrcWeb do

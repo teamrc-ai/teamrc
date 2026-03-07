@@ -3,7 +3,7 @@ defmodule TeamrcWeb.TeamLiveTest do
   import Phoenix.LiveViewTest
 
   test "renders template chooser on mount", %{conn: conn} do
-    {:ok, _view, html} = live(conn, "/")
+    {:ok, _view, html} = live(conn, "/new")
     assert html =~ "Create a team"
     assert html =~ "Pick a starting point"
     assert html =~ "Full-Stack Product"
@@ -13,7 +13,7 @@ defmodule TeamrcWeb.TeamLiveTest do
   end
 
   test "selecting a template shows the customize form", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/")
+    {:ok, view, _html} = live(conn, "/new")
 
     view |> element("button[phx-value-template='fullstack']") |> render_click()
     html = render(view)
@@ -28,7 +28,7 @@ defmodule TeamrcWeb.TeamLiveTest do
   end
 
   test "back button returns to template chooser", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/")
+    {:ok, view, _html} = live(conn, "/new")
 
     view |> element("button[phx-value-template='backend']") |> render_click()
     assert render(view) =~ "Configure your team"
@@ -38,7 +38,7 @@ defmodule TeamrcWeb.TeamLiveTest do
   end
 
   test "updates team name and enables create button", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/")
+    {:ok, view, _html} = live(conn, "/new")
 
     # Select custom template (empty name)
     view |> element("button[phx-value-template='custom']") |> render_click()
@@ -52,7 +52,7 @@ defmodule TeamrcWeb.TeamLiveTest do
   end
 
   test "adds and removes team members", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/")
+    {:ok, view, _html} = live(conn, "/new")
 
     view |> element("button[phx-value-template='custom']") |> render_click()
 
@@ -68,7 +68,7 @@ defmodule TeamrcWeb.TeamLiveTest do
   end
 
   test "creates team and shows join command", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/")
+    {:ok, view, _html} = live(conn, "/new")
 
     # Select a template with a pre-filled name
     view |> element("button[phx-value-template='fullstack']") |> render_click()
@@ -83,7 +83,7 @@ defmodule TeamrcWeb.TeamLiveTest do
   end
 
   test "reset returns to template chooser", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/")
+    {:ok, view, _html} = live(conn, "/new")
 
     view |> element("button[phx-value-template='backend']") |> render_click()
     view |> element("button", "Create team") |> render_click()
@@ -94,7 +94,7 @@ defmodule TeamrcWeb.TeamLiveTest do
   end
 
   test "security template has expected members", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/")
+    {:ok, view, _html} = live(conn, "/new")
 
     view |> element("button[phx-value-template='security']") |> render_click()
     html = render(view)
@@ -106,7 +106,7 @@ defmodule TeamrcWeb.TeamLiveTest do
   end
 
   test "marketing template has expected members", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/")
+    {:ok, view, _html} = live(conn, "/new")
 
     view |> element("button[phx-value-template='marketing']") |> render_click()
     html = render(view)
@@ -118,7 +118,7 @@ defmodule TeamrcWeb.TeamLiveTest do
   end
 
   test "per-member rule assignment toggles", %{conn: conn} do
-    {:ok, view, _html} = live(conn, "/")
+    {:ok, view, _html} = live(conn, "/new")
 
     # Select fullstack template (has rules)
     view |> element("button[phx-value-template='fullstack']") |> render_click()

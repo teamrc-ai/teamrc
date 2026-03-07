@@ -50,6 +50,43 @@ window.addEventListener("trc:copy", (e) => {
   })
 })
 
+// Clerk auth handlers
+window.addEventListener("trc:sign-in", async () => {
+  const clerkKey = document.querySelector("script[data-clerk-publishable-key]")?.dataset.clerkPublishableKey
+  if (!clerkKey) {
+    console.warn("Clerk publishable key not configured. Set CLERK_PUBLISHABLE_KEY env var.")
+    return
+  }
+  // Wait for Clerk to be ready
+  if (window.Clerk && window.Clerk.redirectToSignIn) {
+    window.Clerk.redirectToSignIn({ redirectUrl: window.location.origin + "/" })
+  } else {
+    // Clerk JS may still be loading — wait and retry
+    const waitForClerk = () => new Promise((resolve) => {
+      if (window.Clerk && window.Clerk.redirectToSignIn) return resolve()
+      const observer = new MutationObserver(() => {
+        if (window.Clerk && window.Clerk.redirectToSignIn) {
+          observer.disconnect()
+          resolve()
+        }
+      })
+      observer.observe(document.body, { childList: true, subtree: true })
+      setTimeout(() => { observer.disconnect(); resolve() }, 5000)
+    })
+    await waitForClerk()
+    if (window.Clerk && window.Clerk.redirectToSignIn) {
+      window.Clerk.redirectToSignIn({ redirectUrl: window.location.origin + "/" })
+    }
+  }
+})
+
+window.addEventListener("trc:sign-out", async () => {
+  if (window.Clerk && window.Clerk.signOut) {
+    await window.Clerk.signOut()
+  }
+  window.location.href = "/auth/sign-out"
+})
+
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 
