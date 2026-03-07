@@ -14,6 +14,7 @@ defmodule TeamrcWeb.Plugs.VerifyClerkJWT do
         audience: System.get_env("CLERK_AUDIENCE")
 
   The `audience` is optional — if not configured, the `aud` claim is not checked.
+  The `issuer` is REQUIRED in production — the app will fail to start without it.
   """
 
   import Plug.Conn
@@ -76,7 +77,7 @@ defmodule TeamrcWeb.Plugs.VerifyClerkJWT do
     end
   end
 
-  defp validate_issuer(claims, expected_issuer) when is_binary(expected_issuer) do
+  defp validate_issuer(claims, expected_issuer) when is_binary(expected_issuer) and expected_issuer != "" do
     if claims["iss"] == expected_issuer do
       :ok
     else
@@ -84,7 +85,8 @@ defmodule TeamrcWeb.Plugs.VerifyClerkJWT do
     end
   end
 
-  defp validate_issuer(_claims, _), do: :ok
+  # Fail closed: if issuer is not configured, reject all tokens
+  defp validate_issuer(_claims, _), do: {:error, "issuer not configured"}
 
   defp validate_expiration(claims) do
     case claims["exp"] do
@@ -159,10 +161,6 @@ defmodule TeamrcWeb.Plugs.VerifyClerkJWT do
   end
 
   defp fetch_jwks_from_url(url) do
-    # Ensure :inets and :ssl are started for :httpc
-    :inets.start()
-    :ssl.start()
-
     url_charlist = String.to_charlist(url)
 
     ssl_opts = [
@@ -179,8 +177,8 @@ defmodule TeamrcWeb.Plugs.VerifyClerkJWT do
       {:ok, {{_, status, _}, _, _}} ->
         {:error, "JWKS fetch failed with status #{status}"}
 
-      {:error, reason} ->
-        {:error, "JWKS fetch failed: #{inspect(reason)}"}
+      {:error, _reason} ->
+        {:error, "authentication service unavailable"}
     end
   end
 end

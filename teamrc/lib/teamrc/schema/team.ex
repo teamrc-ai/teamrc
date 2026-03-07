@@ -10,7 +10,6 @@ defmodule Teamrc.Schema.Team do
     field :skills, {:array, :map}, default: []
     has_many :members, Teamrc.Schema.Member
     has_many :invites, Teamrc.Schema.Invite
-    belongs_to :owner_account, Teamrc.Schema.Account, type: :binary_id, foreign_key: :owner_account_id
 
     timestamps(type: :utc_datetime)
   end
@@ -19,7 +18,7 @@ defmodule Teamrc.Schema.Team do
 
   def changeset(team, attrs) do
     team
-    |> cast(attrs, [:name, :rules, :skills, :owner_account_id])
+    |> cast(attrs, [:name, :rules, :skills])
     |> validate_required([:name])
     |> validate_length(:name, max: 64)
     |> validate_format(:name, ~r/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/)

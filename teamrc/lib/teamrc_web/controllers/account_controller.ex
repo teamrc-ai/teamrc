@@ -45,17 +45,17 @@ defmodule TeamrcWeb.AccountController do
 
       account ->
         teams = Accounts.get_account_teams(account.id)
+        team_ids = Enum.map(teams, & &1.id)
+        participants_map = Accounts.resolve_participants_batch(team_ids)
 
         teams_data =
           Enum.map(teams, fn team ->
-            participants = Accounts.resolve_participants(team.id)
-
             %{
               id: team.id,
               name: team.name,
               agent_count: length(team.members),
               rule_count: length(team.rules || []),
-              participants: participants
+              participants: Map.get(participants_map, team.id, ["anonymous"])
             }
           end)
 

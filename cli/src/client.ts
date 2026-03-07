@@ -53,6 +53,15 @@ export class TeamrcClient {
     this.token = token;
   }
 
+  /** Extract a short, safe error message from a response */
+  private async errorMessage(res: Response, context: string): Promise<string> {
+    try {
+      const body = await res.json() as { error?: string };
+      if (body.error) return `${context}: ${res.status} ${body.error}`;
+    } catch { /* not JSON */ }
+    return `${context}: ${res.status}`;
+  }
+
   private async signedHeaders(
     body: string,
   ): Promise<Record<string, string>> {
@@ -78,7 +87,7 @@ export class TeamrcClient {
       },
     });
     if (!res.ok) {
-      throw new Error(`GET ${path} failed: ${res.status} ${await res.text()}`);
+      throw new Error(await this.errorMessage(res, `GET ${path} failed`));
     }
     return (await res.json()) as T;
   }
@@ -98,7 +107,7 @@ export class TeamrcClient {
       body,
     });
     if (!res.ok) {
-      throw new Error(`createTeam failed: ${res.status} ${await res.text()}`);
+      throw new Error(await this.errorMessage(res, "createTeam failed"));
     }
     const data = (await res.json()) as { team: teamrcTeam };
     return data.team;
@@ -118,7 +127,7 @@ export class TeamrcClient {
       body,
     });
     if (!res.ok) {
-      throw new Error(`join failed: ${res.status} ${await res.text()}`);
+      throw new Error(await this.errorMessage(res, "join failed"));
     }
     const data = (await res.json()) as { team: teamrcTeam };
     return data.team;
@@ -142,7 +151,7 @@ export class TeamrcClient {
       body,
     });
     if (!res.ok) {
-      throw new Error(`sync failed: ${res.status} ${await res.text()}`);
+      throw new Error(await this.errorMessage(res, "sync failed"));
     }
     return (await res.json()) as SyncResult;
   }
@@ -165,7 +174,7 @@ export class TeamrcClient {
       body,
     });
     if (!res.ok) {
-      throw new Error(`push failed: ${res.status} ${await res.text()}`);
+      throw new Error(await this.errorMessage(res, "push failed"));
     }
   }
 
@@ -184,7 +193,7 @@ export class TeamrcClient {
       body,
     });
     if (!res.ok) {
-      throw new Error(`createDeviceAuth failed: ${res.status} ${await res.text()}`);
+      throw new Error(await this.errorMessage(res, "createDeviceAuth failed"));
     }
     return (await res.json()) as {
       device_code: string;
@@ -209,11 +218,4 @@ export class TeamrcClient {
     }>(`/api/auth/device/${encodeURIComponent(deviceCode)}`);
   }
 
-  async pull(
-    platform: string,
-  ): Promise<Array<{ key: string; value: string; author: string }>> {
-    const params = `token=${encodeURIComponent(this.token)}&platform=${encodeURIComponent(platform)}`;
-    const data = await this.signedGet<{ data: Array<{ key: string; value: string; author: string }> }>(`/api/pull?${params}`);
-    return data.data;
-  }
 }

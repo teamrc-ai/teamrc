@@ -51,7 +51,6 @@ defmodule TeamrcWeb.Router do
     post "/sync", ApiController, :sync
     get "/sync/check", ApiController, :sync_check
     post "/push", ApiController, :push
-    get "/pull", ApiController, :pull
   end
 
   scope "/api", TeamrcWeb do

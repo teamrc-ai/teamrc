@@ -15,6 +15,6 @@ defmodule Teamrc.Schema.TokenTeam do
     token_team
     |> cast(attrs, [:token, :team_id])
     |> validate_required([:token, :team_id])
-    |> unique_constraint(:token)
+    |> unique_constraint([:token, :team_id])
   end
 end

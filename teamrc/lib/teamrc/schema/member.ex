@@ -18,7 +18,8 @@ defmodule Teamrc.Schema.Member do
   def changeset(member, attrs) do
     member
     |> cast(attrs, [:name, :role, :soul, :rules, :skills])
-    |> validate_required([:name])
+    |> validate_required([:name, :role])
     |> validate_length(:name, max: 64)
+    |> validate_length(:role, min: 1, max: 256)
   end
 end

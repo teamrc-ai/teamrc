@@ -2,6 +2,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import {
   sanitizeMarkerContent,
+  sanitizeText,
+  slugify,
+  escapeYamlString,
   validateAgentName,
   writeSkillDir,
   cleanupSkillDirs,
@@ -11,22 +14,6 @@ import {
   type Rule,
 } from "./base.js";
 import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
-
-function sanitizeText(s: string): string {
-  return s.replace(/[\n\r]/g, " ").trim();
-}
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
-function escapeYamlString(s: string): string {
-  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
-}
 
 export class CursorAdapter implements PlatformAdapter {
   private cursorDir(): string {

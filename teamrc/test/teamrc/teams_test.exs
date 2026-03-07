@@ -127,33 +127,6 @@ defmodule Teamrc.TeamsTest do
     end
   end
 
-  describe "put_hashes/get_changes (legacy)" do
-    test "get_changes returns hashes from other platforms", %{pid: pid} do
-      Teams.put_team(pid, "tok_1", %{"name" => "test", "members" => []})
-      hashes_cursor = %{"file1.ex" => "abc123", "file2.ex" => "def456"}
-      hashes_claude = %{"file1.ex" => "abc123", "file3.ex" => "ghi789"}
-
-      :ok = Teams.put_hashes(pid, "tok_1", "cursor", hashes_cursor)
-      :ok = Teams.put_hashes(pid, "tok_1", "claude_code", hashes_claude)
-
-      {:ok, changes} = Teams.get_changes(pid, "tok_1", "cursor")
-      assert changes == %{"claude_code" => hashes_claude}
-    end
-
-    test "get_changes returns empty map when no other platforms", %{pid: pid} do
-      Teams.put_team(pid, "tok_1", %{"name" => "test", "members" => []})
-      hashes = %{"file1.ex" => "abc123"}
-      :ok = Teams.put_hashes(pid, "tok_1", "cursor", hashes)
-
-      {:ok, changes} = Teams.get_changes(pid, "tok_1", "cursor")
-      assert changes == %{}
-    end
-
-    test "returns error for unknown token", %{pid: pid} do
-      assert {:error, :not_joined} = Teams.get_changes(pid, "tok_unknown", "cursor")
-    end
-  end
-
   describe "put_team overwrite" do
     test "put_team overwrites existing team", %{pid: pid} do
       Teams.put_team(pid, "trc_ak_overwrite", %{"name" => "v1", "members" => []})

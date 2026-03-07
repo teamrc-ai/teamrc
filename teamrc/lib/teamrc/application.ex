@@ -7,9 +7,16 @@ defmodule Teamrc.Application do
 
   @impl true
   def start(_type, _args) do
+    # Validate required config in production
+    validate_prod_config!()
+
+    # Start :inets and :ssl once at boot (needed for JWKS fetching via :httpc)
+    :inets.start()
+    :ssl.start()
+
     # Create ETS table for JWKS caching before endpoint starts
     if :ets.whereis(:clerk_jwks_cache) == :undefined do
-      :ets.new(:clerk_jwks_cache, [:named_table, :set, :public])
+      :ets.new(:clerk_jwks_cache, [:named_table, :set, :public, read_concurrency: true])
     end
 
     children = [
@@ -35,5 +42,19 @@ defmodule Teamrc.Application do
   def config_change(changed, _new, removed) do
     TeamrcWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  defp validate_prod_config! do
+    if Application.get_env(:teamrc, :env, :dev) == :prod do
+      config = Application.get_env(:teamrc, Teamrc.ClerkJWT, [])
+
+      unless Keyword.get(config, :issuer) do
+        raise "CLERK_ISSUER must be set in production"
+      end
+
+      unless Keyword.get(config, :jwks_url) do
+        raise "CLERK_JWKS_URL must be set in production"
+      end
+    end
   end
 end

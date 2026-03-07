@@ -98,6 +98,25 @@ export function cleanupSkillDirs(baseDir: string): number {
   return dirs.length;
 }
 
+/** Strip newlines from text for safe inline use */
+export function sanitizeText(s: string): string {
+  return s.replace(/[\n\r]/g, " ").trim();
+}
+
+/** Slugify a name for use in file paths */
+export function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/** Escape a string for use in YAML double-quoted values */
+export function escapeYamlString(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+}
+
 export function getAdapter(platform: string): PlatformAdapter {
   const require = createRequire(import.meta.url);
 

@@ -5,6 +5,9 @@ import { parse as parseYaml } from "yaml";
 import {
   hashContent,
   validateAgentName,
+  sanitizeText,
+  slugify,
+  escapeYamlString,
   type PlatformAdapter,
   type PortableAgent,
   type TeamDefinition,
@@ -200,7 +203,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       } else {
         const existing = fs.readFileSync(claudeMdPath, "utf-8");
         const cleaned = existing.replace(
-          /\n## teamrc Team: .+?(?=\n## |\n# |$)/s,
+          /\n<!-- teamrc -->[\s\S]*?<!-- \/teamrc -->/,
           "",
         );
         fs.writeFileSync(claudeMdPath, cleaned.trimEnd() + "\n" + teamSection);
@@ -378,7 +381,12 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
 
   /** Write a native agent file from portable JSON */
   private writeAgentFromPortable(key: string, json: string): void {
-    const portable = JSON.parse(json) as PortableAgent;
+    let portable: PortableAgent;
+    try {
+      portable = JSON.parse(json) as PortableAgent;
+    } catch {
+      return; // skip malformed JSON from relay
+    }
     validateAgentName(portable.name);
     const { dir } = this.resolveAgentsDir();
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -455,7 +463,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       if (fs.existsSync(claudeMdPath)) {
         const content = fs.readFileSync(claudeMdPath, "utf-8");
         const cleaned = content.replace(
-          /\n## teamrc Team: .+?(?=\n## |\n# |$)/s,
+          /\n<!-- teamrc -->[\s\S]*?<!-- \/teamrc -->/,
           "",
         );
         if (cleaned !== content) {
@@ -471,14 +479,6 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
 }
 
 // --- Helpers ---
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
 
 interface ParsedAgent {
   agentName: string;
@@ -537,15 +537,6 @@ function toPortableJson(parsed: ParsedAgent): string {
     ...(parsed.soul ? { soul: parsed.soul } : {}),
   };
   return JSON.stringify(obj);
-}
-
-function sanitizeText(s: string): string {
-  return s.replace(/[\n\r]/g, " ").trim();
-}
-
-function escapeYamlString(s: string): string {
-  // Escape backslashes, double quotes, and newlines for YAML double-quoted strings
-  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
 }
 
 function buildAgentFile(teamName: string, member: TeamMember, allMembers: TeamMember[], team?: TeamDefinition): string {
@@ -607,17 +598,14 @@ Shared findings and decisions are stored in \`.claude/team-knowledge.md\`. Read 
 `;
 }
 
-function sanitizeTeamName(name: string): string {
-  return name.replace(/[\n\r]/g, " ").trim();
-}
-
 function buildClaudeMdSection(team: TeamDefinition): string {
-  const safeName = sanitizeTeamName(team.name);
+  const safeName = sanitizeText(team.name);
   const memberLines = team.members
     .map((m) => `- **${m.name}** — ${sanitizeText(m.role)}`)
     .join("\n");
 
   return `
+<!-- teamrc -->
 ## teamrc Team: ${safeName}
 
 This project has a synced agent team managed by teamrc.
@@ -629,5 +617,5 @@ Each member is defined as a subagent in \`.claude/agents/\`. Delegate tasks to t
 
 ### Team Knowledge
 Shared findings and decisions are stored in \`.claude/team-knowledge.md\`. Read this file at the start of every session for context from other agents and machines. When you discover something important (architecture decisions, gotchas, debugging insights), append it to this file so other team members can benefit.
-`;
+<!-- /teamrc -->`;
 }

@@ -15,6 +15,7 @@ export interface MergeResult {
  * Determine if a file key represents knowledge (append-only merge)
  * vs a definition file (last-write-wins).
  */
+/** @internal Exported for testing */
 export function isKnowledgeKey(key: string): boolean {
   return key.startsWith("knowledge:");
 }
@@ -23,6 +24,7 @@ export function isKnowledgeKey(key: string): boolean {
  * Merge knowledge files using append-only strategy.
  * Deduplicates entries by content hash. Both sides' entries are preserved.
  */
+/** @internal Exported for testing */
 export function mergeKnowledge(local: string, remote: string): MergeResult {
   const localLines = local.split("\n");
   const remoteLines = remote.split("\n");
@@ -59,6 +61,7 @@ export function mergeKnowledge(local: string, remote: string): MergeResult {
  * Resolve agent definition conflicts using last-write-wins.
  * Compares local modification time against remote timestamp.
  */
+/** @internal Exported for testing */
 export function resolveDefinition(
   localContent: string,
   remoteChange: SyncChange,

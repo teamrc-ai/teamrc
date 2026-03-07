@@ -6,20 +6,18 @@ defmodule Teamrc.Accounts do
   import Ecto.Query
 
   def find_or_create_account(clerk_user_id, email) do
-    case Repo.get_by(Account, clerk_user_id: clerk_user_id) do
-      nil ->
-        %Account{}
-        |> Account.changeset(%{clerk_user_id: clerk_user_id, email: email})
-        |> Repo.insert()
-
-      account ->
-        account
-        |> Account.changeset(%{email: email})
-        |> Repo.update()
-    end
+    %Account{}
+    |> Account.changeset(%{clerk_user_id: clerk_user_id, email: email})
+    |> Repo.insert(
+      on_conflict: {:replace, [:email, :updated_at]},
+      conflict_target: :clerk_user_id,
+      returning: true
+    )
   end
 
   def link_token(account_id, token, machine_name) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
     case Repo.get_by(AccountToken, token: token) do
       nil ->
         %AccountToken{}
@@ -27,12 +25,17 @@ defmodule Teamrc.Accounts do
           account_id: account_id,
           token: token,
           machine_name: machine_name,
-          last_seen_at: DateTime.utc_now() |> DateTime.truncate(:second)
+          last_seen_at: now
         })
         |> Repo.insert()
 
       existing ->
-        {:ok, existing}
+        existing
+        |> AccountToken.changeset(%{
+          machine_name: machine_name || existing.machine_name,
+          last_seen_at: now
+        })
+        |> Repo.update()
     end
   end
 
@@ -56,7 +59,7 @@ defmodule Teamrc.Accounts do
     |> Repo.all()
   end
 
-  @doc "Resolve participants for a team. Returns unique list of emails or \"anonymous\"."
+  @doc "Resolve participants for a single team."
   def resolve_participants(team_id) do
     from(tt in TokenTeam,
       left_join: at in AccountToken,
@@ -72,6 +75,25 @@ defmodule Teamrc.Accounts do
       email -> email
     end)
     |> Enum.uniq()
+  end
+
+  @doc "Resolve participants for multiple teams in a single query. Returns %{team_id => [emails]}."
+  def resolve_participants_batch(team_ids) when is_list(team_ids) do
+    if team_ids == [] do
+      %{}
+    else
+      from(tt in TokenTeam,
+        left_join: at in AccountToken,
+        on: at.token == tt.token and is_nil(at.revoked_at),
+        left_join: a in Account,
+        on: a.id == at.account_id,
+        where: tt.team_id in ^team_ids,
+        select: {tt.team_id, a.email}
+      )
+      |> Repo.all()
+      |> Enum.group_by(fn {team_id, _} -> team_id end, fn {_, email} -> email || "anonymous" end)
+      |> Map.new(fn {team_id, emails} -> {team_id, Enum.uniq(emails)} end)
+    end
   end
 
   def revoke_token(account_id, token) do

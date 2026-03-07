@@ -5,16 +5,13 @@ import { execFileSync } from "node:child_process";
 import {
   hashContent,
   validateAgentName,
+  sanitizeText,
   type PlatformAdapter,
   type PortableAgent,
   type TeamDefinition,
   type TeamMember,
 } from "./base.js";
 import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
-
-function sanitizeText(text: string): string {
-  return text.replace(/[\n\r]/g, " ").trim();
-}
 
 export class OpenClawAdapter implements PlatformAdapter {
   private openclawDir: string;
@@ -434,7 +431,12 @@ export class OpenClawAdapter implements PlatformAdapter {
   }
 
   private writeAgentFromPortable(key: string, json: string): void {
-    const portable = JSON.parse(json) as PortableAgent;
+    let portable: PortableAgent;
+    try {
+      portable = JSON.parse(json) as PortableAgent;
+    } catch {
+      return; // skip malformed JSON from relay
+    }
     validateAgentName(portable.name);
     const wsDir = this.agentWorkspace(portable.name);
     if (!fs.existsSync(wsDir)) {

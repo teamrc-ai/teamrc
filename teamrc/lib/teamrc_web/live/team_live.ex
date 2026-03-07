@@ -129,7 +129,7 @@ defmodule TeamrcWeb.TeamLive do
        rules: [],
        skills: [],
        show_advanced: false,
-       token: nil,
+       invite_code: nil,
        step: :choose_template,
        templates: @templates,
        template_order: @template_order
@@ -260,7 +260,7 @@ defmodule TeamrcWeb.TeamLive do
     {:noreply,
      assign(socket,
        step: :created,
-       token: invite_code,
+       invite_code: invite_code,
        page_title: "Team Created"
      )}
   end
@@ -274,7 +274,7 @@ defmodule TeamrcWeb.TeamLive do
        rules: [],
        skills: [],
        show_advanced: false,
-       token: nil,
+       invite_code: nil,
        page_title: "Create Team"
      )}
   end
@@ -747,7 +747,7 @@ defmodule TeamrcWeb.TeamLive do
             </div>
             <button
               id="copy-btn"
-              phx-click={JS.dispatch("tb:copy", detail: %{text: "npx teamrc join #{@token}"})}
+              phx-click={JS.dispatch("tb:copy", detail: %{text: "npx teamrc join #{@invite_code}"})}
               class="trc-focus text-[10px] font-mono text-white/30 hover:text-white/60 transition-colors rounded px-1.5 py-0.5 hover:bg-white/5"
             >
               copy
@@ -756,7 +756,7 @@ defmodule TeamrcWeb.TeamLive do
           <div class="p-4">
             <div class="flex items-start gap-2">
               <span class="text-white/30 font-mono text-sm select-none">$</span>
-              <code class="text-emerald-400 text-sm font-mono break-all select-all">npx teamrc join <%= @token %></code>
+              <code class="text-emerald-400 text-sm font-mono break-all select-all">npx teamrc join <%= @invite_code %></code>
             </div>
           </div>
         </div>

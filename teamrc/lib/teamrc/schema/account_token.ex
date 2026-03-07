@@ -22,7 +22,4 @@ defmodule Teamrc.Schema.AccountToken do
     |> unique_constraint(:token)
   end
 
-  @doc "Returns true if the token has been revoked."
-  def revoked?(%__MODULE__{revoked_at: nil}), do: false
-  def revoked?(%__MODULE__{revoked_at: _}), do: true
 end

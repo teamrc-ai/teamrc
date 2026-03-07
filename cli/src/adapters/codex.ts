@@ -3,6 +3,8 @@ import * as path from "node:path";
 import {
   validateAgentName,
   sanitizeMarkerContent,
+  sanitizeText,
+  slugify,
   writeSkillDir,
   cleanupSkillDirs,
   type PlatformAdapter,
@@ -10,18 +12,6 @@ import {
   type TeamMember,
 } from "./base.js";
 import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
-
-function sanitizeText(s: string): string {
-  return s.replace(/[\n\r]/g, " ").trim();
-}
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
 
 export class CodexAdapter implements PlatformAdapter {
   private codexDir(): string {

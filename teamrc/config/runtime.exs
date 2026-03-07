@@ -23,6 +23,8 @@ end
 config :teamrc, TeamrcWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000")), ip: {0, 0, 0, 0}]
 
+config :teamrc, env: config_env()
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
@@ -52,6 +54,14 @@ if config_env() == :prod do
 
   config :teamrc, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  session_signing_salt =
+    System.get_env("SESSION_SIGNING_SALT") ||
+      raise "environment variable SESSION_SIGNING_SALT is missing."
+
+  live_view_signing_salt =
+    System.get_env("LIVE_VIEW_SIGNING_SALT") ||
+      raise "environment variable LIVE_VIEW_SIGNING_SALT is missing."
+
   config :teamrc, TeamrcWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
@@ -61,7 +71,9 @@ if config_env() == :prod do
       # for details about using IPv6 vs IPv4 and loopback vs public addresses.
       ip: {0, 0, 0, 0, 0, 0, 0, 0}
     ],
-    secret_key_base: secret_key_base
+    secret_key_base: secret_key_base,
+    session_options: [signing_salt: session_signing_salt],
+    live_view: [signing_salt: live_view_signing_salt]
 
   # ## SSL Support
   #

@@ -8,6 +8,7 @@ defmodule Teamrc.Teams do
   @content_ttl_ms :timer.hours(24)
   @cleanup_interval_ms :timer.minutes(5)
   @invite_ttl_hours 24
+  @max_content_bytes_per_team 50 * 1024 * 1024  # 50MB
 
   # --- Client API ---
 
@@ -65,14 +66,6 @@ defmodule Teamrc.Teams do
     GenServer.call(pid, {:pull_buffer, token, platform})
   end
 
-  def put_hashes(pid \\ __MODULE__, token, platform, hashes) do
-    GenServer.call(pid, {:put_hashes, token, platform, hashes})
-  end
-
-  def get_changes(pid \\ __MODULE__, token, requesting_platform) do
-    GenServer.call(pid, {:get_changes, token, requesting_platform})
-  end
-
   @doc "Check if a team has changes since a given Unix timestamp. Returns {:ok, boolean}."
   def check_changed(pid \\ __MODULE__, token, since) do
     GenServer.call(pid, {:check_changed, token, since})
@@ -113,8 +106,13 @@ defmodule Teamrc.Teams do
         end
 
       team_id ->
-        team = update_team_in_db(team_id, team_data)
-        {:reply, {:ok, team_to_map(team)}, state}
+        case update_team_in_db(team_id, team_data) do
+          {:ok, team} ->
+            {:reply, {:ok, team_to_map(team)}, state}
+
+          {:error, reason} ->
+            {:reply, {:error, reason}, state}
+        end
     end
   end
 
@@ -139,26 +137,34 @@ defmodule Teamrc.Teams do
   def handle_call({:join_by_invite, invite_code, token}, _from, state) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    invite =
+    # Atomically claim the invite: only succeed if not already claimed
+    result =
       from(i in Invite,
-        where: i.code == ^invite_code and i.expires_at > ^now,
+        where: i.code == ^invite_code and i.expires_at > ^now and is_nil(i.claimed_at),
         preload: [team: :members]
       )
       |> Repo.one()
 
-    case invite do
+    case result do
       nil ->
         {:reply, :error, state}
 
-      %Invite{team: team} ->
-        invite
-        |> Invite.changeset(%{claimed_at: now, claimed_by_token: token})
-        |> Repo.update()
+      %Invite{team: team} = invite ->
+        # Attempt atomic claim — if another request claimed it between our read
+        # and this update, the where clause ensures 0 rows are updated
+        {count, _} =
+          from(i in Invite,
+            where: i.id == ^invite.id and is_nil(i.claimed_at)
+          )
+          |> Repo.update_all(set: [claimed_at: now, claimed_by_token: token])
 
-        upsert_token_team(token, team.id)
-        state = put_in(state, [:token_teams, token], team.id)
-
-        {:reply, {:ok, team_to_map(team)}, state}
+        if count == 0 do
+          {:reply, :error, state}
+        else
+          upsert_token_team(token, team.id)
+          state = put_in(state, [:token_teams, token], team.id)
+          {:reply, {:ok, team_to_map(team)}, state}
+        end
     end
   end
 
@@ -189,7 +195,7 @@ defmodule Teamrc.Teams do
     end
   end
 
-  # Legacy support for tests — push_buffer, pull_buffer, put_hashes, get_changes
+  # push_buffer and pull_buffer — used by /api/push and /api/pull
   def handle_call({:push_buffer, token, entry}, _from, state) do
     case Map.get(state.token_teams, token) do
       nil -> {:reply, {:error, :not_joined}, state}
@@ -214,27 +220,6 @@ defmodule Teamrc.Teams do
     end
   end
 
-  def handle_call({:put_hashes, token, platform, hashes}, _from, state) do
-    case Map.get(state.token_teams, token) do
-      nil -> {:reply, {:error, :not_joined}, state}
-      team_id ->
-        team_hashes = Map.get(state.hashes, team_id, %{})
-        team_hashes = Map.put(team_hashes, platform, hashes)
-        state = put_in(state, [:hashes, team_id], team_hashes)
-        {:reply, :ok, state}
-    end
-  end
-
-  def handle_call({:get_changes, token, requesting_platform}, _from, state) do
-    case Map.get(state.token_teams, token) do
-      nil -> {:reply, {:error, :not_joined}, state}
-      team_id ->
-        team_hashes = Map.get(state.hashes, team_id, %{})
-        changes = Map.drop(team_hashes, [requesting_platform])
-        {:reply, {:ok, changes}, state}
-    end
-  end
-
   def handle_call({:check_changed, token, since}, _from, state) do
     case Map.get(state.token_teams, token) do
       nil -> {:reply, {:error, :not_joined}, state}
@@ -249,16 +234,21 @@ defmodule Teamrc.Teams do
     file_key = Map.get(entry, "type") || Map.get(entry, :type) || "buffer"
     content_val = Map.get(entry, "content") || Map.get(entry, :content) || ""
 
-    team_content = Map.get(state.content, team_id, %{})
-    team_content = Map.put(team_content, file_key, %{
-      content: content_val,
-      source: source,
-      timestamp: DateTime.to_iso8601(DateTime.utc_now())
-    })
-    state = put_in(state, [:content, team_id], team_content)
-    state = put_in(state, [:last_updated_at, team_id], System.system_time(:second))
+    # Check per-team content size cap
+    if exceeds_content_cap?(state, team_id, byte_size(content_val)) do
+      {:reply, {:error, :buffer_full}, state}
+    else
+      team_content = Map.get(state.content, team_id, %{})
+      team_content = Map.put(team_content, file_key, %{
+        content: content_val,
+        source: source,
+        timestamp: DateTime.to_iso8601(DateTime.utc_now())
+      })
+      state = put_in(state, [:content, team_id], team_content)
+      state = put_in(state, [:last_updated_at, team_id], System.system_time(:second))
 
-    {:reply, :ok, state}
+      {:reply, :ok, state}
+    end
   end
 
   @impl true
@@ -295,60 +285,75 @@ defmodule Teamrc.Teams do
   # --- Private: Sync Logic ---
 
   defp do_sync(state, team_id, platform, incoming_hashes, incoming_files) do
-    # 1. Store this platform's hashes
-    team_hashes = Map.get(state.hashes, team_id, %{})
-    team_hashes = Map.put(team_hashes, platform, incoming_hashes)
-    state = put_in(state, [:hashes, team_id], team_hashes)
+    # Check per-team content size cap before accepting new files
+    new_content_size = incoming_files |> Enum.reduce(0, fn {_f, c}, acc -> acc + byte_size(c) end)
 
-    # 2. Store any content this platform is pushing
-    now = DateTime.to_iso8601(DateTime.utc_now())
-    team_content = Map.get(state.content, team_id, %{})
+    if new_content_size > 0 and exceeds_content_cap?(state, team_id, new_content_size) do
+      {%{files: %{}, error: "content_limit_exceeded"}, state}
+    else
+      # 1. Store this platform's hashes
+      team_hashes = Map.get(state.hashes, team_id, %{})
+      team_hashes = Map.put(team_hashes, platform, incoming_hashes)
+      state = put_in(state, [:hashes, team_id], team_hashes)
 
-    team_content =
-      Enum.reduce(incoming_files, team_content, fn {file, content}, acc ->
-        Map.put(acc, file, %{content: content, source: platform, timestamp: now})
-      end)
+      # 2. Store any content this platform is pushing
+      now = DateTime.to_iso8601(DateTime.utc_now())
+      team_content = Map.get(state.content, team_id, %{})
 
-    state = put_in(state, [:content, team_id], team_content)
-
-    # 2b. Update last_updated_at if content was pushed
-    state =
-      if map_size(incoming_files) > 0 or map_size(incoming_hashes) > 0 do
-        put_in(state, [:last_updated_at, team_id], System.system_time(:second))
-      else
-        state
-      end
-
-    # 3. Find files where other platforms have different hashes
-    other_platforms = Map.drop(team_hashes, [platform])
-
-    changed_files =
-      Enum.reduce(other_platforms, %{}, fn {_other_platform, other_hashes}, acc ->
-        Enum.reduce(other_hashes, acc, fn {file, hash}, acc2 ->
-          my_hash = Map.get(incoming_hashes, file)
-
-          if my_hash != hash do
-            # Check if we have the content stored
-            case Map.get(team_content, file) do
-              %{content: content, timestamp: ts} ->
-                updated_at =
-                  case DateTime.from_iso8601(ts) do
-                    {:ok, dt, _} -> DateTime.to_unix(dt)
-                    _ -> 0
-                  end
-
-                Map.put(acc2, file, %{content: content, updated_at: updated_at})
-
-              nil ->
-                acc2
-            end
-          else
-            acc2
-          end
+      team_content =
+        Enum.reduce(incoming_files, team_content, fn {file, content}, acc ->
+          Map.put(acc, file, %{content: content, source: platform, timestamp: now})
         end)
-      end)
 
-    {%{files: changed_files}, state}
+      state = put_in(state, [:content, team_id], team_content)
+
+      # 2b. Update last_updated_at if content was pushed
+      state =
+        if map_size(incoming_files) > 0 or map_size(incoming_hashes) > 0 do
+          put_in(state, [:last_updated_at, team_id], System.system_time(:second))
+        else
+          state
+        end
+
+      # 3. Find files where other platforms have different hashes
+      other_platforms = Map.drop(team_hashes, [platform])
+
+      changed_files =
+        Enum.reduce(other_platforms, %{}, fn {_other_platform, other_hashes}, acc ->
+          Enum.reduce(other_hashes, acc, fn {file, hash}, acc2 ->
+            my_hash = Map.get(incoming_hashes, file)
+
+            if my_hash != hash do
+              # Check if we have the content stored
+              case Map.get(team_content, file) do
+                %{content: content, timestamp: ts} ->
+                  updated_at =
+                    case DateTime.from_iso8601(ts) do
+                      {:ok, dt, _} -> DateTime.to_unix(dt)
+                      _ -> 0
+                    end
+
+                  Map.put(acc2, file, %{content: content, updated_at: updated_at})
+
+                nil ->
+                  acc2
+              end
+            else
+              acc2
+            end
+          end)
+        end)
+
+      {%{files: changed_files}, state}
+    end
+  end
+
+  # --- Private: Content size tracking ---
+
+  defp exceeds_content_cap?(state, team_id, additional_bytes) do
+    team_content = Map.get(state.content, team_id, %{})
+    current_size = Enum.reduce(team_content, 0, fn {_k, meta}, acc -> acc + byte_size(meta.content) end)
+    current_size + additional_bytes > @max_content_bytes_per_team
   end
 
   # --- Private helpers ---
@@ -356,10 +361,7 @@ defmodule Teamrc.Teams do
   defp upsert_token_team(token, team_id) do
     %TokenTeam{}
     |> TokenTeam.changeset(%{token: token, team_id: team_id})
-    |> Repo.insert(
-      on_conflict: {:replace, [:team_id, :updated_at]},
-      conflict_target: :token
-    )
+    |> Repo.insert(on_conflict: :nothing, conflict_target: [:token, :team_id])
   end
 
   defp schedule_cleanup do
@@ -372,39 +374,47 @@ defmodule Teamrc.Teams do
 
   defp create_team_in_db(team_data) do
     Repo.transaction(fn ->
-      {:ok, team} =
-        %Team{}
-        |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills})
-        |> Repo.insert()
+      case %Team{}
+           |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills})
+           |> Repo.insert() do
+        {:ok, team} ->
+          for m <- team_data.members do
+            %Member{team_id: team.id}
+            |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], rules: m.rules, skills: m.skills})
+            |> Repo.insert!()
+          end
 
-      for m <- team_data.members do
-        %Member{team_id: team.id}
-        |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], rules: m.rules, skills: m.skills})
-        |> Repo.insert!()
+          Repo.preload(team, :members)
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
       end
-
-      Repo.preload(team, :members)
     end)
   end
 
   defp update_team_in_db(team_id, team_data) do
-    team = Repo.get!(Team, team_id)
+    Repo.transaction(fn ->
+      team = Repo.get!(Team, team_id)
 
-    team =
-      team
-      |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills})
-      |> Repo.update!()
+      case team
+           |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills})
+           |> Repo.update() do
+        {:ok, team} ->
+          # Replace members atomically within the transaction
+          from(m in Member, where: m.team_id == ^team_id) |> Repo.delete_all()
 
-    # Replace members
-    from(m in Member, where: m.team_id == ^team_id) |> Repo.delete_all()
+          for m <- team_data.members do
+            %Member{team_id: team_id}
+            |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], rules: m.rules, skills: m.skills})
+            |> Repo.insert!()
+          end
 
-    for m <- team_data.members do
-      %Member{team_id: team_id}
-      |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], rules: m.rules, skills: m.skills})
-      |> Repo.insert!()
-    end
+          Repo.preload(team, :members, force: true)
 
-    Repo.preload(team, :members, force: true)
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
   end
 
   defp normalize_team(attrs) when is_map(attrs) do

@@ -100,7 +100,11 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       const result = await client.sync(platform, currentHashes, changedFiles);
       lastSyncTimestamp = Math.floor(Date.now() / 1000);
       lastHashes = currentHashes;
-      applyRemoteChanges(result.changes);
+      try {
+        applyRemoteChanges(result.changes);
+      } catch (err) {
+        warn(`Failed to apply remote changes: ${(err as Error).message}`);
+      }
       log(`Pushed ${Object.keys(changedFiles).length} file(s), received ${Object.keys(result.changes).length} change(s).`);
     } catch (err) {
       warn(`Push failed: ${(err as Error).message}`);
@@ -146,6 +150,8 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       adapter.writeFile(key, result.content);
       const hash = hashContent(result.content);
       selfWrittenHashes.add(hash);
+      // Evict after a delay in case file watcher doesn't fire
+      setTimeout(() => selfWrittenHashes.delete(hash), 5000);
       lastHashes[key] = hash;
 
       // Update local mod time to match remote after accepting
@@ -174,7 +180,11 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
 
       const changeCount = Object.keys(result.changes).length;
       if (changeCount > 0) {
-        applyRemoteChanges(result.changes);
+        try {
+          applyRemoteChanges(result.changes);
+        } catch (err) {
+          warn(`Failed to apply remote changes: ${(err as Error).message}`);
+        }
         log(`Applied ${changeCount} remote change(s).`);
       }
     } catch (err) {

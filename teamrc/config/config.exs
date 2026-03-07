@@ -21,7 +21,7 @@ config :teamrc, TeamrcWeb.Endpoint,
     layout: false
   ],
   pubsub_server: Teamrc.PubSub,
-  live_view: [signing_salt: "7y6aq5mx"]
+  live_view: [signing_salt: "7y6aq5mx"]  # overridden by env var in runtime.exs for prod
 
 # Configure esbuild (the version is required)
 config :esbuild,

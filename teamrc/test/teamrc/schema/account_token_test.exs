@@ -44,16 +44,6 @@ defmodule Teamrc.Schema.AccountTokenTest do
     end
   end
 
-  describe "revoked?/1" do
-    test "returns false when revoked_at is nil" do
-      refute AccountToken.revoked?(%AccountToken{revoked_at: nil})
-    end
-
-    test "returns true when revoked_at is set" do
-      assert AccountToken.revoked?(%AccountToken{revoked_at: ~U[2026-03-07 00:00:00Z]})
-    end
-  end
-
   defp errors_on(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Regex.replace(~r"%{(\w+)}", msg, fn _, key ->

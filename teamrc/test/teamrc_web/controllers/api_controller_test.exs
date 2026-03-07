@@ -82,34 +82,6 @@ defmodule TeamrcWeb.ApiControllerTest do
 
       assert json_response(conn, 200) == %{"status" => "ok"}
 
-      # Verify entry is retrievable via pull
-      conn2 =
-        build_conn()
-        |> get("/api/pull", %{"token" => token, "platform" => "claude_code"})
-
-      resp = json_response(conn2, 200)
-      assert length(resp["entries"]) == 1
-    end
-  end
-
-  describe "GET /api/pull" do
-    test "pulls buffer entries", %{conn: conn} do
-      token = "tok_test_#{:erlang.unique_integer([:positive])}"
-      Teamrc.Teams.put_team(token, %{"name" => "test", "members" => []})
-
-      Teamrc.Teams.push_buffer(token, %{
-        "type" => "message",
-        "content" => "hello",
-        "source_platform" => "cursor"
-      })
-
-      conn =
-        conn
-        |> get("/api/pull", %{"token" => token, "platform" => "claude_code"})
-
-      body = json_response(conn, 200)
-      assert is_list(body["entries"])
-      assert length(body["entries"]) == 1
     end
   end
 
@@ -129,8 +101,8 @@ defmodule TeamrcWeb.ApiControllerTest do
     end
   end
 
-  describe "push and pull round-trip" do
-    test "push and pull round-trip preserves data", %{conn: conn} do
+  describe "push round-trip" do
+    test "push stores data retrievable via internal pull_buffer", %{conn: conn} do
       token = "trc_ak_roundtrip_#{:erlang.unique_integer([:positive])}"
       Teamrc.Teams.put_team(token, %{"name" => "test", "members" => []})
 
@@ -147,14 +119,10 @@ defmodule TeamrcWeb.ApiControllerTest do
         }
       })
 
-      # Pull from platform B
-      conn2 =
-        build_conn()
-        |> get("/api/pull", %{"token" => token, "platform" => "openclaw"})
-
-      resp = json_response(conn2, 200)
-      assert length(resp["entries"]) == 1
-      assert hd(resp["entries"])["content"] == "important finding"
+      # Verify via internal API
+      {:ok, entries} = Teamrc.Teams.pull_buffer(token, "openclaw")
+      assert length(entries) == 1
+      assert hd(entries)["content"] == "important finding"
     end
 
     test "push from platform A is not visible to platform A", %{conn: conn} do
@@ -169,13 +137,9 @@ defmodule TeamrcWeb.ApiControllerTest do
         "entry" => %{"type" => "memory", "content" => "my own note"}
       })
 
-      # Pull from same platform — should NOT see own entry
-      conn2 =
-        build_conn()
-        |> get("/api/pull", %{"token" => token, "platform" => "claude-code"})
-
-      resp = json_response(conn2, 200)
-      assert resp["entries"] == []
+      # Verify via internal API — same platform should not see own entry
+      {:ok, entries} = Teamrc.Teams.pull_buffer(token, "claude-code")
+      assert entries == []
     end
   end
 end

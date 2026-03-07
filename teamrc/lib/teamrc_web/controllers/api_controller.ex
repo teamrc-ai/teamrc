@@ -13,6 +13,9 @@ defmodule TeamrcWeb.ApiController do
   @max_platform_length 64
   @max_file_path_length 512
   @max_files_per_sync 100
+  @max_rules 50
+  @max_skills 50
+  @max_rule_body_bytes 10_000  # 10KB per rule/skill body
 
   def create_team(conn, %{"token" => token, "team" => team}) do
     with :ok <- validate_team(team) do
@@ -156,7 +159,8 @@ defmodule TeamrcWeb.ApiController do
 
   defp validate_team(team) do
     with :ok <- validate_team_name(team["name"]),
-         :ok <- validate_members(team["members"]) do
+         :ok <- validate_members(team["members"]),
+         :ok <- validate_rules_and_skills(team["rules"], team["skills"]) do
       :ok
     end
   end
@@ -183,6 +187,31 @@ defmodule TeamrcWeb.ApiController do
     end
   end
   defp validate_members(_), do: {:error, "members must be a list"}
+
+  defp validate_rules_and_skills(rules, skills) do
+    with :ok <- validate_entries(rules, "rules", @max_rules),
+         :ok <- validate_entries(skills, "skills", @max_skills) do
+      :ok
+    end
+  end
+
+  defp validate_entries(nil, _label, _max), do: :ok
+  defp validate_entries(entries, label, max) when is_list(entries) do
+    cond do
+      length(entries) > max ->
+        {:error, "#{label} may have at most #{max} entries"}
+      true ->
+        oversized = Enum.find(entries, fn entry ->
+          body = entry["body"]
+          is_binary(body) and byte_size(body) > @max_rule_body_bytes
+        end)
+        case oversized do
+          nil -> :ok
+          entry -> {:error, "#{label} entry '#{entry["id"] || "unknown"}' body exceeds #{@max_rule_body_bytes} bytes"}
+        end
+    end
+  end
+  defp validate_entries(_, label, _max), do: {:error, "#{label} must be a list"}
 
   defp validate_files(files) when is_map(files) do
     oversized =
