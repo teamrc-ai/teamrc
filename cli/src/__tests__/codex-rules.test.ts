@@ -9,7 +9,7 @@ describe("Codex adapter", () => {
   let origCwd: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tb-codex-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-codex-"));
     origCwd = process.cwd();
     process.chdir(tmpDir);
   });

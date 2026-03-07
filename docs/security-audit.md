@@ -11,12 +11,12 @@
 
 **Files:** `teamrc/lib/teamrc_web/plugs/verify_signature.ex`, `cli/src/client.ts`
 
-The `VerifySignature` plug's moduledoc claims that `x-tb-timestamp` is required and checked within a 5-minute window, but **no code actually validates timestamps**. The client never sends an `x-tb-timestamp` header either.
+The `VerifySignature` plug's moduledoc claims that `x-trc-timestamp` is required and checked within a 5-minute window, but **no code actually validates timestamps**. The client never sends an `x-trc-timestamp` header either.
 
 An attacker who intercepts a valid signed request can replay it indefinitely.
 
 **Recommended fix:**
-- Client: include `x-tb-timestamp` header with current Unix timestamp
+- Client: include `x-trc-timestamp` header with current Unix timestamp
 - Client: include the timestamp in the signed message (e.g., sign `timestamp + body`)
 - Server: extract the timestamp header, verify it is within 5 minutes of server time, and include it in the verified message
 
@@ -24,7 +24,7 @@ An attacker who intercepts a valid signed request can replay it indefinitely.
 
 **Files:** `cli/src/client.ts:72-84`, `teamrc/lib/teamrc_web/router.ex:29-33`
 
-The `/api/join` route bypasses the `:api` pipeline entirely (uses `:accepts_json` only). The client's `joinByInvite` method sends no `x-tb-signature` header.
+The `/api/join` route bypasses the `:api` pipeline entirely (uses `:accepts_json` only). The client's `joinByInvite` method sends no `x-trc-signature` header.
 
 While the invite code itself provides some auth, this means:
 - Any client can associate an arbitrary `token` with a team by guessing/intercepting an invite code

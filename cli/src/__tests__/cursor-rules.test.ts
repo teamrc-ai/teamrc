@@ -9,7 +9,7 @@ describe("Cursor adapter", () => {
   let origCwd: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tb-cursor-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-cursor-"));
     origCwd = process.cwd();
     process.chdir(tmpDir);
   });

@@ -9,7 +9,7 @@ describe("readTeamYaml", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tb-yaml-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-yaml-"));
   });
 
   afterEach(() => {
@@ -58,7 +58,7 @@ describe("writeTeamYaml", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tb-yaml-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-yaml-"));
   });
 
   afterEach(() => {
@@ -109,7 +109,7 @@ describe("readTeamYaml with rules and skills", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tb-yaml-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-yaml-"));
   });
 
   afterEach(() => {

@@ -9,7 +9,7 @@ describe("Claude Code agent file with rules and skills", () => {
   let origHome: string | undefined;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tb-cc-rules-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-cc-rules-"));
     origHome = process.env.HOME;
     process.env.HOME = tmpDir;
   });

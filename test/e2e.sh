@@ -23,7 +23,7 @@ trap cleanup EXIT
 # Wait for server to be ready
 echo "Waiting for relay to start..."
 for i in $(seq 1 10); do
-  if curl -s http://localhost:4002/api/teams/tb_ak_nonexistent -H "x-trc-signature: test" > /dev/null 2>&1; then
+  if curl -s http://localhost:4002/api/teams/trc_ak_nonexistent -H "x-trc-signature: test" > /dev/null 2>&1; then
     break
   fi
   sleep 1
@@ -50,7 +50,7 @@ RESPONSE=$(curl -s -X POST "$RELAY_URL/api/teams" \
   -H "Content-Type: application/json" \
   -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "team": {
       "name": "test-project",
       "members": [
@@ -69,7 +69,7 @@ fi
 # 3. Get team
 echo ""
 echo "--- Test: Get team ---"
-TEAM=$(curl -s "$RELAY_URL/api/teams/tb_ak_testtoken123" \
+TEAM=$(curl -s "$RELAY_URL/api/teams/trc_ak_testtoken123" \
   -H "x-trc-signature: test")
 
 if echo "$TEAM" | grep -q "test-project"; then
@@ -87,7 +87,7 @@ fi
 # 4. Get nonexistent team
 echo ""
 echo "--- Test: Get nonexistent team ---"
-NOT_FOUND=$(curl -s -o /dev/null -w "%{http_code}" "$RELAY_URL/api/teams/tb_ak_doesnotexist" \
+NOT_FOUND=$(curl -s -o /dev/null -w "%{http_code}" "$RELAY_URL/api/teams/trc_ak_doesnotexist" \
   -H "x-trc-signature: test")
 
 if [ "$NOT_FOUND" = "404" ]; then
@@ -103,7 +103,7 @@ PUSH_RESP=$(curl -s -X POST "$RELAY_URL/api/push" \
   -H "Content-Type: application/json" \
   -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "claude-code",
     "entry": {
       "type": "memory",
@@ -125,7 +125,7 @@ PULL=$(curl -s -X POST "$RELAY_URL/api/pull" \
   -H "Content-Type: application/json" \
   -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "openclaw"
   }')
 
@@ -142,7 +142,7 @@ PULL2=$(curl -s -X POST "$RELAY_URL/api/pull" \
   -H "Content-Type: application/json" \
   -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "openclaw"
   }')
 
@@ -160,7 +160,7 @@ curl -s -X POST "$RELAY_URL/api/push" \
   -H "Content-Type: application/json" \
   -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "openclaw",
     "entry": {"type": "memory", "content": "OpenClaw finding", "timestamp": "2026-03-05T12:01:00Z"}
   }' > /dev/null
@@ -169,7 +169,7 @@ SELF_PULL=$(curl -s -X POST "$RELAY_URL/api/pull" \
   -H "Content-Type: application/json" \
   -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "openclaw"
   }')
 
@@ -187,7 +187,7 @@ curl -s -X POST "$RELAY_URL/api/sync" \
   -H "Content-Type: application/json" \
   -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "openclaw",
     "hashes": {"memory.md": "hash_aaa", "team.json": "hash_bbb"}
   }' > /dev/null
@@ -197,7 +197,7 @@ SYNC_RESP=$(curl -s -X POST "$RELAY_URL/api/sync" \
   -H "Content-Type: application/json" \
   -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "claude-code",
     "hashes": {"memory.md": "hash_aaa", "team.json": "hash_ccc"}
   }')

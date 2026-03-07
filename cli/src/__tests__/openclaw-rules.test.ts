@@ -9,7 +9,7 @@ describe("OpenClaw agent files with rules and skills", () => {
   let origHome: string | undefined;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tb-oc-rules-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-oc-rules-"));
     origHome = process.env.HOME;
     process.env.HOME = tmpDir;
   });

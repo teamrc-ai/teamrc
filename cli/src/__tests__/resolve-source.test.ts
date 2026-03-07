@@ -10,7 +10,7 @@ describe("resolveTeamSource", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tb-resolve-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-resolve-"));
   });
 
   afterEach(() => {
@@ -50,7 +50,7 @@ describe("resolveBody", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tb-resolve-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-resolve-"));
   });
 
   afterEach(() => {

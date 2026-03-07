@@ -9,7 +9,7 @@ describe("Gemini CLI adapter", () => {
   let origCwd: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tb-gemini-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-gemini-"));
     origCwd = process.cwd();
     process.chdir(tmpDir);
   });
