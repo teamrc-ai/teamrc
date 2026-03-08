@@ -47,11 +47,13 @@ export class TeamrcClient {
   private baseUrl: string;
   private privateKey: Uint8Array;
   private token: string;
+  private teamId?: string;
 
-  constructor(baseUrl: string, privateKey: Uint8Array, token: string) {
+  constructor(baseUrl: string, privateKey: Uint8Array, token: string, teamId?: string) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.privateKey = privateKey;
     this.token = token;
+    this.teamId = teamId;
   }
 
   /** Extract a short, safe error message from a response */
@@ -144,6 +146,7 @@ export class TeamrcClient {
       platform,
       hashes,
       files,
+      ...(this.teamId ? { team_id: this.teamId } : {}),
     });
     const headers = await this.signedHeaders(body);
     const res = await fetch(`${this.baseUrl}/api/sync`, {
@@ -158,7 +161,8 @@ export class TeamrcClient {
   }
 
   async syncCheck(since: number): Promise<boolean> {
-    const params = `token=${encodeURIComponent(this.token)}&since=${since}`;
+    const teamParam = this.teamId ? `&team_id=${encodeURIComponent(this.teamId)}` : "";
+    const params = `token=${encodeURIComponent(this.token)}&since=${since}${teamParam}`;
     const data = await this.signedGet<{ changed: boolean }>(`/api/sync/check?${params}`);
     return data.changed;
   }
@@ -167,7 +171,12 @@ export class TeamrcClient {
     platform: string,
     entry: Record<string, string>,
   ): Promise<void> {
-    const body = JSON.stringify({ token: this.token, platform, entry });
+    const body = JSON.stringify({
+      token: this.token,
+      platform,
+      entry,
+      ...(this.teamId ? { team_id: this.teamId } : {}),
+    });
     const headers = await this.signedHeaders(body);
     const res = await fetch(`${this.baseUrl}/api/push`, {
       method: "POST",
@@ -233,12 +242,17 @@ export class TeamrcClient {
   }
 
   async getLog(): Promise<Array<{ type: string; content: string; source_platform: string; pushed_by?: string; timestamp: string }>> {
-    const data = await this.signedGet<{ entries: Array<{ type: string; content: string; source_platform: string; pushed_by?: string; timestamp: string }> }>(`/api/log?token=${encodeURIComponent(this.token)}`);
+    const teamParam = this.teamId ? `&team_id=${encodeURIComponent(this.teamId)}` : "";
+    const data = await this.signedGet<{ entries: Array<{ type: string; content: string; source_platform: string; pushed_by?: string; timestamp: string }> }>(`/api/log?token=${encodeURIComponent(this.token)}${teamParam}`);
     return data.entries;
   }
 
   async createInvite(ttlHours: number = 24): Promise<{ invite_code: string; expires_at: string }> {
-    const body = JSON.stringify({ token: this.token, ttl_hours: ttlHours });
+    const body = JSON.stringify({
+      token: this.token,
+      ttl_hours: ttlHours,
+      ...(this.teamId ? { team_id: this.teamId } : {}),
+    });
     const headers = await this.signedHeaders(body);
     const res = await fetch(`${this.baseUrl}/api/teams/invite`, {
       method: "POST",

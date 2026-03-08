@@ -19,10 +19,11 @@ import {
   detectPlatforms,
   getRelayUrl,
 } from "./config.js";
-import { getAdapter, type TeamScope, type TeamDefinition } from "./adapters/base.js";
+import { getAdapter, VALID_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
 import { resolveChange } from "./merge.js";
 import { writeTeamYaml, validateTeamName, readTeamYaml } from "./team-yaml.js";
 import { resolveTeamSource } from "./resolve-source.js";
+import type { TeamrcConfig } from "./config.js";
 
 function askQuestion(question: string): Promise<string> {
   const rl = readline.createInterface({
@@ -105,22 +106,20 @@ async function requireKeypair() {
   return kp;
 }
 
-interface ConnectedContext {
-  config: import("./config.js").TeamrcConfig & { teamId: string };
+interface TeamContext {
+  team: TeamDefinition;
+  scope: TeamScope;
+  config: TeamrcConfig;
   client: TeamrcClient;
-  platform: string;
-  adapter: import("./adapters/base.js").PlatformAdapter;
+  platforms: string[];
+  adapters: PlatformAdapter[];
 }
 
-/** Load config + keypair + build client, or exit with error. */
-function requireClient(): ConnectedContext {
+/** Resolve team context from project YAML or global config. */
+function requireTeamContext(): TeamContext {
   const config = loadConfig();
   if (!config) {
     console.error("Not initialized. Run `teamrc init` first.");
-    process.exit(1);
-  }
-  if (!config.teamId) {
-    console.error("No team ID configured.");
     process.exit(1);
   }
   const kp = loadKeypair();
@@ -128,12 +127,64 @@ function requireClient(): ConnectedContext {
     console.error("No keypair found.");
     process.exit(1);
   }
-  const platform = primaryPlatform(config.platform);
+
+  // 1. Try project-level agent-team.yaml
+  const yamlTeam = readTeamYaml("agent-team.yaml");
+  if (yamlTeam?.teamId) {
+    const relay = yamlTeam.relay ?? config.relay;
+    const platforms = yamlTeam.platforms ?? detectPlatforms();
+    const client = new TeamrcClient(relay, kp.privateKey, config.token, yamlTeam.teamId);
+    return {
+      team: yamlTeam,
+      scope: "project",
+      config,
+      client,
+      platforms,
+      adapters: platforms.map((p) => getAdapter(p)),
+    };
+  }
+
+  // 2. Fall back to global team
+  if (config.globalTeam?.teamId) {
+    const platforms = config.globalTeam.platforms;
+    const client = new TeamrcClient(config.relay, kp.privateKey, config.token, config.globalTeam.teamId);
+    return {
+      team: { name: "", members: [], teamId: config.globalTeam.teamId, platforms, noSync: config.globalTeam.noSync },
+      scope: "global",
+      config,
+      client,
+      platforms,
+      adapters: platforms.map((p) => getAdapter(p)),
+    };
+  }
+
+  // 3. Legacy fallback: top-level teamId in config
+  if (config.teamId) {
+    const platform = config.platform ? primaryPlatform(config.platform) : detectPlatforms()[0] ?? "claude-code";
+    const platforms = config.platform ? config.platform.split(",") : [platform];
+    const client = new TeamrcClient(config.relay, kp.privateKey, config.token, config.teamId);
+    return {
+      team: { name: "", members: [], teamId: config.teamId },
+      scope: "project",
+      config,
+      client,
+      platforms,
+      adapters: platforms.map((p) => getAdapter(p)),
+    };
+  }
+
+  console.error("No team configured. Run `teamrc init` or `teamrc join`.");
+  process.exit(1);
+}
+
+/** Legacy helper — wraps requireTeamContext for commands that need single adapter */
+function requireClient(): { config: TeamrcConfig & { teamId: string }; client: TeamrcClient; platform: string; adapter: PlatformAdapter } {
+  const ctx = requireTeamContext();
   return {
-    config: config as ConnectedContext["config"],
-    client: new TeamrcClient(config.relay, kp.privateKey, config.token),
-    platform,
-    adapter: getAdapter(platform),
+    config: { ...ctx.config, teamId: ctx.team.teamId! } as TeamrcConfig & { teamId: string },
+    client: ctx.client,
+    platform: ctx.platforms[0],
+    adapter: ctx.adapters[0],
   };
 }
 
@@ -208,10 +259,12 @@ program
   .command("init")
   .description("Initialize teamrc: detect platform, create agents, connect to relay")
   .option("--relay <url>", "Relay server URL")
-  .option("--platform <platform>", "Override platform detection (claude-code, cursor, codex, gemini, openclaw)")
-  .action(async (opts: { relay?: string; platform?: string }) => {
+  .option("--platform <platform>", "Override platform detection")
+  .option("--global", "Install as global team (all projects)")
+  .action(async (opts: { relay?: string; platform?: string; global?: boolean }) => {
     const selected = await requirePlatform(opts.platform);
     const platforms = selected === "both" ? detectPlatforms() : [selected];
+    const scope: TeamScope = opts.global ? "global" : "project";
 
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
@@ -231,15 +284,10 @@ program
       console.log(`Found existing team "${team.name}" with ${team.members.length} agent(s).`);
     }
 
-    // Write canonical YAML file
-    writeTeamYaml("agent-team.yaml", team);
-    console.log("Wrote agent-team.yaml.");
-
     // Apply to each platform's native format
     for (const p of platforms) {
       console.log(`Setting up ${p}...`);
       const adapter = getAdapter(p);
-      const scope = await askScope(p);
       adapter.writeTeam(team, scope);
       console.log(`  ${p} configured.`);
     }
@@ -262,12 +310,22 @@ program
         console.log("Pushed team knowledge.");
       }
 
-      saveConfig({
-        platform: platforms.join(","),
-        relay: relayUrl,
-        token,
-        teamId: relayTeam.id,
-      });
+      // Write YAML with teamId (project mode) or save to global config
+      team.teamId = relayTeam.id;
+      team.platforms = platforms;
+
+      if (scope === "global") {
+        saveConfig({
+          relay: relayUrl,
+          token,
+          globalTeam: { teamId: relayTeam.id, platforms },
+        });
+      } else {
+        team.relay = relayUrl;
+        writeTeamYaml("agent-team.yaml", team);
+        console.log("Wrote agent-team.yaml.");
+        saveConfig({ relay: relayUrl, token });
+      }
       console.log("Configuration saved.");
       console.log(`\nShare this token to invite others: ${token}`);
 
@@ -281,7 +339,7 @@ program
       }
     } catch (err) {
       console.error("Failed to initialize with relay:", (err as Error).message);
-      saveConfig({ platform: platforms.join(","), relay: relayUrl, token });
+      saveConfig({ relay: relayUrl, token });
       console.log("Configuration saved (relay unreachable).");
     }
   });
@@ -292,13 +350,14 @@ program
   .description("Join an existing team and create local agents")
   .argument("<token>", "Team invitation token")
   .option("--relay <url>", "Relay server URL")
-  .option("--platform <platform>", "Override platform detection (claude-code, cursor, codex, gemini, openclaw)")
-  .option("--scope <scope>", "Team scope: project or global (skips prompt)")
+  .option("--platform <platform>", "Override platform detection")
+  .option("--global", "Join as global team")
   .option("--no-sync", "Join without live sync")
-  .action(async (joinToken: string, opts: { relay?: string; platform?: string; scope?: string; sync?: boolean }) => {
+  .action(async (joinToken: string, opts: { relay?: string; platform?: string; global?: boolean; sync?: boolean }) => {
     const noSync = opts.sync === false;
     const selected = await requirePlatform(opts.platform);
     const platforms = selected === "both" ? detectPlatforms() : [selected];
+    const scope: TeamScope = opts.global ? "global" : "project";
 
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
@@ -315,24 +374,25 @@ program
       for (const p of platforms) {
         console.log(`Setting up ${p}...`);
         const adapter = getAdapter(p);
-        const scope: TeamScope = opts.scope === "project" || opts.scope === "global"
-          ? opts.scope
-          : await askScope(p);
         adapter.writeTeam(teamDef, scope);
         console.log(`  ${p} configured.`);
       }
 
-      // Write canonical YAML
-      writeTeamYaml("agent-team.yaml", teamDef);
-      console.log("Wrote agent-team.yaml.");
-
-      saveConfig({
-        platform: platforms.join(","),
-        relay: relayUrl,
-        token,
-        teamId: joinedTeam.id,
-        ...(noSync ? { noSync: true } : {}),
-      });
+      if (scope === "global") {
+        saveConfig({
+          relay: relayUrl,
+          token,
+          globalTeam: { teamId: joinedTeam.id, platforms, ...(noSync ? { noSync: true } : {}) },
+        });
+      } else {
+        teamDef.teamId = joinedTeam.id;
+        teamDef.platforms = platforms;
+        teamDef.relay = relayUrl;
+        if (noSync) teamDef.noSync = true;
+        writeTeamYaml("agent-team.yaml", teamDef);
+        console.log("Wrote agent-team.yaml.");
+        saveConfig({ relay: relayUrl, token });
+      }
       console.log("Configuration saved.");
 
       if (noSync) {
@@ -555,14 +615,16 @@ program
       return;
     }
 
+    const teamId = config.teamId ?? config.globalTeam?.teamId ?? null;
+
     // Show local team info from native agent files
-    const platform = primaryPlatform(config.platform);
+    const platform = config.platform ? primaryPlatform(config.platform) : (config.globalTeam?.platforms?.[0] ?? detectPlatforms()[0] ?? "claude-code");
     const adapter = getAdapter(platform);
     const localTeam = adapter.readTeam();
 
     // Show relay state if configured
     let remoteTeam = null;
-    if (config.teamId) {
+    if (teamId) {
       const kp = loadKeypair();
       if (kp) {
         const client = new TeamrcClient(config.relay, kp.privateKey, config.token);
@@ -576,10 +638,10 @@ program
 
     if (opts.json) {
       console.log(JSON.stringify({
-        platform: config.platform,
+        platform: config.platform ?? config.globalTeam?.platforms?.join(",") ?? platform,
         relay: config.relay,
         token: config.token.slice(0, 12) + "...",
-        teamId: config.teamId ?? null,
+        teamId,
         localTeam: localTeam ?? null,
         remoteTeam: remoteTeam ?? null,
       }, null, 2));
@@ -587,11 +649,11 @@ program
     }
 
     console.log("teamrc Status:");
-    console.log(`  Platform: ${config.platform}`);
+    console.log(`  Platform: ${config.platform ?? config.globalTeam?.platforms?.join(",") ?? platform}`);
     console.log(`  Relay:    ${config.relay}`);
     console.log(`  Token:    ${config.token.slice(0, 12)}...`);
-    if (config.teamId) {
-      console.log(`  Team ID:  ${config.teamId}`);
+    if (teamId) {
+      console.log(`  Team ID:  ${teamId}`);
     }
 
     if (localTeam) {
@@ -818,14 +880,17 @@ program
       return;
     }
 
+    const whoamiTeamId = config.teamId ?? config.globalTeam?.teamId ?? "none";
+    const whoamiPlatform = config.platform ?? config.globalTeam?.platforms?.join(",") ?? "none";
+
     if (opts.json) {
       console.log(JSON.stringify({
         token: config.token.slice(0, 16) + "...",
         machine: config.machineName ?? "unknown",
         account: config.account?.email ?? "not linked",
-        teamId: config.teamId ?? "none",
+        teamId: whoamiTeamId,
         relay: config.relay,
-        platform: config.platform,
+        platform: whoamiPlatform,
       }, null, 2));
       return;
     }
@@ -833,9 +898,9 @@ program
     console.log(`Token:    ${config.token.slice(0, 16)}...`);
     console.log(`Machine:  ${config.machineName ?? "unknown"}`);
     console.log(`Account:  ${config.account?.email ?? "not linked"}`);
-    console.log(`Team ID:  ${config.teamId ?? "none"}`);
+    console.log(`Team ID:  ${whoamiTeamId}`);
     console.log(`Relay:    ${config.relay}`);
-    console.log(`Platform: ${config.platform}`);
+    console.log(`Platform: ${whoamiPlatform}`);
   });
 
 // --- log ---
@@ -930,8 +995,8 @@ program
 
     // 5. Platform agents match
     if (config && yamlTeam) {
-      const platform = primaryPlatform(config.platform);
-      const adapter = getAdapter(platform);
+      const doctorPlatform = config.platform ? primaryPlatform(config.platform) : (config.globalTeam?.platforms?.[0] ?? detectPlatforms()[0] ?? "claude-code");
+      const adapter = getAdapter(doctorPlatform);
       const platformTeam = adapter.readTeam();
       if (platformTeam) {
         const yamlCount = yamlTeam.members.length;
@@ -963,7 +1028,7 @@ program
       return;
     }
 
-    const platforms = config.platform.split(",");
+    const platforms = config.platform ? config.platform.split(",") : (config.globalTeam?.platforms ?? detectPlatforms());
 
     console.log("\nThis will remove all teamrc agents, config, and team knowledge from this machine.");
     console.log("Other team members will keep their setup — you're just disconnecting.\n");

@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import YAML from "yaml";
-import { validateAgentName, type TeamDefinition, type TeamMember, type Rule, type Skill } from "./adapters/base.js";
+import { validateAgentName, VALID_PLATFORMS, type TeamDefinition, type TeamMember, type Rule, type Skill } from "./adapters/base.js";
 
 const MAX_YAML_SIZE = 256 * 1024; // 256 KB
 const MAX_MEMBERS = 100;
@@ -95,17 +95,43 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
   const teamName = data.name || "";
   if (teamName) validateTeamName(teamName);
 
+  // Parse new multi-project fields
+  const teamId = data.teamId ? String(data.teamId) : undefined;
+  const relay = data.relay ? String(data.relay) : undefined;
+  const noSync = data.noSync === true ? true : undefined;
+
+  let platforms: string[] | undefined;
+  if (Array.isArray(data.platforms)) {
+    const validSet = new Set<string>(VALID_PLATFORMS);
+    platforms = data.platforms
+      .map((p: unknown) => String(p))
+      .filter((p: string) => {
+        if (!validSet.has(p)) {
+          throw new Error(`Unknown platform in agent-team.yaml: ${JSON.stringify(p)}. Valid: ${VALID_PLATFORMS.join(", ")}`);
+        }
+        return true;
+      });
+  }
+
   return {
     name: teamName,
     members,
     rules,
     skills,
+    ...(teamId ? { teamId } : {}),
+    ...(relay ? { relay } : {}),
+    ...(platforms ? { platforms } : {}),
+    ...(noSync ? { noSync } : {}),
   };
 }
 
 export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
   const data: Record<string, unknown> = {
     name: team.name,
+    ...(team.teamId ? { teamId: team.teamId } : {}),
+    ...(team.relay ? { relay: team.relay } : {}),
+    ...(team.platforms ? { platforms: team.platforms } : {}),
+    ...(team.noSync ? { noSync: team.noSync } : {}),
     members: team.members.map((m) => {
       const entry: Record<string, unknown> = { name: m.name, role: m.role };
       if (m.soul) entry.soul = m.soul;

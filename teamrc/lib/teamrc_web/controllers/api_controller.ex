@@ -16,6 +16,7 @@ defmodule TeamrcWeb.ApiController do
   @max_rules 50
   @max_skills 50
   @max_rule_body_bytes 10_000  # 10KB per rule/skill body
+  @id_re ~r/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
 
   def create_team(conn, %{"token" => token, "team" => team}) do
     with :ok <- validate_team(team) do
@@ -37,6 +38,18 @@ defmodule TeamrcWeb.ApiController do
     case Teams.get_team(token) do
       {:ok, team} ->
         json(conn, %{team: team})
+
+      :error ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "not_found"})
+    end
+  end
+
+  def get_teams(conn, %{"token" => token}) do
+    case Teams.get_teams(token) do
+      {:ok, teams} ->
+        json(conn, %{teams: teams})
 
       :error ->
         conn
@@ -68,13 +81,14 @@ defmodule TeamrcWeb.ApiController do
     platform = params["platform"]
     hashes = params["hashes"] || %{}
     files = params["files"] || %{}
+    team_id = params["team_id"]
 
     with :ok <- validate_platform(platform),
          :ok <- validate_hashes(hashes),
          :ok <- validate_file_paths(hashes),
          :ok <- validate_file_paths(files),
          :ok <- validate_files(files),
-         {:ok, result} <- Teams.sync(token, platform, hashes, files) do
+         {:ok, result} <- Teams.sync(token, platform, hashes, files, team_id) do
       json(conn, %{changes: result.files})
     else
       {:error, :not_joined} ->
@@ -90,12 +104,14 @@ defmodule TeamrcWeb.ApiController do
   end
 
   @doc "Push a single entry (legacy / convenience). Wraps into sync."
-  def push(conn, %{"token" => token, "platform" => platform, "entry" => entry}) do
+  def push(conn, %{"token" => token, "platform" => platform, "entry" => entry} = params) do
+    team_id = params["team_id"]
+
     with :ok <- validate_platform(platform),
          :ok <- validate_entry_size(entry) do
       entry = Map.put(entry, "source_platform", platform)
 
-      case Teams.push_buffer(token, entry) do
+      case Teams.push_buffer(token, entry, team_id) do
         :ok ->
           json(conn, %{status: "ok"})
 
@@ -117,8 +133,10 @@ defmodule TeamrcWeb.ApiController do
     end
   end
 
-  def pull(conn, %{"token" => token, "platform" => platform}) do
-    case Teams.pull_buffer(token, platform) do
+  def pull(conn, %{"token" => token, "platform" => platform} = params) do
+    team_id = params["team_id"]
+
+    case Teams.pull_buffer(token, platform, team_id) do
       {:ok, entries} ->
         json(conn, %{entries: entries})
 
@@ -129,10 +147,12 @@ defmodule TeamrcWeb.ApiController do
     end
   end
 
-  def sync_check(conn, %{"token" => token, "since" => since_str}) do
+  def sync_check(conn, %{"token" => token, "since" => since_str} = params) do
+    team_id = params["team_id"]
+
     case Integer.parse(since_str) do
       {since, ""} ->
-        case Teams.check_changed(token, since) do
+        case Teams.check_changed(token, since, team_id) do
           {:ok, changed} ->
             json(conn, %{changed: changed})
 
@@ -162,10 +182,11 @@ defmodule TeamrcWeb.ApiController do
     end
   end
 
-  def get_log(conn, _params) do
+  def get_log(conn, params) do
     token = conn.assigns[:verified_token]
+    team_id = params["team_id"]
 
-    case Teams.get_log(token) do
+    case Teams.get_log(token, team_id) do
       {:ok, entries} ->
         json(conn, %{entries: entries})
 
@@ -179,8 +200,9 @@ defmodule TeamrcWeb.ApiController do
   def create_invite(conn, params) do
     token = conn.assigns[:verified_token]
     ttl = min(safe_integer(params["ttl_hours"], 24), 168)
+    team_id = params["team_id"]
 
-    case Teams.create_invite(token, ttl) do
+    case Teams.create_invite(token, ttl, team_id) do
       {:ok, code, expires_at} ->
         json(conn, %{invite_code: code, expires_at: DateTime.to_iso8601(expires_at)})
 
@@ -235,13 +257,22 @@ defmodule TeamrcWeb.ApiController do
       length(entries) > max ->
         {:error, "#{label} may have at most #{max} entries"}
       true ->
-        oversized = Enum.find(entries, fn entry ->
-          body = entry["body"]
-          is_binary(body) and byte_size(body) > @max_rule_body_bytes
+        # Validate IDs to prevent path traversal in adapters
+        invalid_id = Enum.find(entries, fn entry ->
+          id = entry["id"]
+          not (is_binary(id) and Regex.match?(@id_re, id))
         end)
-        case oversized do
-          nil -> :ok
-          entry -> {:error, "#{label} entry '#{entry["id"] || "unknown"}' body exceeds #{@max_rule_body_bytes} bytes"}
+        case invalid_id do
+          nil ->
+            oversized = Enum.find(entries, fn entry ->
+              body = entry["body"]
+              is_binary(body) and byte_size(body) > @max_rule_body_bytes
+            end)
+            case oversized do
+              nil -> :ok
+              entry -> {:error, "#{label} entry '#{entry["id"]}' body exceeds #{@max_rule_body_bytes} bytes"}
+            end
+          entry -> {:error, "#{label} entry has invalid id: '#{entry["id"] || "missing"}'"}
         end
     end
   end

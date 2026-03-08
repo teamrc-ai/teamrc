@@ -6,10 +6,12 @@ import {
   hashContent,
   validateAgentName,
   sanitizeText,
+  slugify,
   type PlatformAdapter,
   type PortableAgent,
   type TeamDefinition,
   type TeamMember,
+  type TeamScope,
 } from "./base.js";
 import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
 
@@ -35,29 +37,39 @@ export class OpenClawAdapter implements PlatformAdapter {
     }
   }
 
-  /** Directory for a teamrc agent's workspace */
-  private agentWorkspace(agentName: string): string {
-    return path.join(this.openclawDir, "workspaces", `trc-${agentName}`);
+  /** Directory for a teamrc agent's workspace, namespaced by team for project scope */
+  private agentWorkspace(agentName: string, teamSlug?: string): string {
+    const prefix = teamSlug ? `trc-${teamSlug}-${agentName}` : `trc-${agentName}`;
+    return path.join(this.openclawDir, "workspaces", prefix);
   }
 
-  /** List all trc-* workspace directories */
-  private listTbWorkspaces(): string[] {
+  /** List trc-* workspace directories, optionally filtered by team slug */
+  private listTbWorkspaces(teamSlug?: string): string[] {
     const dir = path.join(this.openclawDir, "workspaces");
     if (!fs.existsSync(dir)) return [];
+    const prefix = teamSlug ? `trc-${teamSlug}-` : "trc-";
     return fs.readdirSync(dir).filter((d) =>
-      d.startsWith("trc-") && fs.statSync(path.join(dir, d)).isDirectory(),
+      d.startsWith(prefix) && fs.statSync(path.join(dir, d)).isDirectory(),
     );
   }
 
-  readTeam(): TeamDefinition | null {
-    const workspaces = this.listTbWorkspaces();
+  /** Extract agent name from workspace directory name */
+  private agentNameFromWorkspace(ws: string, teamSlug?: string): string {
+    if (teamSlug) {
+      return ws.replace(`trc-${teamSlug}-`, "");
+    }
+    return ws.replace("trc-", "");
+  }
+
+  readTeam(teamSlug?: string): TeamDefinition | null {
+    const workspaces = this.listTbWorkspaces(teamSlug);
     if (workspaces.length === 0) return null;
 
     let teamName = "my-team";
     const members: TeamMember[] = [];
 
     for (const ws of workspaces) {
-      const agentName = ws.replace("trc-", "");
+      const agentName = this.agentNameFromWorkspace(ws, teamSlug);
       const wsDir = path.join(this.openclawDir, "workspaces", ws);
       const parsed = this.parseWorkspace(agentName, wsDir);
       if (!parsed) continue;
@@ -97,14 +109,22 @@ export class OpenClawAdapter implements PlatformAdapter {
     return { name: agentName, role, soul, teamName };
   }
 
-  writeTeam(team: TeamDefinition): void {
+  writeTeam(team: TeamDefinition, scope?: TeamScope): void {
+    const teamSlug = scope === "project" && team.name ? slugify(team.name) : undefined;
     const agentIds: string[] = [];
+
+    // Clean old workspaces for this team before writing new ones
+    const oldWorkspaces = this.listTbWorkspaces(teamSlug);
+    const wsBase = path.join(this.openclawDir, "workspaces");
+    for (const ws of oldWorkspaces) {
+      fs.rmSync(path.join(wsBase, ws), { recursive: true, force: true });
+    }
 
     for (const member of team.members) {
       validateAgentName(member.name);
-      const agentName = `trc-${member.name}`;
+      const agentName = teamSlug ? `trc-${teamSlug}-${member.name}` : `trc-${member.name}`;
       agentIds.push(agentName);
-      const workspaceDir = this.agentWorkspace(member.name);
+      const workspaceDir = this.agentWorkspace(member.name, teamSlug);
       if (!fs.existsSync(workspaceDir)) {
         fs.mkdirSync(workspaceDir, { recursive: true });
       }
@@ -136,7 +156,7 @@ export class OpenClawAdapter implements PlatformAdapter {
     }
 
     // Wire up routing: allow main agent to spawn team agents + add dispatch rules
-    this.wireRouting(team, agentIds);
+    this.wireRouting(team, agentIds, teamSlug);
   }
 
   private writeNativeAgentFiles(wsDir: string, teamName: string, member: TeamMember, allMembers: TeamMember[], team?: TeamDefinition): void {
@@ -229,9 +249,9 @@ export class OpenClawAdapter implements PlatformAdapter {
   }
 
   /** Configure the main agent to dispatch to teamrc sub-agents */
-  private wireRouting(team: TeamDefinition, agentIds: string[]): void {
+  private wireRouting(team: TeamDefinition, agentIds: string[], teamSlug?: string): void {
     this.updateAllowAgents(agentIds);
-    this.writeRoutingInstructions(team, agentIds);
+    this.writeRoutingInstructions(team, agentIds, teamSlug);
   }
 
   private updateAllowAgents(agentIds: string[]): void {
@@ -258,12 +278,13 @@ export class OpenClawAdapter implements PlatformAdapter {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
   }
 
-  private writeRoutingInstructions(team: TeamDefinition, agentIds: string[]): void {
+  private writeRoutingInstructions(team: TeamDefinition, agentIds: string[], teamSlug?: string): void {
     const defaultWorkspace = path.join(this.openclawDir, "workspace");
     const agentsMdPath = path.join(defaultWorkspace, "AGENTS.md");
 
-    const marker = "<!-- teamrc:routing -->";
-    const markerEnd = "<!-- /teamrc:routing -->";
+    const markerTag = teamSlug ? `teamrc:${teamSlug}:routing` : "teamrc:routing";
+    const marker = `<!-- ${markerTag} -->`;
+    const markerEnd = `<!-- /${markerTag} -->`;
 
     const routingBlock = [
       marker,
@@ -367,12 +388,12 @@ export class OpenClawAdapter implements PlatformAdapter {
     }
   }
 
-  getHashes(): Record<string, string> {
+  getHashes(teamSlug?: string): Record<string, string> {
     const hashes: Record<string, string> = {};
 
     // Hash each agent workspace as portable JSON
-    for (const ws of this.listTbWorkspaces()) {
-      const agentName = ws.replace("trc-", "");
+    for (const ws of this.listTbWorkspaces(teamSlug)) {
+      const agentName = this.agentNameFromWorkspace(ws, teamSlug);
       const wsDir = path.join(this.openclawDir, "workspaces", ws);
       const parsed = this.parseWorkspace(agentName, wsDir);
       if (!parsed) continue;
@@ -390,12 +411,12 @@ export class OpenClawAdapter implements PlatformAdapter {
     return hashes;
   }
 
-  watchPaths(): string[] {
+  watchPaths(teamSlug?: string): string[] {
     const paths = [this.knowledgePath()];
-    // Watch all trc-* workspace directories
+    // Watch all trc-* workspace directories for this team
     const wsBase = path.join(this.openclawDir, "workspaces");
     if (fs.existsSync(wsBase)) {
-      for (const ws of this.listTbWorkspaces()) {
+      for (const ws of this.listTbWorkspaces(teamSlug)) {
         paths.push(path.join(wsBase, ws));
       }
     }
@@ -492,7 +513,7 @@ export class OpenClawAdapter implements PlatformAdapter {
   uninstall(): string[] {
     const actions: string[] = [];
 
-    // Delete trc-* workspace directories
+    // Delete ALL trc-* workspace directories (both global and team-scoped)
     const workspaces = this.listTbWorkspaces();
     if (workspaces.length > 0) {
       const wsBase = path.join(this.openclawDir, "workspaces");
@@ -523,16 +544,13 @@ export class OpenClawAdapter implements PlatformAdapter {
       actions.push(`Deleted ${kPath}`);
     }
 
-    // Remove routing section from AGENTS.md
+    // Remove ALL teamrc routing sections from AGENTS.md (both global and team-scoped markers)
     const agentsMdPath = path.join(this.openclawDir, "workspace", "AGENTS.md");
     if (fs.existsSync(agentsMdPath)) {
       const content = fs.readFileSync(agentsMdPath, "utf-8");
-      const marker = "<!-- teamrc:routing -->";
-      const markerEnd = "<!-- /teamrc:routing -->";
-      const markerRegex = new RegExp(
-        `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
-      );
-      const cleaned = content.replace(markerRegex, "\n");
+      // Match both `<!-- teamrc:routing -->` and `<!-- teamrc:{slug}:routing -->`
+      const routingRegex = /\n?<!-- teamrc(?::[a-z0-9-]+)?:routing -->[\s\S]*?<!-- \/teamrc(?::[a-z0-9-]+)?:routing -->\n?/g;
+      const cleaned = content.replace(routingRegex, "\n");
       if (cleaned !== content) {
         fs.writeFileSync(agentsMdPath, cleaned.trimEnd() + "\n");
         actions.push(`Removed teamrc routing from ${agentsMdPath}`);
