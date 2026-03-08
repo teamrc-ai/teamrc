@@ -54,8 +54,57 @@ bash scripts/verify/run-all.sh
 
 **Not automated** (require manual testing):
 - Section 11: Agent usage verification — requires opening each platform and interacting with agents
-- Section 12: Multi-machine sync — requires multiple machines/VMs
 - Section 13.6–13.7: Browser verification page and timeout — requires browser interaction
+
+---
+
+## E2E Test Runner
+
+The E2E script (`scripts/test/e2e.sh`) automates the full test plan across machines, including multi-machine sync (Section 12). It runs all phases in sequence: clean slate, init/join, platform verification, sync, error cases, rollback, recovery, and legacy scan.
+
+### Two-machine setup
+
+**Machine A (Mac — claude-code, cursor):**
+```bash
+bash scripts/test/e2e.sh --role primary --platforms claude-code,cursor
+```
+
+This will init, verify, create an invite, then pause and print the exact command to run on Machine B. Press Enter after Machine B has joined to continue with cross-machine sync tests.
+
+**Machine B (VM — claude-code, codex, openclaw):**
+```bash
+bash scripts/test/e2e.sh --role secondary \
+  --invite trc_inv_XXXXX \
+  --relay http://mermaid.cates.fm:4000 \
+  --platforms claude-code,codex,openclaw
+```
+
+### Single-machine setup
+
+```bash
+bash scripts/test/e2e.sh --role solo
+```
+
+### Run a specific phase
+
+```bash
+bash scripts/test/e2e.sh --role primary --phase 3
+```
+
+### Phase mapping
+
+| Phase | Test Plan Sections | What it tests |
+|-------|--------------------|---------------|
+| 1 | 1.1 | Clean slate + prerequisites |
+| 2 | 1.2–1.3, 2.1–2.2 | Init (primary) or Join (secondary) |
+| 3 | 3.1–3.5 | Per-platform file verification |
+| 4 | 4.1–4.3 | Sync, push, diff |
+| 5 | 12.2–12.3 | Cross-machine sync (primary waits for secondary) |
+| 6 | 8.1–8.5 | Error cases |
+| 7 | 5.1–5.2 | Delete, re-init, re-join |
+| 8 | 10.1 | Legacy TeamBridge scan |
+| 9 | 5.4–5.5 | Corrupt config + missing keypair recovery |
+| 10 | — | Final status verification |
 
 ---
 
