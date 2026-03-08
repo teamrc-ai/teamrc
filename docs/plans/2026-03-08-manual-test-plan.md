@@ -10,6 +10,7 @@
 - Relay running (`cd teamrc && mix phx.server`)
 - CLI built (`cd cli && npm run build`)
 - All platforms installed on the test machine
+- Relay defaults to `http://localhost:4000` — no config needed for local dev
 
 ---
 
@@ -1096,6 +1097,160 @@ npx teamrc join <invite-code> --platform openclaw
 - [ ] All three machines receive knowledge from the other two
 - [ ] `npx teamrc log` on any machine shows all three tokens
 - [ ] Daemon on any machine picks up changes from the other two
+
+---
+
+## Section 13: Account Linking & Device Auth
+
+Test the optional Clerk account linking flow via `teamrc login` and the account linking prompt during `init`/`join`.
+
+### 13.1 Account linking prompt on init
+
+```bash
+# Clean slate
+rm -rf ~/.teamrc
+npx teamrc init --platform claude-code
+```
+
+**Expected:**
+- [ ] After team creation, prompted: "Link your account for recovery and dashboard access? [Y/n]:"
+- [ ] Typing `n` skips linking, shows tip about `teamrc login`
+- [ ] Init completes successfully without an account
+
+### 13.2 Account linking prompt on init — accept
+
+```bash
+rm -rf ~/.teamrc
+npx teamrc init --platform claude-code
+# When prompted, press Enter or type "y"
+```
+
+**Expected:**
+- [ ] Device auth flow starts (shows URL + user code)
+- [ ] URL opens in browser (or displays for manual open)
+- [ ] Browser shows consent/verification page at `/auth/verify`
+- [ ] After browser approval, CLI detects success
+- [ ] "Account linked successfully" message
+- [ ] `~/.teamrc/config.json` has `account.email` field
+
+### 13.3 Account linking prompt on join
+
+```bash
+# From a clean state (different machine or dir)
+rm -rf ~/.teamrc
+npx teamrc join <invite-code> --platform claude-code
+```
+
+**Expected:**
+- [ ] After joining team, prompted to link account
+- [ ] Same flow as 13.2 if accepted
+- [ ] Skip works cleanly if declined
+
+### 13.4 Standalone `teamrc login`
+
+```bash
+# Already initialized but NOT linked
+npx teamrc login
+```
+
+**Expected:**
+- [ ] Device auth flow starts
+- [ ] Shows: "Open this URL: https://..."
+- [ ] Shows: "Your code: XXXX-XXXX"
+- [ ] Polls for approval (shows waiting indicator)
+- [ ] After browser approval: "Account linked successfully"
+- [ ] `~/.teamrc/config.json` updated with `account.email`
+
+### 13.5 `teamrc login` when already linked
+
+```bash
+# Already linked from 13.4
+npx teamrc login
+```
+
+**Expected:**
+- [ ] Either: re-links cleanly (updates account)
+- [ ] Or: shows "Already linked to <email>"
+- [ ] No crash or confusing error
+
+### 13.6 Device auth — browser verification page
+
+Open the URL shown by `teamrc login` in a browser.
+
+**Verify:**
+- [ ] Consent screen shows the user code from the CLI
+- [ ] Shows machine name
+- [ ] "Approve" and "Deny" buttons
+- [ ] Approving shows success confirmation
+- [ ] Denying shows rejection, CLI gets appropriate error
+
+### 13.7 Device auth — timeout
+
+```bash
+npx teamrc login
+# Do NOT approve in the browser — wait for timeout
+```
+
+**Expected:**
+- [ ] CLI eventually times out (not infinite wait)
+- [ ] Shows timeout/expiry message
+- [ ] Exits cleanly (no crash)
+
+### 13.8 Account recovery scenario
+
+```bash
+# Machine A: init + link account
+npx teamrc init --platform claude-code
+# Link account (accept prompt)
+
+# Machine A: delete everything
+npx teamrc delete
+rm -rf ~/.teamrc
+
+# Machine A: re-init with same account
+npx teamrc init --platform claude-code
+# Link account again with same Clerk credentials
+```
+
+**Expected:**
+- [ ] New keypair generated (different token)
+- [ ] Account re-linked to new machine token
+- [ ] Previous machines visible in dashboard (if applicable)
+
+### 13.9 Machine management via dashboard
+
+After linking an account:
+
+1. Open the dashboard/web UI
+   - [ ] Linked machines listed
+   - [ ] Machine name shown
+   - [ ] Token (truncated) shown
+
+2. Revoke a machine from the dashboard
+   - [ ] Machine removed from list
+   - [ ] Revoked machine's `teamrc sync` returns 401/403
+   - [ ] Clear error message on revoked machine
+
+### 13.10 Multi-machine account linking
+
+**Machine A:**
+```bash
+npx teamrc init --platform claude-code
+# Link account
+```
+
+**Machine B:**
+```bash
+npx teamrc join <invite-code> --platform cursor
+npx teamrc login
+# Link SAME Clerk account
+```
+
+**Verify:**
+- [ ] Both machines linked to same account
+- [ ] Dashboard shows both machines
+- [ ] Revoking Machine B doesn't affect Machine A
+- [ ] Machine A can still sync after Machine B revoked
 
 ---
 

@@ -89,8 +89,5 @@ export function getRelayUrl(overrideUrl?: string): string {
   if (config?.relay) {
     return config.relay;
   }
-  if (!process.env["TEAMRC_DEV"]) {
-    console.warn("Warning: No relay URL configured. Using http://localhost:4000. Set TEAMRC_RELAY or use --relay to configure.");
-  }
   return "http://localhost:4000";
 }
