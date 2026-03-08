@@ -25,7 +25,7 @@ describe("integration: full rules/skills flow", () => {
     fs.writeFileSync(path.join(rulesDir, "security.md"), "Always validate user input.");
 
     // Write team YAML
-    const yamlPath = path.join(tmpDir, "agent-team.yaml");
+    const yamlPath = path.join(tmpDir, ".teamrc.yaml");
     const team = {
       name: "integration-team",
       members: [

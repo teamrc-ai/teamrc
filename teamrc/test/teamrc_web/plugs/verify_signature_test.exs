@@ -342,7 +342,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
       body = %{
         "token" => token,
         "platform" => "claude-code",
-        "hashes" => %{"agent-team.yaml" => "sha256abc"}
+        "hashes" => %{".teamrc.yaml" => "sha256abc"}
       }
       {signature, timestamp} = sign_body_with_timestamp(priv, body)
 

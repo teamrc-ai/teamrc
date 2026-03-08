@@ -4,7 +4,7 @@ import { watch } from "chokidar";
 import { hashContent, validateAgentName, type PlatformAdapter } from "./adapters/base.js";
 import type { TeamrcClient, SyncChange } from "./client.js";
 import { resolveChange } from "./merge.js";
-import { readTeamYaml } from "./team-yaml.js";
+import { readTeamYaml, resolveTeamYamlPath } from "./team-yaml.js";
 
 const POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_CONTENT_SIZE = 1024 * 1024; // 1 MB per file
@@ -216,7 +216,7 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   }
 
   // File watcher — only watch paths that exist (or whose parent dir exists)
-  const yamlPath = path.resolve("agent-team.yaml");
+  const yamlPath = path.resolve(resolveTeamYamlPath());
   const adapterPaths = adapter.watchPaths().filter((p) =>
     fs.existsSync(p) || fs.existsSync(path.dirname(p)),
   );
@@ -231,7 +231,7 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
     const team = readTeamYaml(yamlPath);
     if (!team) return;
 
-    log("agent-team.yaml changed. Applying to platform...");
+    log(".teamrc.yaml changed. Applying to platform...");
     adapter.writeTeam(team);
 
     // Push changes to relay

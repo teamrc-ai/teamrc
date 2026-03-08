@@ -2,6 +2,21 @@ import * as fs from "node:fs";
 import YAML from "yaml";
 import { validateAgentName, VALID_PLATFORMS, type TeamDefinition, type TeamMember, type Rule, type Skill } from "./adapters/base.js";
 
+/** Current team YAML filename */
+export const TEAM_YAML = ".teamrc.yaml";
+/** Legacy filename (deprecated) */
+const LEGACY_TEAM_YAML = ".teamrc.yaml";
+
+/** Resolve team YAML path: prefers .teamrc.yaml, falls back to .teamrc.yaml with deprecation warning */
+export function resolveTeamYamlPath(): string {
+  if (fs.existsSync(TEAM_YAML)) return TEAM_YAML;
+  if (fs.existsSync(LEGACY_TEAM_YAML)) {
+    console.warn(`Deprecation: Rename ${LEGACY_TEAM_YAML} to ${TEAM_YAML}`);
+    return LEGACY_TEAM_YAML;
+  }
+  return TEAM_YAML;
+}
+
 const MAX_YAML_SIZE = 256 * 1024; // 256 KB
 const MAX_MEMBERS = 100;
 const MAX_RULES = 200;
@@ -34,7 +49,7 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
 
   const stat = fs.statSync(filePath);
   if (stat.size > MAX_YAML_SIZE) {
-    throw new Error(`agent-team.yaml exceeds maximum size of ${MAX_YAML_SIZE} bytes`);
+    throw new Error(`.teamrc.yaml exceeds maximum size of ${MAX_YAML_SIZE} bytes`);
   }
 
   const content = fs.readFileSync(filePath, "utf-8");
@@ -44,7 +59,7 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
 
   const rawMembers = data.members || [];
   if (!Array.isArray(rawMembers) || rawMembers.length > MAX_MEMBERS) {
-    throw new Error(`agent-team.yaml members must be an array with at most ${MAX_MEMBERS} entries`);
+    throw new Error(`.teamrc.yaml members must be an array with at most ${MAX_MEMBERS} entries`);
   }
 
   const members: TeamMember[] = rawMembers.map((m: Record<string, unknown>) => {
@@ -59,7 +74,7 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
 
   const rawRules = data.rules || [];
   if (Array.isArray(rawRules) && rawRules.length > MAX_RULES) {
-    throw new Error(`agent-team.yaml rules must have at most ${MAX_RULES} entries`);
+    throw new Error(`.teamrc.yaml rules must have at most ${MAX_RULES} entries`);
   }
   const rules: Rule[] = Array.isArray(rawRules)
     ? rawRules.map((r: Record<string, unknown>) => {
@@ -77,7 +92,7 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
 
   const rawSkills = data.skills || [];
   if (Array.isArray(rawSkills) && rawSkills.length > MAX_SKILLS) {
-    throw new Error(`agent-team.yaml skills must have at most ${MAX_SKILLS} entries`);
+    throw new Error(`.teamrc.yaml skills must have at most ${MAX_SKILLS} entries`);
   }
   const skills: Skill[] = Array.isArray(rawSkills)
     ? rawSkills.map((s: Record<string, unknown>) => {
@@ -107,7 +122,7 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
       .map((p: unknown) => String(p))
       .filter((p: string) => {
         if (!validSet.has(p)) {
-          throw new Error(`Unknown platform in agent-team.yaml: ${JSON.stringify(p)}. Valid: ${VALID_PLATFORMS.join(", ")}`);
+          throw new Error(`Unknown platform in .teamrc.yaml: ${JSON.stringify(p)}. Valid: ${VALID_PLATFORMS.join(", ")}`);
         }
         return true;
       });

@@ -17,11 +17,11 @@ export interface TeamrcConfig {
   };
   machineName?: string;
   globalTeam?: GlobalTeam;
-  /** @deprecated Use globalTeam.platforms or agent-team.yaml platforms instead */
+  /** @deprecated Use globalTeam.platforms or .teamrc.yaml platforms instead */
   platform?: string;
-  /** @deprecated Use globalTeam.teamId or agent-team.yaml teamId instead */
+  /** @deprecated Use globalTeam.teamId or .teamrc.yaml teamId instead */
   teamId?: string;
-  /** @deprecated Use globalTeam.noSync or agent-team.yaml noSync instead */
+  /** @deprecated Use globalTeam.noSync or .teamrc.yaml noSync instead */
   noSync?: boolean;
 }
 

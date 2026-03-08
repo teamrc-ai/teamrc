@@ -11,14 +11,14 @@ npx teamrc init
 # Join an existing team
 npx teamrc join <invite-token>
 
-# Edit agent-team.yaml, then apply
+# Edit .teamrc.yaml, then apply
 npx teamrc apply
 ```
 
 ## Architecture
 
 ```
-agent-team.yaml  (source of truth, version-controllable)
+.teamrc.yaml     (source of truth, version-controllable)
        |
   CLI commands   (init, apply, export, sync)
        |
@@ -29,9 +29,9 @@ platform adapters (Claude Code, Cursor, Codex, OpenClaw, Gemini)
 native agent files (.claude/agents/, .cursor/rules/, etc.)
 ```
 
-**Priority chain:** `agent-team.yaml` > platform folders
+**Priority chain:** `.teamrc.yaml` > platform folders
 
-## agent-team.yaml
+## .teamrc.yaml
 
 The canonical team definition. Check this into version control.
 
@@ -79,12 +79,12 @@ Fields:
 
 | Command | Description |
 |---------|-------------|
-| `teamrc init` | Detect platform, create agents, write `agent-team.yaml`, connect to relay |
+| `teamrc init` | Detect platform, create agents, write `.teamrc.yaml`, connect to relay |
 | `teamrc join <token>` | Join an existing team and set up locally. `--no-sync` for local-only |
 | `teamrc clone <token>` | Copy a team locally without joining sync. `--name` to override name |
 | `teamrc invite` | Generate an invite code for your team. `--ttl <hours>` (default: 24, max: 168) |
-| `teamrc apply` | Apply `agent-team.yaml` to local platform(s) |
-| `teamrc export` | Export team from relay to `agent-team.yaml` |
+| `teamrc apply` | Apply `.teamrc.yaml` to local platform(s) |
+| `teamrc export` | Export team from relay to `.teamrc.yaml` |
 | `teamrc sync` | One-time sync with relay server |
 | `teamrc push` | Push team knowledge to relay |
 | `teamrc diff` | Show differences between local and relay. `--json` for machine-readable output |
@@ -135,4 +135,4 @@ mix phx.server  # http://localhost:4000
 
 ## Security Note
 
-Treat `agent-team.yaml` as a trusted configuration file (like `.env`). The `soul` field controls agent behavior — review YAML changes in PRs just as you would review code changes.
+Treat `.teamrc.yaml` as a trusted configuration file (like `.env`). The `soul` field controls agent behavior — review YAML changes in PRs just as you would review code changes.

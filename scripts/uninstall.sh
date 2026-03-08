@@ -64,6 +64,7 @@ fi
 # 3. Generated project files
 echo "Cleaning project artifacts..."
 remove_if_exists ".claude/team-knowledge.md"
+remove_if_exists ".teamrc.yaml"
 remove_if_exists "agent-team.yaml"
 
 # trc-* and tb-* agent files

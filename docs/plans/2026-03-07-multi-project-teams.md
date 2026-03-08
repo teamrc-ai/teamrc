@@ -1110,6 +1110,46 @@ for f in .augment/rules/trc-*.md; do ...
 
 ---
 
+## Phase 10: Rename `agent-team.yaml` → `.teamrc.yaml`
+
+### Rationale
+
+The project config file should follow dotfile conventions (like `.prettierrc`, `.eslintrc`) and match the project name. `.teamrc.yaml` is:
+- A dotfile (conventional for config, hidden by default)
+- Named after the project (`teamrc`)
+- Explicitly `.yaml` for editor syntax highlighting and tooling
+- Consistent with `~/.teamrc/` config directory
+
+### 10.1 Backward compatibility
+
+`readTeamYaml` callers use `resolveTeamYamlPath()` which checks `.teamrc.yaml` first, then falls back to `agent-team.yaml` with a deprecation warning. All writes go to `.teamrc.yaml`.
+
+### 10.2 Files changed
+
+| File | Change |
+|------|--------|
+| `cli/src/team-yaml.ts` | Export `TEAM_YAML`, `resolveTeamYamlPath()`. Error messages updated. |
+| `cli/src/index.ts` | All reads via `resolveTeamYamlPath()`, all writes via `TEAM_YAML` constant |
+| `cli/src/daemon.ts` | Watch path uses `resolveTeamYamlPath()` |
+| `cli/src/config.ts` | Deprecation comments updated |
+| `scripts/uninstall.sh` | Removes both `.teamrc.yaml` and `agent-team.yaml` |
+| All test files | Filename references updated |
+| `README.md` | Documentation updated |
+
+### 10.3 Delete command
+
+`teamrc delete` removes both `.teamrc.yaml` and legacy `agent-team.yaml` if present.
+
+### 10.4 Migration path
+
+Users with existing `agent-team.yaml` files:
+1. CLI continues to work — reads fall back to legacy filename
+2. Console prints deprecation warning each run
+3. User renames file manually: `mv agent-team.yaml .teamrc.yaml`
+4. Or `teamrc apply` / `teamrc init` / `teamrc join` writes `.teamrc.yaml` automatically
+
+---
+
 ## Implementation Order
 
 ```
@@ -1124,6 +1164,7 @@ Phase 5.3-5.7: Other adapters           ← depends on 1
 Phase 7: Web UI                          ← depends on 2
 Phase 8: Security hardening              ← throughout
 Phase 9: Cleanup                         ← last
+Phase 10: Rename agent-team.yaml         ← DONE
 ```
 
 Phases 3 and 4 can run in parallel with everything else.

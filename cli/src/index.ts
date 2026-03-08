@@ -21,7 +21,7 @@ import {
 } from "./config.js";
 import { getAdapter, VALID_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
 import { resolveChange } from "./merge.js";
-import { writeTeamYaml, validateTeamName, readTeamYaml } from "./team-yaml.js";
+import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML, resolveTeamYamlPath } from "./team-yaml.js";
 import { resolveTeamSource } from "./resolve-source.js";
 import type { TeamrcConfig } from "./config.js";
 
@@ -128,8 +128,8 @@ function requireTeamContext(): TeamContext {
     process.exit(1);
   }
 
-  // 1. Try project-level agent-team.yaml
-  const yamlTeam = readTeamYaml("agent-team.yaml");
+  // 1. Try project-level .teamrc.yaml (or legacy agent-team.yaml)
+  const yamlTeam = readTeamYaml(resolveTeamYamlPath());
   if (yamlTeam?.teamId) {
     const relay = yamlTeam.relay ?? config.relay;
     const platforms = yamlTeam.platforms ?? detectPlatforms();
@@ -322,8 +322,8 @@ program
         });
       } else {
         team.relay = relayUrl;
-        writeTeamYaml("agent-team.yaml", team);
-        console.log("Wrote agent-team.yaml.");
+        writeTeamYaml(TEAM_YAML, team);
+        console.log(`Wrote ${TEAM_YAML}.`);
         saveConfig({ relay: relayUrl, token });
       }
       console.log("Configuration saved.");
@@ -389,8 +389,8 @@ program
         teamDef.platforms = platforms;
         teamDef.relay = relayUrl;
         if (noSync) teamDef.noSync = true;
-        writeTeamYaml("agent-team.yaml", teamDef);
-        console.log("Wrote agent-team.yaml.");
+        writeTeamYaml(TEAM_YAML, teamDef);
+        console.log(`Wrote ${TEAM_YAML}.`);
         saveConfig({ relay: relayUrl, token });
       }
       console.log("Configuration saved.");
@@ -425,13 +425,13 @@ program
 
     // Priority: YAML > platform adapters
     const sourceAdapter = getAdapter(platforms[0]);
-    const { source, team } = resolveTeamSource("agent-team.yaml", sourceAdapter.readTeam());
+    const { source, team } = resolveTeamSource(resolveTeamYamlPath(), sourceAdapter.readTeam());
     if (!team) {
       console.error("No team agents found. Run `teamrc init` or `teamrc join` first.");
       process.exit(1);
     }
 
-    console.log(`Using team from ${source}${source === "yaml" ? " (agent-team.yaml)" : ""}.`);
+    console.log(`Using team from ${source}${source === "yaml" ? ` (${TEAM_YAML})` : ""}.`);
 
     for (const p of platforms) {
       const scope: TeamScope = opts.scope === "project" || opts.scope === "global"
@@ -445,8 +445,8 @@ program
 
     // If source was platform, generate the YAML for future use
     if (source === "platform") {
-      writeTeamYaml("agent-team.yaml", team);
-      console.log("Generated agent-team.yaml from platform agents.");
+      writeTeamYaml(TEAM_YAML, team);
+      console.log(`Generated ${TEAM_YAML} from platform agents.`);
     }
   });
 
@@ -718,7 +718,7 @@ program
 // --- export ---
 program
   .command("export")
-  .description("Export team from relay to agent-team.yaml")
+  .description("Export team from relay to .teamrc.yaml")
   .action(async () => {
     const { config, client } = requireClient();
 
@@ -726,8 +726,8 @@ program
       const remoteTeam = await client.getTeam(config.token);
       validateTeamName(remoteTeam.name);
       const team = remoteTeamToDefinition(remoteTeam);
-      writeTeamYaml("agent-team.yaml", team);
-      console.log(`Exported "${team.name}" (${team.members.length} agents) to agent-team.yaml.`);
+      writeTeamYaml(TEAM_YAML, team);
+      console.log(`Exported "${team.name}" (${team.members.length} agents) to ${TEAM_YAML}.`);
     } catch (err) {
       console.error("Failed to fetch team from relay:", (err as Error).message);
       process.exit(1);
@@ -751,7 +751,7 @@ program
       const team = remoteTeamToDefinition(remoteTeam);
 
       // Write YAML
-      writeTeamYaml("agent-team.yaml", team);
+      writeTeamYaml(TEAM_YAML, team);
       console.log(`Pulled "${team.name}" (${team.members.length} agents).`);
 
       // Apply to platforms
@@ -817,8 +817,8 @@ program
       }
 
       // Write canonical YAML
-      writeTeamYaml("agent-team.yaml", teamDef);
-      console.log("Wrote agent-team.yaml.");
+      writeTeamYaml(TEAM_YAML, teamDef);
+      console.log(`Wrote ${TEAM_YAML}.`);
 
       // Apply to each platform's native format
       for (const p of platforms) {
@@ -983,13 +983,13 @@ program
       }
     }
 
-    // 4. agent-team.yaml check
-    const yamlTeam = readTeamYaml("agent-team.yaml");
+    // 4. .teamrc.yaml check
+    const yamlTeam = readTeamYaml(resolveTeamYamlPath());
     if (yamlTeam) {
-      console.log("[ok] agent-team.yaml found");
+      console.log(`[ok] ${TEAM_YAML} found`);
       passed++;
     } else {
-      console.log("[warn] No agent-team.yaml");
+      console.log(`[warn] No ${TEAM_YAML}`);
       warnings++;
     }
 
@@ -1055,10 +1055,12 @@ program
       console.log(`  Deleted ${configDir}`);
     }
 
-    // Delete agent-team.yaml if present
-    if (fs.existsSync("agent-team.yaml")) {
-      fs.unlinkSync("agent-team.yaml");
-      console.log("  Deleted agent-team.yaml");
+    // Delete .teamrc.yaml (and legacy agent-team.yaml) if present
+    for (const yamlFile of [TEAM_YAML, "agent-team.yaml"]) {
+      if (fs.existsSync(yamlFile)) {
+        fs.unlinkSync(yamlFile);
+        console.log(`  Deleted ${yamlFile}`);
+      }
     }
 
     console.log("\nteamrc removed. Run `teamrc init` or `teamrc join` to set up again.");
