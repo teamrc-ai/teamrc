@@ -55,14 +55,17 @@ async function askScope(platform: string): Promise<TeamScope> {
   return "project";
 }
 
-async function requirePlatform(override?: string): Promise<string> {
+async function requirePlatforms(override?: string): Promise<string[]> {
+  const valid = ["claude-code", "openclaw", "cursor", "codex", "gemini"];
   if (override) {
-    const valid = ["claude-code", "openclaw", "cursor", "codex", "gemini"];
-    if (!valid.includes(override)) {
-      console.error(`Unknown platform: ${override}. Valid options: ${valid.join(", ")}`);
-      process.exit(1);
+    const requested = override.split(",").map((s) => s.trim()).filter(Boolean);
+    for (const p of requested) {
+      if (!valid.includes(p)) {
+        console.error(`Unknown platform: ${p}. Valid options: ${valid.join(", ")}`);
+        process.exit(1);
+      }
     }
-    return override;
+    return requested;
   }
   const platforms = detectPlatforms();
   if (platforms.length === 0) {
@@ -72,7 +75,7 @@ async function requirePlatform(override?: string): Promise<string> {
     process.exit(1);
   }
   if (platforms.length === 1) {
-    return platforms[0];
+    return platforms;
   }
 
   // Multiple platforms detected — ask the user
@@ -84,12 +87,12 @@ async function requirePlatform(override?: string): Promise<string> {
   const answer = await askQuestion(`\nWhich platform? [1-${platforms.length + 1}]: `);
   const choice = parseInt(answer, 10);
   if (choice >= 1 && choice <= platforms.length) {
-    return platforms[choice - 1];
+    return [platforms[choice - 1]];
   }
   if (choice === platforms.length + 1) {
-    return "both";
+    return platforms;
   }
-  return platforms[0];
+  return [platforms[0]];
 }
 
 /** Get the first platform from a possibly comma-separated config value. */
@@ -263,8 +266,7 @@ program
   .option("--platform <platform>", "Override platform detection")
   .option("--global", "Install as global team (all projects)")
   .action(async (opts: { relay?: string; platform?: string; global?: boolean }) => {
-    const selected = await requirePlatform(opts.platform);
-    const platforms = selected === "both" ? detectPlatforms() : [selected];
+    const platforms = await requirePlatforms(opts.platform);
     const scope: TeamScope = opts.global ? "global" : "project";
 
     const kp = await requireKeypair();
@@ -356,8 +358,7 @@ program
   .option("--no-sync", "Join without live sync")
   .action(async (joinToken: string, opts: { relay?: string; platform?: string; global?: boolean; sync?: boolean }) => {
     const noSync = opts.sync === false;
-    const selected = await requirePlatform(opts.platform);
-    const platforms = selected === "both" ? detectPlatforms() : [selected];
+    const platforms = await requirePlatforms(opts.platform);
     const scope: TeamScope = opts.global ? "global" : "project";
 
     const kp = await requireKeypair();
@@ -421,8 +422,7 @@ program
   .option("--platform <platform>", "Override platform detection (claude-code, cursor, codex, gemini, openclaw)")
   .option("--scope <scope>", "Team scope: project or global")
   .action(async (opts: { platform?: string; scope?: string }) => {
-    const selected = await requirePlatform(opts.platform);
-    const platforms = selected === "both" ? detectPlatforms() : [selected];
+    const platforms = await requirePlatforms(opts.platform);
 
     // Priority: YAML > platform adapters
     const sourceAdapter = getAdapter(platforms[0]);
@@ -743,8 +743,7 @@ program
   .option("--scope <scope>", "Team scope: project or global")
   .action(async (opts: { platform?: string; scope?: string }) => {
     const { config, client } = requireClient();
-    const selected = await requirePlatform(opts.platform);
-    const platforms = selected === "both" ? detectPlatforms() : [selected];
+    const platforms = await requirePlatforms(opts.platform);
 
     try {
       const remoteTeam = await client.getTeam(config.token);
@@ -800,8 +799,7 @@ program
   .option("--scope <scope>", "Team scope: project or global (skips prompt)")
   .option("--name <name>", "Override team name")
   .action(async (inviteCode: string, opts: { relay?: string; platform?: string; scope?: string; name?: string }) => {
-    const selected = await requirePlatform(opts.platform);
-    const platforms = selected === "both" ? detectPlatforms() : [selected];
+    const platforms = await requirePlatforms(opts.platform);
 
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);

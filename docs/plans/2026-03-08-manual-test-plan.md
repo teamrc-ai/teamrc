@@ -65,7 +65,28 @@ npx teamrc init --platform claude-code,cursor,codex,gemini
 **Expected:**
 - [ ] All 4 platforms configured
 - [ ] `.teamrc.yaml` lists all 4 in `platforms:`
-- [ ] Agent files in `.claude/agents/`, `.cursor/agents/`, `.codex/agents/`, `.gemini/agents/`
+
+**Verify files created (note different formats per platform):**
+```bash
+cat .claude/agents/trc-agent.md      # Markdown with YAML frontmatter
+cat .cursor/agents/trc-agent.md      # Markdown with YAML frontmatter
+cat .codex/agents/trc-agent.toml     # TOML format
+cat .codex/config.toml               # Agent registration block
+cat .gemini/agents/trc-agent.md      # Markdown with YAML frontmatter
+cat AGENTS.md                        # Codex routing (<!-- teamrc --> block)
+cat GEMINI.md                        # Gemini routing (<!-- teamrc --> block)
+grep "teamrc" CLAUDE.md              # Claude Code routing section
+cat .cursor/AGENTS.md                # Cursor routing
+```
+- [ ] `.claude/agents/trc-agent.md` — Markdown with YAML frontmatter (`name:`, `description:`)
+- [ ] `.cursor/agents/trc-agent.md` — Markdown with YAML frontmatter
+- [ ] `.codex/agents/trc-agent.toml` — TOML with `developer_instructions`
+- [ ] `.codex/config.toml` — has `[agents.trc-agent]` section
+- [ ] `.gemini/agents/trc-agent.md` — Markdown with YAML frontmatter
+- [ ] `AGENTS.md` — has `<!-- teamrc -->` routing block (Codex)
+- [ ] `GEMINI.md` — has `<!-- teamrc -->` routing block
+- [ ] `CLAUDE.md` — has `<!-- teamrc -->` team section
+- [ ] `.cursor/AGENTS.md` — has `<!-- teamrc:routing -->` markers
 
 ### 1.4 Status check
 
@@ -94,6 +115,17 @@ npx teamrc invite
 **Expected:**
 - [ ] Invite code shown (`trc_inv_...`)
 - [ ] Expiry time shown
+
+**Verify invite exists on relay:**
+```bash
+# Extract teamId from .teamrc.yaml
+TEAM_ID=$(grep teamId .teamrc.yaml | awk '{print $2}')
+
+# Check relay has the invite (via API or Phoenix dashboard)
+curl -s http://localhost:4000/api/teams/$TEAM_ID | python3 -m json.tool
+```
+- [ ] Relay returns team data (confirms invite was created server-side, not just locally)
+- [ ] Invite code format is `trc_inv_<base64>`
 
 ### 2.2 Join from another machine/directory
 
@@ -135,23 +167,25 @@ npx teamrc clone <invite-code> --platform claude-code
 npx teamrc init --platform claude-code
 ```
 
-**Verify agent file format:**
+**Verify agent file:**
 ```bash
 cat .claude/agents/trc-agent.md
 ```
-- [ ] YAML frontmatter with `name:` and `description:`
-- [ ] Markdown body with role and soul
+- [ ] Markdown with YAML frontmatter (`name:`, `description:`)
+- [ ] Body has role, soul, and teammate references
 
-**Verify CLAUDE.md update:**
+**Verify CLAUDE.md routing:**
 ```bash
-grep "teamrc" CLAUDE.md
+cat CLAUDE.md
 ```
-- [ ] Team section injected with routing instructions
+- [ ] Has `<!-- teamrc -->` / `<!-- /teamrc -->` markers
+- [ ] Lists team members with roles
+- [ ] References `team-knowledge.md`
 
 **Verify rules/skills (if defined):**
 ```bash
-ls .claude/rules/trc-*.md
-ls .claude/skills/trc-*/SKILL.md
+ls .claude/rules/trc-*.md           # Rules
+ls .claude/skills/trc-*/SKILL.md    # Skills
 ```
 
 ### 3.2 Cursor
@@ -161,30 +195,55 @@ ls .claude/skills/trc-*/SKILL.md
 npx teamrc init --platform cursor
 ```
 
-**Verify:**
+**Verify agent file:**
 ```bash
-cat .cursor/agents/trc-agent.md     # Agent file
-cat .cursor/AGENTS.md               # Routing block
-ls .cursor/rules/trc-*.mdc          # Rules (if any)
-ls .cursor/skills/trc-*/SKILL.md    # Skills (if any)
+cat .cursor/agents/trc-agent.md
 ```
-- [ ] Agent file has proper frontmatter
-- [ ] AGENTS.md has `<!-- teamrc:routing -->` markers
+- [ ] Markdown with YAML frontmatter (`name:`, `description:`)
+- [ ] Body has role, soul, and teammate references
+
+**Verify routing:**
+```bash
+cat .cursor/AGENTS.md
+```
+- [ ] Has `<!-- teamrc -->` / `<!-- /teamrc -->` markers
+- [ ] Lists agent with role
+
+**Verify rules/skills (if defined):**
+```bash
+ls .cursor/rules/trc-*.mdc          # Rules
+ls .cursor/skills/trc-*/SKILL.md    # Skills
+```
 
 ### 3.3 Codex
+
+**Important:** Codex uses TOML format (`.toml`), not Markdown (`.md`).
 
 **Init:**
 ```bash
 npx teamrc init --platform codex
 ```
 
-**Verify:**
+**Verify agent file:**
 ```bash
-cat .codex/agents/trc-agent.toml    # TOML agent config
-cat AGENTS.md                        # Routing block
+cat .codex/agents/trc-agent.toml
 ```
-- [ ] TOML has `model`, `instructions` fields
-- [ ] AGENTS.md has teamrc section
+- [ ] Has `developer_instructions = """..."""` with role and soul
+- [ ] File starts with `# teamrc agent: agent`
+
+**Verify config registration:**
+```bash
+cat .codex/config.toml
+```
+- [ ] Has `# --- teamrc start ---` / `# --- teamrc end ---` markers
+- [ ] Has `[agents.trc-agent]` section with `description` and `config_file`
+
+**Verify routing file:**
+```bash
+cat AGENTS.md
+```
+- [ ] Has `<!-- teamrc -->` / `<!-- /teamrc -->` markers
+- [ ] Lists agent with role
 
 ### 3.4 Gemini
 
@@ -193,14 +252,24 @@ cat AGENTS.md                        # Routing block
 npx teamrc init --platform gemini
 ```
 
-**Verify:**
+**Verify agent file:**
 ```bash
-cat .gemini/agents/trc-agent.md     # Agent file with frontmatter
-cat GEMINI.md                        # Routing/knowledge block
-ls .gemini/skills/trc-*/SKILL.md    # Skills (if any)
+cat .gemini/agents/trc-agent.md
 ```
-- [ ] Agent file has `name:` and `description:` frontmatter
-- [ ] GEMINI.md has `<!-- teamrc:routing -->` markers
+- [ ] Markdown with YAML frontmatter (`name:`, `description:`)
+- [ ] Body has role, soul, and teammate references
+
+**Verify routing/knowledge:**
+```bash
+cat GEMINI.md
+```
+- [ ] Has `<!-- teamrc -->` / `<!-- /teamrc -->` markers
+- [ ] Lists agent with role
+
+**Verify skills (if defined):**
+```bash
+ls .gemini/skills/trc-*/SKILL.md
+```
 
 ### 3.5 OpenClaw
 
@@ -209,16 +278,21 @@ ls .gemini/skills/trc-*/SKILL.md    # Skills (if any)
 npx teamrc init --platform openclaw
 ```
 
-**Verify:**
+**Verify workspace:**
 ```bash
-ls ~/.openclaw/workspaces/trc-*/     # Workspace dirs
+ls ~/.openclaw/workspaces/trc-*/
 cat ~/.openclaw/workspaces/trc-agent/SOUL.md
 cat ~/.openclaw/workspaces/trc-agent/AGENTS.md
-cat openclaw.json                     # Agent registration
 ```
-- [ ] Workspace has SOUL.md and AGENTS.md
-- [ ] openclaw.json has `trc-agent` in agents list
-- [ ] `<!-- teamrc:routing -->` markers in openclaw.json agents section
+- [ ] Workspace directory exists at `~/.openclaw/workspaces/trc-agent/`
+- [ ] `SOUL.md` has agent personality
+- [ ] `AGENTS.md` has `<!-- teamrc:routing -->` / `<!-- /teamrc:routing -->` markers
+
+**Verify registration:**
+```bash
+cat openclaw.json
+```
+- [ ] Has `trc-agent` in agents array
 
 ### 3.6 Claude Desktop (via Claude Code adapter)
 
