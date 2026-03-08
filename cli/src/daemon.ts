@@ -4,7 +4,7 @@ import { watch } from "chokidar";
 import { hashContent, validateAgentName, type PlatformAdapter } from "./adapters/base.js";
 import type { TeamrcClient, SyncChange } from "./client.js";
 import { resolveChange } from "./merge.js";
-import { readTeamYaml, resolveTeamYamlPath } from "./team-yaml.js";
+import { readTeamYaml, TEAM_YAML } from "./team-yaml.js";
 
 const POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_CONTENT_SIZE = 1024 * 1024; // 1 MB per file
@@ -216,7 +216,7 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   }
 
   // File watcher — only watch paths that exist (or whose parent dir exists)
-  const yamlPath = path.resolve(resolveTeamYamlPath());
+  const yamlPath = path.resolve(TEAM_YAML);
   const adapterPaths = adapter.watchPaths().filter((p) =>
     fs.existsSync(p) || fs.existsSync(path.dirname(p)),
   );

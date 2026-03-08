@@ -18,17 +18,17 @@
 ### 1.1 Clean slate
 
 ```bash
-# Remove ALL teamrc state
-rm -rf ~/.teamrc
+# Remove ALL teamrc + legacy TeamBridge state
+rm -rf ~/.teamrc ~/.teambridge
 rm -f .teamrc.yaml agent-team.yaml
-rm -f .claude/agents/trc-*.md .claude/rules/trc-*.md .claude/team-knowledge.md
+rm -f .claude/agents/trc-*.md .claude/agents/tb-*.md .claude/rules/trc-*.md .claude/team-knowledge.md
 rm -rf .claude/skills/trc-*
-rm -f .cursor/agents/trc-*.md .cursor/rules/trc-*.mdc
-rm -rf .cursor/skills/trc-*
-rm -f .codex/agents/trc-*.toml
+rm -f .cursor/agents/trc-*.md .cursor/agents/tb-*.md .cursor/rules/trc-*.mdc .cursor/rules/tb-*.mdc
+rm -rf .cursor/skills/trc-* .cursor/skills/tb-*
+rm -f .codex/agents/trc-*.toml .codex/agents/tb-*.toml
 rm -f .gemini/agents/trc-*.md
 rm -rf .gemini/skills/trc-*
-rm -rf ~/.openclaw/workspaces/trc-*
+rm -rf ~/.openclaw/workspaces/trc-* ~/.openclaw/workspaces/tb-*
 ```
 
 **Verify:** `ls ~/.teamrc` → "No such file or directory"
@@ -42,7 +42,7 @@ npx teamrc init --platform claude-code
 **Expected:**
 - [ ] Keypair generated message
 - [ ] Team created on relay
-- [ ] `.teamrc.yaml` created in cwd (NOT `agent-team.yaml`)
+- [ ] `.teamrc.yaml` created in cwd
 - [ ] `.claude/agents/trc-agent.md` created
 - [ ] Config saved to `~/.teamrc/config.json`
 - [ ] Invite code shown
@@ -309,7 +309,7 @@ npx teamrc delete
 - [ ] All agent files removed from all platforms
 - [ ] `~/.teamrc/` deleted
 - [ ] `.teamrc.yaml` deleted
-- [ ] Legacy `agent-team.yaml` deleted (if present)
+- [ ] `.teamrc.yaml` deleted
 
 **Re-init:**
 ```bash
@@ -349,7 +349,7 @@ bash scripts/uninstall.sh
 **Expected:**
 - [ ] Config dirs removed
 - [ ] `.teamrc.yaml` removed
-- [ ] `agent-team.yaml` removed (if exists)
+- [ ] `.teamrc.yaml` removed (if exists)
 - [ ] All `trc-*` agent files removed
 - [ ] Claude settings cleaned
 - [ ] OpenClaw workspaces removed
@@ -406,75 +406,6 @@ npx teamrc init --platform claude-code --global
 **Expected:**
 - [ ] Project mode: `.teamrc.yaml` + `.claude/agents/trc-*.md`
 - [ ] Global mode: `~/.teamrc/config.json` has `globalTeam` + `~/.claude/agents/trc-*.md`
-
----
-
-## Section 6: Backward Compatibility
-
-### 6.1 Legacy `agent-team.yaml` fallback
-
-```bash
-# Create a legacy file
-cat > agent-team.yaml <<EOF
-name: legacy-team
-members:
-  - name: old-agent
-    role: legacy helper
-EOF
-
-npx teamrc apply --platform claude-code
-```
-
-**Expected:**
-- [ ] Deprecation warning: "Rename agent-team.yaml to .teamrc.yaml"
-- [ ] Team applied successfully from legacy file
-- [ ] Agent files created
-
-### 6.2 Migration: legacy → new
-
-```bash
-# Start with legacy file
-mv .teamrc.yaml agent-team.yaml 2>/dev/null
-cat > agent-team.yaml <<EOF
-name: migrate-team
-members:
-  - name: migrator
-    role: migration test
-EOF
-
-# Init writes to new filename
-npx teamrc init --platform claude-code
-```
-
-**Expected:**
-- [ ] `.teamrc.yaml` created (new name)
-- [ ] `agent-team.yaml` still exists (not deleted — user's responsibility)
-- [ ] CLI reads `.teamrc.yaml` (takes precedence)
-
-### 6.3 Both files exist
-
-```bash
-# Create both files with different content
-cat > .teamrc.yaml <<EOF
-name: new-team
-members:
-  - name: new-agent
-    role: new role
-EOF
-
-cat > agent-team.yaml <<EOF
-name: old-team
-members:
-  - name: old-agent
-    role: old role
-EOF
-
-npx teamrc apply --platform claude-code
-```
-
-**Expected:**
-- [ ] `.teamrc.yaml` takes precedence (no deprecation warning)
-- [ ] Agent is "new-agent", not "old-agent"
 
 ---
 
@@ -638,11 +569,157 @@ npx teamrc status --json
 
 ---
 
-## Section 10: Agent Usage Verification (In-Platform)
+## Section 10: Legacy TeamBridge Cleanup
+
+TeamBridge was the original name of this project. Legacy artifacts use the `tb-` prefix and `~/.teambridge/` config directory. This section verifies that all TeamBridge remnants can be fully removed.
+
+### 10.1 Identify legacy TeamBridge artifacts
+
+```bash
+# Config directory
+ls -la ~/.teambridge 2>/dev/null && echo "FOUND: ~/.teambridge" || echo "clean"
+
+# Claude Code agents
+ls .claude/agents/tb-*.md 2>/dev/null
+ls ~/.claude/agents/tb-*.md 2>/dev/null
+
+# Cursor agents and rules
+ls .cursor/agents/tb-*.md 2>/dev/null
+ls .cursor/rules/tb-*.mdc 2>/dev/null
+ls -d .cursor/skills/tb-* 2>/dev/null
+
+# Codex agents
+ls .codex/agents/tb-*.toml 2>/dev/null
+
+# OpenClaw workspaces
+ls -d ~/.openclaw/workspaces/tb-* 2>/dev/null
+
+# openclaw.json references
+grep -l "tb-" openclaw.json 2>/dev/null
+
+# CLAUDE.md references
+grep -c "TeamBridge\|teambridge\|tb-" CLAUDE.md 2>/dev/null
+
+# Claude settings hooks
+grep -c "teambridge" ~/.claude/settings.json 2>/dev/null
+
+# AGENTS.md / GEMINI.md references
+grep -c "TeamBridge\|tb-" AGENTS.md GEMINI.md 2>/dev/null
+
+# .codex/config.toml references
+grep -c "tb-" .codex/config.toml 2>/dev/null
+```
+
+**Record which artifacts exist before cleanup.**
+
+### 10.2 Run uninstall script
+
+```bash
+bash scripts/uninstall.sh
+```
+
+**Verify:**
+- [ ] `~/.teambridge/` removed
+- [ ] `~/.teamrc/` removed
+- [ ] All `tb-*.md` agent files removed from `.claude/agents/`
+- [ ] All `tb-*.md` agent files removed from `.cursor/agents/`
+- [ ] All `tb-*.mdc` rule files removed from `.cursor/rules/`
+- [ ] All `tb-*/` skill dirs removed from `.cursor/skills/`
+- [ ] All `tb-*.toml` agent files removed from `.codex/agents/`
+- [ ] All `tb-*/` OpenClaw workspaces removed from `~/.openclaw/workspaces/`
+- [ ] `openclaw.json` cleaned of `tb-*` agent entries
+- [ ] Claude `~/.claude/settings.json` cleaned of `teambridge` hooks and `AGENT_TEAMS` env var
+- [ ] `CLAUDE.md` flagged for manual review (if TeamBridge section present)
+- [ ] `.codex/config.toml` flagged for manual review (if `tb-*` entries present)
+- [ ] `.claude/settings.json` and `.claude/settings.local.json` flagged (if references found)
+
+### 10.3 Manual CLAUDE.md cleanup
+
+If the uninstall script flagged CLAUDE.md:
+
+```bash
+# Open CLAUDE.md and look for sections like:
+# ## TeamBridge Team: ...
+# ## teamrc Team: ...
+# Any references to tb-* agents
+```
+
+- [ ] Remove the `## TeamBridge Team:` section (if present)
+- [ ] Remove any `## teamrc Team:` section (if present)
+- [ ] Keep any design context or project instructions you wrote yourself
+- [ ] Verify no `tb-` or `TeamBridge` references remain
+
+### 10.4 Manual .codex/config.toml cleanup
+
+If flagged:
+
+```bash
+# Remove any [[agents]] blocks with tb-* names
+grep -n "tb-" .codex/config.toml
+```
+
+- [ ] Remove all `[[agents]]` entries with `tb-*` names
+- [ ] Keep non-teamrc agent entries
+
+### 10.5 Verify complete cleanup
+
+```bash
+# Re-run the identification from 10.1
+# EVERY check should return "clean" / no output
+
+# Also check for any remaining references across the project
+grep -r "TeamBridge\|teambridge\|tb-" \
+  .claude/ .cursor/ .codex/ .gemini/ \
+  ~/.openclaw/workspaces/ \
+  CLAUDE.md AGENTS.md GEMINI.md \
+  openclaw.json .codex/config.toml \
+  ~/.claude/settings.json \
+  2>/dev/null
+```
+
+- [ ] Zero results — all TeamBridge artifacts removed
+
+### 10.6 Fresh init after TeamBridge cleanup
+
+```bash
+npx teamrc init --platform claude-code,cursor
+```
+
+**Verify:**
+- [ ] No errors about conflicting TeamBridge state
+- [ ] All new files use `trc-` prefix (not `tb-`)
+- [ ] `.teamrc.yaml` created
+- [ ] `~/.teamrc/` created (not `~/.teambridge/`)
+- [ ] `npx teamrc doctor` passes all checks
+
+### 10.7 CLI delete also cleans TeamBridge leftovers
+
+If you still have TeamBridge artifacts after a fresh init:
+
+```bash
+# Create some fake TeamBridge artifacts to test
+mkdir -p .claude/agents
+echo "legacy" > .claude/agents/tb-old-agent.md
+mkdir -p .cursor/agents
+echo "legacy" > .cursor/agents/tb-old-agent.md
+
+# Run delete
+npx teamrc delete
+```
+
+**Verify:**
+- [ ] `tb-*.md` files in `.claude/agents/` removed
+- [ ] `tb-*.md` files in `.cursor/agents/` removed
+- [ ] All `trc-*` files also removed
+- [ ] `.teamrc.yaml` removed (if present)
+
+---
+
+## Section 11: Agent Usage Verification (In-Platform)
 
 The goal here is to verify that agents actually work inside each platform — not just that files were created. After each init/apply, open the platform and test that the agents are recognized, respond correctly, and follow team rules.
 
-### 10.1 Claude Code — Agent Selection
+### 11.1 Claude Code — Agent Selection
 
 **Setup:**
 ```bash
@@ -660,7 +737,7 @@ npx teamrc init --platform claude-code
 5. Check that `CLAUDE.md` team section is respected
    - [ ] Agent knows about team routing (e.g., delegates to correct agent)
 
-### 10.2 Claude Desktop — Agent Visibility
+### 11.2 Claude Desktop — Agent Visibility
 
 **Setup:** Same as Claude Code (shares `~/.claude/agents/` for global, `.claude/agents/` for project)
 
@@ -674,7 +751,7 @@ npx teamrc init --platform claude-code
 5. Ask about team context
    - [ ] Agent knows its role within the team
 
-### 10.3 Cursor — Subagent Invocation
+### 11.3 Cursor — Subagent Invocation
 
 **Setup:**
 ```bash
@@ -693,7 +770,7 @@ npx teamrc init --platform cursor
 6. Check rules in `.cursor/rules/trc-*.mdc`
    - [ ] Rules influence agent behavior (e.g., code style)
 
-### 10.4 Codex — Agent Response
+### 11.4 Codex — Agent Response
 
 **Setup:**
 ```bash
@@ -711,7 +788,7 @@ npx teamrc init --platform codex
 5. Verify `AGENTS.md` routing
    - [ ] Agent references correct delegation patterns
 
-### 10.5 Gemini — Agent Chat
+### 11.5 Gemini — Agent Chat
 
 **Setup:**
 ```bash
@@ -729,7 +806,7 @@ npx teamrc init --platform gemini
 5. Verify `GEMINI.md` knowledge block
    - [ ] Agent has team context and routing info
 
-### 10.6 OpenClaw — Workspace Agents
+### 11.6 OpenClaw — Workspace Agents
 
 **Setup:**
 ```bash
@@ -748,7 +825,7 @@ npx teamrc init --platform openclaw
 5. Test routing: ask to delegate to another team member
    - [ ] References other team agents correctly
 
-### 10.7 Cross-Platform Consistency
+### 11.7 Cross-Platform Consistency
 
 After initializing on ALL platforms, verify consistent behavior:
 
@@ -760,7 +837,7 @@ After initializing on ALL platforms, verify consistent behavior:
 3. Verify agent delegation
    - [ ] Agents reference the same teammates on all platforms
 
-### 10.8 Team Knowledge Sync Usage
+### 11.8 Team Knowledge Sync Usage
 
 ```bash
 # Push knowledge from one platform
@@ -776,7 +853,7 @@ npx teamrc sync
 - [ ] Knowledge is visible in the platform's knowledge file
 - [ ] Asking "what bugs has the team found?" surfaces the knowledge
 
-### 10.9 Rules Actually Enforced
+### 11.9 Rules Actually Enforced
 
 **Setup:**
 ```yaml
@@ -796,7 +873,7 @@ rules:
 3. Repeat on at least 2 platforms
    - [ ] Consistent rule enforcement
 
-### 10.10 Skills Actually Available
+### 11.10 Skills Actually Available
 
 **Setup:**
 ```yaml
@@ -820,7 +897,7 @@ skills:
 
 ---
 
-## Section 11: Multi-Machine / Multi-VM Sync
+## Section 12: Multi-Machine / Multi-VM Sync
 
 Test actual cross-machine sync to verify the relay works end-to-end between separate environments.
 
@@ -837,7 +914,7 @@ npm install -g teamrc
 # Or use npx for each command
 ```
 
-### 11.1 Init on Machine A, Join on Machine B
+### 12.1 Init on Machine A, Join on Machine B
 
 **Machine A:**
 ```bash
@@ -857,7 +934,7 @@ npx teamrc join <invite-code> --platform claude-code
 - [ ] Agent files created in `.claude/agents/`
 - [ ] `npx teamrc status` shows same team name and teamId
 
-### 11.2 Push from A, Pull on B
+### 12.2 Push from A, Pull on B
 
 **Machine A:**
 ```bash
@@ -874,7 +951,7 @@ npx teamrc sync
 - [ ] Knowledge file updated with Machine A's content
 - [ ] `npx teamrc log` shows the push from Machine A's token
 
-### 11.3 Bidirectional sync
+### 12.3 Bidirectional sync
 
 **Machine B:**
 ```bash
@@ -891,7 +968,7 @@ npx teamrc sync
 - [ ] Machine B's changes appear in knowledge file
 - [ ] Content merged correctly (no data loss)
 
-### 11.4 Daemon sync across machines
+### 12.4 Daemon sync across machines
 
 **Machine A:**
 ```bash
@@ -907,7 +984,7 @@ npx teamrc push
 - [ ] Daemon logs show remote change detected
 - [ ] Knowledge file updated automatically
 
-### 11.5 Concurrent edits (conflict resolution)
+### 12.5 Concurrent edits (conflict resolution)
 
 **Machine A and B simultaneously:**
 ```bash
@@ -934,7 +1011,7 @@ npx teamrc sync
 - [ ] No crash or error
 - [ ] Both machines converge to same state after sync
 
-### 11.6 Machine revocation
+### 12.6 Machine revocation
 
 **Machine A (with account linked):**
 ```bash
@@ -953,7 +1030,7 @@ npx teamrc sync
 - [ ] Machine B gets 401 or 403 error
 - [ ] Clear error message about revocation
 
-### 11.7 Different platforms per machine
+### 12.7 Different platforms per machine
 
 **Machine A:**
 ```bash
@@ -971,7 +1048,7 @@ npx teamrc join <invite-code> --platform codex,gemini
 - [ ] Machine B has Codex + Gemini agents
 - [ ] Knowledge sync works across different platform sets
 
-### 11.8 Delete on one machine doesn't affect the other
+### 12.8 Delete on one machine doesn't affect the other
 
 **Machine B:**
 ```bash
@@ -989,7 +1066,7 @@ npx teamrc status
 - [ ] Team still exists on relay
 - [ ] Machine B's deletion only affected Machine B
 
-### 11.9 Re-join after delete on different machine
+### 12.9 Re-join after delete on different machine
 
 **Machine B (after delete):**
 ```bash
@@ -1005,7 +1082,7 @@ npx teamrc join <new-invite> --platform gemini
 - [ ] All team data pulled from relay
 - [ ] Previous Machine B's agent files gone, new ones created
 
-### 11.10 Three-machine scenario
+### 12.10 Three-machine scenario
 
 Add a third machine/VM to verify multi-party sync:
 

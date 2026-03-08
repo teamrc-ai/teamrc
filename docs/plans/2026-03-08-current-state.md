@@ -10,11 +10,11 @@
 
 | Command | Status | Description |
 |---------|--------|-------------|
-| `teamrc init` | Working | Create team from scratch. Generates `agent-team.yaml`, writes agent files for detected platforms, pushes to relay. |
+| `teamrc init` | Working | Create team from scratch. Generates `.teamrc.yaml`, writes agent files for detected platforms, pushes to relay. |
 | `teamrc join <invite>` | Working | Join existing team. Downloads definition from relay, writes agent files, starts syncing. |
 | `teamrc sync` | Working | Bidirectional sync — push local changes to relay, pull remote changes. Syncs agents, rules, skills, knowledge. |
-| `teamrc apply` | Working | Write `agent-team.yaml` to local platform files. Pure local, no relay. |
-| `teamrc export` | Working | Export relay team to `agent-team.yaml`. |
+| `teamrc apply` | Working | Write `.teamrc.yaml` to local platform files. Pure local, no relay. |
+| `teamrc export` | Working | Export relay team to `.teamrc.yaml`. |
 | `teamrc diff` | Working | Show differences between local YAML and relay. |
 | `teamrc status` | Working | Show current team info, connected platforms, sync state. |
 | `teamrc daemon` | Working | Watch for file changes, auto-sync knowledge to relay in background. |
@@ -83,7 +83,7 @@ All 33 items from `docs/security-audit.md` addressed — 28 fixed, 3 noted as lo
 
 Currently teamrc supports one team per machine (global `~/.teamrc/config.json` holds a single `teamId`). The plan covers:
 
-- **Config split**: Global config = machine identity. Project config = team identity in `agent-team.yaml`.
+- **Config split**: Global config = machine identity. Project config = team identity in `.teamrc.yaml`.
 - **Relay multi-team**: `token_teams` already supports many-to-many, GenServer needs `token => [team_ids]`.
 - **Per-project teams**: Different projects on the same machine can have different teams.
 - **Global team fallback**: Optional global team in `~/.teamrc/config.json` for users who want one team everywhere.
@@ -133,7 +133,7 @@ cli/
   src/auth.ts               — Ed25519 keypair management
   src/client.ts             — API client with signed requests
   src/config.ts             — ~/.teamrc/config.json management
-  src/team-yaml.ts          — agent-team.yaml read/write
+  src/team-yaml.ts          — .teamrc.yaml read/write
   src/daemon.ts             — File watcher + auto-sync
   src/resolve-rules.ts      — Per-agent rule/skill resolution
   src/adapters/

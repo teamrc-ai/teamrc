@@ -2,20 +2,7 @@ import * as fs from "node:fs";
 import YAML from "yaml";
 import { validateAgentName, VALID_PLATFORMS, type TeamDefinition, type TeamMember, type Rule, type Skill } from "./adapters/base.js";
 
-/** Current team YAML filename */
 export const TEAM_YAML = ".teamrc.yaml";
-/** Legacy filename (deprecated) */
-const LEGACY_TEAM_YAML = ".teamrc.yaml";
-
-/** Resolve team YAML path: prefers .teamrc.yaml, falls back to .teamrc.yaml with deprecation warning */
-export function resolveTeamYamlPath(): string {
-  if (fs.existsSync(TEAM_YAML)) return TEAM_YAML;
-  if (fs.existsSync(LEGACY_TEAM_YAML)) {
-    console.warn(`Deprecation: Rename ${LEGACY_TEAM_YAML} to ${TEAM_YAML}`);
-    return LEGACY_TEAM_YAML;
-  }
-  return TEAM_YAML;
-}
 
 const MAX_YAML_SIZE = 256 * 1024; // 256 KB
 const MAX_MEMBERS = 100;

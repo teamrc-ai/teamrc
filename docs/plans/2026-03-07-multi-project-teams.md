@@ -42,10 +42,10 @@ Today's `~/.teamrc/config.json` stores one `teamId`. Running `teamrc join` in pr
   keys/ed25519.key
 
 project-x/
-  agent-team.yaml      # Team definition + teamId + platforms
+  .teamrc.yaml      # Team definition + teamId + platforms
 
 project-y/
-  agent-team.yaml      # Different team
+  .teamrc.yaml      # Different team
 ```
 
 ### Global Config
@@ -66,7 +66,7 @@ interface TeamrcConfig {
 }
 ```
 
-### `agent-team.yaml` (Project Mode)
+### `.teamrc.yaml` (Project Mode)
 
 ```yaml
 name: frontend-crew
@@ -97,11 +97,11 @@ skills:
 ### Resolution Order
 
 When any command runs:
-1. Check for `agent-team.yaml` in cwd (project team)
+1. Check for `.teamrc.yaml` in cwd (project team)
 2. If not found, check `globalTeam` in `~/.teamrc/config.json`
 3. If neither, error: "No team configured"
 
-This means `teamrc sync` works in any directory if a global team is set, and switches to the project team when inside a project with `agent-team.yaml`.
+This means `teamrc sync` works in any directory if a global team is set, and switches to the project team when inside a project with `.teamrc.yaml`.
 
 ---
 
@@ -192,8 +192,8 @@ interface TeamContext {
 }
 
 function requireTeamContext(): TeamContext {
-  // 1. Try project-level agent-team.yaml
-  const yaml = readTeamYaml("agent-team.yaml");
+  // 1. Try project-level .teamrc.yaml
+  const yaml = readTeamYaml(".teamrc.yaml");
   if (yaml?.teamId) {
     return buildContext(yaml, "project");
   }
@@ -444,10 +444,10 @@ $ teamrc init
 │
 ◇  Team created.
 │
-│  Wrote agent-team.yaml
+│  Wrote .teamrc.yaml
 │  Applied to: claude-code, cursor, copilot
 │
-└  Next: Add members to agent-team.yaml, then run teamrc apply
+└  Next: Add members to .teamrc.yaml, then run teamrc apply
 
   Share with teammates:
   ┌──────────────────────────────────────────┐
@@ -491,7 +491,7 @@ $ teamrc join trc_inv_a8f3c9e21b
 │    claude-code  3 agents, 2 rules → .claude/agents/
 │    cursor       3 agents, 2 rules → .cursor/agents/
 │
-│  Wrote agent-team.yaml
+│  Wrote .teamrc.yaml
 │
 └  Next: Run teamrc daemon to start live sync
 ```
@@ -533,7 +533,7 @@ $ teamrc status
   Project team: frontend-crew
   ──────────────────────────────────────
   Team ID    uuid-123
-  Source     ./agent-team.yaml
+  Source     ./.teamrc.yaml
   Platforms  claude-code, cursor, copilot
   Sync       ● enabled (last: 3s ago)
   Members    5 agents
@@ -624,7 +624,7 @@ $ teamrc doctor
   ✓ Keypair found
   ✓ Config valid
   ✓ Relay reachable (142ms)
-  ✓ agent-team.yaml found (5 members)
+  ✓ .teamrc.yaml found (5 members)
   ✓ Platforms: claude-code, cursor, copilot
   ✓ Agents synced (5 local = 5 relay)
   ! Account not linked (optional)
@@ -652,7 +652,7 @@ $ teamrc delete
   Removed 5 agents from .cursor/agents/
   Removed 5 agents from .github/agents/
   Removed .claude/team-knowledge.md
-  Removed agent-team.yaml
+  Removed .teamrc.yaml
   Cleaned CLAUDE.md
 
 └  Done. Run teamrc init or teamrc join to set up again.
@@ -720,7 +720,7 @@ $ teamrc teams
   teamrc teams
 
   TEAM             SCOPE    SOURCE                  PLATFORMS
-  frontend-crew    project  ./agent-team.yaml       claude-code, cursor, copilot
+  frontend-crew    project  ./.teamrc.yaml       claude-code, cursor, copilot
   my-assistants    global   ~/.teamrc/config.json   claude-code, openclaw
 
 └  2 teams on this machine.
@@ -764,7 +764,7 @@ Documented and enforced order:
 ```
 1. CLI flags          (--relay, --platform, --name)
 2. Environment vars   (TEAMRC_RELAY, TEAMRC_TOKEN, TEAMRC_TEAM_ID)
-3. Project config     (agent-team.yaml in cwd)
+3. Project config     (.teamrc.yaml in cwd)
 4. Global config      (~/.teamrc/config.json)
 5. Auto-detection     (detectPlatforms(), default relay)
 ```
@@ -945,7 +945,7 @@ Add a dedicated page for viewing/editing a team: `/teams/:id`
 - Changes push to all synced machines on save
 - Rename team
 
-This replaces the need to edit `agent-team.yaml` manually for web-created teams. The CLI remains the primary interface, but the web provides a visual alternative.
+This replaces the need to edit `.teamrc.yaml` manually for web-created teams. The CLI remains the primary interface, but the web provides a visual alternative.
 
 ### 7.4 Auth Verify Page — No Changes
 
@@ -1018,7 +1018,7 @@ Add optional fields to sync request body:
 
 ### 8.1 YAML teamId injection
 
-**Risk:** Cloned repo with malicious `agent-team.yaml` containing attacker's teamId.
+**Risk:** Cloned repo with malicious `.teamrc.yaml` containing attacker's teamId.
 
 **Mitigation:** `teamrc sync` requires the machine's token to be registered with the team on the relay. An unregistered token gets 401. The attacker cannot force the victim to sync to their team — the victim must explicitly `teamrc join` first.
 
@@ -1058,7 +1058,7 @@ Add optional fields to sync request body:
 
 **Risk:** Two daemons for different project teams on the same machine.
 
-**Mitigation:** Each daemon reads its own `agent-team.yaml` (or global config). Uses `teamId` in all relay requests. No shared state between daemons. A global team daemon and a project team daemon can run simultaneously without conflict.
+**Mitigation:** Each daemon reads its own `.teamrc.yaml` (or global config). Uses `teamId` in all relay requests. No shared state between daemons. A global team daemon and a project team daemon can run simultaneously without conflict.
 
 ### 8.8 Agent file overwrite between scopes
 

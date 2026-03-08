@@ -152,7 +152,7 @@ Team-to-token mappings in `Teamrc.Teams` GenServer are in-memory only. A server 
 
 **Files:** `cli/src/adapters/claude-code.ts:77`, `cli/src/adapters/openclaw.ts:105`
 
-Agent names from YAML were passed to adapters without validation. A malicious `agent-team.yaml` with path traversal names could write files outside the agents directory.
+Agent names from YAML were passed to adapters without validation. A malicious `.teamrc.yaml` with path traversal names could write files outside the agents directory.
 
 **Fix applied:** Added `validateAgentName(member.name)` in both adapters' `writeTeam()` methods, and at YAML parse time in `readTeamYaml()`.
 
@@ -198,9 +198,9 @@ Team names from YAML and relay were not validated. Malicious names could contain
 
 ### 20. MEDIUM — Prompt injection via soul content (BY DESIGN)
 
-Agent `soul` fields are intentionally user-controlled persona text. A malicious `agent-team.yaml` committed to a shared repo could inject adversarial instructions.
+Agent `soul` fields are intentionally user-controlled persona text. A malicious `.teamrc.yaml` committed to a shared repo could inject adversarial instructions.
 
-**Mitigation:** `agent-team.yaml` should be treated as a trusted configuration file (like `.env`). Review YAML changes in PRs just as you would review code changes.
+**Mitigation:** `.teamrc.yaml` should be treated as a trusted configuration file (like `.env`). Review YAML changes in PRs just as you would review code changes.
 
 ---
 

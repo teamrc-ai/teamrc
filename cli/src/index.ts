@@ -21,7 +21,7 @@ import {
 } from "./config.js";
 import { getAdapter, VALID_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
 import { resolveChange } from "./merge.js";
-import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML, resolveTeamYamlPath } from "./team-yaml.js";
+import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML } from "./team-yaml.js";
 import { resolveTeamSource } from "./resolve-source.js";
 import type { TeamrcConfig } from "./config.js";
 
@@ -128,8 +128,8 @@ function requireTeamContext(): TeamContext {
     process.exit(1);
   }
 
-  // 1. Try project-level .teamrc.yaml (or legacy agent-team.yaml)
-  const yamlTeam = readTeamYaml(resolveTeamYamlPath());
+  // 1. Try project-level .teamrc.yaml
+  const yamlTeam = readTeamYaml(TEAM_YAML);
   if (yamlTeam?.teamId) {
     const relay = yamlTeam.relay ?? config.relay;
     const platforms = yamlTeam.platforms ?? detectPlatforms();
@@ -425,7 +425,7 @@ program
 
     // Priority: YAML > platform adapters
     const sourceAdapter = getAdapter(platforms[0]);
-    const { source, team } = resolveTeamSource(resolveTeamYamlPath(), sourceAdapter.readTeam());
+    const { source, team } = resolveTeamSource(TEAM_YAML, sourceAdapter.readTeam());
     if (!team) {
       console.error("No team agents found. Run `teamrc init` or `teamrc join` first.");
       process.exit(1);
@@ -984,7 +984,7 @@ program
     }
 
     // 4. .teamrc.yaml check
-    const yamlTeam = readTeamYaml(resolveTeamYamlPath());
+    const yamlTeam = readTeamYaml(TEAM_YAML);
     if (yamlTeam) {
       console.log(`[ok] ${TEAM_YAML} found`);
       passed++;
@@ -1055,12 +1055,10 @@ program
       console.log(`  Deleted ${configDir}`);
     }
 
-    // Delete .teamrc.yaml (and legacy agent-team.yaml) if present
-    for (const yamlFile of [TEAM_YAML, "agent-team.yaml"]) {
-      if (fs.existsSync(yamlFile)) {
-        fs.unlinkSync(yamlFile);
-        console.log(`  Deleted ${yamlFile}`);
-      }
+    // Delete .teamrc.yaml if present
+    if (fs.existsSync(TEAM_YAML)) {
+      fs.unlinkSync(TEAM_YAML);
+      console.log(`  Deleted ${TEAM_YAML}`);
     }
 
     console.log("\nteamrc removed. Run `teamrc init` or `teamrc join` to set up again.");
