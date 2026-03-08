@@ -163,13 +163,12 @@ npx teamrc invite
 
 **Verify invite exists on relay:**
 ```bash
-# Extract teamId from .teamrc.yaml
-TEAM_ID=$(grep teamId .teamrc.yaml | awk '{print $2}')
-
-# Check relay has the invite (via API or Phoenix dashboard)
-curl -s http://localhost:4000/api/teams/$TEAM_ID | python3 -m json.tool
+# Use status to confirm relay knows the team (API requires signed requests)
+npx teamrc status
+npx teamrc status --json
 ```
-- [ ] Relay returns team data (confirms invite was created server-side, not just locally)
+- [ ] Status shows team name and teamId (confirms team exists on relay)
+- [ ] No auth errors (relay accepted the signed request)
 - [ ] Invite code format is `trc_inv_<base64>`
 
 ### 2.2 Join from another machine/directory
@@ -498,7 +497,7 @@ npx teamrc init --platform claude-code
 ### 5.5 Rollback: Missing keypair recovery
 
 ```bash
-rm -f ~/.teamrc/keys/ed25519.*
+rm -f ~/.teamrc/key
 
 npx teamrc init --platform claude-code
 ```

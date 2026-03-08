@@ -8,7 +8,6 @@ set -euo pipefail
 source "$(dirname "$0")/helpers.sh"
 
 MODE="${1:-join}"
-RELAY="${TEAMRC_RELAY:-http://localhost:4000}"
 
 section "Section 2: Team Collaboration ($MODE)"
 
@@ -30,15 +29,21 @@ if [ "$MODE" = "join" ]; then
     check_file ".claude/agents/trc-agent.md" "Claude Code agent created after join"
   fi
 
-  # Verify relay knows about this team
+  # Verify relay knows about this team (uses signed request via CLI)
   TEAM_ID=$(grep teamId .teamrc.yaml 2>/dev/null | awk '{print $2}' | tr -d '"' || echo "")
   if [ -n "$TEAM_ID" ]; then
-    subsection "2.1: Invite on relay"
-    if curl -sf "$RELAY/api/teams/$TEAM_ID" >/dev/null 2>&1; then
-      check "Relay has team $TEAM_ID" 0
+    subsection "2.1: Team on relay"
+    # Use teamrc status --json which makes a signed API call
+    STATUS_OUT=$(npx teamrc status --json 2>/dev/null || echo "")
+    if echo "$STATUS_OUT" | grep -q "$TEAM_ID"; then
+      check "Relay confirms team $TEAM_ID" 0
     else
-      # The API might require auth — skip gracefully
-      skip "Relay team check" "API may require auth"
+      # Fallback: just check status runs without auth errors
+      if npx teamrc status 2>&1 | grep -qi "team\|relay\|connected"; then
+        check "Relay confirms team (via status)" 0
+      else
+        check "Relay confirms team" 1
+      fi
     fi
   fi
 

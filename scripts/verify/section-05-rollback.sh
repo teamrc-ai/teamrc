@@ -66,19 +66,17 @@ case "$SCENARIO" in
 
   missing-keypair)
     subsection "5.5: Missing keypair recovery"
-    if [ -d "$HOME/.teamrc/keys" ]; then
-      OLD_FILES=$(ls "$HOME/.teamrc/keys/" 2>/dev/null | wc -l)
-      rm -f "$HOME/.teamrc/keys/ed25519."*
-      echo "  (Deleted keypair files for testing)"
+    if [ -f "$HOME/.teamrc/key" ]; then
+      rm -f "$HOME/.teamrc/key"
+      echo "  (Deleted keypair file for testing)"
       check_cmd "Init recovers from missing keypair" npx teamrc init --platform claude-code
-      NEW_FILES=$(ls "$HOME/.teamrc/keys/" 2>/dev/null | wc -l)
-      if [ "$NEW_FILES" -gt 0 ]; then
+      if [ -f "$HOME/.teamrc/key" ]; then
         check "New keypair generated" 0
       else
         check "New keypair generated" 1
       fi
     else
-      skip "Missing keypair test" "~/.teamrc/keys does not exist"
+      skip "Missing keypair test" "~/.teamrc/key does not exist"
     fi
     ;;
 

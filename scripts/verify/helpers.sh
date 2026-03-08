@@ -8,7 +8,7 @@ SKIP=0
 SECTION=""
 
 # Colors (unless NO_COLOR is set)
-if [ -z "$NO_COLOR" ]; then
+if [ -z "${NO_COLOR:-}" ]; then
   GREEN='\033[0;32m'
   RED='\033[0;31m'
   YELLOW='\033[0;33m'

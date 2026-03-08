@@ -25,7 +25,7 @@ check_contains ".teamrc.yaml" "teamId:" ".teamrc.yaml has teamId"
 check_contains ".teamrc.yaml" "platforms:" ".teamrc.yaml has platforms"
 
 subsection "Keypair"
-check_dir "$HOME/.teamrc/keys" "~/.teamrc/keys/ directory exists"
+check_file "$HOME/.teamrc/key" "~/.teamrc/key exists"
 
 # --- Platform-specific checks ---
 subsection "Claude Code"

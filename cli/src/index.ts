@@ -797,11 +797,12 @@ program
       return;
     }
 
-    const teamId = config.teamId ?? config.globalTeam?.teamId ?? null;
-    const platformStr = config.platform ?? config.globalTeam?.platforms?.join(",") ?? detectPlatforms()[0] ?? "claude-code";
+    const yamlTeam = readTeamYaml(TEAM_YAML);
+    const teamId = yamlTeam?.teamId ?? config.teamId ?? config.globalTeam?.teamId ?? null;
+    const platformStr = yamlTeam?.platforms?.join(",") ?? config.platform ?? config.globalTeam?.platforms?.join(",") ?? detectPlatforms()[0] ?? "claude-code";
     const activePlatform = platformStr.split(",")[0];
     const adapter = getAdapter(activePlatform);
-    const localTeam = adapter.readTeam();
+    const localTeam = yamlTeam ?? adapter.readTeam();
 
     // Check relay state
     let remoteTeam = null;
