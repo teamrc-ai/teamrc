@@ -44,6 +44,7 @@ defmodule TeamrcWeb.Router do
       on_mount: [TeamrcWeb.Hooks.AssignAuth] do
       live "/new", TeamLive, :index
       live "/dashboard", DashboardLive
+      live "/teams/:id", TeamDetailLive
       live "/auth/verify", AuthVerifyLive
     end
   end

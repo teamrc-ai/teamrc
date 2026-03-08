@@ -55,8 +55,8 @@ defmodule Teamrc.Teams do
   4. Compares hashes across all platforms
   5. Returns content for any files where other platforms have newer versions
   """
-  def sync(token, platform, hashes, files \\ %{}, team_id \\ nil) do
-    GenServer.call(__MODULE__, {:sync, token, platform, hashes, files, team_id})
+  def sync(token, platform, hashes, files \\ %{}, team_id \\ nil, opts \\ []) do
+    GenServer.call(__MODULE__, {:sync, token, platform, hashes, files, team_id, opts})
   end
 
   def sync_to(pid, token, platform, hashes, files, team_id \\ nil) when is_pid(pid) do
@@ -233,12 +233,24 @@ defmodule Teamrc.Teams do
     end
   end
 
-  def handle_call({:sync, token, platform, incoming_hashes, incoming_files, team_id_param}, _from, state) do
+  def handle_call({:sync, token, platform, incoming_hashes, incoming_files, team_id_param}, from, state) do
+    handle_call({:sync, token, platform, incoming_hashes, incoming_files, team_id_param, []}, from, state)
+  end
+
+  def handle_call({:sync, token, platform, incoming_hashes, incoming_files, team_id_param, opts}, _from, state) do
     case resolve_team_id(state, token, team_id_param) do
       nil ->
         {:reply, {:error, :not_joined}, state}
 
       team_id ->
+        # Update token_team metadata (scope, project_name, last_seen_at)
+        scope = Keyword.get(opts, :scope)
+        project_name = Keyword.get(opts, :project_name)
+        if scope || project_name do
+          now = DateTime.utc_now() |> DateTime.truncate(:second)
+          upsert_token_team(token, team_id, scope: scope, project_name: project_name, last_seen_at: now)
+        end
+
         {result, state} = do_sync(state, team_id, platform, incoming_hashes, incoming_files, token)
         {:reply, {:ok, result}, state}
     end
@@ -489,11 +501,24 @@ defmodule Teamrc.Teams do
     end
   end
 
-  defp upsert_token_team(token, team_id) do
+  defp upsert_token_team(token, team_id, opts \\ []) do
+    attrs =
+      %{token: token, team_id: team_id}
+      |> maybe_put(:scope, Keyword.get(opts, :scope))
+      |> maybe_put(:project_name, Keyword.get(opts, :project_name))
+      |> maybe_put(:last_seen_at, Keyword.get(opts, :last_seen_at))
+
+    replace_fields = Enum.filter([:scope, :project_name, :last_seen_at], &Map.has_key?(attrs, &1))
+
+    on_conflict = if replace_fields == [], do: :nothing, else: {:replace, replace_fields}
+
     %TokenTeam{}
-    |> TokenTeam.changeset(%{token: token, team_id: team_id})
-    |> Repo.insert(on_conflict: :nothing, conflict_target: [:token, :team_id])
+    |> TokenTeam.changeset(attrs)
+    |> Repo.insert(on_conflict: on_conflict, conflict_target: [:token, :team_id])
   end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, val), do: Map.put(map, key, val)
 
   defp schedule_cleanup do
     Process.send_after(self(), :cleanup, @cleanup_interval_ms)
@@ -506,7 +531,7 @@ defmodule Teamrc.Teams do
   defp create_team_in_db(team_data) do
     Repo.transaction(fn ->
       case %Team{}
-           |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills})
+           |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills, platforms: team_data.platforms})
            |> Repo.insert() do
         {:ok, team} ->
           for m <- team_data.members do
@@ -528,7 +553,7 @@ defmodule Teamrc.Teams do
       team = Repo.get!(Team, team_id)
 
       case team
-           |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills})
+           |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills, platforms: team_data.platforms})
            |> Repo.update() do
         {:ok, team} ->
           # Replace members atomically within the transaction
@@ -586,7 +611,9 @@ defmodule Teamrc.Teams do
         |> Map.new()
       end)
 
-    %{name: attrs["name"] || attrs[:name] || "", members: members, rules: rules, skills: skills}
+    platforms = attrs["platforms"] || attrs[:platforms] || []
+
+    %{name: attrs["name"] || attrs[:name] || "", members: members, rules: rules, skills: skills, platforms: platforms}
   end
 
   defp put_if_present(map, _key, nil), do: map
@@ -607,5 +634,6 @@ defmodule Teamrc.Teams do
     }
     |> put_if_present("rules", team.rules)
     |> put_if_present("skills", team.skills)
+    |> put_if_present("platforms", team.platforms)
   end
 end

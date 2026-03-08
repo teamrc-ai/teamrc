@@ -82,13 +82,20 @@ defmodule TeamrcWeb.ApiController do
     hashes = params["hashes"] || %{}
     files = params["files"] || %{}
     team_id = params["team_id"]
+    scope = params["scope"]
+    project_name = params["project_name"]
+
+    sync_opts =
+      []
+      |> then(fn opts -> if scope in ["project", "global"], do: [{:scope, scope} | opts], else: opts end)
+      |> then(fn opts -> if is_binary(project_name) and project_name != "", do: [{:project_name, project_name} | opts], else: opts end)
 
     with :ok <- validate_platform(platform),
          :ok <- validate_hashes(hashes),
          :ok <- validate_file_paths(hashes),
          :ok <- validate_file_paths(files),
          :ok <- validate_files(files),
-         {:ok, result} <- Teams.sync(token, platform, hashes, files, team_id) do
+         {:ok, result} <- Teams.sync(token, platform, hashes, files, team_id, sync_opts) do
       json(conn, %{changes: result.files})
     else
       {:error, :not_joined} ->

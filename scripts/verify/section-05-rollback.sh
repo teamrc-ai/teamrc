@@ -1,0 +1,107 @@
+#!/bin/bash
+# Section 5: Rollback Scenarios — verify state after various rollbacks
+# Usage: bash scripts/verify/section-05-rollback.sh <scenario>
+#   post-delete    — verify after: npx teamrc delete
+#   post-reinit    — verify after: delete then init
+#   post-uninstall — verify after: bash scripts/uninstall.sh
+#   corrupt-config — test corrupt config recovery
+#   missing-keypair — test missing keypair recovery
+#   scope-switch   — verify project vs global mode
+set -euo pipefail
+source "$(dirname "$0")/helpers.sh"
+
+SCENARIO="${1:-post-delete}"
+
+section "Section 5: Rollback Scenarios ($SCENARIO)"
+
+case "$SCENARIO" in
+  post-delete)
+    subsection "5.1: After teamrc delete"
+    check_no_file ".teamrc.yaml" ".teamrc.yaml removed"
+    check_no_dir "$HOME/.teamrc" "~/.teamrc/ removed"
+    check_no_glob ".claude/agents/trc-*.md" "No Claude Code trc-* agents"
+    check_no_glob ".cursor/agents/trc-*.md" "No Cursor trc-* agents"
+    check_no_glob ".codex/agents/trc-*.toml" "No Codex trc-* agents"
+    check_no_glob ".gemini/agents/trc-*.md" "No Gemini trc-* agents"
+    ;;
+
+  post-reinit)
+    subsection "5.1: After delete + re-init"
+    check_file ".teamrc.yaml" ".teamrc.yaml recreated"
+    check_dir "$HOME/.teamrc" "~/.teamrc/ recreated"
+    check_file "$HOME/.teamrc/config.json" "config.json recreated"
+    check_valid_json "$HOME/.teamrc/config.json" "config.json is valid JSON"
+    check_cmd "teamrc doctor passes" npx teamrc doctor
+    ;;
+
+  post-uninstall)
+    subsection "5.3: After uninstall.sh"
+    check_no_dir "$HOME/.teamrc" "~/.teamrc/ removed"
+    check_no_dir "$HOME/.teambridge" "~/.teambridge/ removed"
+    check_no_file ".teamrc.yaml" ".teamrc.yaml removed"
+    check_no_glob ".claude/agents/trc-*.md" "No trc-* Claude agents"
+    check_no_glob ".claude/agents/tb-*.md" "No tb-* Claude agents"
+    check_no_glob ".cursor/agents/trc-*.md" "No trc-* Cursor agents"
+    check_no_glob ".cursor/agents/tb-*.md" "No tb-* Cursor agents"
+    check_no_glob ".codex/agents/trc-*.toml" "No trc-* Codex agents"
+    check_no_glob ".codex/agents/tb-*.toml" "No tb-* Codex agents"
+    ;;
+
+  corrupt-config)
+    subsection "5.4: Corrupt config recovery"
+    # First corrupt it
+    if [ -d "$HOME/.teamrc" ]; then
+      echo "{invalid json" > "$HOME/.teamrc/config.json"
+      echo "  (Corrupted config.json for testing)"
+      # Status should handle it gracefully (not crash)
+      if npx teamrc status 2>&1 | grep -qi "not initialized\|error\|no team"; then
+        check "Status handles corrupt config gracefully" 0
+      else
+        check "Status handles corrupt config gracefully" 1
+      fi
+    else
+      skip "Corrupt config test" "~/.teamrc does not exist, run init first"
+    fi
+    ;;
+
+  missing-keypair)
+    subsection "5.5: Missing keypair recovery"
+    if [ -d "$HOME/.teamrc/keys" ]; then
+      OLD_FILES=$(ls "$HOME/.teamrc/keys/" 2>/dev/null | wc -l)
+      rm -f "$HOME/.teamrc/keys/ed25519."*
+      echo "  (Deleted keypair files for testing)"
+      check_cmd "Init recovers from missing keypair" npx teamrc init --platform claude-code
+      NEW_FILES=$(ls "$HOME/.teamrc/keys/" 2>/dev/null | wc -l)
+      if [ "$NEW_FILES" -gt 0 ]; then
+        check "New keypair generated" 0
+      else
+        check "New keypair generated" 1
+      fi
+    else
+      skip "Missing keypair test" "~/.teamrc/keys does not exist"
+    fi
+    ;;
+
+  scope-switch)
+    subsection "5.6: Project vs Global scope"
+    # Check current state
+    if [ -f ".teamrc.yaml" ]; then
+      check "Project mode: .teamrc.yaml exists" 0
+      check_glob ".claude/agents/trc-*.md" "Project mode: .claude/agents/ has agents"
+    elif grep -q "globalTeam" "$HOME/.teamrc/config.json" 2>/dev/null; then
+      check "Global mode: globalTeam in config.json" 0
+      check_no_file ".teamrc.yaml" "Global mode: no .teamrc.yaml"
+      check_glob "$HOME/.claude/agents/trc-*.md" "Global mode: ~/.claude/agents/ has agents"
+    else
+      check "Either project or global mode detected" 1
+    fi
+    ;;
+
+  *)
+    echo "Unknown scenario: $SCENARIO"
+    echo "Usage: $0 {post-delete|post-reinit|post-uninstall|corrupt-config|missing-keypair|scope-switch}"
+    exit 1
+    ;;
+esac
+
+summary

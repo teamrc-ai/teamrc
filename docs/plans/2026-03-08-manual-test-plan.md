@@ -12,6 +12,51 @@
 - All platforms installed on the test machine
 - Relay defaults to `http://localhost:4000` — no config needed for local dev
 
+**Check prerequisites:**
+```bash
+bash scripts/verify/prereqs.sh
+```
+
+---
+
+## Verification Scripts
+
+Each section has a corresponding script in `scripts/verify/` that automates the file/state checks. Run the script **after** performing the manual action for that section.
+
+**Run all checks based on current state:**
+```bash
+bash scripts/verify/run-all.sh
+```
+
+**Or run individual section scripts:**
+
+| After this action... | Run this |
+|---|---|
+| `teamrc init --platform claude-code` | `bash scripts/verify/section-01-fresh-install.sh single` |
+| `teamrc init --platform claude-code,cursor,codex,gemini` | `bash scripts/verify/section-01-fresh-install.sh multi` |
+| `teamrc join <invite>` | `bash scripts/verify/section-02-collaboration.sh join` |
+| `teamrc clone <invite>` | `bash scripts/verify/section-02-collaboration.sh clone` |
+| Init on a specific platform | `bash scripts/verify/section-03-platforms.sh codex` (or `claude-code`, `cursor`, `gemini`, `openclaw`, `all`) |
+| After init with relay running | `bash scripts/verify/section-04-sync.sh` |
+| `teamrc delete` | `bash scripts/verify/section-05-rollback.sh post-delete` |
+| Delete then re-init | `bash scripts/verify/section-05-rollback.sh post-reinit` |
+| `bash scripts/uninstall.sh` | `bash scripts/verify/section-05-rollback.sh post-uninstall` |
+| Corrupt config test | `bash scripts/verify/section-05-rollback.sh corrupt-config` |
+| Missing keypair test | `bash scripts/verify/section-05-rollback.sh missing-keypair` |
+| Init on 3+ platforms | `bash scripts/verify/section-07-cross-sync.sh` |
+| (standalone, no setup needed) | `bash scripts/verify/section-08-errors.sh` |
+| (destructive — runs full lifecycle) | `bash scripts/verify/section-09-lifecycle.sh` |
+| Check for TeamBridge leftovers | `bash scripts/verify/section-10-legacy.sh scan` |
+| After `bash scripts/uninstall.sh` | `bash scripts/verify/section-10-legacy.sh post-uninstall` |
+| After fresh init post-cleanup | `bash scripts/verify/section-10-legacy.sh post-init` |
+| Before account linking | `bash scripts/verify/section-13-account.sh pre-link` |
+| After `teamrc login` or linking | `bash scripts/verify/section-13-account.sh post-link` |
+
+**Not automated** (require manual testing):
+- Section 11: Agent usage verification — requires opening each platform and interacting with agents
+- Section 12: Multi-machine sync — requires multiple machines/VMs
+- Section 13.6–13.7: Browser verification page and timeout — requires browser interaction
+
 ---
 
 ## Section 1: Fresh Install (From Scratch)

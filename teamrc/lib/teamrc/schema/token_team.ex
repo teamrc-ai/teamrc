@@ -6,6 +6,9 @@ defmodule Teamrc.Schema.TokenTeam do
 
   schema "token_teams" do
     field :token, :string
+    field :scope, :string, default: "project"
+    field :project_name, :string
+    field :last_seen_at, :utc_datetime
     belongs_to :team, Teamrc.Schema.Team, type: :binary_id
 
     timestamps(type: :utc_datetime)
@@ -13,8 +16,9 @@ defmodule Teamrc.Schema.TokenTeam do
 
   def changeset(token_team, attrs) do
     token_team
-    |> cast(attrs, [:token, :team_id])
+    |> cast(attrs, [:token, :team_id, :scope, :project_name, :last_seen_at])
     |> validate_required([:token, :team_id])
+    |> validate_inclusion(:scope, ["project", "global"])
     |> unique_constraint([:token, :team_id])
   end
 end
