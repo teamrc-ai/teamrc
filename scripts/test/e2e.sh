@@ -116,19 +116,62 @@ phase_1() {
   check_cmd "Relay reachable" curl -sf "$RELAY"
 
   subsection "Clean slate"
+  # Global config and legacy
   rm -rf "$HOME/.teamrc" "$HOME/.teambridge"
+
+  # Project config
   rm -f .teamrc.yaml agent-team.yaml
-  rm -f .claude/agents/trc-*.md .claude/agents/tb-*.md .claude/rules/trc-*.md .claude/team-knowledge.md
+
+  # Claude Code
+  rm -f .claude/agents/trc-*.md .claude/agents/tb-*.md
+  rm -f .claude/rules/trc-*.md
+  rm -f .claude/team-knowledge.md
   rm -rf .claude/skills/trc-*
-  rm -f .cursor/agents/trc-*.md .cursor/agents/tb-*.md .cursor/rules/trc-*.mdc .cursor/rules/tb-*.mdc
+  # Remove teamrc section from CLAUDE.md (keep the rest)
+  if [ -f CLAUDE.md ]; then
+    sed '/<!-- teamrc -->/,/<!-- \/teamrc -->/d' CLAUDE.md > CLAUDE.md.tmp && mv CLAUDE.md.tmp CLAUDE.md
+  fi
+
+  # Cursor
+  rm -f .cursor/agents/trc-*.md .cursor/agents/tb-*.md
+  rm -f .cursor/rules/trc-*.mdc .cursor/rules/tb-*.mdc
   rm -rf .cursor/skills/trc-* .cursor/skills/tb-*
+  # Remove teamrc section from .cursor/AGENTS.md
+  if [ -f .cursor/AGENTS.md ]; then
+    sed '/<!-- teamrc -->/,/<!-- \/teamrc -->/d' .cursor/AGENTS.md > .cursor/AGENTS.md.tmp && mv .cursor/AGENTS.md.tmp .cursor/AGENTS.md
+  fi
+
+  # Codex
   rm -f .codex/agents/trc-*.toml .codex/agents/tb-*.toml
+  # Remove teamrc section from .codex/config.toml
+  if [ -f .codex/config.toml ]; then
+    sed '/# --- teamrc start ---/,/# --- teamrc end ---/d' .codex/config.toml > .codex/config.toml.tmp && mv .codex/config.toml.tmp .codex/config.toml
+  fi
+  # Remove teamrc section from AGENTS.md
+  if [ -f AGENTS.md ]; then
+    sed '/<!-- teamrc -->/,/<!-- \/teamrc -->/d' AGENTS.md > AGENTS.md.tmp && mv AGENTS.md.tmp AGENTS.md
+  fi
+
+  # Gemini
   rm -f .gemini/agents/trc-*.md
   rm -rf .gemini/skills/trc-*
+  # Remove teamrc section from GEMINI.md
+  if [ -f GEMINI.md ]; then
+    sed '/<!-- teamrc -->/,/<!-- \/teamrc -->/d' GEMINI.md > GEMINI.md.tmp && mv GEMINI.md.tmp GEMINI.md
+  fi
+
+  # OpenClaw
   rm -rf "$HOME/.openclaw/workspaces/trc-"* "$HOME/.openclaw/workspaces/tb-"*
+
+  # State file from previous runs
+  rm -f "$STATE_FILE"
 
   check_no_dir "$HOME/.teamrc" "~/.teamrc cleaned"
   check_no_file ".teamrc.yaml" ".teamrc.yaml cleaned"
+  check_no_glob ".claude/agents/trc-*.md" "Claude agents cleaned"
+  check_no_glob ".cursor/agents/trc-*.md" "Cursor agents cleaned"
+  check_no_glob ".codex/agents/trc-*.toml" "Codex agents cleaned"
+  check_no_glob ".gemini/agents/trc-*.md" "Gemini agents cleaned"
   check "Clean slate" 0
 }
 
