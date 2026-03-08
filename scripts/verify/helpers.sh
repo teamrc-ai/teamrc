@@ -92,24 +92,24 @@ check_no_dir() {
   fi
 }
 
-# Check that a file contains a string
+# Check that a file contains a string (literal match, not regex)
 check_contains() {
   local path="$1"
   local pattern="$2"
   local desc="${3:-$path contains '$pattern'}"
-  if [ -f "$path" ] && grep -q "$pattern" "$path" 2>/dev/null; then
+  if [ -f "$path" ] && grep -qF "$pattern" "$path" 2>/dev/null; then
     check "$desc" 0
   else
     check "$desc" 1
   fi
 }
 
-# Check that a file does NOT contain a string
+# Check that a file does NOT contain a string (literal match, not regex)
 check_not_contains() {
   local path="$1"
   local pattern="$2"
   local desc="${3:-$path does not contain '$pattern'}"
-  if [ ! -f "$path" ] || ! grep -q "$pattern" "$path" 2>/dev/null; then
+  if [ ! -f "$path" ] || ! grep -qF "$pattern" "$path" 2>/dev/null; then
     check "$desc" 0
   else
     check "$desc" 1

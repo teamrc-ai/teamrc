@@ -362,6 +362,12 @@ program
     }
     p.log.step(`Applied to: ${platformSummary.join(", ")}`);
 
+    // Create team knowledge file if it doesn't exist
+    const knowledge = firstAdapter.readKnowledge();
+    if (!knowledge) {
+      firstAdapter.writeKnowledge(`# Team Knowledge\n\nShared findings and decisions across team members.\n`);
+    }
+
     // Create team on relay
     const s = p.spinner();
     const client = new TeamrcClient(relayUrl, kp.privateKey, token);
@@ -493,6 +499,12 @@ program
       }
       s2.stop("Applied.");
       p.log.info(appliedLines.join("\n"));
+
+      // Create team knowledge file if it doesn't exist
+      const joinAdapter = getAdapter(platforms[0]);
+      if (!joinAdapter.readKnowledge()) {
+        joinAdapter.writeKnowledge(`# Team Knowledge\n\nShared findings and decisions across team members.\n`);
+      }
 
       if (scope === "global") {
         saveConfig({
