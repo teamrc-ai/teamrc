@@ -60,6 +60,12 @@ defmodule TeamrcWeb.Layouts do
             >
               Create Team
             </a>
+            <a
+              href={~p"/guide"}
+              class="trc-focus rounded-md px-2.5 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/80 hover:bg-base-200/60 transition-colors"
+            >
+              Guide
+            </a>
           </nav>
         </div>
         <div class="flex items-center gap-3">

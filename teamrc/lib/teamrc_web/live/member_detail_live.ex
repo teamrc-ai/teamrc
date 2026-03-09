@@ -306,9 +306,12 @@ defmodule TeamrcWeb.MemberDetailLive do
 
       <%!-- Soul / Instructions --%>
       <section>
-        <h2 class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-3">
-          Instructions
-        </h2>
+        <div class="flex items-center gap-2 mb-3">
+          <h2 class="text-xs font-medium text-base-content/50 uppercase tracking-wider">
+            Instructions
+          </h2>
+          <a href={~p"/guide#instructions"} class="text-[10px] text-primary/50 hover:text-primary transition-colors">?</a>
+        </div>
 
         <%= if @can_edit do %>
           <textarea
@@ -342,6 +345,7 @@ defmodule TeamrcWeb.MemberDetailLive do
         </h2>
         <p class="text-xs text-base-content/40 mb-3">
           Toggle skills to assign them to this agent. Skills marked <span class="font-semibold">all agents</span> are automatically included and can't be removed.
+          <a href={~p"/guide#skills"} class="text-primary/60 hover:text-primary transition-colors">Learn more</a>
         </p>
 
         <%= if @team.skills != [] do %>

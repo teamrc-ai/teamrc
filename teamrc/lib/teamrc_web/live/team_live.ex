@@ -114,6 +114,7 @@ defmodule TeamrcWeb.TeamLive do
         <h1 class="text-2xl font-bold tracking-tight mb-1">Create a team</h1>
         <p class="text-sm text-base-content/50">
           Pick a template to get started instantly.
+          <a href={~p"/guide"} class="text-primary/70 hover:text-primary transition-colors">Learn how teamrc works &rarr;</a>
         </p>
       </div>
 

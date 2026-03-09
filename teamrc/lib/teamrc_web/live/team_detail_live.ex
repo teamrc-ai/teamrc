@@ -731,6 +731,7 @@ defmodule TeamrcWeb.TeamDetailLive do
         </div>
         <p class="text-xs text-base-content/40 mb-3">
           Reusable instructions that can be assigned to individual agents. Skills marked <span class="font-semibold">all agents</span> apply to every agent automatically.
+          <a href={~p"/guide#skills"} class="text-primary/60 hover:text-primary transition-colors">Learn more</a>
         </p>
 
         <%!-- Existing skills list --%>
@@ -976,7 +977,7 @@ defmodule TeamrcWeb.TeamDetailLive do
           <pre class="text-xs font-mono text-base-content/70 whitespace-pre-wrap break-words"><%= @team.knowledge %></pre>
         </div>
         <div :if={is_nil(@team.knowledge) || @team.knowledge == ""} class="rounded-md border border-dashed border-base-300 bg-base-200/20 p-4 text-center">
-          <p class="text-xs text-base-content/40">No knowledge yet. Knowledge is managed via the CLI.</p>
+          <p class="text-xs text-base-content/40">No knowledge yet. Knowledge is managed via the CLI. <a href={~p"/guide#knowledge"} class="text-primary/60 hover:text-primary transition-colors">Learn more</a></p>
         </div>
       </section>
 
