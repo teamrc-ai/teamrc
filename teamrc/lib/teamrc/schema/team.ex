@@ -22,6 +22,7 @@ defmodule Teamrc.Schema.Team do
     |> cast(attrs, [:name, :skills, :platforms, :knowledge])
     |> validate_required([:name])
     |> validate_length(:name, max: 64)
+    |> validate_length(:knowledge, max: 100_000)
     |> validate_format(:name, ~r/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/)
     |> validate_entry_ids(:skills)
   end

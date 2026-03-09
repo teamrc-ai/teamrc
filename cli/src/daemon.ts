@@ -3,9 +3,10 @@ import { watch } from "chokidar";
 import type { PlatformAdapter, TeamDefinition } from "./adapters/base.js";
 import type { TeamrcClient, TeamrcTeam } from "./client.js";
 import { remoteTeamToDefinition } from "./client.js";
-import { readTeamYaml, writeTeamYaml, TEAM_YAML, validateTeamName } from "./team-yaml.js";
+import { readTeamYaml, writeTeamYaml, TEAM_YAML, validateTeamName, mergeKnowledge } from "./team-yaml.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+const MAX_KNOWLEDGE_SIZE = 512 * 1024; // 512 KB
 
 export interface DaemonOptions {
   client: TeamrcClient;
@@ -13,22 +14,6 @@ export interface DaemonOptions {
   platforms: string[];
   pollInterval?: number;
   watchYaml?: boolean;
-}
-
-/** Merge knowledge strings using append-only dedup by line content */
-function mergeKnowledge(local: string, remote: string): string {
-  if (!local) return remote;
-  if (!remote) return local;
-
-  const localLines = new Set(
-    local.split("\n").map((l) => l.trim()).filter(Boolean),
-  );
-  const newLines = remote
-    .split("\n")
-    .filter((l) => l.trim() && !localLines.has(l.trim()));
-
-  if (newLines.length === 0) return local;
-  return local.trimEnd() + "\n" + newLines.join("\n") + "\n";
 }
 
 export function startDaemon(opts: DaemonOptions): { stop: () => void } {
@@ -96,7 +81,11 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       if (remoteTeam.knowledge && adapters.length > 0) {
         const localKnowledge = adapters[0].readKnowledge();
         const merged = mergeKnowledge(localKnowledge, remoteTeam.knowledge);
-        adapters[0].writeKnowledge(merged);
+        if (merged.length <= MAX_KNOWLEDGE_SIZE) {
+          adapters[0].writeKnowledge(merged);
+        } else {
+          warn("Remote knowledge exceeds maximum size, skipping merge.");
+        }
       }
 
       // Write YAML and apply

@@ -133,7 +133,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
 
         let content: string;
         if (skill.globs && skill.globs.length > 0) {
-          const pathsYaml = skill.globs.map((g) => `  - "${g}"`).join("\n");
+          const pathsYaml = skill.globs.map((g) => `  - "${escapeYamlString(g)}"`).join("\n");
           content = `---\npaths:\n${pathsYaml}\n---\n\n${skill.body}\n`;
         } else {
           content = `${skill.body}\n`;

@@ -22,27 +22,13 @@ import {
 } from "./config.js";
 import { getAdapter, VALID_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
 import { resolveTeam, listTeams, templateToTeamDefinition, type TeamTemplate } from "./catalog.js";
-import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "./team-yaml.js";
+import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge } from "./team-yaml.js";
 import type { TeamrcConfig } from "./config.js";
 
 // ---------------------------------------------------------------------------
-// Knowledge merge — append-only dedup by line
+// Knowledge size limit
 // ---------------------------------------------------------------------------
-/** Merge knowledge strings using append-only dedup by line hash */
-function mergeKnowledge(local: string, remote: string): string {
-  if (!local) return remote;
-  if (!remote) return local;
-
-  const localLines = new Set(
-    local.split("\n").map((l) => l.trim()).filter(Boolean)
-  );
-  const newLines = remote
-    .split("\n")
-    .filter((l) => l.trim() && !localLines.has(l.trim()));
-
-  if (newLines.length === 0) return local;
-  return local.trimEnd() + "\n" + newLines.join("\n") + "\n";
-}
+const MAX_KNOWLEDGE_SIZE = 512 * 1024; // 512 KB
 
 // ---------------------------------------------------------------------------
 // Global options — parsed from root program, threaded through all commands
@@ -231,8 +217,10 @@ async function deviceAuthFlow(client: TeamrcClient, machineName: string): Promis
 
   // Try to open browser automatically
   try {
-    const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
-    execFileSync(openCmd, [deviceAuth.verification_url], { stdio: "ignore" });
+    if (deviceAuth.verification_url.startsWith("https://")) {
+      const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
+      execFileSync(openCmd, [deviceAuth.verification_url], { stdio: "ignore" });
+    }
   } catch {
     // Ignore - user can open manually
   }
@@ -586,7 +574,11 @@ program
       if (joinedTeam.knowledge) {
         const localKnowledge = joinAdapter.readKnowledge();
         const merged = mergeKnowledge(localKnowledge, joinedTeam.knowledge);
-        joinAdapter.writeKnowledge(merged);
+        if (merged.length <= MAX_KNOWLEDGE_SIZE) {
+          joinAdapter.writeKnowledge(merged);
+        } else {
+          p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
+        }
       }
 
       if (scope === "global") {
@@ -832,7 +824,11 @@ program
       if (remoteTeam.knowledge) {
         const localKnowledge = adapter.readKnowledge();
         const merged = mergeKnowledge(localKnowledge, remoteTeam.knowledge);
-        adapter.writeKnowledge(merged);
+        if (merged.length <= MAX_KNOWLEDGE_SIZE) {
+          adapter.writeKnowledge(merged);
+        } else {
+          p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
+        }
       }
 
       writeTeamYaml(TEAM_YAML, remoteDef);
@@ -995,6 +991,12 @@ program
   .description("Start the background sync daemon")
   .option("--poll-interval <ms>", "Poll interval in milliseconds", "120000")
   .action(async (opts: { pollInterval: string }) => {
+    const pollMs = parseInt(opts.pollInterval, 10);
+    if (isNaN(pollMs) || pollMs < 5000) {
+      p.log.error("--poll-interval must be at least 5000ms.");
+      process.exit(1);
+    }
+
     const ctx = requireTeamContext();
     const { client } = ctx;
 
@@ -1079,7 +1081,11 @@ program
       if (remoteTeam.knowledge) {
         const localKnowledge = adapter.readKnowledge();
         const merged = mergeKnowledge(localKnowledge, remoteTeam.knowledge);
-        adapter.writeKnowledge(merged);
+        if (merged.length <= MAX_KNOWLEDGE_SIZE) {
+          adapter.writeKnowledge(merged);
+        } else {
+          p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
+        }
       }
 
       writeTeamYaml(TEAM_YAML, team);

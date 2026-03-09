@@ -451,6 +451,17 @@ defmodule TeamrcWeb.TeamDetailLive do
         </div>
       </section>
 
+      <%!-- Knowledge --%>
+      <section>
+        <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-3">Knowledge</p>
+        <div :if={@team.knowledge && @team.knowledge != ""} class="rounded-md border border-base-300 bg-base-100 px-4 py-3">
+          <pre class="text-xs font-mono text-base-content/70 whitespace-pre-wrap break-words"><%= @team.knowledge %></pre>
+        </div>
+        <div :if={is_nil(@team.knowledge) || @team.knowledge == ""} class="rounded-md border border-dashed border-base-300 bg-base-200/20 p-4 text-center">
+          <p class="text-xs text-base-content/40">No knowledge yet. Knowledge is managed via the CLI.</p>
+        </div>
+      </section>
+
       <%!-- Active machines --%>
       <section>
         <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-3">

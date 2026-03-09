@@ -5,7 +5,6 @@ import * as os from "node:os";
 export interface TeamrcConfig {
   token: string;
   relay: string;
-  trustedRelays?: string[];
   account?: {
     email: string;
   };

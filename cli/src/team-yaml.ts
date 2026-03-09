@@ -142,6 +142,22 @@ export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
   fs.writeFileSync(filePath, yaml);
 }
 
+/** Merge knowledge strings using append-only dedup by line content */
+export function mergeKnowledge(local: string, remote: string): string {
+  if (!local) return remote;
+  if (!remote) return local;
+
+  const localLines = new Set(
+    local.split("\n").map((l) => l.trim()).filter(Boolean),
+  );
+  const newLines = remote
+    .split("\n")
+    .filter((l) => l.trim() && !localLines.has(l.trim()));
+
+  if (newLines.length === 0) return local;
+  return local.trimEnd() + "\n" + newLines.join("\n") + "\n";
+}
+
 const MAX_SOURCE_SIZE = 1024 * 1024; // 1 MB
 
 export function resolveBody(

@@ -20,5 +20,6 @@ defmodule Teamrc.Schema.Member do
     |> validate_required([:name, :role])
     |> validate_length(:name, max: 64)
     |> validate_length(:role, min: 1, max: 256)
+    |> validate_length(:soul, max: 10_000)
   end
 end

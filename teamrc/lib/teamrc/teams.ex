@@ -100,11 +100,15 @@ defmodule Teamrc.Teams do
 
     case create_team_in_db(team_data) do
       {:ok, team} ->
-        %Invite{}
-        |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team.id})
-        |> Repo.insert!()
+        case %Invite{}
+             |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team.id})
+             |> Repo.insert() do
+          {:ok, _invite} ->
+            {:reply, {:ok, invite_code}, state}
 
-        {:reply, {:ok, invite_code}, state}
+          {:error, _changeset} ->
+            {:reply, {:error, :invite_creation_failed}, state}
+        end
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
@@ -196,11 +200,15 @@ defmodule Teamrc.Teams do
         invite_code = generate_invite_code()
         expires_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(ttl_hours * 3600)
 
-        %Invite{}
-        |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team_id})
-        |> Repo.insert!()
+        case %Invite{}
+             |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team_id})
+             |> Repo.insert() do
+          {:ok, _invite} ->
+            {:reply, {:ok, invite_code, expires_at}, state}
 
-        {:reply, {:ok, invite_code, expires_at}, state}
+          {:error, _changeset} ->
+            {:reply, {:error, :invite_creation_failed}, state}
+        end
     end
   end
 
@@ -259,11 +267,14 @@ defmodule Teamrc.Teams do
            |> Team.changeset(%{name: team_data.name, skills: team_data.skills, platforms: team_data.platforms, knowledge: team_data.knowledge})
            |> Repo.insert() do
         {:ok, team} ->
-          for m <- team_data.members do
-            %Member{team_id: team.id}
-            |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], skills: m.skills})
-            |> Repo.insert!()
-          end
+          Enum.each(team_data.members, fn m ->
+            case %Member{team_id: team.id}
+                 |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], skills: m.skills})
+                 |> Repo.insert() do
+              {:ok, _member} -> :ok
+              {:error, changeset} -> Repo.rollback(changeset)
+            end
+          end)
 
           Repo.preload(team, :members)
 
@@ -284,11 +295,14 @@ defmodule Teamrc.Teams do
           # Replace members atomically within the transaction
           from(m in Member, where: m.team_id == ^team_id) |> Repo.delete_all()
 
-          for m <- team_data.members do
-            %Member{team_id: team_id}
-            |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], skills: m.skills})
-            |> Repo.insert!()
-          end
+          Enum.each(team_data.members, fn m ->
+            case %Member{team_id: team_id}
+                 |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], skills: m.skills})
+                 |> Repo.insert() do
+              {:ok, _member} -> :ok
+              {:error, changeset} -> Repo.rollback(changeset)
+            end
+          end)
 
           Repo.preload(team, :members, force: true)
 

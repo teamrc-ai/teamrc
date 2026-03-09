@@ -90,7 +90,8 @@ defmodule TeamrcWeb.ApiController do
   defp validate_team(team) do
     with :ok <- validate_team_name(team["name"]),
          :ok <- validate_members(team["members"]),
-         :ok <- validate_skills(team["skills"]) do
+         :ok <- validate_skills(team["skills"]),
+         :ok <- validate_knowledge(team["knowledge"]) do
       :ok
     end
   end
@@ -148,6 +149,16 @@ defmodule TeamrcWeb.ApiController do
     end
   end
   defp validate_entries(_, label, _max), do: {:error, "#{label} must be a list"}
+
+  defp validate_knowledge(nil), do: :ok
+  defp validate_knowledge(k) when is_binary(k) do
+    if byte_size(k) > 100_000 do
+      {:error, "knowledge exceeds maximum size of 100,000 bytes"}
+    else
+      :ok
+    end
+  end
+  defp validate_knowledge(_), do: {:error, "knowledge must be a string"}
 
   defp put_if_present(map, _key, nil), do: map
   defp put_if_present(map, key, val), do: Map.put(map, key, val)
