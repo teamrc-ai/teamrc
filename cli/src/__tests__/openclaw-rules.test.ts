@@ -161,7 +161,7 @@ describe("OpenClaw adapter (native OpenHands format)", () => {
     assert.equal(architect.soul, "You design systems.");
   });
 
-  it("knowledge read/write/append works", async () => {
+  it("knowledge read/write works", async () => {
     const { OpenClawAdapter } = await import("../adapters/openclaw.js");
     const adapter = new OpenClawAdapter();
 
@@ -169,10 +169,6 @@ describe("OpenClaw adapter (native OpenHands format)", () => {
 
     adapter.writeKnowledge("# Knowledge\n\nSome content.");
     assert.equal(adapter.readKnowledge(), "# Knowledge\n\nSome content.");
-
-    adapter.appendKnowledge(["Found a bug"]);
-    const content = adapter.readKnowledge();
-    assert.ok(content.includes("Found a bug"), "Should have appended entry");
   });
 
   it("uninstall removes agent files, skills, knowledge, and AGENTS.md section", async () => {

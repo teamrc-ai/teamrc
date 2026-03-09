@@ -8,6 +8,7 @@ import {
   sanitizeText,
   slugify,
   escapeYamlString,
+  type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
   type TeamMember,
@@ -82,6 +83,84 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     }
 
     return members.length > 0 ? { name: teamName, members } : null;
+  }
+
+  planWrite(team: TeamDefinition, scope: TeamScope = "global"): FileAction[] {
+    const actions: FileAction[] = [];
+    const dir = this.agentsDir(scope);
+
+    // Existing agent files that will be deleted
+    const existingSlugs = new Set(
+      this.listTbFiles(dir).map((f) => f.replace(/\.md$/, "")),
+    );
+    const newSlugs = new Set<string>();
+
+    for (const member of team.members) {
+      validateAgentName(member.name);
+      const slug = `trc-${slugify(member.name)}`;
+      newSlugs.add(slug);
+      const filePath = path.join(dir, `${slug}.md`);
+      actions.push({
+        type: existingSlugs.has(slug) ? "update" : "create",
+        path: filePath,
+        description: `agent: ${member.name}`,
+      });
+    }
+
+    for (const slug of existingSlugs) {
+      if (!newSlugs.has(slug)) {
+        actions.push({ type: "delete", path: path.join(dir, `${slug}.md`), description: "orphaned agent" });
+      }
+    }
+
+    // Skills: rules and skill dirs
+    const rulesDir = this.rulesDir(scope);
+    const skillsDir = this.skillsDir(scope);
+    const existingRules = new Set(
+      fs.existsSync(rulesDir) ? fs.readdirSync(rulesDir).filter((f) => f.startsWith("trc-") && f.endsWith(".md")) : [],
+    );
+    const existingSkillDirs = new Set(
+      fs.existsSync(skillsDir) ? fs.readdirSync(skillsDir).filter((f) => f.startsWith("trc-")) : [],
+    );
+    const newRules = new Set<string>();
+    const newSkillDirs = new Set<string>();
+
+    if (team.skills) {
+      for (const skill of team.skills) {
+        if (typeof skill.body !== "string") continue;
+        if (skill.alwaysApply || (skill.globs && skill.globs.length > 0)) {
+          const fileName = `trc-${skill.id}.md`;
+          newRules.add(fileName);
+          actions.push({
+            type: existingRules.has(fileName) ? "update" : "create",
+            path: path.join(rulesDir, fileName),
+            description: `rule: ${skill.id}`,
+          });
+        } else {
+          const dirName = `trc-${skill.id}`;
+          newSkillDirs.add(dirName);
+          actions.push({
+            type: existingSkillDirs.has(dirName) ? "update" : "create",
+            path: path.join(skillsDir, dirName, "SKILL.md"),
+            description: `skill: ${skill.id}`,
+          });
+        }
+      }
+    }
+
+    for (const f of existingRules) { if (!newRules.has(f)) actions.push({ type: "delete", path: path.join(rulesDir, f) }); }
+    for (const d of existingSkillDirs) { if (!newSkillDirs.has(d)) actions.push({ type: "delete", path: path.join(skillsDir, d) }); }
+
+    if (scope === "project") {
+      const claudeMdPath = path.join(process.cwd(), "CLAUDE.md");
+      actions.push({
+        type: fs.existsSync(claudeMdPath) ? "update" : "create",
+        path: claudeMdPath,
+        description: "teamrc section",
+      });
+    }
+
+    return actions;
   }
 
   writeTeam(team: TeamDefinition, scope: TeamScope = "global"): void {
@@ -229,29 +308,6 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       fs.mkdirSync(dir, { recursive: true });
     }
     fs.writeFileSync(filePath, content);
-  }
-
-  appendKnowledge(entries: string[]): void {
-    if (entries.length === 0) return;
-
-    const filePath = this.knowledgePath("project");
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
-    const newContent = entries
-      .map((e) => `- ${new Date().toISOString().slice(0, 10)}: ${e}`)
-      .join("\n");
-
-    if (fs.existsSync(filePath)) {
-      fs.appendFileSync(filePath, "\n" + newContent + "\n");
-    } else {
-      fs.writeFileSync(
-        filePath,
-        `# Team Knowledge\n\nShared findings and decisions synced by teamrc.\n\n${newContent}\n`,
-      );
-    }
   }
 
   uninstall(): string[] {

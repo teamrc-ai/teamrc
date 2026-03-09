@@ -20,15 +20,10 @@ import {
   detectPlatforms,
   getRelayUrl,
 } from "./config.js";
-import { getAdapter, VALID_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
+import { getAdapter, VALID_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter, type FileAction } from "./adapters/base.js";
 import { resolveTeam, listTeams, templateToTeamDefinition, type TeamTemplate } from "./catalog.js";
-import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge } from "./team-yaml.js";
+import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "./team-yaml.js";
 import type { TeamrcConfig } from "./config.js";
-
-// ---------------------------------------------------------------------------
-// Knowledge size limit
-// ---------------------------------------------------------------------------
-const MAX_KNOWLEDGE_SIZE = 512 * 1024; // 512 KB
 
 // ---------------------------------------------------------------------------
 // Global options — parsed from root program, threaded through all commands
@@ -114,6 +109,48 @@ async function requirePlatforms(override?: string): Promise<string[]> {
   });
   handleCancel(selected);
   return selected as string[];
+}
+
+// ---------------------------------------------------------------------------
+// Write confirmation helper
+// ---------------------------------------------------------------------------
+async function confirmWritePlan(
+  platforms: string[],
+  adapters: PlatformAdapter[],
+  team: TeamDefinition,
+  scope: TeamScope = "project",
+): Promise<boolean> {
+  if (isNonInteractive()) return true;
+
+  const allActions: Array<{ platform: string; actions: FileAction[] }> = [];
+  for (let i = 0; i < platforms.length; i++) {
+    const actions = adapters[i].planWrite(team, scope);
+    if (actions.length > 0) {
+      allActions.push({ platform: platforms[i], actions });
+    }
+  }
+  if (allActions.length === 0) return true;
+
+  const cwd = process.cwd();
+  const lines: string[] = [];
+  for (const { platform, actions } of allActions) {
+    lines.push(`  ${platform}:`);
+    for (const action of actions) {
+      const prefix = action.type === "create" ? "+" : action.type === "update" ? "~" : "-";
+      const rel = action.path.startsWith(cwd) ? path.relative(cwd, action.path) : action.path;
+      const desc = action.description ? ` (${action.description})` : "";
+      lines.push(`    ${prefix} ${rel}${desc}`);
+    }
+  }
+
+  p.note(lines.join("\n"), "Files to write");
+
+  const confirmed = await p.confirm({
+    message: "Apply these changes?",
+    initialValue: true,
+  });
+  handleCancel(confirmed);
+  return confirmed as boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -430,13 +467,14 @@ program
     }
 
     // Apply to each platform's native format
-    const platformSummary: string[] = [];
-    for (const pl of platforms) {
-      const adapter = getAdapter(pl);
-      adapter.writeTeam(team, scope);
-      platformSummary.push(pl);
+    const adapters = platforms.map((pl) => getAdapter(pl));
+    const confirmed = await confirmWritePlan(platforms, adapters, team, scope);
+    if (!confirmed) { p.cancel("Cancelled."); process.exit(0); }
+
+    for (let i = 0; i < platforms.length; i++) {
+      adapters[i].writeTeam(team, scope);
     }
-    p.log.step(`Applied to: ${platformSummary.join(", ")}`);
+    p.log.step(`Applied to: ${platforms.join(", ")}`);
 
     // Create team knowledge file if it doesn't exist
     if (!firstAdapter.readKnowledge()) {
@@ -549,17 +587,20 @@ program
       }
 
       // Apply to each platform
+      const joinAdapters = platforms.map((pl) => getAdapter(pl));
+      const joinConfirmed = await confirmWritePlan(platforms, joinAdapters, teamDef, scope);
+      if (!joinConfirmed) { p.cancel("Cancelled."); process.exit(0); }
+
       const s2 = p.spinner();
       s2.start("Applying to detected platforms...");
       const appliedLines: string[] = [];
-      for (const pl of platforms) {
-        const adapter = getAdapter(pl);
-        adapter.writeTeam(teamDef, scope);
+      for (let i = 0; i < platforms.length; i++) {
+        joinAdapters[i].writeTeam(teamDef, scope);
         const skillCount = teamDef.skills?.length ?? 0;
         const detail = skillCount > 0
           ? `${teamDef.members.length} agents, ${skillCount} skills`
           : `${teamDef.members.length} agents`;
-        appliedLines.push(`  ${pl.padEnd(14)} ${detail}`);
+        appliedLines.push(`  ${platforms[i].padEnd(14)} ${detail}`);
       }
       s2.stop("Applied.");
       p.log.info(appliedLines.join("\n"));
@@ -638,17 +679,20 @@ program
 
     const scope = await selectScope(opts);
 
+    const applyAdapters = platforms.map((pl) => getAdapter(pl));
+    const applyConfirmed = await confirmWritePlan(platforms, applyAdapters, team, scope);
+    if (!applyConfirmed) { p.cancel("Cancelled."); process.exit(0); }
+
     const s = p.spinner();
     s.start(`Applying "${team.name}" to ${platforms.length} platform(s)...`);
 
     const appliedLines: string[] = [];
-    for (const pl of platforms) {
-      const adapter = getAdapter(pl);
-      adapter.writeTeam(team, scope);
+    for (let i = 0; i < platforms.length; i++) {
+      applyAdapters[i].writeTeam(team, scope);
       const skillCount = team.skills?.length ?? 0;
       const parts = [`${team.members.length} agents`];
       if (skillCount > 0) parts.push(`${skillCount} skills`);
-      appliedLines.push(`  ${pl.padEnd(14)} ${parts.join(", ")}`);
+      appliedLines.push(`  ${platforms[i].padEnd(14)} ${parts.join(", ")}`);
     }
     s.stop("Applied.");
 
@@ -710,7 +754,7 @@ program
         s.start("Comparing local and relay...");
       }
 
-      const remoteTeam = await client.getTeam(config.token);
+      const remoteTeam = await client.getTeam();
 
       const localAgents = new Map(localTeam.members.map((m) => [m.name, m.role]));
       const remoteAgents = new Map(remoteTeam.members.map((m) => [m.name, m.role]));
@@ -811,7 +855,7 @@ program
 
       // Pull: get latest from relay
       s.start("Pulling from relay...");
-      const remoteTeam = await client.getTeam(config.token);
+      const remoteTeam = await client.getTeam();
       validateTeamName(remoteTeam.name);
       const remoteDef = remoteTeamToDefinition(remoteTeam);
 
@@ -834,11 +878,13 @@ program
       writeTeamYaml(TEAM_YAML, remoteDef);
 
       // Apply to platforms
-      for (const pl of platforms) {
-        const a = getAdapter(pl);
-        a.writeTeam(remoteDef, scope);
+      const syncAdapters = platforms.map((pl) => getAdapter(pl));
+      s.stop("Pulled.");
+      const syncConfirmed = await confirmWritePlan(platforms, syncAdapters, remoteDef, scope);
+      if (!syncConfirmed) { p.cancel("Cancelled."); process.exit(0); }
+      for (let i = 0; i < platforms.length; i++) {
+        syncAdapters[i].writeTeam(remoteDef, scope);
       }
-      s.stop("Pulled and applied.");
 
       p.outro("Synced.");
     } catch (err) {
@@ -916,7 +962,7 @@ program
       if (kp) {
         const client = new TeamrcClient(config.relay, kp.privateKey, config.token);
         try {
-          remoteTeam = await client.getTeam(config.token);
+          remoteTeam = await client.getTeam();
           relayConnected = true;
         } catch {
           // relay unreachable
@@ -1036,7 +1082,7 @@ program
     const s = p.spinner();
     try {
       s.start("Fetching team from relay...");
-      const remoteTeam = await client.getTeam(config.token);
+      const remoteTeam = await client.getTeam();
       validateTeamName(remoteTeam.name);
       const team = remoteTeamToDefinition(remoteTeam);
       writeTeamYaml(TEAM_YAML, team);
@@ -1068,7 +1114,7 @@ program
     const s = p.spinner();
     try {
       s.start("Pulling from relay...");
-      const remoteTeam = await client.getTeam(config.token);
+      const remoteTeam = await client.getTeam();
       validateTeamName(remoteTeam.name);
       const team = remoteTeamToDefinition(remoteTeam);
 
@@ -1092,10 +1138,12 @@ program
       s.stop(`Pulled "${team.name}" (${team.members.length} agents).`);
 
       // Apply to platforms
-      for (const pl of platforms) {
-        const a = getAdapter(pl);
-        a.writeTeam(team, scope);
-        p.log.step(`Applied to ${pl} (${scope} scope).`);
+      const pullAdapters = platforms.map((pl) => getAdapter(pl));
+      const pullConfirmed = await confirmWritePlan(platforms, pullAdapters, team, scope);
+      if (!pullConfirmed) { p.cancel("Cancelled."); process.exit(0); }
+      for (let i = 0; i < platforms.length; i++) {
+        pullAdapters[i].writeTeam(team, scope);
+        p.log.step(`Applied to ${platforms[i]} (${scope} scope).`);
       }
 
       p.outro("Done.");
@@ -1168,10 +1216,12 @@ program
       p.log.step(`Wrote ${TEAM_YAML}`);
 
       // Apply to each platform
-      for (const pl of platforms) {
-        const adapter = getAdapter(pl);
-        adapter.writeTeam(teamDef, scope);
-        p.log.step(`${pl} configured.`);
+      const cloneAdapters = platforms.map((pl) => getAdapter(pl));
+      const cloneConfirmed = await confirmWritePlan(platforms, cloneAdapters, teamDef, scope);
+      if (!cloneConfirmed) { p.cancel("Cancelled."); process.exit(0); }
+      for (let i = 0; i < platforms.length; i++) {
+        cloneAdapters[i].writeTeam(teamDef, scope);
+        p.log.step(`${platforms[i]} configured.`);
       }
 
       p.log.success(`Cloned "${teamDef.name}" (${teamDef.members.length} agents) locally.`);

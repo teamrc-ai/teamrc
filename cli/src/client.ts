@@ -13,17 +13,38 @@ export interface TeamrcTeam {
   created_at?: string;
 }
 
+// Size caps for relay-sourced content to prevent resource exhaustion
+const MAX_NAME_LEN = 64;
+const MAX_ROLE_LEN = 500;
+const MAX_SOUL_LEN = 4096;
+const MAX_BODY_LEN = 65536;
+
+function capString(s: string | undefined, max: number): string | undefined {
+  if (!s) return s;
+  return s.length > max ? s.slice(0, max) : s;
+}
+
+/** Strip YAML frontmatter delimiters from body/soul content to prevent injection */
+function sanitizeFrontmatter(s: string): string {
+  return s.replace(/^---\s*$/gm, "– – –");
+}
+
 export function remoteTeamToDefinition(team: TeamrcTeam): TeamDefinition {
   // Validate skill IDs from the relay to prevent path traversal
   const skills = team.skills?.filter((s) => {
     try { validateSkillId(s.id); return true; } catch { return false; }
-  });
+  }).map((s) => ({
+    ...s,
+    body: typeof s.body === "string" ? sanitizeFrontmatter(capString(s.body, MAX_BODY_LEN)!) : s.body,
+    ...(s.title ? { title: capString(s.title, MAX_NAME_LEN) } : {}),
+    ...(s.description ? { description: capString(s.description, MAX_ROLE_LEN) } : {}),
+  }));
 
   return {
-    name: team.name,
+    name: capString(team.name, MAX_NAME_LEN) ?? "",
     members: team.members.map((m) => ({
-      name: m.name,
-      role: m.role,
+      name: capString(m.name, MAX_NAME_LEN) ?? "",
+      role: capString(m.role, MAX_ROLE_LEN) ?? "",
       ...(m.skills?.length ? { skills: m.skills } : {}),
     })),
     ...(skills?.length ? { skills } : {}),
@@ -110,8 +131,8 @@ export class TeamrcClient {
     return data.team;
   }
 
-  async getTeam(token: string): Promise<TeamrcTeam> {
-    const data = await this.signedGet<{ team: TeamrcTeam }>(`/api/teams/${token}`);
+  async getTeam(): Promise<TeamrcTeam> {
+    const data = await this.signedGet<{ team: TeamrcTeam }>(`/api/teams/${this.token}`);
     return data.team;
   }
 

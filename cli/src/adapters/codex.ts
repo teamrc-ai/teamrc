@@ -7,6 +7,7 @@ import {
   slugify,
   writeSkillDir,
   cleanupSkillDirs,
+  type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
   type TeamMember,
@@ -37,6 +38,65 @@ export class CodexAdapter implements PlatformAdapter {
   }
 
   readTeam(): TeamDefinition | null { return null; }
+
+  planWrite(team: TeamDefinition): FileAction[] {
+    const actions: FileAction[] = [];
+
+    // Subagent TOML files
+    const existingAgents = new Set(this.listTbAgentFiles());
+    const newAgents = new Set<string>();
+    for (const member of team.members) {
+      validateAgentName(member.name);
+      const fileName = `trc-${slugify(member.name)}.toml`;
+      newAgents.add(fileName);
+      actions.push({
+        type: existingAgents.has(fileName) ? "update" : "create",
+        path: path.join(this.agentsConfigDir(), fileName),
+        description: `agent: ${member.name}`,
+      });
+    }
+    for (const f of existingAgents) {
+      if (!newAgents.has(f)) actions.push({ type: "delete", path: path.join(this.agentsConfigDir(), f) });
+    }
+
+    // config.toml
+    const configPath = path.join(this.codexDir(), "config.toml");
+    actions.push({
+      type: fs.existsSync(configPath) ? "update" : "create",
+      path: configPath,
+      description: "agent registration",
+    });
+
+    // Skill directories
+    const existingSkillDirs = new Set(
+      fs.existsSync(this.skillsDir()) ? fs.readdirSync(this.skillsDir()).filter((f) => f.startsWith("trc-")) : [],
+    );
+    const newSkillDirs = new Set<string>();
+    if (team.skills) {
+      for (const skill of team.skills) {
+        if (!skill.alwaysApply && !(skill.globs && skill.globs.length > 0)) {
+          const dirName = `trc-${skill.id}`;
+          newSkillDirs.add(dirName);
+          actions.push({
+            type: existingSkillDirs.has(dirName) ? "update" : "create",
+            path: path.join(this.skillsDir(), dirName, "SKILL.md"),
+            description: `skill: ${skill.id}`,
+          });
+        }
+      }
+    }
+    for (const d of existingSkillDirs) { if (!newSkillDirs.has(d)) actions.push({ type: "delete", path: path.join(this.skillsDir(), d) }); }
+
+    // AGENTS.md
+    const agentsMdPath = this.agentsMdPath();
+    actions.push({
+      type: fs.existsSync(agentsMdPath) ? "update" : "create",
+      path: agentsMdPath,
+      description: "team routing",
+    });
+
+    return actions;
+  }
 
   writeTeam(team: TeamDefinition): void {
     // Route skills: alwaysApply/globs → inline in AGENTS.md, on-demand → .agents/skills/
@@ -237,19 +297,6 @@ export class CodexAdapter implements PlatformAdapter {
 
   writeKnowledge(content: string): void {
     fs.writeFileSync(path.join(process.cwd(), "teamrc-knowledge.md"), content);
-  }
-
-  appendKnowledge(entries: string[]): void {
-    if (entries.length === 0) return;
-    const filePath = path.join(process.cwd(), "teamrc-knowledge.md");
-    const newContent = entries
-      .map((e) => `- ${new Date().toISOString().slice(0, 10)}: ${e}`)
-      .join("\n");
-    if (fs.existsSync(filePath)) {
-      fs.appendFileSync(filePath, "\n" + newContent + "\n");
-    } else {
-      fs.writeFileSync(filePath, `# Team Knowledge\n\nShared findings and decisions synced by teamrc.\n\n${newContent}\n`);
-    }
   }
 
   uninstall(): string[] {

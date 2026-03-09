@@ -77,11 +77,15 @@ function readYaml<T>(filePath: string): T {
   return YAML.parse(fs.readFileSync(filePath, "utf-8")) as T;
 }
 
+const SAFE_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
+
 export function loadAgent(name: string): CatalogAgent {
+  if (!SAFE_NAME_RE.test(name)) throw new Error(`Invalid agent name in template: ${JSON.stringify(name)}`);
   return readYaml<CatalogAgent>(path.join(TEMPLATES_DIR, "agents", `${name}.yaml`));
 }
 
 export function loadSkill(id: string): CatalogSkill {
+  if (!SAFE_NAME_RE.test(id)) throw new Error(`Invalid skill ID in template: ${JSON.stringify(id)}`);
   return readYaml<CatalogSkill>(path.join(TEMPLATES_DIR, "skills", `${id}.yaml`));
 }
 

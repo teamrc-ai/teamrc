@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, afterEach, mock } from "node:test";
+import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -19,11 +19,11 @@ function createMockAdapter(tmpDir: string): PlatformAdapter & { writtenTeams: Te
     writtenTeams,
     readTeam: () => null,
     writeTeam: (team: TeamDefinition) => { writtenTeams.push(team); },
+    planWrite: () => [],
     readKnowledge: () => {
       try { return fs.readFileSync(knowledgeFile, "utf-8"); } catch { return ""; }
     },
     writeKnowledge: (content: string) => fs.writeFileSync(knowledgeFile, content),
-    appendKnowledge: () => {},
     uninstall: () => [],
   };
 }

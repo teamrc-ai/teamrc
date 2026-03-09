@@ -3,10 +3,9 @@ import { watch } from "chokidar";
 import type { PlatformAdapter, TeamDefinition } from "./adapters/base.js";
 import type { TeamrcClient, TeamrcTeam } from "./client.js";
 import { remoteTeamToDefinition } from "./client.js";
-import { readTeamYaml, writeTeamYaml, TEAM_YAML, validateTeamName, mergeKnowledge } from "./team-yaml.js";
+import { readTeamYaml, writeTeamYaml, TEAM_YAML, validateTeamName, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "./team-yaml.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
-const MAX_KNOWLEDGE_SIZE = 512 * 1024; // 512 KB
 
 export interface DaemonOptions {
   client: TeamrcClient;
@@ -54,7 +53,7 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       if (!localYaml?.teamId) return;
 
       // Use the token from the client (it's embedded in getTeam)
-      const remoteTeam: TeamrcTeam = await client.getTeam(localYaml.teamId);
+      const remoteTeam: TeamrcTeam = await client.getTeam();
 
       // Check if updated_at has changed
       if (remoteTeam.updated_at && remoteTeam.updated_at === lastUpdatedAt) {

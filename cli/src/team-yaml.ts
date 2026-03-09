@@ -3,6 +3,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import YAML from "yaml";
 import { validateAgentName, VALID_PLATFORMS, type TeamDefinition, type TeamMember, type Skill } from "./adapters/base.js";
+import { validateRelayUrl } from "./config.js";
 
 export const TEAM_YAML = ".teamrc.yaml";
 export const GLOBAL_TEAM_YAML = path.join(os.homedir(), ".teamrc", "team.yaml");
@@ -80,14 +81,13 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
       })
     : [];
 
-  const skills: Skill[] = parsedSkills;
-
   const teamName = data.name || "";
   if (teamName) validateTeamName(teamName);
 
   // Parse new multi-project fields
   const teamId = data.teamId ? String(data.teamId) : undefined;
   const relay = data.relay ? String(data.relay) : undefined;
+  if (relay) validateRelayUrl(relay);
   let platforms: string[] | undefined;
   if (Array.isArray(data.platforms)) {
     const validSet = new Set<string>(VALID_PLATFORMS);
@@ -104,7 +104,7 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
   return {
     name: teamName,
     members,
-    skills,
+    skills: parsedSkills,
     ...(teamId ? { teamId } : {}),
     ...(relay ? { relay } : {}),
     ...(platforms ? { platforms } : {}),
@@ -157,6 +157,8 @@ export function mergeKnowledge(local: string, remote: string): string {
   if (newLines.length === 0) return local;
   return local.trimEnd() + "\n" + newLines.join("\n") + "\n";
 }
+
+export const MAX_KNOWLEDGE_SIZE = 512 * 1024; // 512 KB
 
 const MAX_SOURCE_SIZE = 1024 * 1024; // 1 MB
 

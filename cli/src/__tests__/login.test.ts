@@ -1,16 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { generateKeypair, signMessage, toToken } from "../auth.js";
-
-// Mock fetch for testing client methods
-function createMockFetch(response: { status: number; body: unknown }) {
-  return async (_url: string | URL, _opts?: RequestInit) => ({
-    ok: response.status >= 200 && response.status < 300,
-    status: response.status,
-    json: async () => response.body,
-    text: async () => JSON.stringify(response.body),
-  });
-}
+import { generateKeypair, toToken } from "../auth.js";
 
 // We test the client methods by importing the class directly
 import { TeamrcClient } from "../client.js";

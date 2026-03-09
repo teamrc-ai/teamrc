@@ -56,12 +56,19 @@ export function sanitizeMarkerContent(s: string): string {
   return s.replace(/<!--/g, "").replace(/-->/g, "");
 }
 
+export interface FileAction {
+  type: "create" | "update" | "delete";
+  path: string;
+  description?: string;
+}
+
 export interface PlatformAdapter {
   readTeam(): TeamDefinition | null;
   writeTeam(team: TeamDefinition, scope?: TeamScope): void;
+  /** Preview what writeTeam would do without modifying files. */
+  planWrite(team: TeamDefinition, scope?: TeamScope): FileAction[];
   readKnowledge(): string;
   writeKnowledge(content: string): void;
-  appendKnowledge(entries: string[]): void;
   /** Remove everything teamrc installed for this platform. Returns list of actions taken. */
   uninstall(): string[];
 }

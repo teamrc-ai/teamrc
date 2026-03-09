@@ -37,6 +37,7 @@ export function saveConfig(config: TeamrcConfig): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
+  fs.chmodSync(dir, 0o700);
   fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2), { mode: 0o600 });
 }
 
@@ -63,12 +64,27 @@ export function detectPlatforms(): string[] {
   return platforms;
 }
 
+function isLocalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "::1";
+  } catch { return false; }
+}
+
+export function validateRelayUrl(url: string): void {
+  if (!url.startsWith("https://") && !isLocalUrl(url)) {
+    throw new Error(`Relay URL must use HTTPS for non-local servers: ${url}`);
+  }
+}
+
 export function getRelayUrl(overrideUrl?: string): string {
   if (overrideUrl) {
+    validateRelayUrl(overrideUrl);
     return overrideUrl;
   }
   const envUrl = process.env["TEAMRC_RELAY"];
   if (envUrl) {
+    validateRelayUrl(envUrl);
     return envUrl;
   }
   const config = loadConfig();

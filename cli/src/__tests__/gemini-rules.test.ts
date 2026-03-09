@@ -173,7 +173,7 @@ describe("Gemini CLI adapter", () => {
     assert.ok(fs.existsSync(path.join(agentDir, "trc-new-agent.md")));
   });
 
-  it("supports knowledge read/write/append", async () => {
+  it("supports knowledge read/write", async () => {
     const { GeminiAdapter } = await import("../adapters/gemini.js");
     const adapter = new GeminiAdapter();
 
@@ -183,12 +183,6 @@ describe("Gemini CLI adapter", () => {
     // Write
     adapter.writeKnowledge("initial knowledge");
     assert.equal(adapter.readKnowledge(), "initial knowledge");
-
-    // Append
-    adapter.appendKnowledge(["finding one", "finding two"]);
-    const knowledge = adapter.readKnowledge();
-    assert.ok(knowledge.includes("finding one"));
-    assert.ok(knowledge.includes("finding two"));
   });
 
   it("uninstall cleans agent files, skills, knowledge, and GEMINI.md", async () => {
