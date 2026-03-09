@@ -622,7 +622,7 @@ export function resolveAgentSkills(agent: TeamMember, team: TeamDefinition): Ski
 
 ## Implementation Phases
 
-### Phase 1: Data model migration
+### Phase 1: Data model migration — DONE
 
 **Goal**: Merge Rule into Skill, remove Rule from the entire codebase (CLI + web + relay).
 
@@ -672,7 +672,7 @@ export function resolveAgentSkills(agent: TeamMember, team: TeamDefinition): Ski
 14. Update `teamrc/lib/teamrc_web/controllers/api_controller.ex` if it references rules in API responses
 15. Run `mix test` — fix any broken Elixir tests
 
-### Phase 2: Rewrite OpenClaw adapter
+### Phase 2: Rewrite OpenClaw adapter — DONE
 
 **Goal**: Align with native OpenHands file format.
 
@@ -687,7 +687,7 @@ export function resolveAgentSkills(agent: TeamMember, team: TeamDefinition): Ski
 6. Update `getHashes()`, `watchPaths()`, `writeFile()`, `readFile()`
 7. Update `uninstall()` to clean the new paths
 
-### Phase 3: Catalog structure + YAML loader
+### Phase 3: Catalog structure + YAML loader — DONE
 
 **Goal**: Single source of truth for templates, shared between CLI and web.
 
@@ -730,9 +730,9 @@ export function resolveAgentSkills(agent: TeamMember, team: TeamDefinition): Ski
     - Agent preview shows soul excerpts from catalog
 11. Update `mix.exs` or build step to copy `templates/` into `priv/templates/` for the Elixir app
 
-### Phase 4: Write catalog content
+### Phase 4: Write catalog content — DONE
 
-**Goal**: ~60 agents, ~30 skills, ~12 teams.
+**Goal**: ~60 agents, ~30 skills, ~12 teams. (Actual: ~68 agents, ~49 skills, 12 teams.)
 
 Batch by category. Each agent needs:
 - `name`, `role`, `category`
@@ -749,7 +749,7 @@ Each team needs:
 - `skills` list (project-level refs to catalog)
 - `agentSkills` map (per-agent skill assignments)
 
-### Phase 5: CLI wizard enhancement
+### Phase 5: CLI wizard enhancement — DONE
 
 **Goal**: Rich template selection and team composition in `teamrc init`.
 
@@ -759,7 +759,7 @@ Each team needs:
 4. Select project-level skills
 5. Assign per-agent skills (optional, advanced)
 
-### Phase 6: Web wizard enhancement
+### Phase 6: Web wizard enhancement — DONE
 
 **Goal**: Visual team composition in the web UI.
 
@@ -769,7 +769,7 @@ Each team needs:
 4. Per-agent skill assignment UI
 5. Both wizard and CLI produce identical `.teamrc.yaml`
 
-### Phase 7: Adapter improvements (from research)
+### Phase 7: Adapter improvements (from research) — DONE
 
 **Goal**: Use native platform features we discovered.
 

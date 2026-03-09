@@ -43,6 +43,7 @@ bash scripts/verify/run-all.sh
 | `bash scripts/uninstall.sh` | `bash scripts/verify/section-05-rollback.sh post-uninstall` |
 | Corrupt config test | `bash scripts/verify/section-05-rollback.sh corrupt-config` |
 | Missing keypair test | `bash scripts/verify/section-05-rollback.sh missing-keypair` |
+| After init, test catalog commands | `bash scripts/verify/section-06-catalog.sh` |
 | Init on 3+ platforms | `bash scripts/verify/section-07-cross-sync.sh` |
 | (standalone, no setup needed) | `bash scripts/verify/section-08-errors.sh` |
 | (destructive — runs full lifecycle) | `bash scripts/verify/section-09-lifecycle.sh` |
@@ -75,7 +76,7 @@ This will init, verify, create an invite, then pause and print the exact command
 ```bash
 bash scripts/test/e2e.sh --role secondary \
   --invite trc_inv_XXXXX \
-  --relay http://mermaid.cates.fm:4000 \
+  --relay http://teamrc.cates.fm:4000 \
   --platforms claude-code,codex,openclaw
 ```
 
@@ -98,6 +99,7 @@ bash scripts/test/e2e.sh --role primary --phase 3
 | 1 | 1.1 | Clean slate + prerequisites |
 | 2 | 1.2–1.3, 2.1–2.2 | Init (primary) or Join (secondary) |
 | 3 | 3.1–3.5 | Per-platform file verification |
+| 3.5 | 6.1–6.7 | Catalog commands + add-member |
 | 4 | 4.1–4.3 | Sync, push, diff |
 | 5 | 12.2–12.3 | Cross-machine sync (primary waits for secondary) |
 | 6 | 8.1–8.5 | Error cases |
@@ -574,6 +576,102 @@ npx teamrc init --platform claude-code --global
 **Expected:**
 - [ ] Project mode: `.teamrc.yaml` + `.claude/agents/trc-*.md`
 - [ ] Global mode: `~/.teamrc/config.json` has `globalTeam` + `~/.claude/agents/trc-*.md`
+
+---
+
+## Section 6: Catalog & Team Management
+
+### 6.1 List available team templates
+
+```bash
+npx teamrc list-templates
+npx teamrc list-templates --json
+```
+
+**Expected:**
+- [ ] Shows all templates with label, description, agent count, skill count
+- [ ] Includes known templates: fullstack, backend, frontend, security, devops, custom
+- [ ] `--json` returns valid JSON array with `id`, `label`, `description`, `agents`, `skills`, `members` fields
+- [ ] Each template shows its member names
+
+### 6.2 List available agents
+
+```bash
+npx teamrc list-agents
+npx teamrc list-agents --json
+```
+
+**Expected:**
+- [ ] Shows agents grouped by category (Core Development, Language Specialists, Infrastructure, etc.)
+- [ ] Each agent shows name and role
+- [ ] `--json` returns valid JSON array with `category`, `label`, `agents` fields
+- [ ] Agent count matches catalog (~68 agents)
+- [ ] Footer shows total count and next-step hint
+
+### 6.3 Add member from catalog (by name)
+
+```bash
+# Must have a team initialized first (Section 1.2)
+npx teamrc add-member backend-dev
+```
+
+**Expected:**
+- [ ] "Added backend-dev (Backend developer)" message
+- [ ] Shows recommended skills that were included
+- [ ] `.teamrc.yaml` now includes `backend-dev` in members
+- [ ] Agent files created for all platforms (e.g. `.claude/agents/trc-backend-dev.md`)
+- [ ] Skills referenced by the new member exist in `.teamrc.yaml` `skills:` section
+- [ ] Pushed to relay (verify with `teamrc status`)
+
+**Verify:**
+```bash
+grep "backend-dev" .teamrc.yaml        # Member added
+ls .claude/agents/trc-backend-dev.md   # Agent file created
+npx teamrc status                      # Shows new member count
+```
+
+### 6.4 Add member — duplicate check
+
+```bash
+npx teamrc add-member backend-dev
+```
+
+**Expected:**
+- [ ] "Agent 'backend-dev' is already on this team" warning
+- [ ] No changes to `.teamrc.yaml`
+- [ ] No relay push
+
+### 6.5 Add member — invalid name
+
+```bash
+npx teamrc add-member nonexistent-agent-xyz
+```
+
+**Expected:**
+- [ ] "Agent 'nonexistent-agent-xyz' not found in catalog" error
+- [ ] Exit code 1
+
+### 6.6 Add member — interactive picker
+
+```bash
+npx teamrc add-member
+# (interactive — select an agent from the list)
+```
+
+**Expected:**
+- [ ] Shows selectable list of agents grouped by category with roles
+- [ ] Already-added agents are filtered out
+- [ ] Selection adds the agent (same as 6.3)
+- [ ] Ctrl-C gracefully cancels
+
+### 6.7 Add member — non-interactive mode
+
+```bash
+echo "" | npx teamrc add-member 2>&1
+```
+
+**Expected:**
+- [ ] Error message about requiring agent name in non-interactive mode
 
 ---
 
