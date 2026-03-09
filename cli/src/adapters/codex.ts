@@ -172,8 +172,9 @@ export class CodexAdapter implements PlatformAdapter {
       instructionParts.push("");
     }
 
-    // Escape triple quotes to prevent TOML injection
-    const instructions = instructionParts.join("\n").trim().replace(/"""/g, '"\\""');
+    const instructions = instructionParts.join("\n").trim()
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"');
 
     const tomlContent = [
       `# teamrc agent: ${safeName}`,

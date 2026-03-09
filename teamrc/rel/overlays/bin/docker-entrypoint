@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+echo "Running migrations..."
+"$(dirname "$0")/migrate"
+
+echo "Starting teamrc server..."
+exec "$(dirname "$0")/server"

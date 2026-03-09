@@ -48,12 +48,13 @@ defmodule Teamrc.Application do
     if Application.get_env(:teamrc, :env, :dev) == :prod do
       config = Application.get_env(:teamrc, Teamrc.ClerkJWT, [])
 
-      unless Keyword.get(config, :issuer) do
-        raise "CLERK_ISSUER must be set in production"
-      end
+      unless Keyword.get(config, :issuer) && Keyword.get(config, :jwks_url) do
+        require Logger
 
-      unless Keyword.get(config, :jwks_url) do
-        raise "CLERK_JWKS_URL must be set in production"
+        Logger.warning(
+          "CLERK_ISSUER and/or CLERK_JWKS_URL not set — Clerk account linking disabled. " <>
+            "Set these env vars to enable the user dashboard and machine management."
+        )
       end
     end
   end

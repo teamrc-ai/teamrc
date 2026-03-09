@@ -1,19 +1,3 @@
-defmodule Teamrc.DeviceAuth.Request do
-  @moduledoc "Ephemeral struct representing a device authorization request."
-
-  defstruct [
-    :device_code,
-    :user_code,
-    :token,
-    :status,
-    :clerk_user_id,
-    :email,
-    :expires_at,
-    :inserted_at,
-    failed_attempts: 0
-  ]
-end
-
 defmodule Teamrc.DeviceAuth do
   @moduledoc """
   GenServer for ephemeral device authorization requests.
@@ -141,6 +125,7 @@ defmodule Teamrc.DeviceAuth do
             {:reply, {:ok, %{status: :pending}}, state}
 
           req.status == :confirmed ->
+            state = update_in(state.requests, &Map.delete(&1, device_code))
             {:reply, {:ok, %{status: :confirmed, clerk_user_id: req.clerk_user_id, email: req.email}}, state}
         end
     end

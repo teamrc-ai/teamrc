@@ -7,7 +7,10 @@ defmodule TeamrcWeb.Router do
     plug :fetch_live_flash
     plug :put_root_layout, html: {TeamrcWeb.Layouts, :root}
     plug :protect_from_forgery
-    plug :put_secure_browser_headers
+    plug :put_secure_browser_headers, %{
+      "content-security-policy" =>
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss:; font-src 'self' data:; frame-ancestors 'none'"
+    }
     plug TeamrcWeb.Plugs.SessionClerkAuth
   end
 
@@ -45,14 +48,12 @@ defmodule TeamrcWeb.Router do
     get "/", PageController, :index
     get "/auth/sign-out", PageController, :sign_out
 
-    live_session :default,
+    live_session :public,
       layout: {TeamrcWeb.Layouts, :app},
-      on_mount: [TeamrcWeb.Hooks.AssignAuth] do
+      on_mount: [{TeamrcWeb.Hooks.AssignAuth, :default}] do
       live "/new", TeamLive, :index
       live "/invite/:code", InviteLive
-      live "/dashboard", DashboardLive
       live "/teams/:id", TeamDetailLive
-      live "/teams/:team_id/members/:member_id", MemberDetailLive
       live "/guide/get-started", GuideLive, :get_started
       live "/guide", GuideLive, :overview
       live "/guide/concepts", GuideLive, :concepts
@@ -63,6 +64,13 @@ defmodule TeamrcWeb.Router do
       live "/guide/web-ui", GuideLive, :web_ui
       live "/guide/faq", GuideLive, :faq
       live "/auth/verify", AuthVerifyLive
+    end
+
+    live_session :authenticated,
+      layout: {TeamrcWeb.Layouts, :app},
+      on_mount: [{TeamrcWeb.Hooks.AssignAuth, :require_auth}] do
+      live "/dashboard", DashboardLive
+      live "/teams/:team_id/members/:member_id", MemberDetailLive
     end
   end
 

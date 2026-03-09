@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+
+PHX_SERVER=true exec "$(dirname "$0")/teamrc" start

@@ -284,6 +284,104 @@ Unused routes and functions were left in the codebase, increasing the attack sur
 
 ---
 
+## Security Hardening (2026-03-09)
+
+### 34. CRITICAL — Database SSL defaults to OFF in production (FIXED)
+
+**File:** `teamrc/config/runtime.exs:44`
+
+`DATABASE_SSL` env var defaulted to `false` — if omitted, all database traffic (including credentials) was unencrypted in production.
+
+**Fix applied:** Changed default to SSL-on: `ssl: System.get_env("DATABASE_SSL", "true") != "false"`.
+
+### 35. CRITICAL — Docker Compose fallback secrets (FIXED)
+
+**File:** `docker-compose.yml:33-37`
+
+`SECRET_KEY_BASE`, `SESSION_SIGNING_SALT`, and `LIVE_VIEW_SIGNING_SALT` had `${VAR:-hardcoded_default}` syntax. A deployment without `.env` would use publicly-visible secrets enabling session forgery.
+
+**Fix applied:** Changed to `${VAR:?error message}` — Docker Compose now fails fast if secrets are missing.
+
+### 36. CRITICAL — `record_failed_attempt` dead code (FIXED)
+
+**File:** `teamrc/lib/teamrc_web/live/auth_verify_live.ex:67`
+
+`DeviceAuth.record_failed_attempt/1` was never called from the "confirm" handler's error path — brute force protection on device codes was completely inert.
+
+**Fix applied:** Added `DeviceAuth.record_failed_attempt(code)` in the `:not_found` error branch.
+
+### 37. HIGH — TOML injection via `member.soul` in Codex adapter (FIXED)
+
+**File:** `cli/src/adapters/codex.ts:176`
+
+The triple-quote escaping (`replace(/"""/g, '"\\""')`) was insufficient — inputs with 5+ consecutive quotes could produce unescaped `"""` that closes the TOML string, allowing arbitrary TOML injection.
+
+**Fix applied:** Replaced with proper per-character escaping: escape all backslashes, then all individual double quotes.
+
+### 38. HIGH — Session fixation (FIXED)
+
+**File:** `teamrc/lib/teamrc_web/plugs/session_clerk_auth.ex:37`
+
+When a Clerk JWT was verified, auth data was written to the existing session without renewing the session ID. An attacker who could plant a session cookie could hijack the session after the victim authenticates.
+
+**Fix applied:** Added `configure_session(renew: true)` before writing auth claims to the session.
+
+### 39. MEDIUM — No Content-Security-Policy header (FIXED)
+
+**File:** `teamrc/lib/teamrc_web/router.ex:10`
+
+Phoenix's `:put_secure_browser_headers` didn't include CSP. Without CSP, any XSS could load arbitrary scripts.
+
+**Fix applied:** Added explicit CSP header to the browser pipeline restricting scripts, styles, images, connections, and frames.
+
+### 40. MEDIUM — Auth tokens exposed in URL paths (NOTED)
+
+**Files:** `teamrc/lib/teamrc_web/router.ex:86-87`
+
+Tokens appear as path parameters in GET requests (e.g., `/api/teams/:token`). URL paths leak into access logs, browser history, and Referer headers. This requires a coordinated CLI + server migration to fix without breaking existing clients.
+
+### 41. MEDIUM — LiveView auth enforcement gap (FIXED)
+
+**Files:** `teamrc/lib/teamrc_web/hooks/assign_auth.ex`, `teamrc/lib/teamrc_web/router.ex:48-66`
+
+The `AssignAuth` hook never halted on missing auth — all LiveViews in the single `live_session` block inherited no authentication guarantee. `DashboardLive` and `MemberDetailLive` were accessible to unauthenticated users who knew the URL.
+
+**Fix applied:** Added `:require_auth` mount hook that redirects to `/` when `clerk_user_id` is nil. Split routes into `:public` and `:authenticated` live sessions. Dashboard and member detail now require authentication.
+
+### 42. MEDIUM — Confirmed device auth not consumed after poll (FIXED)
+
+**File:** `teamrc/lib/teamrc/device_auth.ex:143`
+
+After the CLI polled a confirmed device auth request, the `clerk_user_id` and `email` remained retrievable for up to 15 minutes. An attacker with the device_code could extract the Clerk user identity.
+
+**Fix applied:** Request is now deleted from GenServer state immediately after the first successful confirmed poll.
+
+### 43. MEDIUM — Session trusted indefinitely (FIXED)
+
+**File:** `teamrc/lib/teamrc_web/plugs/session_clerk_auth.ex`
+
+Once a Clerk JWT was verified and the session populated, the session was trusted indefinitely with no re-verification. Deactivated Clerk accounts retained access until the cookie expired.
+
+**Fix applied:** Sessions now track `clerk_verified_at` timestamp. The plug re-verifies the Clerk JWT every 15 minutes — if the cookie is gone or the JWT is now invalid, the session is cleared.
+
+### 44. MEDIUM — Postgres port exposed to host network (FIXED)
+
+**File:** `docker-compose.yml:13-14`
+
+Postgres port 5432 was mapped to all interfaces with weak default credentials. On a cloud VM, the database would be directly accessible to the public internet.
+
+**Fix applied:** Bound to localhost only: `127.0.0.1:5432:5432`.
+
+### 45. LOW — Session cookies signed but not encrypted (FIXED)
+
+**File:** `teamrc/lib/teamrc_web/endpoint.ex:7-12`, `teamrc/config/runtime.exs`
+
+Session data (including Clerk user IDs) was readable by the client. While signed (tamper-proof), any sensitive data in the session was visible to browser inspection.
+
+**Fix applied:** Added `encryption_salt` to session options. Production reads `SESSION_ENCRYPTION_SALT` from env vars.
+
+---
+
 ## Summary of Required Fixes
 
 | # | Severity | Issue | Status |
@@ -321,3 +419,15 @@ Unused routes and functions were left in the codebase, increasing the attack sur
 | 31 | LOW | N+1 in `resolve_participants` | Fixed (batch query) |
 | 32 | LOW | ETS table missing `read_concurrency` | Fixed |
 | 33 | MEDIUM | Sync content prompt injection surface | Mitigated (attribution, sync modes, clone) |
+| 34 | CRITICAL | Database SSL defaults to OFF in prod | Fixed (default true) |
+| 35 | CRITICAL | Docker Compose fallback secrets | Fixed (fail-fast on missing) |
+| 36 | CRITICAL | `record_failed_attempt` dead code | Fixed (called on error path) |
+| 37 | HIGH | TOML injection via `member.soul` in Codex adapter | Fixed (per-char escaping) |
+| 38 | HIGH | Session fixation (no session renewal) | Fixed (`configure_session(renew: true)`) |
+| 39 | MEDIUM | No Content-Security-Policy header | Fixed (explicit CSP) |
+| 40 | MEDIUM | Auth tokens exposed in URL paths | Noted (breaking change) |
+| 41 | MEDIUM | LiveView auth enforcement gap | Fixed (split live_sessions, require_auth hook) |
+| 42 | MEDIUM | Confirmed device auth not consumed | Fixed (deleted after poll) |
+| 43 | MEDIUM | Session trusted indefinitely | Fixed (15-min re-verification) |
+| 44 | MEDIUM | Postgres port exposed to host network | Fixed (localhost only) |
+| 45 | LOW | Session cookies not encrypted | Fixed (encryption_salt added) |

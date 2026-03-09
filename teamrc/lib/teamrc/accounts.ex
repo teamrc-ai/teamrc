@@ -112,20 +112,7 @@ defmodule Teamrc.Accounts do
 
   @doc "Resolve participants for a single team."
   def resolve_participants(team_id) do
-    from(tt in TokenTeam,
-      left_join: at in AccountToken,
-      on: at.token == tt.token and is_nil(at.revoked_at),
-      left_join: a in Account,
-      on: a.id == at.account_id,
-      where: tt.team_id == ^team_id,
-      select: a.email
-    )
-    |> Repo.all()
-    |> Enum.map(fn
-      nil -> "anonymous"
-      email -> email
-    end)
-    |> Enum.uniq()
+    Map.get(resolve_participants_batch([team_id]), team_id, [])
   end
 
   @doc "Resolve participants for multiple teams in a single query. Returns %{team_id => [emails]}."

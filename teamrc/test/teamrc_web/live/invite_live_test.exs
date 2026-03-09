@@ -2,7 +2,8 @@ defmodule TeamrcWeb.InviteLiveTest do
   use TeamrcWeb.ConnCase
   import Phoenix.LiveViewTest
 
-  alias Teamrc.Teams
+  alias Teamrc.{Repo, Teams}
+  alias Teamrc.Schema.Team
 
   defp create_team_with_invite do
     team = %{
@@ -39,15 +40,20 @@ defmodule TeamrcWeb.InviteLiveTest do
     assert html =~ "Expires in"
   end
 
-  test "can add a member via invite access", %{conn: conn} do
+  test "invite access allows editing on team page", %{conn: conn} do
     {code, team_id} = create_team_with_invite()
     {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
 
+    assert has_element?(view, "button", "Add team member")
+
     view |> element("button", "Add team member") |> render_click()
     view |> element("button[phx-click='custom_member']") |> render_click()
-
     view |> element("input[placeholder='agent-name']") |> render_keyup(%{"value" => "new-agent"})
-    view |> element("input[placeholder='Role description']") |> render_keyup(%{"value" => "testing"})
+
+    view
+    |> element("input[placeholder='Role description']")
+    |> render_keyup(%{"value" => "testing"})
+
     view |> element("button[phx-click='add_member']", "Add") |> render_click()
 
     html = render(view)
@@ -65,31 +71,13 @@ defmodule TeamrcWeb.InviteLiveTest do
     assert html =~ "invite=#{code}"
   end
 
-  test "member detail page loads via invite access", %{conn: conn} do
+  test "member detail requires auth even with invite code", %{conn: conn} do
     {code, team_id} = create_team_with_invite()
 
-    # Get the member id from the team
-    team = Teamrc.Repo.get(Teamrc.Schema.Team, team_id) |> Teamrc.Repo.preload(:members)
+    team = Repo.get(Team, team_id) |> Repo.preload(:members)
     member = hd(team.members)
 
-    {:ok, _view, html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
-
-    # Should show editable fields
-    assert html =~ "Name"
-    assert html =~ "Role"
-    assert html =~ "Instructions"
-    assert html =~ "Remove member"
-  end
-
-  test "can remove a member via invite on detail page", %{conn: conn} do
-    {code, team_id} = create_team_with_invite()
-
-    team = Teamrc.Repo.get(Teamrc.Schema.Team, team_id) |> Teamrc.Repo.preload(:members)
-    member = hd(team.members)
-
-    {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
-
-    assert {:error, {:redirect, %{to: "/teams/" <> _}}} =
-             view |> element("button[phx-click='delete_member']") |> render_click()
+    assert {:error, {:redirect, %{to: "/"}}} =
+             live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
   end
 end

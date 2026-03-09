@@ -69,8 +69,7 @@ defmodule TeamrcWeb.MemberDetailLive do
             invite ->
               assign(socket,
                 invite_access: invite,
-                invite_code: invite_code,
-                can_edit: true
+                invite_code: invite_code
               )
           end
       end
@@ -104,20 +103,7 @@ defmodule TeamrcWeb.MemberDetailLive do
 
   defp require_edit_access(socket, fun) do
     if socket.assigns.can_edit do
-      case socket.assigns[:invite_access] do
-        nil ->
-          fun.()
-
-        invite ->
-          if DateTime.compare(invite.expires_at, DateTime.utc_now()) == :gt do
-            fun.()
-          else
-            {:noreply,
-             socket
-             |> assign(invite_access: nil, can_edit: false, invite_code: nil)
-             |> put_flash(:error, "This invite has expired.")}
-          end
-      end
+      fun.()
     else
       {:noreply, put_flash(socket, :error, "You don't have permission to edit.")}
     end

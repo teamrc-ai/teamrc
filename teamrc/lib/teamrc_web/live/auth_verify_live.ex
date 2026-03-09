@@ -65,6 +65,8 @@ defmodule TeamrcWeb.AuthVerifyLive do
           end
 
       {:error, :not_found} ->
+        DeviceAuth.record_failed_attempt(code)
+
         {:noreply,
          assign(socket,
            step: :enter_code,
