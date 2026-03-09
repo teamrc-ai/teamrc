@@ -78,7 +78,9 @@ export function loadKeypair(): Keypair | null {
       privateKey: base64UrlDecode(parsed.privateKey),
       publicKey: base64UrlDecode(parsed.publicKey),
     };
-  } catch {
+  } catch (e) {
+    // File exists but couldn't be parsed — warn the user
+    console.warn(`Warning: Could not parse keypair file at ${keyPath}: ${e instanceof Error ? e.message : e}`);
     return null;
   }
 }

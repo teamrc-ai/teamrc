@@ -47,8 +47,6 @@ export const VALID_PLATFORMS = [
   "cline",
 ] as const;
 
-export type PlatformName = (typeof VALID_PLATFORMS)[number];
-
 export type TeamScope = "project" | "global";
 
 /** Strip HTML comment sequences to prevent marker injection */
@@ -98,6 +96,84 @@ export function cleanupSkillDirs(baseDir: string): number {
   return dirs.length;
 }
 
+/** List trc-* files in a directory, filtered by extension */
+export function listTrcFiles(dir: string, ext: string = ".md"): string[] {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(ext));
+}
+
+/** Delete all trc-* files in a directory, filtered by extension. Returns count deleted. */
+export function deleteTrcFiles(dir: string, ext: string = ".md"): number {
+  if (!fs.existsSync(dir)) return 0;
+  const files = fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(ext));
+  for (const f of files) fs.unlinkSync(path.join(dir, f));
+  return files.length;
+}
+
+/** Upsert a marker-delimited block in a file. Creates the file if it doesn't exist. */
+export function upsertMarkerBlock(
+  filePath: string,
+  marker: string,
+  markerEnd: string,
+  block: string,
+  newFilePrefix?: string,
+): void {
+  let content = "";
+  if (fs.existsSync(filePath)) {
+    content = fs.readFileSync(filePath, "utf-8");
+  }
+
+  if (!content) {
+    fs.writeFileSync(filePath, (newFilePrefix ?? "") + block + "\n");
+    return;
+  }
+
+  const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedEnd = markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`${escaped}[\\s\\S]*?${escapedEnd}`);
+
+  if (regex.test(content)) {
+    fs.writeFileSync(filePath, content.replace(regex, block));
+  } else {
+    fs.writeFileSync(filePath, content.trimEnd() + "\n\n" + block + "\n");
+  }
+}
+
+/** Remove a marker-delimited block from a file. Deletes the file if empty after removal. */
+export function removeMarkerBlock(
+  filePath: string,
+  marker: string,
+  markerEnd: string,
+): boolean {
+  if (!fs.existsSync(filePath)) return false;
+  const content = fs.readFileSync(filePath, "utf-8");
+
+  const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedEnd = markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`\\n?${escaped}[\\s\\S]*?${escapedEnd}\\n?`);
+
+  if (!regex.test(content)) return false;
+
+  const updated = content.replace(regex, "").trim();
+  if (updated) {
+    fs.writeFileSync(filePath, updated + "\n");
+  } else {
+    fs.unlinkSync(filePath);
+  }
+  return true;
+}
+
+/** Resolve agents directory — check project first, fall back to global */
+export function resolveAgentsDir(
+  projectDir: string,
+  globalDir: string,
+): { dir: string; scope: TeamScope } {
+  if (listTrcFiles(projectDir).length > 0) {
+    return { dir: projectDir, scope: "project" };
+  }
+  return { dir: globalDir, scope: "global" };
+}
+
 /** Strip newlines from text for safe inline use */
 export function sanitizeText(s: string): string {
   return s.replace(/[\n\r]/g, " ").trim();
@@ -115,6 +191,14 @@ export function slugify(name: string): string {
 /** Escape a string for use in YAML double-quoted values */
 export function escapeYamlString(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+}
+
+/** Resolve skills for an agent. Only returns explicitly assigned skills. */
+export function resolveAgentSkills(agent: TeamMember, team: TeamDefinition): Skill[] {
+  if (!agent.skills || agent.skills.length === 0 || !team.skills) return [];
+  return agent.skills
+    .map((id) => team.skills!.find((s) => s.id === id))
+    .filter((s): s is Skill => s !== undefined);
 }
 
 export function getAdapter(platform: string): PlatformAdapter {

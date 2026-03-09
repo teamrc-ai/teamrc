@@ -56,7 +56,7 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       const remoteTeam: TeamrcTeam = await client.getTeam();
 
       // Check if updated_at has changed
-      if (remoteTeam.updated_at && remoteTeam.updated_at === lastUpdatedAt) {
+      if (remoteTeam.updated_at !== undefined && remoteTeam.updated_at === lastUpdatedAt) {
         return; // No changes
       }
 

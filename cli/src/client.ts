@@ -6,7 +6,7 @@ import { validateSkillId } from "./team-yaml.js";
 export interface TeamrcTeam {
   id: string;
   name: string;
-  members: Array<{ name: string; role: string; platform?: string; skills?: string[] }>;
+  members: Array<{ name: string; role: string; platform?: string; skills?: string[]; soul?: string }>;
   skills?: Skill[];
   knowledge?: string;
   updated_at?: string;
@@ -36,6 +36,7 @@ export function remoteTeamToDefinition(team: TeamrcTeam): TeamDefinition {
   }).map((s) => ({
     ...s,
     body: typeof s.body === "string" ? sanitizeFrontmatter(capString(s.body, MAX_BODY_LEN)!) : s.body,
+    globs: s.globs?.map((g) => g.replace(/[\n\r]/g, "")) ?? [],
     ...(s.title ? { title: capString(s.title, MAX_NAME_LEN) } : {}),
     ...(s.description ? { description: capString(s.description, MAX_ROLE_LEN) } : {}),
   }));
@@ -45,7 +46,10 @@ export function remoteTeamToDefinition(team: TeamrcTeam): TeamDefinition {
     members: team.members.map((m) => ({
       name: capString(m.name, MAX_NAME_LEN) ?? "",
       role: capString(m.role, MAX_ROLE_LEN) ?? "",
-      ...(m.skills?.length ? { skills: m.skills } : {}),
+      ...(m.soul ? { soul: sanitizeFrontmatter(capString(m.soul, MAX_SOUL_LEN)!) } : {}),
+      ...(m.skills?.length ? { skills: m.skills.filter((id) => {
+        try { validateSkillId(id); return true; } catch { return false; }
+      }) } : {}),
     })),
     ...(skills?.length ? { skills } : {}),
   };
@@ -132,7 +136,10 @@ export class TeamrcClient {
   }
 
   async getTeam(): Promise<TeamrcTeam> {
-    const data = await this.signedGet<{ team: TeamrcTeam }>(`/api/teams/${this.token}`);
+    const url = this.teamId
+      ? `/api/teams/${this.token}?team_id=${encodeURIComponent(this.teamId)}`
+      : `/api/teams/${this.token}`;
+    const data = await this.signedGet<{ team: TeamrcTeam }>(url);
     return data.team;
   }
 
@@ -154,6 +161,7 @@ export class TeamrcClient {
   async pushTeam(team: TeamDefinition, knowledge?: string): Promise<TeamrcTeam> {
     const body = JSON.stringify({
       token: this.token,
+      ...(this.teamId ? { team_id: this.teamId } : {}),
       team: {
         name: team.name,
         members: team.members.map((m) => ({

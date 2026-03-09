@@ -63,7 +63,7 @@ defmodule Teamrc.TeamsTest do
   describe "preview_by_invite" do
     test "returns team data without creating token_teams", %{pid: pid} do
       # Create a team with invite
-      {:ok, invite_code} = Teams.create_team_with_invite(pid, %{
+      {:ok, invite_code, _team_id} = Teams.create_team_with_invite(pid, %{
         "name" => "preview-team",
         "members" => [%{"name" => "agent1", "role" => "dev"}]
       })
@@ -79,7 +79,7 @@ defmodule Teamrc.TeamsTest do
 
     test "returns :error with expired invite code", %{pid: pid} do
       # Insert an expired invite directly
-      {:ok, invite_code} = Teams.create_team_with_invite(pid, %{
+      {:ok, invite_code, _team_id} = Teams.create_team_with_invite(pid, %{
         "name" => "expired-team",
         "members" => []
       })

@@ -60,7 +60,7 @@ defmodule TeamrcWeb.ApiControllerTest do
 
   describe "POST /api/teams/preview" do
     test "returns team data for valid invite", %{conn: conn} do
-      {:ok, invite_code} = Teamrc.Teams.create_team_with_invite(%{
+      {:ok, invite_code, _team_id} = Teamrc.Teams.create_team_with_invite(%{
         "name" => "preview-api-team",
         "members" => [%{"name" => "dev", "role" => "backend"}]
       })

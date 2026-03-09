@@ -201,6 +201,15 @@ code, pre, .font-mono, kbd {
   outline-offset: 2px;
 }
 
+/* Soul editor — document-editor feel */
+.soul-editor {
+  border-left: 3px solid oklch(55% 0.18 270 / 0.4);
+}
+
+[data-theme="dark"] .soul-editor {
+  border-left-color: oklch(65% 0.2 270 / 0.35);
+}
+
 /* Fade-in for progressive disclosure */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }

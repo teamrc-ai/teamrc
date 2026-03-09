@@ -104,7 +104,7 @@ defmodule Teamrc.Teams do
              |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team.id})
              |> Repo.insert() do
           {:ok, _invite} ->
-            {:reply, {:ok, invite_code}, state}
+            {:reply, {:ok, invite_code, team.id}, state}
 
           {:error, _changeset} ->
             {:reply, {:error, :invite_creation_failed}, state}

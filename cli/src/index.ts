@@ -20,7 +20,7 @@ import {
   detectPlatforms,
   getRelayUrl,
 } from "./config.js";
-import { getAdapter, VALID_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter, type FileAction } from "./adapters/base.js";
+import { getAdapter, VALID_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
 import { resolveTeam, listTeams, templateToTeamDefinition, type TeamTemplate } from "./catalog.js";
 import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "./team-yaml.js";
 import type { TeamrcConfig } from "./config.js";
@@ -96,61 +96,25 @@ async function requirePlatforms(override?: string): Promise<string[]> {
     return detected;
   }
 
+  // Platforms with working adapters (exclude unimplemented ones)
+  const UNIMPLEMENTED_PLATFORMS = ["copilot", "amazon-q", "windsurf", "cline"];
+  const selectablePlatforms = VALID_PLATFORMS.filter(
+    (pl) => !UNIMPLEMENTED_PLATFORMS.includes(pl),
+  );
+
   // Interactive multi-select with detected platforms pre-selected
   const selected = await p.multiselect({
     message: "Which platforms?",
-    options: VALID_PLATFORMS.map((pl) => ({
+    options: selectablePlatforms.map((pl) => ({
       value: pl,
       label: pl,
       hint: detected.includes(pl) ? "detected" : undefined,
     })),
-    initialValues: detected,
+    initialValues: detected.filter((pl) => !UNIMPLEMENTED_PLATFORMS.includes(pl)),
     required: true,
   });
   handleCancel(selected);
   return selected as string[];
-}
-
-// ---------------------------------------------------------------------------
-// Write confirmation helper
-// ---------------------------------------------------------------------------
-async function confirmWritePlan(
-  platforms: string[],
-  adapters: PlatformAdapter[],
-  team: TeamDefinition,
-  scope: TeamScope = "project",
-): Promise<boolean> {
-  if (isNonInteractive()) return true;
-
-  const allActions: Array<{ platform: string; actions: FileAction[] }> = [];
-  for (let i = 0; i < platforms.length; i++) {
-    const actions = adapters[i].planWrite(team, scope);
-    if (actions.length > 0) {
-      allActions.push({ platform: platforms[i], actions });
-    }
-  }
-  if (allActions.length === 0) return true;
-
-  const cwd = process.cwd();
-  const lines: string[] = [];
-  for (const { platform, actions } of allActions) {
-    lines.push(`  ${platform}:`);
-    for (const action of actions) {
-      const prefix = action.type === "create" ? "+" : action.type === "update" ? "~" : "-";
-      const rel = action.path.startsWith(cwd) ? path.relative(cwd, action.path) : action.path;
-      const desc = action.description ? ` (${action.description})` : "";
-      lines.push(`    ${prefix} ${rel}${desc}`);
-    }
-  }
-
-  p.note(lines.join("\n"), "Files to write");
-
-  const confirmed = await p.confirm({
-    message: "Apply these changes?",
-    initialValue: true,
-  });
-  handleCancel(confirmed);
-  return confirmed as boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +157,13 @@ function requireTeamContext(): TeamContext {
   }
 
   // 1. Try project-level .teamrc.yaml
-  const yamlTeam = readTeamYaml(TEAM_YAML);
+  let yamlTeam;
+  try {
+    yamlTeam = readTeamYaml(TEAM_YAML);
+  } catch (e) {
+    p.log.error(`Failed to parse .teamrc.yaml: ${e instanceof Error ? e.message : e}`);
+    process.exit(1);
+  }
   if (yamlTeam?.teamId) {
     const relay = yamlTeam.relay ?? config.relay;
     const platforms = yamlTeam.platforms ?? detectPlatforms();
@@ -209,7 +179,13 @@ function requireTeamContext(): TeamContext {
   }
 
   // 2. Fall back to global YAML (~/.teamrc/team.yaml)
-  const globalTeam = readTeamYaml(GLOBAL_TEAM_YAML);
+  let globalTeam;
+  try {
+    globalTeam = readTeamYaml(GLOBAL_TEAM_YAML);
+  } catch (e) {
+    p.log.error(`Failed to parse global team.yaml: ${e instanceof Error ? e.message : e}`);
+    process.exit(1);
+  }
   if (globalTeam?.teamId) {
     const relay = globalTeam.relay ?? config.relay;
     const platforms = globalTeam.platforms ?? detectPlatforms();
@@ -231,7 +207,7 @@ function requireTeamContext(): TeamContext {
 // ---------------------------------------------------------------------------
 // Device auth flow with spinner
 // ---------------------------------------------------------------------------
-async function deviceAuthFlow(client: TeamrcClient, machineName: string): Promise<boolean> {
+async function deviceAuthFlow(client: TeamrcClient, machineName: string, relayUrl: string): Promise<boolean> {
   const s = p.spinner();
 
   let deviceAuth;
@@ -252,21 +228,30 @@ async function deviceAuthFlow(client: TeamrcClient, machineName: string): Promis
     "Authenticate",
   );
 
-  // Try to open browser automatically
-  try {
-    if (deviceAuth.verification_url.startsWith("https://")) {
-      const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
-      execFileSync(openCmd, [deviceAuth.verification_url], { stdio: "ignore" });
+  // Try to open browser automatically (only if same origin as relay)
+  if (deviceAuth.verification_url.startsWith("https://")) {
+    try {
+      const relayOrigin = new URL(relayUrl).origin;
+      const verifyOrigin = new URL(deviceAuth.verification_url).origin;
+      if (verifyOrigin === relayOrigin) {
+        const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
+        execFileSync(openCmd, [deviceAuth.verification_url], { stdio: "ignore" });
+      } else {
+        // Don't auto-open URLs from different origins
+      }
+    } catch {
+      // URL parsing failed, skip auto-open
     }
-  } catch {
-    // Ignore - user can open manually
   }
 
   s.start("Waiting for confirmation... (press Ctrl-C to cancel)");
 
+  const MAX_EXPIRES_SEC = 600;
+  const MIN_INTERVAL_SEC = 1;
+  const MAX_INTERVAL_SEC = 30;
   const startTime = Date.now();
-  const timeoutMs = deviceAuth.expires_in * 1000;
-  const intervalMs = deviceAuth.interval * 1000;
+  const timeoutMs = Math.min(deviceAuth.expires_in, MAX_EXPIRES_SEC) * 1000;
+  const intervalMs = Math.max(MIN_INTERVAL_SEC, Math.min(deviceAuth.interval, MAX_INTERVAL_SEC)) * 1000;
 
   while (Date.now() - startTime < timeoutMs) {
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
@@ -417,7 +402,13 @@ program
     const firstAdapter = getAdapter(platforms[0]);
 
     // Check for existing .teamrc.yaml first (highest precedence)
-    const existingYaml = readTeamYaml(TEAM_YAML);
+    let existingYaml;
+    try {
+      existingYaml = readTeamYaml(TEAM_YAML);
+    } catch (e) {
+      p.log.error(`Failed to parse .teamrc.yaml: ${e instanceof Error ? e.message : e}`);
+      process.exit(1);
+    }
 
     let team: TeamDefinition;
 
@@ -467,14 +458,13 @@ program
     }
 
     // Apply to each platform's native format
-    const adapters = platforms.map((pl) => getAdapter(pl));
-    const confirmed = await confirmWritePlan(platforms, adapters, team, scope);
-    if (!confirmed) { p.cancel("Cancelled."); process.exit(0); }
-
-    for (let i = 0; i < platforms.length; i++) {
-      adapters[i].writeTeam(team, scope);
+    const platformSummary: string[] = [];
+    for (const pl of platforms) {
+      const adapter = getAdapter(pl);
+      adapter.writeTeam(team, scope);
+      platformSummary.push(pl);
     }
-    p.log.step(`Applied to: ${platforms.join(", ")}`);
+    p.log.step(`Applied to: ${platformSummary.join(", ")}`);
 
     // Create team knowledge file if it doesn't exist
     if (!firstAdapter.readKnowledge()) {
@@ -520,7 +510,7 @@ program
         handleCancel(shouldLink);
         if (shouldLink) {
           const machineName = os.hostname();
-          await deviceAuthFlow(client, machineName);
+          await deviceAuthFlow(client, machineName, relayUrl);
         } else {
           p.log.info("Tip: Run `teamrc login` anytime to link your account.");
         }
@@ -547,7 +537,7 @@ program
       p.log.warn(`Relay error: ${(err as Error).message}`);
       saveConfig({ relay: relayUrl, token });
       p.log.info("Configuration saved (relay unreachable).");
-      p.outro("Team created locally. Relay sync will resume when available.");
+      p.outro("Configuration saved locally. Re-run `teamrc init` when the relay is available to complete setup.");
     }
   });
 
@@ -555,11 +545,11 @@ program
 program
   .command("join")
   .description("Join an existing team and create local agents")
-  .argument("<token>", "Team invitation token")
+  .argument("<invite-code>", "Team invitation code")
   .option("--relay <url>", "Relay server URL")
   .option("--platform <platform>", "Override platform detection")
   .option("--global", "Join as global team")
-  .action(async (joinToken: string, opts: { relay?: string; platform?: string; global?: boolean }) => {
+  .action(async (inviteCode: string, opts: { relay?: string; platform?: string; global?: boolean }) => {
     p.intro("teamrc");
 
     const platforms = await requirePlatforms(opts.platform);
@@ -573,7 +563,7 @@ program
     const s = p.spinner();
     try {
       s.start("Joining team...");
-      const joinedTeam = await client.joinByInvite(joinToken);
+      const joinedTeam = await client.joinByInvite(inviteCode);
       s.stop(`Joined "${joinedTeam.name}" (${joinedTeam.members.length} members)`);
 
       const teamDef = remoteTeamToDefinition(joinedTeam);
@@ -587,20 +577,17 @@ program
       }
 
       // Apply to each platform
-      const joinAdapters = platforms.map((pl) => getAdapter(pl));
-      const joinConfirmed = await confirmWritePlan(platforms, joinAdapters, teamDef, scope);
-      if (!joinConfirmed) { p.cancel("Cancelled."); process.exit(0); }
-
       const s2 = p.spinner();
       s2.start("Applying to detected platforms...");
       const appliedLines: string[] = [];
-      for (let i = 0; i < platforms.length; i++) {
-        joinAdapters[i].writeTeam(teamDef, scope);
+      for (const pl of platforms) {
+        const adapter = getAdapter(pl);
+        adapter.writeTeam(teamDef, scope);
         const skillCount = teamDef.skills?.length ?? 0;
         const detail = skillCount > 0
           ? `${teamDef.members.length} agents, ${skillCount} skills`
           : `${teamDef.members.length} agents`;
-        appliedLines.push(`  ${platforms[i].padEnd(14)} ${detail}`);
+        appliedLines.push(`  ${pl.padEnd(14)} ${detail}`);
       }
       s2.stop("Applied.");
       p.log.info(appliedLines.join("\n"));
@@ -646,7 +633,7 @@ program
         handleCancel(shouldLink);
         if (shouldLink) {
           const machineName = os.hostname();
-          await deviceAuthFlow(client, machineName);
+          await deviceAuthFlow(client, machineName, relayUrl);
         } else {
           p.log.info("Tip: Run `teamrc login` anytime to link your account.");
         }
@@ -671,7 +658,22 @@ program
     p.intro("teamrc");
 
     const platforms = await requirePlatforms(opts.platform);
-    const team = readTeamYaml(TEAM_YAML);
+    let team;
+    try {
+      team = readTeamYaml(TEAM_YAML);
+    } catch (e) {
+      p.log.error(`Failed to parse .teamrc.yaml: ${e instanceof Error ? e.message : e}`);
+      process.exit(1);
+    }
+    if (!team) {
+      // Fall back to global YAML
+      try {
+        team = readTeamYaml(GLOBAL_TEAM_YAML);
+      } catch (e) {
+        p.log.error(`Failed to parse global team.yaml: ${e instanceof Error ? e.message : e}`);
+        process.exit(1);
+      }
+    }
     if (!team) {
       p.log.error("No .teamrc.yaml found. Run `teamrc init` or `teamrc import <platform>` first.");
       process.exit(1);
@@ -679,20 +681,17 @@ program
 
     const scope = await selectScope(opts);
 
-    const applyAdapters = platforms.map((pl) => getAdapter(pl));
-    const applyConfirmed = await confirmWritePlan(platforms, applyAdapters, team, scope);
-    if (!applyConfirmed) { p.cancel("Cancelled."); process.exit(0); }
-
     const s = p.spinner();
     s.start(`Applying "${team.name}" to ${platforms.length} platform(s)...`);
 
     const appliedLines: string[] = [];
-    for (let i = 0; i < platforms.length; i++) {
-      applyAdapters[i].writeTeam(team, scope);
+    for (const pl of platforms) {
+      const adapter = getAdapter(pl);
+      adapter.writeTeam(team, scope);
       const skillCount = team.skills?.length ?? 0;
       const parts = [`${team.members.length} agents`];
       if (skillCount > 0) parts.push(`${skillCount} skills`);
-      appliedLines.push(`  ${platforms[i].padEnd(14)} ${parts.join(", ")}`);
+      appliedLines.push(`  ${pl.padEnd(14)} ${parts.join(", ")}`);
     }
     s.stop("Applied.");
 
@@ -878,13 +877,11 @@ program
       writeTeamYaml(TEAM_YAML, remoteDef);
 
       // Apply to platforms
-      const syncAdapters = platforms.map((pl) => getAdapter(pl));
-      s.stop("Pulled.");
-      const syncConfirmed = await confirmWritePlan(platforms, syncAdapters, remoteDef, scope);
-      if (!syncConfirmed) { p.cancel("Cancelled."); process.exit(0); }
-      for (let i = 0; i < platforms.length; i++) {
-        syncAdapters[i].writeTeam(remoteDef, scope);
+      for (const pl of platforms) {
+        const a = getAdapter(pl);
+        a.writeTeam(remoteDef, scope);
       }
+      s.stop("Pulled and applied.");
 
       p.outro("Synced.");
     } catch (err) {
@@ -905,7 +902,13 @@ program
     const { client } = ctx;
     const adapter = ctx.adapters[0];
 
-    const team = readTeamYaml(TEAM_YAML);
+    let team;
+    try {
+      team = readTeamYaml(TEAM_YAML);
+    } catch (e) {
+      p.log.error(`Failed to parse .teamrc.yaml: ${e instanceof Error ? e.message : e}`);
+      process.exit(1);
+    }
     if (!team) {
       p.log.error("No .teamrc.yaml found. Run `teamrc init` first.");
       process.exit(1);
@@ -945,8 +948,22 @@ program
       return;
     }
 
-    const yamlTeam = readTeamYaml(TEAM_YAML);
-    const globalYaml = !yamlTeam ? readTeamYaml(GLOBAL_TEAM_YAML) : null;
+    let yamlTeam;
+    try {
+      yamlTeam = readTeamYaml(TEAM_YAML);
+    } catch (e) {
+      p.log.error(`Failed to parse .teamrc.yaml: ${e instanceof Error ? e.message : e}`);
+      process.exit(1);
+    }
+    let globalYaml = null;
+    if (!yamlTeam) {
+      try {
+        globalYaml = readTeamYaml(GLOBAL_TEAM_YAML);
+      } catch (e) {
+        p.log.error(`Failed to parse global team.yaml: ${e instanceof Error ? e.message : e}`);
+        process.exit(1);
+      }
+    }
     const activeTeam = yamlTeam ?? globalYaml;
     const teamId = activeTeam?.teamId ?? null;
     const platformStr = activeTeam?.platforms?.join(",") ?? detectPlatforms()[0] ?? "claude-code";
@@ -1028,7 +1045,7 @@ program
       p.log.warn("Relay unreachable.");
     }
 
-    p.outro("");
+    p.outro("Done.");
   });
 
 // --- daemon ---
@@ -1138,12 +1155,10 @@ program
       s.stop(`Pulled "${team.name}" (${team.members.length} agents).`);
 
       // Apply to platforms
-      const pullAdapters = platforms.map((pl) => getAdapter(pl));
-      const pullConfirmed = await confirmWritePlan(platforms, pullAdapters, team, scope);
-      if (!pullConfirmed) { p.cancel("Cancelled."); process.exit(0); }
-      for (let i = 0; i < platforms.length; i++) {
-        pullAdapters[i].writeTeam(team, scope);
-        p.log.step(`Applied to ${platforms[i]} (${scope} scope).`);
+      for (const pl of platforms) {
+        const a = getAdapter(pl);
+        a.writeTeam(team, scope);
+        p.log.step(`Applied to ${pl} (${scope} scope).`);
       }
 
       p.outro("Done.");
@@ -1169,7 +1184,7 @@ program
     const client = new TeamrcClient(relayUrl, kp.privateKey, token);
     const machineName = opts.name ?? os.hostname();
 
-    const success = await deviceAuthFlow(client, machineName);
+    const success = await deviceAuthFlow(client, machineName, relayUrl);
     if (success) {
       p.outro("Account linked.");
     } else {
@@ -1216,16 +1231,14 @@ program
       p.log.step(`Wrote ${TEAM_YAML}`);
 
       // Apply to each platform
-      const cloneAdapters = platforms.map((pl) => getAdapter(pl));
-      const cloneConfirmed = await confirmWritePlan(platforms, cloneAdapters, teamDef, scope);
-      if (!cloneConfirmed) { p.cancel("Cancelled."); process.exit(0); }
-      for (let i = 0; i < platforms.length; i++) {
-        cloneAdapters[i].writeTeam(teamDef, scope);
-        p.log.step(`${platforms[i]} configured.`);
+      for (const pl of platforms) {
+        const adapter = getAdapter(pl);
+        adapter.writeTeam(teamDef, scope);
+        p.log.step(`${pl} configured.`);
       }
 
       p.log.success(`Cloned "${teamDef.name}" (${teamDef.members.length} agents) locally.`);
-      p.outro("This is a local copy. Run `teamrc init` to create your own synced team.");
+      p.outro("Cloned locally. To join and sync with the original team, use `teamrc join <invite-code>`.");
     } catch (err) {
       s.error("Failed to clone team.");
       p.log.error((err as Error).message);
@@ -1288,7 +1301,13 @@ program
       return;
     }
 
-    const whoamiYaml = readTeamYaml(TEAM_YAML) ?? readTeamYaml(GLOBAL_TEAM_YAML);
+    let whoamiYaml;
+    try {
+      whoamiYaml = readTeamYaml(TEAM_YAML) ?? readTeamYaml(GLOBAL_TEAM_YAML);
+    } catch (e) {
+      p.log.error(`Failed to parse team YAML: ${e instanceof Error ? e.message : e}`);
+      process.exit(1);
+    }
     const whoamiTeamId = whoamiYaml?.teamId ?? "none";
     const whoamiPlatform = whoamiYaml?.platforms?.join(",") ?? "none";
 
@@ -1360,18 +1379,31 @@ program
     }
 
     // 4. .teamrc.yaml check
-    const yamlTeam = readTeamYaml(TEAM_YAML);
+    let yamlTeam;
+    let yamlParseError = false;
+    try {
+      yamlTeam = readTeamYaml(TEAM_YAML);
+    } catch (e) {
+      p.log.error(`${TEAM_YAML} has parse errors: ${e instanceof Error ? e.message : e}`);
+      failures++;
+      yamlParseError = true;
+    }
     if (yamlTeam) {
       p.log.success(`${TEAM_YAML} found (${yamlTeam.members.length} members)`);
       passed++;
-    } else {
+    } else if (!yamlParseError) {
       p.log.warn(`No ${TEAM_YAML}`);
       warnings++;
     }
 
     // 5. Platform agents match
     if (config && yamlTeam) {
-      const doctorGlobal = readTeamYaml(GLOBAL_TEAM_YAML);
+      let doctorGlobal;
+      try {
+        doctorGlobal = readTeamYaml(GLOBAL_TEAM_YAML);
+      } catch {
+        // ignore parse errors for global yaml in doctor
+      }
       const doctorPlatform = yamlTeam?.platforms?.[0] ?? doctorGlobal?.platforms?.[0] ?? detectPlatforms()[0] ?? "claude-code";
       const adapter = getAdapter(doctorPlatform);
       const platformTeam = adapter.readTeam();
@@ -1418,16 +1450,26 @@ program
     const config = loadConfig();
     if (!config) {
       p.log.info("teamrc is not initialized. Nothing to remove.");
-      p.outro("");
+      p.outro("Done.");
       return;
     }
 
-    const deleteGlobalTeam = readTeamYaml(GLOBAL_TEAM_YAML);
+    let deleteGlobalTeam;
+    try {
+      deleteGlobalTeam = readTeamYaml(GLOBAL_TEAM_YAML);
+    } catch {
+      // Ignore parse errors during delete — proceed with detected platforms
+    }
     const platforms = deleteGlobalTeam?.platforms ?? detectPlatforms();
 
     // Determine team name for confirmation
     let teamName: string | null = null;
-    const yamlTeam = readTeamYaml(TEAM_YAML);
+    let yamlTeam;
+    try {
+      yamlTeam = readTeamYaml(TEAM_YAML);
+    } catch {
+      // Ignore parse errors during delete
+    }
     if (yamlTeam?.name) {
       teamName = yamlTeam.name;
     }
@@ -1436,6 +1478,22 @@ program
       "This will remove all teamrc agents, skills, and knowledge\n" +
       "from this machine. Other team members keep their setup.",
     );
+
+    // Build deletion plan to show before confirmation
+    const planLines: string[] = [];
+    for (const pl of platforms) {
+      planLines.push(`Remove ${pl} agents and skills`);
+    }
+    const configDir = path.join(os.homedir(), ".teamrc");
+    if (fs.existsSync(configDir)) {
+      planLines.push(`Delete ${configDir}`);
+    }
+    if (fs.existsSync(TEAM_YAML)) {
+      planLines.push(`Delete ${TEAM_YAML}`);
+    }
+    if (planLines.length > 0) {
+      p.log.info("Will delete:\n" + planLines.map((a) => `  ${a}`).join("\n"));
+    }
 
     const skipConfirm = opts.yes ?? globals().yes;
     if (!skipConfirm) {
@@ -1478,7 +1536,6 @@ program
     }
 
     // Delete ~/.teamrc/ config
-    const configDir = path.join(os.homedir(), ".teamrc");
     if (fs.existsSync(configDir)) {
       fs.rmSync(configDir, { recursive: true });
       actionLines.push(`Deleted ${configDir}`);

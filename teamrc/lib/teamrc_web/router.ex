@@ -43,8 +43,10 @@ defmodule TeamrcWeb.Router do
       layout: {TeamrcWeb.Layouts, :app},
       on_mount: [TeamrcWeb.Hooks.AssignAuth] do
       live "/new", TeamLive, :index
+      live "/invite/:code", InviteLive
       live "/dashboard", DashboardLive
       live "/teams/:id", TeamDetailLive
+      live "/teams/:team_id/members/:member_id", MemberDetailLive
       live "/auth/verify", AuthVerifyLive
     end
   end

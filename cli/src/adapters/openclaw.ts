@@ -8,15 +8,20 @@ import {
   sanitizeText,
   slugify,
   escapeYamlString,
+  listTrcFiles,
+  deleteTrcFiles,
+  resolveAgentsDir,
+  upsertMarkerBlock,
+  removeMarkerBlock,
   writeSkillDir,
   cleanupSkillDirs,
+  resolveAgentSkills,
   type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
   type TeamMember,
   type TeamScope,
 } from "./base.js";
-import { resolveAgentSkills } from "../resolve-skills.js";
 
 export class OpenClawAdapter implements PlatformAdapter {
   private baseDir(scope: TeamScope): string {
@@ -38,27 +43,9 @@ export class OpenClawAdapter implements PlatformAdapter {
     return path.join(process.cwd(), "AGENTS.md");
   }
 
-  /** Find the agents directory — check project first, fall back to global */
-  private resolveAgentsDir(): { dir: string; scope: TeamScope } {
-    const projectDir = this.agentsDir("project");
-    if (fs.existsSync(projectDir)) {
-      const tbFiles = this.listTbFiles(projectDir);
-      if (tbFiles.length > 0) {
-        return { dir: projectDir, scope: "project" };
-      }
-    }
-    const globalDir = this.agentsDir("global");
-    return { dir: globalDir, scope: "global" };
-  }
-
-  private listTbFiles(dir: string): string[] {
-    if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".md"));
-  }
-
   readTeam(): TeamDefinition | null {
-    const { dir } = this.resolveAgentsDir();
-    const files = this.listTbFiles(dir);
+    const { dir } = resolveAgentsDir(this.agentsDir("project"), this.agentsDir("global"));
+    const files = listTrcFiles(dir);
     if (files.length === 0) return null;
 
     let teamName = "my-team";
@@ -85,7 +72,7 @@ export class OpenClawAdapter implements PlatformAdapter {
 
     // Agent files
     const existingSlugs = new Set(
-      this.listTbFiles(agentDir).map((f) => f.replace(/\.md$/, "")),
+      listTrcFiles(agentDir).map((f) => f.replace(/\.md$/, "")),
     );
     const newSlugs = new Set<string>();
     for (const member of team.members) {
@@ -139,7 +126,7 @@ export class OpenClawAdapter implements PlatformAdapter {
     }
 
     // Clean old trc-*.md agent files
-    this.cleanTbAgentFiles(agentDir);
+    deleteTrcFiles(agentDir);
 
     // Write individual agent files
     for (const member of team.members) {
@@ -166,15 +153,6 @@ export class OpenClawAdapter implements PlatformAdapter {
     this.updateAgentsMd(team);
   }
 
-  private cleanTbAgentFiles(dir: string): void {
-    if (!fs.existsSync(dir)) return;
-    for (const f of fs.readdirSync(dir)) {
-      if (f.startsWith("trc-") && f.endsWith(".md")) {
-        fs.unlinkSync(path.join(dir, f));
-      }
-    }
-  }
-
   private updateAgentsMd(team: TeamDefinition): void {
     const marker = "<!-- teamrc -->";
     const markerEnd = "<!-- /teamrc -->";
@@ -197,20 +175,7 @@ export class OpenClawAdapter implements PlatformAdapter {
       markerEnd,
     ].join("\n");
 
-    const filePath = this.agentsMdPath();
-
-    if (fs.existsSync(filePath)) {
-      let content = fs.readFileSync(filePath, "utf-8");
-      const regex = new RegExp(
-        `${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
-      );
-      content = regex.test(content)
-        ? content.replace(regex, block)
-        : content.trimEnd() + "\n\n" + block + "\n";
-      fs.writeFileSync(filePath, content);
-    } else {
-      fs.writeFileSync(filePath, block + "\n");
-    }
+    upsertMarkerBlock(this.agentsMdPath(), marker, markerEnd, block);
   }
 
   private knowledgePath(scope: TeamScope = "project"): string {
@@ -238,15 +203,15 @@ export class OpenClawAdapter implements PlatformAdapter {
 
   uninstall(): string[] {
     const actions: string[] = [];
-    const { dir, scope } = this.resolveAgentsDir();
-    const tbFiles = this.listTbFiles(dir);
+    const { dir, scope } = resolveAgentsDir(this.agentsDir("project"), this.agentsDir("global"));
+    const trcFiles = listTrcFiles(dir);
 
     // Delete agent files
-    for (const f of tbFiles) {
+    for (const f of trcFiles) {
       fs.unlinkSync(path.join(dir, f));
     }
-    if (tbFiles.length > 0) {
-      actions.push(`Deleted ${tbFiles.length} agent file(s) from ${dir}`);
+    if (trcFiles.length > 0) {
+      actions.push(`Deleted ${trcFiles.length} agent file(s) from ${dir}`);
     }
 
     // Delete native skill directories
@@ -266,19 +231,8 @@ export class OpenClawAdapter implements PlatformAdapter {
     }
 
     // Remove teamrc section from AGENTS.md
-    const filePath = this.agentsMdPath();
-    if (fs.existsSync(filePath)) {
-      const content = fs.readFileSync(filePath, "utf-8");
-      const marker = "<!-- teamrc -->";
-      const markerEnd = "<!-- /teamrc -->";
-      const regex = new RegExp(
-        `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
-      );
-      const cleaned = content.replace(regex, "\n");
-      if (cleaned !== content) {
-        fs.writeFileSync(filePath, cleaned.trimEnd() + "\n");
-        actions.push("Removed teamrc section from AGENTS.md");
-      }
+    if (removeMarkerBlock(this.agentsMdPath(), "<!-- teamrc -->", "<!-- /teamrc -->")) {
+      actions.push("Removed teamrc section from AGENTS.md");
     }
 
     return actions;
