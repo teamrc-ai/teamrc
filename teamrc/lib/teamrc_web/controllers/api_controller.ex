@@ -8,11 +8,6 @@ defmodule TeamrcWeb.ApiController do
   # Input validation limits
   @max_team_name_length 64
   @max_members 20
-  @max_file_size_bytes 256_000  # 256KB per file
-  @max_hash_length 128
-  @max_platform_length 64
-  @max_file_path_length 512
-  @max_files_per_sync 100
   @max_skills 50
   @max_skill_body_bytes 10_000  # 10KB per skill body
   @id_re ~r/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
@@ -69,137 +64,10 @@ defmodule TeamrcWeb.ApiController do
     end
   end
 
-  @doc """
-  Unified sync endpoint.
-
-  Accepts: token, platform, hashes (map of file => hash), files (map of file => content).
-  Returns: files that differ from other platforms.
-  """
-  def sync(conn, params) do
-    token = params["token"]
-    platform = params["platform"]
-    hashes = params["hashes"] || %{}
-    files = params["files"] || %{}
-    team_id = params["team_id"]
-    scope = params["scope"]
-    project_name = params["project_name"]
-
-    sync_opts =
-      []
-      |> then(fn opts -> if scope in ["project", "global"], do: [{:scope, scope} | opts], else: opts end)
-      |> then(fn opts -> if is_binary(project_name) and project_name != "", do: [{:project_name, project_name} | opts], else: opts end)
-
-    with :ok <- validate_platform(platform),
-         :ok <- validate_hashes(hashes),
-         :ok <- validate_file_paths(hashes),
-         :ok <- validate_file_paths(files),
-         :ok <- validate_files(files),
-         {:ok, result} <- Teams.sync(token, platform, hashes, files, team_id, sync_opts) do
-      json(conn, %{changes: result.files})
-    else
-      {:error, :not_joined} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "token not associated with any team — run 'teamrc init' first"})
-
-      {:error, reason} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: reason})
-    end
-  end
-
-  @doc "Push a single entry (legacy / convenience). Wraps into sync."
-  def push(conn, %{"token" => token, "platform" => platform, "entry" => entry} = params) do
-    team_id = params["team_id"]
-
-    with :ok <- validate_platform(platform),
-         :ok <- validate_entry_size(entry) do
-      entry = Map.put(entry, "source_platform", platform)
-
-      case Teams.push_buffer(token, entry, team_id) do
-        :ok ->
-          json(conn, %{status: "ok"})
-
-        {:error, :not_joined} ->
-          conn
-          |> put_status(:forbidden)
-          |> json(%{error: "token not associated with any team — run 'teamrc init' first"})
-
-        {:error, :buffer_full} ->
-          conn
-          |> put_status(429)
-          |> json(%{error: "buffer full, try again later"})
-      end
-    else
-      {:error, reason} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: reason})
-    end
-  end
-
-  def pull(conn, %{"token" => token, "platform" => platform} = params) do
-    team_id = params["team_id"]
-
-    case Teams.pull_buffer(token, platform, team_id) do
-      {:ok, entries} ->
-        json(conn, %{entries: entries})
-
-      {:error, :not_joined} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "token not associated with any team — run 'teamrc init' first"})
-    end
-  end
-
-  def sync_check(conn, %{"token" => token, "since" => since_str} = params) do
-    team_id = params["team_id"]
-
-    case Integer.parse(since_str) do
-      {since, ""} ->
-        case Teams.check_changed(token, since, team_id) do
-          {:ok, changed} ->
-            json(conn, %{changed: changed})
-
-          {:error, :not_joined} ->
-            conn
-            |> put_status(:forbidden)
-            |> json(%{error: "token not associated with any team — run 'teamrc init' first"})
-        end
-
-      _ ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: "since must be a Unix timestamp integer"})
-    end
-  end
-
-  def sync_check(conn, _params) do
-    conn
-    |> put_status(:bad_request)
-    |> json(%{error: "token and since parameters are required"})
-  end
-
   def preview_team(conn, %{"invite_code" => invite_code}) do
     case Teams.preview_by_invite(invite_code) do
       {:ok, team} -> json(conn, %{team: team})
       :error -> conn |> put_status(:not_found) |> json(%{error: "invalid_invite"})
-    end
-  end
-
-  def get_log(conn, params) do
-    token = conn.assigns[:verified_token]
-    team_id = params["team_id"]
-
-    case Teams.get_log(token, team_id) do
-      {:ok, entries} ->
-        json(conn, %{entries: entries})
-
-      {:error, :not_joined} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "not a team member"})
     end
   end
 
@@ -281,19 +149,6 @@ defmodule TeamrcWeb.ApiController do
   end
   defp validate_entries(_, label, _max), do: {:error, "#{label} must be a list"}
 
-  defp validate_files(files) when is_map(files) do
-    oversized =
-      Enum.find(files, fn {_name, content} ->
-        is_binary(content) and byte_size(content) > @max_file_size_bytes
-      end)
-
-    case oversized do
-      nil -> :ok
-      {name, _} -> {:error, "file #{name} exceeds maximum size of #{@max_file_size_bytes} bytes"}
-    end
-  end
-  defp validate_files(_), do: :ok
-
   defp put_if_present(map, _key, nil), do: map
   defp put_if_present(map, key, val), do: Map.put(map, key, val)
 
@@ -307,62 +162,8 @@ defmodule TeamrcWeb.ApiController do
 
     %{"name" => team["name"], "members" => members}
     |> put_if_present("skills", team["skills"])
+    |> put_if_present("knowledge", team["knowledge"])
   end
-
-  defp validate_entry_size(entry) do
-    encoded = Jason.encode!(entry)
-    if byte_size(encoded) > @max_file_size_bytes do
-      {:error, "entry exceeds maximum size of #{@max_file_size_bytes} bytes"}
-    else
-      :ok
-    end
-  end
-
-  defp validate_platform(nil), do: {:error, "platform is required"}
-  defp validate_platform(platform) when is_binary(platform) do
-    cond do
-      byte_size(platform) > @max_platform_length ->
-        {:error, "platform name too long"}
-      not Regex.match?(~r/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/, platform) ->
-        {:error, "platform must be alphanumeric (hyphens and underscores allowed)"}
-      true ->
-        :ok
-    end
-  end
-  defp validate_platform(_), do: {:error, "platform must be a string"}
-
-  defp validate_hashes(hashes) when is_map(hashes) do
-    invalid =
-      Enum.find(hashes, fn {_path, hash} ->
-        not is_binary(hash) or byte_size(hash) > @max_hash_length
-      end)
-
-    case invalid do
-      nil -> :ok
-      {path, _} -> {:error, "invalid hash for file: #{path}"}
-    end
-  end
-  defp validate_hashes(_), do: {:error, "hashes must be a map"}
-
-  defp validate_file_paths(map) when is_map(map) do
-    if map_size(map) > @max_files_per_sync do
-      {:error, "too many files (max #{@max_files_per_sync})"}
-    else
-      invalid =
-        Enum.find(Map.keys(map), fn path ->
-          not is_binary(path) or
-            byte_size(path) > @max_file_path_length or
-            String.contains?(path, "..") or
-            String.starts_with?(path, "/")
-        end)
-
-      case invalid do
-        nil -> :ok
-        path -> {:error, "invalid file path: #{path}"}
-      end
-    end
-  end
-  defp validate_file_paths(_), do: :ok
 
   defp safe_integer(nil, default), do: default
   defp safe_integer(val, default) when is_binary(val) do

@@ -5,7 +5,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { readTeamYaml, writeTeamYaml } from "../team-yaml.js";
 import { resolveAgentSkills } from "../resolve-skills.js";
-import { resolveBody } from "../resolve-source.js";
+import { resolveBody } from "../team-yaml.js";
 
 describe("integration: full skills flow", () => {
   let tmpDir: string;

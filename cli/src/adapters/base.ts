@@ -1,25 +1,12 @@
-import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import * as path from "node:path";
-
-export function hashContent(content: string): string {
-  return crypto.createHash("sha256").update(content).digest("hex").slice(0, 16);
-}
 
 /** Validate that an agent name is safe for use in file paths */
 export function validateAgentName(name: string): void {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(name)) {
     throw new Error(`Invalid agent name: ${JSON.stringify(name)}`);
   }
-}
-
-/** Portable agent representation — the wire format sent to/from relay */
-export interface PortableAgent {
-  name: string;
-  role: string;
-  soul?: string;
-  teamName: string;
 }
 
 export interface Skill {
@@ -46,7 +33,6 @@ export interface TeamDefinition {
   teamId?: string;
   relay?: string;
   platforms?: string[];
-  noSync?: boolean;
 }
 
 export const VALID_PLATFORMS = [
@@ -76,16 +62,8 @@ export interface PlatformAdapter {
   readKnowledge(): string;
   writeKnowledge(content: string): void;
   appendKnowledge(entries: string[]): void;
-  getHashes(): Record<string, string>;
-  watchPaths(): string[];
-  writeFile(key: string, content: string): void;
-  readFile(key: string): string | null;
   /** Remove everything teamrc installed for this platform. Returns list of actions taken. */
   uninstall(): string[];
-  /** Whether this adapter supports real-time sync (daemon, sync command). */
-  readonly supportsSync: boolean;
-  /** Get the modification time (Unix seconds) of the file backing a sync key. */
-  getFileMtime(key: string): number;
 }
 
 /** Write a native SKILL.md file for a skill in the given base directory */

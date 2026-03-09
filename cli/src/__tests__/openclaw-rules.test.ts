@@ -161,23 +161,6 @@ describe("OpenClaw adapter (native OpenHands format)", () => {
     assert.equal(architect.soul, "You design systems.");
   });
 
-  it("getHashes returns agent and skill hashes", async () => {
-    const { OpenClawAdapter } = await import("../adapters/openclaw.js");
-    const adapter = new OpenClawAdapter();
-
-    const team = {
-      name: "test-team",
-      members: [{ name: "dev", role: "developer" }],
-      skills: [{ id: "tdd", description: "TDD", body: "Red green refactor." }],
-    };
-
-    adapter.writeTeam(team, "project");
-
-    const hashes = adapter.getHashes();
-    assert.ok(hashes["agent:dev"], "Should have agent hash");
-    assert.ok(hashes["skill:tdd"], "Should have skill hash");
-  });
-
   it("knowledge read/write/append works", async () => {
     const { OpenClawAdapter } = await import("../adapters/openclaw.js");
     const adapter = new OpenClawAdapter();
@@ -230,34 +213,6 @@ describe("OpenClaw adapter (native OpenHands format)", () => {
       const content = fs.readFileSync(agentsMd, "utf-8");
       assert.ok(!content.includes("<!-- teamrc -->"), "teamrc markers should be removed");
     }
-  });
-
-  it("writeFile/readFile round-trip via portable JSON", async () => {
-    const { OpenClawAdapter } = await import("../adapters/openclaw.js");
-    const adapter = new OpenClawAdapter();
-
-    // Create initial agent so resolveAgentsDir finds the project dir
-    const team = {
-      name: "test-team",
-      members: [{ name: "dev", role: "developer" }],
-    };
-    adapter.writeTeam(team, "project");
-
-    const portable = JSON.stringify({
-      name: "analyst",
-      role: "Data analyst",
-      soul: "You analyze data.",
-      teamName: "test-team",
-    });
-
-    adapter.writeFile("agent:analyst", portable);
-    const result = adapter.readFile("agent:analyst");
-    assert.ok(result, "Should read back portable JSON");
-
-    const parsed = JSON.parse(result);
-    assert.equal(parsed.name, "analyst");
-    assert.equal(parsed.role, "Data analyst");
-    assert.equal(parsed.soul, "You analyze data.");
   });
 
   it("does not use workspace directories or openclaw.json", async () => {

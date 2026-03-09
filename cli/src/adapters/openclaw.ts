@@ -3,7 +3,6 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { parse as parseYaml } from "yaml";
 import {
-  hashContent,
   validateAgentName,
   sanitizeMarkerContent,
   sanitizeText,
@@ -12,7 +11,6 @@ import {
   writeSkillDir,
   cleanupSkillDirs,
   type PlatformAdapter,
-  type PortableAgent,
   type TeamDefinition,
   type TeamMember,
   type TeamScope,
@@ -20,8 +18,6 @@ import {
 import { resolveAgentSkills } from "../resolve-skills.js";
 
 export class OpenClawAdapter implements PlatformAdapter {
-  readonly supportsSync = true;
-
   private baseDir(scope: TeamScope): string {
     if (scope === "global") {
       return path.join(os.homedir(), ".agents");
@@ -209,152 +205,6 @@ export class OpenClawAdapter implements PlatformAdapter {
     }
   }
 
-  getHashes(): Record<string, string> {
-    const hashes: Record<string, string> = {};
-
-    // Hash each agent file as portable JSON
-    const { dir, scope } = this.resolveAgentsDir();
-    for (const file of this.listTbFiles(dir)) {
-      const content = fs.readFileSync(path.join(dir, file), "utf-8");
-      const parsed = parseAgentFile(content);
-      if (!parsed) continue;
-      const portable = toPortableJson(parsed);
-      hashes[`agent:${parsed.agentName}`] = hashContent(portable);
-    }
-
-    // Hash native skill files
-    const skillsDir = this.skillsDir(scope);
-    if (fs.existsSync(skillsDir)) {
-      for (const f of fs.readdirSync(skillsDir)) {
-        if (f.startsWith("trc-")) {
-          const skillFile = path.join(skillsDir, f, "SKILL.md");
-          if (fs.existsSync(skillFile)) {
-            const content = fs.readFileSync(skillFile, "utf-8");
-            const skillId = f.replace(/^trc-/, "");
-            hashes[`skill:${skillId}`] = hashContent(content);
-          }
-        }
-      }
-    }
-
-    // Hash team knowledge file
-    for (const s of ["project", "global"] as TeamScope[]) {
-      const kPath = this.knowledgePath(s);
-      if (fs.existsSync(kPath)) {
-        const content = fs.readFileSync(kPath, "utf-8");
-        hashes[`knowledge:${s}`] = hashContent(content);
-      }
-    }
-
-    return hashes;
-  }
-
-  watchPaths(): string[] {
-    const paths = [
-      this.knowledgePath("project"),
-      this.knowledgePath("global"),
-    ];
-    // Watch both possible agent directories
-    const projectAgents = this.agentsDir("project");
-    const globalAgents = this.agentsDir("global");
-    if (fs.existsSync(projectAgents)) paths.push(projectAgents);
-    if (fs.existsSync(globalAgents)) paths.push(globalAgents);
-
-    // Watch skills directories
-    for (const scope of ["project", "global"] as TeamScope[]) {
-      const sDir = this.skillsDir(scope);
-      if (fs.existsSync(sDir)) paths.push(sDir);
-    }
-
-    return paths;
-  }
-
-  writeFile(key: string, content: string): void {
-    if (key.startsWith("agent:")) {
-      this.writeAgentFromPortable(key, content);
-      return;
-    }
-    if (key === "knowledge:project") {
-      this.writeKnowledge(content);
-      return;
-    }
-    if (key === "knowledge:global") {
-      const dir = path.dirname(this.knowledgePath("global"));
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(this.knowledgePath("global"), content);
-      return;
-    }
-  }
-
-  readFile(key: string): string | null {
-    if (key.startsWith("agent:")) {
-      return this.readAgentAsPortable(key);
-    }
-    if (key === "knowledge:project") {
-      const p = this.knowledgePath("project");
-      return fs.existsSync(p) ? fs.readFileSync(p, "utf-8") : null;
-    }
-    if (key === "knowledge:global") {
-      const p = this.knowledgePath("global");
-      return fs.existsSync(p) ? fs.readFileSync(p, "utf-8") : null;
-    }
-    return null;
-  }
-
-  private readAgentAsPortable(key: string): string | null {
-    const agentName = key.replace("agent:", "");
-    const { dir } = this.resolveAgentsDir();
-    const filePath = path.join(dir, `trc-${slugify(agentName)}.md`);
-    if (!fs.existsSync(filePath)) return null;
-
-    const content = fs.readFileSync(filePath, "utf-8");
-    const parsed = parseAgentFile(content);
-    if (!parsed) return null;
-    return toPortableJson(parsed);
-  }
-
-  private writeAgentFromPortable(key: string, json: string): void {
-    let portable: PortableAgent;
-    try {
-      portable = JSON.parse(json) as PortableAgent;
-    } catch {
-      console.warn(`Skipping malformed JSON for ${key}`);
-      return;
-    }
-    validateAgentName(portable.name);
-    const { dir } = this.resolveAgentsDir();
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-    const member: TeamMember = { name: portable.name, role: portable.role, soul: portable.soul };
-    const filePath = path.join(dir, `trc-${slugify(portable.name)}.md`);
-    const content = buildAgentFile(portable.teamName, member);
-    fs.writeFileSync(filePath, content);
-  }
-
-  getFileMtime(key: string): number {
-    if (key.startsWith("agent:")) {
-      const name = key.replace("agent:", "");
-      const { dir } = this.resolveAgentsDir();
-      return this.statMtime(path.join(dir, `trc-${slugify(name)}.md`));
-    }
-    if (key === "knowledge:project") return this.statMtime(this.knowledgePath("project"));
-    if (key === "knowledge:global") return this.statMtime(this.knowledgePath("global"));
-    if (key.startsWith("skill:")) {
-      const { scope } = this.resolveAgentsDir();
-      const skillId = key.replace("skill:", "");
-      return this.statMtime(path.join(this.skillsDir(scope), `trc-${skillId}`, "SKILL.md"));
-    }
-    return 0;
-  }
-
-  private statMtime(filePath: string): number {
-    try {
-      return Math.floor(fs.statSync(filePath).mtimeMs / 1000);
-    } catch {
-      return 0;
-    }
-  }
-
   uninstall(): string[] {
     const actions: string[] = [];
     const { dir, scope } = this.resolveAgentsDir();
@@ -451,17 +301,6 @@ function parseAgentFile(content: string): ParsedAgent | null {
   const soul = isDefault ? undefined : soulRaw || undefined;
 
   return { agentName, role, soul, teamName };
-}
-
-/** Convert parsed agent to portable JSON string (wire format) */
-function toPortableJson(parsed: ParsedAgent): string {
-  const obj: PortableAgent = {
-    name: parsed.agentName,
-    role: parsed.role,
-    teamName: parsed.teamName,
-    ...(parsed.soul ? { soul: parsed.soul } : {}),
-  };
-  return JSON.stringify(obj);
 }
 
 function buildAgentFile(teamName: string, member: TeamMember, team?: TeamDefinition): string {

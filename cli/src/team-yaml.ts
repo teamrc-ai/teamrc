@@ -1,8 +1,11 @@
 import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 import YAML from "yaml";
 import { validateAgentName, VALID_PLATFORMS, type TeamDefinition, type TeamMember, type Skill } from "./adapters/base.js";
 
 export const TEAM_YAML = ".teamrc.yaml";
+export const GLOBAL_TEAM_YAML = path.join(os.homedir(), ".teamrc", "team.yaml");
 
 const MAX_YAML_SIZE = 256 * 1024; // 256 KB
 const MAX_MEMBERS = 100;
@@ -85,8 +88,6 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
   // Parse new multi-project fields
   const teamId = data.teamId ? String(data.teamId) : undefined;
   const relay = data.relay ? String(data.relay) : undefined;
-  const noSync = data.noSync === true ? true : undefined;
-
   let platforms: string[] | undefined;
   if (Array.isArray(data.platforms)) {
     const validSet = new Set<string>(VALID_PLATFORMS);
@@ -107,7 +108,6 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
     ...(teamId ? { teamId } : {}),
     ...(relay ? { relay } : {}),
     ...(platforms ? { platforms } : {}),
-    ...(noSync ? { noSync } : {}),
   };
 }
 
@@ -117,7 +117,6 @@ export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
     ...(team.teamId ? { teamId: team.teamId } : {}),
     ...(team.relay ? { relay: team.relay } : {}),
     ...(team.platforms ? { platforms: team.platforms } : {}),
-    ...(team.noSync ? { noSync: team.noSync } : {}),
     members: team.members.map((m) => {
       const entry: Record<string, unknown> = { name: m.name, role: m.role };
       if (m.soul) entry.soul = m.soul;
@@ -141,4 +140,34 @@ export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
 
   const yaml = YAML.stringify(data);
   fs.writeFileSync(filePath, yaml);
+}
+
+const MAX_SOURCE_SIZE = 1024 * 1024; // 1 MB
+
+export function resolveBody(
+  body: string | { source: string } | undefined,
+  basePath: string,
+): string {
+  if (body === undefined) return "";
+  if (typeof body === "string") return body;
+  if (body.source) {
+    if (typeof body.source !== "string") return "";
+    const resolved = path.resolve(basePath, body.source);
+    const realBase = path.resolve(basePath);
+    if (!resolved.startsWith(realBase + path.sep) && resolved !== realBase) {
+      throw new Error(`Path traversal blocked: source "${body.source}" resolves outside project directory`);
+    }
+    if (!fs.existsSync(resolved)) return "";
+    const realResolved = fs.realpathSync(resolved);
+    const realBaseResolved = fs.realpathSync(realBase);
+    if (!realResolved.startsWith(realBaseResolved + path.sep) && realResolved !== realBaseResolved) {
+      throw new Error(`Path traversal blocked: source "${body.source}" resolves outside project directory via symlink`);
+    }
+    const stat = fs.statSync(resolved);
+    if (stat.size > MAX_SOURCE_SIZE) {
+      throw new Error(`Source file "${body.source}" exceeds maximum size of ${MAX_SOURCE_SIZE} bytes`);
+    }
+    return fs.readFileSync(resolved, "utf-8");
+  }
+  return "";
 }

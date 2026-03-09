@@ -14,7 +14,6 @@ import {
 import { resolveAgentSkills } from "../resolve-skills.js";
 
 export class CodexAdapter implements PlatformAdapter {
-  readonly supportsSync = false;
   private codexDir(): string {
     return path.join(process.cwd(), ".codex");
   }
@@ -208,14 +207,29 @@ export class CodexAdapter implements PlatformAdapter {
     }
   }
 
-  readKnowledge(): string { return ""; }
-  writeKnowledge(_content: string): void {}
-  appendKnowledge(_entries: string[]): void {}
-  getHashes(): Record<string, string> { return {}; }
-  watchPaths(): string[] { return []; }
-  writeFile(_key: string, _content: string): void {}
-  readFile(_key: string): string | null { return null; }
-  getFileMtime(_key: string): number { return 0; }
+  readKnowledge(): string {
+    const p = path.join(process.cwd(), "teamrc-knowledge.md");
+    if (fs.existsSync(p)) return fs.readFileSync(p, "utf-8");
+    return "";
+  }
+
+  writeKnowledge(content: string): void {
+    fs.writeFileSync(path.join(process.cwd(), "teamrc-knowledge.md"), content);
+  }
+
+  appendKnowledge(entries: string[]): void {
+    if (entries.length === 0) return;
+    const filePath = path.join(process.cwd(), "teamrc-knowledge.md");
+    const newContent = entries
+      .map((e) => `- ${new Date().toISOString().slice(0, 10)}: ${e}`)
+      .join("\n");
+    if (fs.existsSync(filePath)) {
+      fs.appendFileSync(filePath, "\n" + newContent + "\n");
+    } else {
+      fs.writeFileSync(filePath, `# Team Knowledge\n\nShared findings and decisions synced by teamrc.\n\n${newContent}\n`);
+    }
+  }
+
   uninstall(): string[] {
     const actions: string[] = [];
 

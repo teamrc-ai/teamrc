@@ -1,5 +1,6 @@
 import { signMessage } from "./auth.js";
 import type { Skill, TeamDefinition } from "./adapters/base.js";
+
 import { validateSkillId } from "./team-yaml.js";
 
 export interface TeamrcTeam {
@@ -7,6 +8,8 @@ export interface TeamrcTeam {
   name: string;
   members: Array<{ name: string; role: string; platform?: string; skills?: string[] }>;
   skills?: Skill[];
+  knowledge?: string;
+  updated_at?: string;
   created_at?: string;
 }
 
@@ -25,16 +28,6 @@ export function remoteTeamToDefinition(team: TeamrcTeam): TeamDefinition {
     })),
     ...(skills?.length ? { skills } : {}),
   };
-}
-
-export interface SyncChange {
-  content: string;
-  updated_at: number; // unix timestamp
-  pushed_by?: string;
-}
-
-export interface SyncResult {
-  changes: Record<string, SyncChange>;
 }
 
 export class TeamrcClient {
@@ -91,11 +84,18 @@ export class TeamrcClient {
 
   async createTeam(
     name: string,
-    members: Array<{ name: string; role: string; platform: string }>,
+    members: Array<{ name: string; role: string; platform?: string; skills?: string[] }>,
+    skills?: Skill[],
+    knowledge?: string,
   ): Promise<TeamrcTeam> {
     const body = JSON.stringify({
       token: this.token,
-      team: { name, members },
+      team: {
+        name,
+        members,
+        ...(skills?.length ? { skills } : {}),
+        ...(knowledge ? { knowledge } : {}),
+      },
     });
     const headers = await this.signedHeaders(body);
     const res = await fetch(`${this.baseUrl}/api/teams`, {
@@ -130,56 +130,31 @@ export class TeamrcClient {
     return data.team;
   }
 
-  async sync(
-    platform: string,
-    hashes: Record<string, string>,
-    files: Record<string, string> = {},
-  ): Promise<SyncResult> {
+  async pushTeam(team: TeamDefinition, knowledge?: string): Promise<TeamrcTeam> {
     const body = JSON.stringify({
       token: this.token,
-      platform,
-      hashes,
-      files,
-      ...(this.teamId ? { team_id: this.teamId } : {}),
+      team: {
+        name: team.name,
+        members: team.members.map((m) => ({
+          name: m.name,
+          role: m.role,
+          ...(m.skills?.length ? { skills: m.skills } : {}),
+        })),
+        ...(team.skills?.length ? { skills: team.skills } : {}),
+        ...(knowledge ? { knowledge } : {}),
+      },
     });
     const headers = await this.signedHeaders(body);
-    const res = await fetch(`${this.baseUrl}/api/sync`, {
+    const res = await fetch(`${this.baseUrl}/api/teams`, {
       method: "POST",
       headers,
       body,
     });
     if (!res.ok) {
-      throw new Error(await this.errorMessage(res, "sync failed"));
+      throw new Error(await this.errorMessage(res, "pushTeam failed"));
     }
-    return (await res.json()) as SyncResult;
-  }
-
-  async syncCheck(since: number): Promise<boolean> {
-    const teamParam = this.teamId ? `&team_id=${encodeURIComponent(this.teamId)}` : "";
-    const params = `token=${encodeURIComponent(this.token)}&since=${since}${teamParam}`;
-    const data = await this.signedGet<{ changed: boolean }>(`/api/sync/check?${params}`);
-    return data.changed;
-  }
-
-  async push(
-    platform: string,
-    entry: Record<string, string>,
-  ): Promise<void> {
-    const body = JSON.stringify({
-      token: this.token,
-      platform,
-      entry,
-      ...(this.teamId ? { team_id: this.teamId } : {}),
-    });
-    const headers = await this.signedHeaders(body);
-    const res = await fetch(`${this.baseUrl}/api/push`, {
-      method: "POST",
-      headers,
-      body,
-    });
-    if (!res.ok) {
-      throw new Error(await this.errorMessage(res, "push failed"));
-    }
+    const data = (await res.json()) as { team: TeamrcTeam };
+    return data.team;
   }
 
   async createDeviceAuth(): Promise<{
@@ -233,12 +208,6 @@ export class TeamrcClient {
     if (!res.ok) throw new Error(await this.errorMessage(res, "preview failed"));
     const data = (await res.json()) as { team: TeamrcTeam };
     return data.team;
-  }
-
-  async getLog(): Promise<Array<{ type: string; content: string; source_platform: string; pushed_by?: string; timestamp: string }>> {
-    const teamParam = this.teamId ? `&team_id=${encodeURIComponent(this.teamId)}` : "";
-    const data = await this.signedGet<{ entries: Array<{ type: string; content: string; source_platform: string; pushed_by?: string; timestamp: string }> }>(`/api/log?token=${encodeURIComponent(this.token)}${teamParam}`);
-    return data.entries;
   }
 
   async createInvite(ttlHours: number = 24): Promise<{ invite_code: string; expires_at: string }> {

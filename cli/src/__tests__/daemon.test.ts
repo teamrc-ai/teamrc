@@ -1,80 +1,75 @@
-import { describe, it, beforeEach, afterEach } from "node:test";
+import { describe, it, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { startDaemon } from "../daemon.js";
-import type { PlatformAdapter } from "../adapters/base.js";
-import type { TeamrcClient } from "../client.js";
+import type { PlatformAdapter, TeamDefinition } from "../adapters/base.js";
+import type { TeamrcClient, TeamrcTeam } from "../client.js";
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "daemon-test-"));
 }
 
-function createMockAdapter(tmpDir: string): PlatformAdapter {
-  const teamFile = path.join(tmpDir, ".teamrc.yaml");
-  const knowledgeFile = path.join(tmpDir, "team-knowledge.md");
+function createMockAdapter(tmpDir: string): PlatformAdapter & { writtenTeams: TeamDefinition[] } {
+  const knowledgeFile = path.join(tmpDir, "teamrc-knowledge.md");
+  const writtenTeams: TeamDefinition[] = [];
 
   return {
+    writtenTeams,
     readTeam: () => null,
-    writeTeam: () => {},
+    writeTeam: (team: TeamDefinition) => { writtenTeams.push(team); },
     readKnowledge: () => {
       try { return fs.readFileSync(knowledgeFile, "utf-8"); } catch { return ""; }
     },
     writeKnowledge: (content: string) => fs.writeFileSync(knowledgeFile, content),
     appendKnowledge: () => {},
-    getHashes: () => {
-      const hashes: Record<string, string> = {};
-      if (fs.existsSync(teamFile)) {
-        hashes["team-spec"] = "hash-team";
-      }
-      if (fs.existsSync(knowledgeFile)) {
-        hashes["knowledge:project"] = "hash-knowledge";
-      }
-      return hashes;
-    },
-    watchPaths: () => [teamFile, knowledgeFile],
-    writeFile: (key: string, content: string) => {
-      if (key === "team-spec") fs.writeFileSync(teamFile, content);
-      if (key === "knowledge:project") fs.writeFileSync(knowledgeFile, content);
-    },
-    readFile: (key: string) => {
-      try {
-        if (key === "team-spec") return fs.readFileSync(teamFile, "utf-8");
-        if (key === "knowledge:project") return fs.readFileSync(knowledgeFile, "utf-8");
-      } catch { /* ignore */ }
-      return null;
-    },
+    uninstall: () => [],
   };
 }
 
 function createMockClient(responses: {
-  syncCheck?: boolean;
-  sync?: { changes: Record<string, { content: string; updated_at: number }> };
+  getTeam?: TeamrcTeam;
 }): TeamrcClient & { calls: { method: string; args: unknown[] }[] } {
   const calls: { method: string; args: unknown[] }[] = [];
+  const defaultTeam: TeamrcTeam = {
+    id: "test-id",
+    name: "test-team",
+    members: [{ name: "agent", role: "helper" }],
+    updated_at: new Date().toISOString(),
+  };
 
   return {
     calls,
-    syncCheck: async (since: number) => {
-      calls.push({ method: "syncCheck", args: [since] });
-      return responses.syncCheck ?? false;
+    getTeam: async (...args: unknown[]) => {
+      calls.push({ method: "getTeam", args });
+      return responses.getTeam ?? defaultTeam;
     },
-    sync: async (platform: string, hashes: Record<string, string>, files?: Record<string, string>) => {
-      calls.push({ method: "sync", args: [platform, hashes, files] });
-      return responses.sync ?? { changes: {} };
+    pushTeam: async (...args: unknown[]) => {
+      calls.push({ method: "pushTeam", args });
+      return responses.getTeam ?? defaultTeam;
     },
   } as unknown as ReturnType<typeof createMockClient>;
 }
 
 describe("daemon", () => {
   let tmpDir: string;
+  let originalCwd: string;
 
   beforeEach(() => {
     tmpDir = makeTmpDir();
+    originalCwd = process.cwd();
+    process.chdir(tmpDir);
+
+    // Create a .teamrc.yaml so the daemon can read it
+    fs.writeFileSync(
+      path.join(tmpDir, ".teamrc.yaml"),
+      "name: test-team\nteamId: test-id\nrelay: http://localhost:4000\nplatforms:\n  - claude-code\nmembers:\n  - name: agent\n    role: helper\n",
+    );
   });
 
   afterEach(() => {
+    process.chdir(originalCwd);
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -83,60 +78,143 @@ describe("daemon", () => {
     const client = createMockClient({});
 
     const daemon = startDaemon({
-      adapter,
       client,
-      platform: "claude-code",
+      adapters: [adapter],
+      platforms: ["claude-code"],
       pollInterval: 60000,
+      watchYaml: false,
     });
 
     daemon.stop();
   });
 
-  it("performs initial sync check on start", async () => {
+  it("polls relay on start and calls getTeam", async () => {
     const adapter = createMockAdapter(tmpDir);
-    const client = createMockClient({ syncCheck: false });
+    const client = createMockClient({});
 
     const daemon = startDaemon({
-      adapter,
       client,
-      platform: "claude-code",
+      adapters: [adapter],
+      platforms: ["claude-code"],
       pollInterval: 60000,
+      watchYaml: false,
     });
 
     // Give the initial async poll a moment to execute
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 200));
 
-    assert.ok(client.calls.some((c) => c.method === "syncCheck"));
+    assert.ok(client.calls.some((c) => c.method === "getTeam"));
 
     daemon.stop();
   });
 
-  it("applies remote changes when syncCheck returns true", async () => {
+  it("applies remote team when updated_at changes", async () => {
     const adapter = createMockAdapter(tmpDir);
-    const client = createMockClient({
-      syncCheck: true,
-      sync: { changes: { "team-spec": { content: "name: remote-team\nagents:\n  - name: a\n    role: r\n", updated_at: Math.floor(Date.now() / 1000) + 100 } } },
-    });
+    const remoteTeam: TeamrcTeam = {
+      id: "test-id",
+      name: "updated-team",
+      members: [{ name: "agent", role: "updated-role" }],
+      updated_at: new Date().toISOString(),
+    };
+    const client = createMockClient({ getTeam: remoteTeam });
 
     const daemon = startDaemon({
-      adapter,
       client,
-      platform: "claude-code",
+      adapters: [adapter],
+      platforms: ["claude-code"],
       pollInterval: 60000,
-      syncMode: "all",
+      watchYaml: false,
     });
 
     await new Promise((r) => setTimeout(r, 200));
 
-    // syncCheck should be called, then sync
-    assert.ok(client.calls.some((c) => c.method === "syncCheck"));
-    assert.ok(client.calls.some((c) => c.method === "sync"));
+    // The adapter should have received a writeTeam call
+    assert.ok(adapter.writtenTeams.length > 0);
+    assert.equal(adapter.writtenTeams[0].name, "updated-team");
 
-    // The file should have been written
-    const teamFile = path.join(tmpDir, ".teamrc.yaml");
-    assert.ok(fs.existsSync(teamFile));
-    const content = fs.readFileSync(teamFile, "utf-8");
-    assert.ok(content.includes("remote-team"));
+    daemon.stop();
+  });
+
+  it("does not re-apply when updated_at hasn't changed", async () => {
+    const adapter = createMockAdapter(tmpDir);
+    const fixedTime = new Date().toISOString();
+    const remoteTeam: TeamrcTeam = {
+      id: "test-id",
+      name: "test-team",
+      members: [{ name: "agent", role: "helper" }],
+      updated_at: fixedTime,
+    };
+    const client = createMockClient({ getTeam: remoteTeam });
+
+    const daemon = startDaemon({
+      client,
+      adapters: [adapter],
+      platforms: ["claude-code"],
+      pollInterval: 100, // fast poll for testing
+      watchYaml: false,
+    });
+
+    // Wait for initial poll + one more
+    await new Promise((r) => setTimeout(r, 350));
+
+    // getTeam should be called multiple times but writeTeam only once
+    // (initial apply, then no-op on subsequent polls with same updated_at)
+    const getTeamCalls = client.calls.filter((c) => c.method === "getTeam");
+    assert.ok(getTeamCalls.length >= 2, `Expected at least 2 getTeam calls, got ${getTeamCalls.length}`);
+    assert.equal(adapter.writtenTeams.length, 1, "Should only apply once when updated_at unchanged");
+
+    daemon.stop();
+  });
+
+  it("merges remote knowledge with local knowledge", async () => {
+    const adapter = createMockAdapter(tmpDir);
+
+    // Write some local knowledge
+    adapter.writeKnowledge("# Knowledge\n\n- local fact 1\n");
+
+    const remoteTeam: TeamrcTeam = {
+      id: "test-id",
+      name: "test-team",
+      members: [{ name: "agent", role: "helper" }],
+      updated_at: new Date().toISOString(),
+      knowledge: "# Knowledge\n\n- local fact 1\n- remote fact 2\n",
+    };
+    const client = createMockClient({ getTeam: remoteTeam });
+
+    const daemon = startDaemon({
+      client,
+      adapters: [adapter],
+      platforms: ["claude-code"],
+      pollInterval: 60000,
+      watchYaml: false,
+    });
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const knowledge = adapter.readKnowledge();
+    assert.ok(knowledge.includes("local fact 1"), "Should keep local knowledge");
+    assert.ok(knowledge.includes("remote fact 2"), "Should merge remote knowledge");
+
+    daemon.stop();
+  });
+
+  it("never auto-pushes", async () => {
+    const adapter = createMockAdapter(tmpDir);
+    const client = createMockClient({});
+
+    const daemon = startDaemon({
+      client,
+      adapters: [adapter],
+      platforms: ["claude-code"],
+      pollInterval: 60000,
+      watchYaml: false,
+    });
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    // No pushTeam calls should have been made
+    const pushCalls = client.calls.filter((c) => c.method === "pushTeam");
+    assert.equal(pushCalls.length, 0, "Daemon should never auto-push");
 
     daemon.stop();
   });

@@ -190,9 +190,4 @@ describe("Gemini CLI adapter", () => {
     assert.equal(remainingSkills.length, 0);
   });
 
-  it("supportsSync is true", async () => {
-    const { GeminiAdapter } = await import("../adapters/gemini.js");
-    const adapter = new GeminiAdapter();
-    assert.equal(adapter.supportsSync, true);
-  });
 });

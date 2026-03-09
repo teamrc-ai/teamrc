@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { readTeamYaml, writeTeamYaml } from "../team-yaml.js";
+import { readTeamYaml, writeTeamYaml, GLOBAL_TEAM_YAML, resolveBody } from "../team-yaml.js";
+import type { TeamDefinition } from "../adapters/base.js";
 
 describe("readTeamYaml", () => {
   let tmpDir: string;
@@ -218,5 +219,72 @@ members:
     assert.equal(result.skills![0].id, "skill_y");
     assert.equal(result.skills![0].alwaysApply, true);
     assert.deepEqual(result.members[0].skills, ["skill_y"]);
+  });
+});
+
+describe("global team YAML", () => {
+  it("GLOBAL_TEAM_YAML points to ~/.teamrc/team.yaml", () => {
+    assert.ok(GLOBAL_TEAM_YAML.includes(".teamrc"));
+    assert.ok(GLOBAL_TEAM_YAML.endsWith("team.yaml"));
+  });
+
+  it("can read and write global team YAML", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "global-yaml-"));
+    const yamlPath = path.join(tmpDir, "team.yaml");
+
+    const team: TeamDefinition = {
+      name: "global-test",
+      members: [{ name: "agent", role: "helper" }],
+      teamId: "abc-123",
+      relay: "http://localhost:4000",
+      platforms: ["claude-code"],
+    };
+
+    writeTeamYaml(yamlPath, team);
+    const read = readTeamYaml(yamlPath);
+
+    assert.equal(read?.name, "global-test");
+    assert.equal(read?.teamId, "abc-123");
+    assert.equal(read?.members.length, 1);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
+describe("resolveBody", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-resolve-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it("returns empty string for undefined", () => {
+    assert.equal(resolveBody(undefined, tmpDir), "");
+  });
+
+  it("returns string body as-is", () => {
+    assert.equal(resolveBody("hello world", tmpDir), "hello world");
+  });
+
+  it("reads file from source", () => {
+    fs.writeFileSync(path.join(tmpDir, "rules.md"), "Be careful.");
+    const result = resolveBody({ source: "./rules.md" }, tmpDir);
+    assert.equal(result, "Be careful.");
+  });
+
+  it("returns empty string for missing source file", () => {
+    const result = resolveBody({ source: "./nonexistent.md" }, tmpDir);
+    assert.equal(result, "");
+  });
+
+  it("blocks path traversal", () => {
+    assert.throws(
+      () => resolveBody({ source: "../../etc/passwd" }, tmpDir),
+      /Path traversal blocked/,
+    );
   });
 });

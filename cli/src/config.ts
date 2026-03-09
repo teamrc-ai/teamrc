@@ -2,12 +2,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 
-export interface GlobalTeam {
-  teamId: string;
-  platforms: string[];
-  noSync?: boolean;
-}
-
 export interface TeamrcConfig {
   token: string;
   relay: string;
@@ -16,7 +10,6 @@ export interface TeamrcConfig {
     email: string;
   };
   machineName?: string;
-  globalTeam?: GlobalTeam;
 }
 
 function getConfigDir(): string {

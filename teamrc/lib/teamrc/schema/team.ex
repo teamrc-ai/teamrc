@@ -8,6 +8,7 @@ defmodule Teamrc.Schema.Team do
     field :name, :string
     field :skills, {:array, :map}, default: []
     field :platforms, {:array, :string}, default: []
+    field :knowledge, :string
     has_many :members, Teamrc.Schema.Member
     has_many :invites, Teamrc.Schema.Invite
 
@@ -18,7 +19,7 @@ defmodule Teamrc.Schema.Team do
 
   def changeset(team, attrs) do
     team
-    |> cast(attrs, [:name, :skills, :platforms])
+    |> cast(attrs, [:name, :skills, :platforms, :knowledge])
     |> validate_required([:name])
     |> validate_length(:name, max: 64)
     |> validate_format(:name, ~r/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/)
