@@ -27,7 +27,7 @@ export class CodexAdapter implements PlatformAdapter {
   }
 
   private skillsDir(): string {
-    return path.join(process.cwd(), "skills");
+    return path.join(process.cwd(), ".agents", "skills");
   }
 
   private listTbAgentFiles(): string[] {
@@ -39,11 +39,14 @@ export class CodexAdapter implements PlatformAdapter {
   readTeam(): TeamDefinition | null { return null; }
 
   writeTeam(team: TeamDefinition): void {
-    // Write native skill directories
+    // Route skills: alwaysApply/globs → inline in AGENTS.md, on-demand → .agents/skills/
+    cleanupSkillDirs(this.skillsDir());
     if (team.skills) {
       const dir = this.skillsDir();
       for (const skill of team.skills) {
-        writeSkillDir(dir, skill);
+        if (!skill.alwaysApply && !(skill.globs && skill.globs.length > 0)) {
+          writeSkillDir(dir, skill);
+        }
       }
     }
 
@@ -56,7 +59,7 @@ export class CodexAdapter implements PlatformAdapter {
     // Register subagents in .codex/config.toml
     this.writeConfigToml(team);
 
-    // Write AGENTS.md with team context and routing instructions
+    // Write AGENTS.md with team context, routing, and always-on skills
     this.writeAgentsMd(team);
   }
 
@@ -140,6 +143,7 @@ export class CodexAdapter implements PlatformAdapter {
 
     // Global agents settings
     lines.push("[agents]");
+    lines.push("multi_agent = true");
     lines.push(`max_threads = ${Math.min(team.members.length, 8)}`);
     lines.push(`max_depth = 1`);
     lines.push("");
@@ -169,7 +173,7 @@ export class CodexAdapter implements PlatformAdapter {
     }
   }
 
-  /** Write AGENTS.md with team context for the main agent */
+  /** Write AGENTS.md with team context, routing, and always-on skills */
   private writeAgentsMd(team: TeamDefinition): void {
     const marker = "<!-- teamrc -->";
     const markerEnd = "<!-- /teamrc -->";
@@ -189,6 +193,24 @@ export class CodexAdapter implements PlatformAdapter {
           sections.push(`- \`${sanitizeMarkerContent(s.id)}\``);
         }
         sections.push("");
+      }
+    }
+
+    // Inline alwaysApply/globs skills as sections (Codex has no native rules)
+    const alwaysOnSkills = (team.skills || []).filter(
+      (s) => s.alwaysApply || (s.globs && s.globs.length > 0),
+    );
+    if (alwaysOnSkills.length > 0) {
+      sections.push("---", "");
+      sections.push("## Team Rules", "");
+      for (const s of alwaysOnSkills) {
+        const title = s.title || s.id;
+        const body = typeof s.body === "string" ? s.body : "";
+        sections.push(`### ${sanitizeMarkerContent(title)}`, "");
+        if (s.globs && s.globs.length > 0) {
+          sections.push(`_Applies to: ${s.globs.join(", ")}_`, "");
+        }
+        if (body) sections.push(body, "");
       }
     }
 

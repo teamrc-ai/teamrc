@@ -30,7 +30,10 @@ export class GeminiAdapter implements PlatformAdapter {
   }
 
   private skillsDir(scope: TeamScope): string {
-    return path.join(this.baseDir(scope), "skills");
+    if (scope === "global") {
+      return path.join(os.homedir(), ".agents", "skills");
+    }
+    return path.join(process.cwd(), ".agents", "skills");
   }
 
   private geminiMdPath(): string {
@@ -96,19 +99,21 @@ export class GeminiAdapter implements PlatformAdapter {
       fs.writeFileSync(filePath, content);
     }
 
-    // Write native skill directories
+    // Route skills: alwaysApply/globs → inline in GEMINI.md, on-demand → .agents/skills/
     const skillDir = this.skillsDir(scope);
     cleanupSkillDirs(skillDir);
     if (team.skills) {
-      if (!fs.existsSync(skillDir)) {
-        fs.mkdirSync(skillDir, { recursive: true });
-      }
       for (const skill of team.skills) {
-        writeSkillDir(skillDir, skill);
+        if (!skill.alwaysApply && !(skill.globs && skill.globs.length > 0)) {
+          if (!fs.existsSync(skillDir)) {
+            fs.mkdirSync(skillDir, { recursive: true });
+          }
+          writeSkillDir(skillDir, skill);
+        }
       }
     }
 
-    // Write GEMINI.md knowledge marker block (team-level knowledge only)
+    // Write GEMINI.md with team context and always-on skills
     this.updateGeminiMd(team);
   }
 
@@ -130,7 +135,7 @@ export class GeminiAdapter implements PlatformAdapter {
       .map((m) => `- **${sanitizeMarkerContent(m.name)}** — ${sanitizeMarkerContent(m.role)}`)
       .join("\n");
 
-    const block = [
+    const sections = [
       marker,
       `## teamrc Team: ${safeName}`,
       "",
@@ -140,8 +145,34 @@ export class GeminiAdapter implements PlatformAdapter {
       memberLines,
       "",
       "Each member is defined as an agent in `.gemini/agents/`. Delegate tasks to them based on their roles.",
-      markerEnd,
-    ].join("\n");
+    ];
+
+    // Inline alwaysApply/globs skills (Gemini has no native rules)
+    const alwaysOnSkills = (team.skills || []).filter(
+      (s) => s.alwaysApply || (s.globs && s.globs.length > 0),
+    );
+    if (alwaysOnSkills.length > 0) {
+      sections.push("");
+      sections.push("### Team Rules");
+      sections.push("");
+      for (const s of alwaysOnSkills) {
+        const title = s.title || s.id;
+        const body = typeof s.body === "string" ? s.body : "";
+        sections.push(`#### ${sanitizeMarkerContent(title)}`);
+        sections.push("");
+        if (s.globs && s.globs.length > 0) {
+          sections.push(`_Applies to: ${s.globs.join(", ")}_`);
+          sections.push("");
+        }
+        if (body) {
+          sections.push(body);
+          sections.push("");
+        }
+      }
+    }
+
+    sections.push(markerEnd);
+    const block = sections.join("\n");
 
     const filePath = this.geminiMdPath();
 

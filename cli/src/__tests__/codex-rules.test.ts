@@ -19,7 +19,7 @@ describe("Codex adapter", () => {
     fs.rmSync(tmpDir, { recursive: true });
   });
 
-  it("writes native skill directories to skills/", async () => {
+  it("writes on-demand skill directories to .agents/skills/", async () => {
     const { CodexAdapter } = await import("../adapters/codex.js");
     const adapter = new CodexAdapter();
 
@@ -31,12 +31,42 @@ describe("Codex adapter", () => {
 
     adapter.writeTeam(team);
 
-    const skillFile = path.join(tmpDir, "skills", "trc-skill_search", "SKILL.md");
-    assert.ok(fs.existsSync(skillFile), "SKILL.md should exist");
+    const skillFile = path.join(tmpDir, ".agents", "skills", "trc-skill_search", "SKILL.md");
+    assert.ok(fs.existsSync(skillFile), "SKILL.md should exist in .agents/skills/");
 
     const content = fs.readFileSync(skillFile, "utf-8");
     assert.ok(content.includes("name: trc-skill_search"));
     assert.ok(content.includes("Search code"));
+  });
+
+  it("routes alwaysApply skills into AGENTS.md instead of skill dirs", async () => {
+    const { CodexAdapter } = await import("../adapters/codex.js");
+    const adapter = new CodexAdapter();
+
+    const team = {
+      name: "test-team",
+      members: [{ name: "architect", role: "design" }],
+      skills: [
+        { id: "skill_style", title: "Code Style", alwaysApply: true, body: "Use prettier." },
+        { id: "skill_search", description: "Search code", body: "Use grep." },
+      ],
+    };
+
+    adapter.writeTeam(team);
+
+    // alwaysApply skill should NOT be in skill dirs
+    assert.ok(!fs.existsSync(path.join(tmpDir, ".agents", "skills", "trc-skill_style")),
+      "alwaysApply skill should not be written as skill dir");
+
+    // on-demand skill should be in skill dirs
+    assert.ok(fs.existsSync(path.join(tmpDir, ".agents", "skills", "trc-skill_search", "SKILL.md")),
+      "on-demand skill should be in .agents/skills/");
+
+    // alwaysApply skill should be inlined in AGENTS.md
+    const agentsMd = fs.readFileSync(path.join(tmpDir, "AGENTS.md"), "utf-8");
+    assert.ok(agentsMd.includes("Team Rules"), "AGENTS.md should have Team Rules section");
+    assert.ok(agentsMd.includes("Code Style"), "AGENTS.md should include alwaysApply skill title");
+    assert.ok(agentsMd.includes("Use prettier."), "AGENTS.md should include alwaysApply skill body");
   });
 
   it("writes subagent TOML files with skills to .codex/agents/", async () => {
@@ -81,6 +111,7 @@ describe("Codex adapter", () => {
     assert.ok(fs.existsSync(configPath), "config.toml should exist");
 
     const content = fs.readFileSync(configPath, "utf-8");
+    assert.ok(content.includes("multi_agent = true"), "config.toml should have multi_agent flag");
     assert.ok(content.includes("[agents.trc-architect]"));
     assert.ok(content.includes('config_file = "agents/trc-architect.toml"'));
   });

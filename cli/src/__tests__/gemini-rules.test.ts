@@ -19,7 +19,7 @@ describe("Gemini CLI adapter", () => {
     fs.rmSync(tmpDir, { recursive: true });
   });
 
-  it("writes native skill directories to .gemini/skills/", async () => {
+  it("writes on-demand skill directories to .agents/skills/", async () => {
     const { GeminiAdapter } = await import("../adapters/gemini.js");
     const adapter = new GeminiAdapter();
 
@@ -31,12 +31,42 @@ describe("Gemini CLI adapter", () => {
 
     adapter.writeTeam(team, "project");
 
-    const skillFile = path.join(tmpDir, ".gemini", "skills", "trc-skill_search", "SKILL.md");
-    assert.ok(fs.existsSync(skillFile), "SKILL.md should exist");
+    const skillFile = path.join(tmpDir, ".agents", "skills", "trc-skill_search", "SKILL.md");
+    assert.ok(fs.existsSync(skillFile), "SKILL.md should exist in .agents/skills/");
 
     const content = fs.readFileSync(skillFile, "utf-8");
     assert.ok(content.includes("name: trc-skill_search"));
     assert.ok(content.includes("Search code"));
+  });
+
+  it("routes alwaysApply skills into GEMINI.md instead of skill dirs", async () => {
+    const { GeminiAdapter } = await import("../adapters/gemini.js");
+    const adapter = new GeminiAdapter();
+
+    const team = {
+      name: "test-team",
+      members: [{ name: "architect", role: "design" }],
+      skills: [
+        { id: "skill_style", title: "Code Style", alwaysApply: true, body: "Use prettier." },
+        { id: "skill_search", description: "Search code", body: "Use grep." },
+      ],
+    };
+
+    adapter.writeTeam(team, "project");
+
+    // alwaysApply skill should NOT be in skill dirs
+    assert.ok(!fs.existsSync(path.join(tmpDir, ".agents", "skills", "trc-skill_style")),
+      "alwaysApply skill should not be written as skill dir");
+
+    // on-demand skill should be in skill dirs
+    assert.ok(fs.existsSync(path.join(tmpDir, ".agents", "skills", "trc-skill_search", "SKILL.md")),
+      "on-demand skill should be in .agents/skills/");
+
+    // alwaysApply skill should be inlined in GEMINI.md
+    const geminiMd = fs.readFileSync(path.join(tmpDir, "GEMINI.md"), "utf-8");
+    assert.ok(geminiMd.includes("Team Rules"), "GEMINI.md should have Team Rules section");
+    assert.ok(geminiMd.includes("Code Style"), "GEMINI.md should include alwaysApply skill title");
+    assert.ok(geminiMd.includes("Use prettier."), "GEMINI.md should include alwaysApply skill body");
   });
 
   it("writes individual agent files to .gemini/agents/", async () => {
@@ -183,7 +213,7 @@ describe("Gemini CLI adapter", () => {
     assert.equal(remaining.length, 0);
 
     // Skill dirs should be cleaned
-    const skillDir = path.join(tmpDir, ".gemini", "skills");
+    const skillDir = path.join(tmpDir, ".agents", "skills");
     const remainingSkills = fs.existsSync(skillDir)
       ? fs.readdirSync(skillDir).filter((f) => f.startsWith("trc-"))
       : [];
