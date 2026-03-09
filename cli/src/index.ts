@@ -21,7 +21,7 @@ import {
   getRelayUrl,
 } from "./config.js";
 import { getAdapter, VALID_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
-import { resolveTeam, listTeams, templateToTeamDefinition, type TeamTemplate } from "./catalog.js";
+import { resolveTeam, listTeams, templateToTeamDefinition, listAgentCategories, loadAgent, loadSkill, agentRecommendedSkills, type TeamTemplate } from "./catalog.js";
 import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "./team-yaml.js";
 import type { TeamrcConfig } from "./config.js";
 
@@ -1554,6 +1554,230 @@ program
     }
 
     p.outro("Done. Run `teamrc init` or `teamrc join` to set up again.");
+  });
+
+// --- add-member ---
+program
+  .command("add-member")
+  .description("Add a catalog agent (or custom agent) to the current team")
+  .argument("[agent-name]", "Agent name from catalog (e.g. backend-dev)")
+  .action(async (agentName?: string) => {
+    p.intro("teamrc");
+
+    const ctx = requireTeamContext();
+    const { team, scope, client, platforms } = ctx;
+    const yamlPath = scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
+
+    // Resolve agent name — from argument or interactive picker
+    let name = agentName;
+    if (!name) {
+      if (isNonInteractive()) {
+        p.log.error("Agent name is required in non-interactive mode.\n  Usage: teamrc add-member <agent-name>");
+        process.exit(1);
+      }
+
+      const categories = listAgentCategories();
+      const existingNames = new Set(team.members.map((m) => m.name));
+
+      // Build flat option list grouped by category
+      const options: Array<{ value: string; label: string; hint?: string }> = [];
+      for (const cat of categories) {
+        const available = cat.agents.filter((a) => !existingNames.has(a));
+        if (available.length === 0) continue;
+        for (const a of available) {
+          try {
+            const agent = loadAgent(a);
+            options.push({ value: a, label: a, hint: `${agent.role} [${cat.label}]` });
+          } catch {
+            options.push({ value: a, label: a, hint: cat.label });
+          }
+        }
+      }
+
+      if (options.length === 0) {
+        p.log.warn("All catalog agents are already on this team.");
+        p.outro("Nothing to add.");
+        return;
+      }
+
+      const selected = await p.select({
+        message: "Select an agent to add",
+        options,
+      });
+      handleCancel(selected);
+      name = selected as string;
+    }
+
+    // Duplicate check
+    if (team.members.find((m) => m.name === name)) {
+      p.log.warn(`Agent "${name}" is already on this team.`);
+      p.outro("Nothing to add.");
+      return;
+    }
+
+    // Load agent from catalog
+    let agent;
+    try {
+      agent = loadAgent(name);
+    } catch {
+      p.log.error(`Agent "${name}" not found in catalog.`);
+      process.exit(1);
+    }
+
+    // Get recommended skills for this agent
+    const recommendedSkillIds = agentRecommendedSkills(name);
+
+    // Ensure referenced skills exist in team.skills
+    const existingSkillIds = new Set((team.skills ?? []).map((s) => s.id));
+    const newSkills = [];
+    for (const skillId of recommendedSkillIds) {
+      if (!existingSkillIds.has(skillId)) {
+        try {
+          const skill = loadSkill(skillId);
+          newSkills.push({
+            id: skill.id,
+            title: skill.title,
+            ...(skill.description ? { description: skill.description } : {}),
+            ...(skill.alwaysApply !== undefined ? { alwaysApply: skill.alwaysApply } : {}),
+            ...(skill.globs ? { globs: skill.globs } : {}),
+            ...(skill.userInvocable !== undefined ? { userInvocable: skill.userInvocable } : {}),
+            body: skill.body,
+          });
+        } catch {
+          // Skill not in catalog — skip
+        }
+      }
+    }
+
+    // Build new member
+    const newMember = {
+      name: agent.name,
+      role: agent.role,
+      soul: agent.soul,
+      ...(recommendedSkillIds.length > 0 ? { skills: recommendedSkillIds } : {}),
+    };
+
+    // Mutate team (in memory only — write after push succeeds)
+    team.members.push(newMember);
+    if (newSkills.length > 0) {
+      if (!team.skills) team.skills = [];
+      team.skills.push(...newSkills);
+    }
+
+    // Push to relay first — don't persist locally until relay accepts
+    const s = p.spinner();
+    try {
+      s.start("Pushing to relay...");
+      const knowledge = ctx.adapters[0]?.readKnowledge();
+      await client.pushTeam(team, knowledge || undefined);
+      s.stop("Pushed.");
+    } catch (err) {
+      s.error("Push failed.");
+      p.log.error((err as Error).message);
+      process.exit(1);
+    }
+
+    // Write YAML and apply to platforms only after successful push
+    writeTeamYaml(yamlPath, team);
+    for (const pl of platforms) {
+      const adapter = getAdapter(pl);
+      adapter.writeTeam(team, scope);
+    }
+
+    // Summary
+    const parts = [`Added ${agent.name} (${agent.role})`];
+    if (recommendedSkillIds.length > 0) {
+      parts.push(`Includes ${recommendedSkillIds.length} skill(s): ${recommendedSkillIds.join(", ")}`);
+    }
+    p.log.success(parts.join("\n  "));
+    p.outro(`Applied to ${platforms.length} platform(s).`);
+  });
+
+// --- list-templates ---
+program
+  .command("list-templates")
+  .description("List available team templates from the catalog")
+  .option("--json", "Output as JSON")
+  .action(async (opts: { json?: boolean }) => {
+    const useJson = opts.json ?? globals().json;
+    const teamIds = listTeams();
+
+    const teams = teamIds.map((id) => {
+      const t = resolveTeam(id);
+      return {
+        id,
+        label: t.label,
+        description: t.description,
+        agents: t.members.length,
+        skills: t.skills.length,
+        members: t.members.map((m) => m.name),
+      };
+    });
+
+    if (useJson) {
+      jsonOutput(teams);
+      return;
+    }
+
+    p.intro("teamrc");
+    p.log.info("Available team templates:\n");
+
+    for (const t of teams) {
+      const memberList = t.members.join(", ");
+      p.log.message(
+        `  ${t.id.padEnd(16)} ${t.label}\n` +
+        `  ${"".padEnd(16)} ${t.description}\n` +
+        `  ${"".padEnd(16)} ${t.agents} agents, ${t.skills} skills: ${memberList}\n`,
+      );
+    }
+
+    p.outro(`${teams.length} templates. Use \`teamrc init --team <name>\` to create a team.`);
+  });
+
+// --- list-agents ---
+program
+  .command("list-agents")
+  .description("List available agents from the catalog")
+  .option("--json", "Output as JSON")
+  .action(async (opts: { json?: boolean }) => {
+    const useJson = opts.json ?? globals().json;
+    const categories = listAgentCategories();
+
+    if (useJson) {
+      const data = categories.map((cat) => ({
+        category: cat.id,
+        label: cat.label,
+        agents: cat.agents.map((name) => {
+          try {
+            const a = loadAgent(name);
+            return { name: a.name, role: a.role };
+          } catch {
+            return { name, role: "" };
+          }
+        }),
+      }));
+      jsonOutput(data);
+      return;
+    }
+
+    p.intro("teamrc");
+
+    let totalAgents = 0;
+    for (const cat of categories) {
+      const lines: string[] = [];
+      for (const name of cat.agents) {
+        try {
+          const a = loadAgent(name);
+          lines.push(`  ${a.name.padEnd(28)} ${a.role}`);
+        } catch {
+          lines.push(`  ${name}`);
+        }
+        totalAgents++;
+      }
+      p.log.message(`${cat.label}\n${lines.join("\n")}\n`);
+    }
+
+    p.outro(`${totalAgents} agents. Use \`teamrc add-member <name>\` to add one to your team.`);
   });
 
 program.parse();

@@ -217,6 +217,31 @@ export function listSkillCategories(): SkillCategory[] {
 }
 
 // ---------------------------------------------------------------------------
+// Recommended skills — scan all team templates for per-agent skill assignments
+// ---------------------------------------------------------------------------
+
+/**
+ * Scan all team templates' agentSkills mappings and return the union of skill
+ * IDs assigned to the given agent across every template that includes it.
+ */
+export function agentRecommendedSkills(agentName: string): string[] {
+  const teamIds = listTeams();
+  const skillSet = new Set<string>();
+  for (const id of teamIds) {
+    try {
+      const team = loadTeamRaw(id);
+      const assigned = team.agentSkills?.[agentName];
+      if (assigned) {
+        for (const s of assigned) skillSet.add(s);
+      }
+    } catch {
+      // Skip unparseable team files
+    }
+  }
+  return [...skillSet];
+}
+
+// ---------------------------------------------------------------------------
 // Resolution
 // ---------------------------------------------------------------------------
 
