@@ -3,7 +3,7 @@ defmodule TeamrcWeb.InviteLiveTest do
   import Phoenix.LiveViewTest
 
   alias Teamrc.{Repo, Teams}
-  alias Teamrc.Schema.Team
+  alias Teamrc.Schema.{Invite, Member, Team}
 
   defp create_team_with_invite do
     team = %{
@@ -15,6 +15,17 @@ defmodule TeamrcWeb.InviteLiveTest do
 
     {:ok, invite_code, team_id} = Teams.create_team_with_invite(team)
     {invite_code, team_id}
+  end
+
+  defp team_member(team_id) do
+    team = Repo.get(Team, team_id) |> Repo.preload(:members)
+    hd(team.members)
+  end
+
+  defp set_invite_expiry!(invite_code, expires_at) do
+    expires_at = DateTime.truncate(expires_at, :second)
+    invite = Repo.get_by!(Invite, code: invite_code)
+    invite |> Ecto.Changeset.change(%{expires_at: expires_at}) |> Repo.update!()
   end
 
   test "valid invite redirects to team dashboard", %{conn: conn} do
@@ -40,6 +51,14 @@ defmodule TeamrcWeb.InviteLiveTest do
     assert html =~ "Expires in"
   end
 
+  test "private team dashboard without invite is gated", %{conn: conn} do
+    {_code, team_id} = create_team_with_invite()
+    {:ok, _view, html} = live(conn, "/teams/#{team_id}")
+
+    assert html =~ "This team is private"
+    assert html =~ "You need an invite code to view this team."
+  end
+
   test "invite access allows editing on team page", %{conn: conn} do
     {code, team_id} = create_team_with_invite()
     {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
@@ -61,6 +80,29 @@ defmodule TeamrcWeb.InviteLiveTest do
     assert html =~ "testing"
   end
 
+  test "team page blocks edit actions after invite expires", %{conn: conn} do
+    {code, team_id} = create_team_with_invite()
+    set_invite_expiry!(code, DateTime.utc_now() |> DateTime.add(2, :second))
+
+    {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
+
+    Process.sleep(2_500)
+
+    view |> element("button", "Add team member") |> render_click()
+    view |> element("button[phx-click='custom_member']") |> render_click()
+    view |> element("input[placeholder='agent-name']") |> render_keyup(%{"value" => "late-agent"})
+
+    view
+    |> element("input[placeholder='Role description']")
+    |> render_keyup(%{"value" => "should-fail"})
+
+    view |> element("button[phx-click='add_member']", "Add") |> render_click()
+
+    html = render(view)
+    refute html =~ "late-agent"
+    assert html =~ "This invite has expired. Changes cannot be saved."
+  end
+
   test "member cards link to member detail page", %{conn: conn} do
     {code, team_id} = create_team_with_invite()
     {:ok, _view, html} = live(conn, "/teams/#{team_id}?invite=#{code}")
@@ -71,13 +113,56 @@ defmodule TeamrcWeb.InviteLiveTest do
     assert html =~ "invite=#{code}"
   end
 
-  test "member detail requires auth even with invite code", %{conn: conn} do
+  test "member detail page loads via invite access", %{conn: conn} do
     {code, team_id} = create_team_with_invite()
 
-    team = Repo.get(Team, team_id) |> Repo.preload(:members)
-    member = hd(team.members)
+    member = team_member(team_id)
 
-    assert {:error, {:redirect, %{to: "/"}}} =
-             live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+    {:ok, _view, html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+
+    assert html =~ "Name"
+    assert html =~ "Role"
+    assert html =~ "Instructions"
+    assert html =~ "Remove member"
+  end
+
+  test "can remove a member via invite on detail page", %{conn: conn} do
+    {code, team_id} = create_team_with_invite()
+
+    member = team_member(team_id)
+
+    {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+
+    assert {:error, {:redirect, %{to: "/teams/" <> _}}} =
+             view |> element("button[phx-click='delete_member']") |> render_click()
+  end
+
+  test "member detail without invite is denied for unauthenticated users", %{conn: conn} do
+    {_code, team_id} = create_team_with_invite()
+    member = team_member(team_id)
+
+    assert {:error, {:redirect, %{to: "/teams/" <> rest}}} =
+             live(conn, "/teams/#{team_id}/members/#{member.id}")
+
+    assert rest == team_id
+  end
+
+  test "member detail blocks save after invite expires", %{conn: conn} do
+    {code, team_id} = create_team_with_invite()
+    set_invite_expiry!(code, DateTime.utc_now() |> DateTime.add(2, :second))
+    member = team_member(team_id)
+
+    {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+    view |> element("input[phx-keyup='update_name']") |> render_keyup(%{"value" => "new-name"})
+
+    Process.sleep(2_500)
+
+    view |> element("button[phx-click='save']") |> render_click()
+
+    html = render(view)
+    assert html =~ "This invite has expired."
+
+    db_member = Repo.get!(Member, member.id)
+    assert db_member.name == member.name
   end
 end

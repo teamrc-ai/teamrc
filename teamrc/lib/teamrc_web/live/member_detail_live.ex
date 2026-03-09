@@ -8,9 +8,10 @@ defmodule TeamrcWeb.MemberDetailLive do
   # --- Mount ---
 
   @impl true
-  def mount(%{"team_id" => team_id, "member_id" => member_id}, _session, socket) do
+  def mount(%{"team_id" => team_id, "member_id" => member_id} = params, _session, socket) do
     team = Repo.get(Team, team_id) |> maybe_preload()
     member = team && Enum.find(team.members, &(&1.id == member_id))
+    invite_code = params["invite"]
 
     cond do
       is_nil(team) ->
@@ -23,21 +24,36 @@ defmodule TeamrcWeb.MemberDetailLive do
          |> redirect(to: "/teams/#{team_id}")}
 
       true ->
-        can_edit = check_owner_access(team.id, socket.assigns)
+        owner_access = check_owner_access(team.id, socket.assigns)
+        invite_access = load_valid_invite(team.id, invite_code)
 
-        {:ok,
-         assign(socket,
-           page_title: "#{member.name} — #{team.name}",
-           team: team,
-           member: member,
-           can_edit: can_edit,
-           invite_access: nil,
-           invite_code: nil,
-           edit_name: member.name,
-           edit_role: member.role,
-           edit_soul: member.soul || "",
-           dirty: false
-         )}
+        can_view =
+          owner_access or
+            team.visibility == "public" or
+            not is_nil(invite_access)
+
+        if can_view do
+          can_edit = owner_access or not is_nil(invite_access)
+
+          {:ok,
+           assign(socket,
+             page_title: "#{member.name} — #{team.name}",
+             team: team,
+             member: member,
+             can_edit: can_edit,
+             invite_access: invite_access,
+             invite_code: invite_code,
+             edit_name: member.name,
+             edit_role: member.role,
+             edit_soul: member.soul || "",
+             dirty: false
+           )}
+        else
+          {:ok,
+           socket
+           |> put_flash(:error, "This team is private.")
+           |> redirect(to: "/teams/#{team_id}")}
+        end
     end
   end
 
@@ -55,21 +71,17 @@ defmodule TeamrcWeb.MemberDetailLive do
           socket
 
         invite_code ->
-          now = DateTime.utc_now() |> DateTime.truncate(:second)
           team = socket.assigns.team
 
-          case Repo.one(
-                 from(i in Invite,
-                   where: i.code == ^invite_code and i.team_id == ^team.id and i.expires_at > ^now
-                 )
-               ) do
+          case load_valid_invite(team.id, invite_code) do
             nil ->
               socket
 
             invite ->
               assign(socket,
                 invite_access: invite,
-                invite_code: invite_code
+                invite_code: invite_code,
+                can_edit: true
               )
           end
       end
@@ -103,10 +115,35 @@ defmodule TeamrcWeb.MemberDetailLive do
 
   defp require_edit_access(socket, fun) do
     if socket.assigns.can_edit do
-      fun.()
+      case socket.assigns[:invite_access] do
+        nil ->
+          fun.()
+
+        invite ->
+          if DateTime.compare(invite.expires_at, DateTime.utc_now()) == :gt do
+            fun.()
+          else
+            {:noreply,
+             socket
+             |> assign(invite_access: nil, can_edit: false, invite_code: nil)
+             |> put_flash(:error, "This invite has expired.")}
+          end
+      end
     else
       {:noreply, put_flash(socket, :error, "You don't have permission to edit.")}
     end
+  end
+
+  defp load_valid_invite(_team_id, nil), do: nil
+
+  defp load_valid_invite(team_id, invite_code) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    Repo.one(
+      from(i in Invite,
+        where: i.code == ^invite_code and i.team_id == ^team_id and i.expires_at > ^now
+      )
+    )
   end
 
   # --- Events ---
@@ -251,10 +288,19 @@ defmodule TeamrcWeb.MemberDetailLive do
         href={team_path(@team.id, @invite_code)}
         class="trc-focus inline-flex items-center gap-1.5 text-xs font-medium text-base-content/40 hover:text-base-content/70 transition-colors rounded px-1 -ml-1"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-3.5 w-3.5"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fill-rule="evenodd"
+            d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+            clip-rule="evenodd"
+          />
         </svg>
-        <span class="font-mono"><%= @team.name %></span>
+        <span class="font-mono">{@team.name}</span>
       </a>
 
       <%!-- Header --%>
@@ -262,7 +308,9 @@ defmodule TeamrcWeb.MemberDetailLive do
         <%= if @can_edit do %>
           <div class="space-y-3">
             <div>
-              <label class="block text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-1">Name</label>
+              <label class="block text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-1">
+                Name
+              </label>
               <input
                 type="text"
                 value={@edit_name}
@@ -273,7 +321,9 @@ defmodule TeamrcWeb.MemberDetailLive do
               />
             </div>
             <div>
-              <label class="block text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-1">Role</label>
+              <label class="block text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-1">
+                Role
+              </label>
               <input
                 type="text"
                 value={@edit_role}
@@ -285,8 +335,8 @@ defmodule TeamrcWeb.MemberDetailLive do
             </div>
           </div>
         <% else %>
-          <h1 class="text-2xl font-bold tracking-tight font-mono"><%= @member.name %></h1>
-          <p class="text-sm text-base-content/60 mt-1"><%= @member.role %></p>
+          <h1 class="text-2xl font-bold tracking-tight font-mono">{@member.name}</h1>
+          <p class="text-sm text-base-content/60 mt-1">{@member.role}</p>
         <% end %>
       </div>
 
@@ -296,7 +346,12 @@ defmodule TeamrcWeb.MemberDetailLive do
           <h2 class="text-xs font-medium text-base-content/50 uppercase tracking-wider">
             Instructions
           </h2>
-          <a href={~p"/guide#instructions"} class="text-[10px] text-primary/50 hover:text-primary transition-colors">?</a>
+          <a
+            href={~p"/guide#instructions"}
+            class="text-[10px] text-primary/50 hover:text-primary transition-colors"
+          >
+            ?
+          </a>
         </div>
 
         <%= if @can_edit do %>
@@ -327,11 +382,15 @@ defmodule TeamrcWeb.MemberDetailLive do
       <section>
         <h2 class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-1">
           Skills
-          <span class="font-mono text-base-content/30 ml-1"><%= length(@member.skills || []) %></span>
+          <span class="font-mono text-base-content/30 ml-1">{length(@member.skills || [])}</span>
         </h2>
         <p class="text-xs text-base-content/40 mb-3">
-          Toggle skills to assign them to this agent. Skills marked <span class="font-semibold">all agents</span> are automatically included and can't be removed.
-          <a href={~p"/guide#skills"} class="text-primary/60 hover:text-primary transition-colors">Learn more</a>
+          Toggle skills to assign them to this agent. Skills marked
+          <span class="font-semibold">all agents</span>
+          are automatically included and can't be removed.
+          <a href={~p"/guide#skills"} class="text-primary/60 hover:text-primary transition-colors">
+            Learn more
+          </a>
         </p>
 
         <%= if @team.skills != [] do %>
@@ -359,16 +418,30 @@ defmodule TeamrcWeb.MemberDetailLive do
                       else: "border-base-content/20"
                     )
                   ]}>
-                    <svg :if={assigned} xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    <svg
+                      :if={assigned}
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-3 w-3"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clip-rule="evenodd"
+                      />
                     </svg>
                   </div>
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
-                      <span class="font-mono font-medium text-xs"><%= skill["id"] %></span>
-                      <span :if={skill["title"]} class="text-xs text-base-content/50"><%= skill["title"] %></span>
+                      <span class="font-mono font-medium text-xs">{skill["id"]}</span>
+                      <span :if={skill["title"]} class="text-xs text-base-content/50">
+                        {skill["title"]}
+                      </span>
                     </div>
-                    <p :if={skill["description"]} class="text-xs text-base-content/40 mt-0.5"><%= skill["description"] %></p>
+                    <p :if={skill["description"]} class="text-xs text-base-content/40 mt-0.5">
+                      {skill["description"]}
+                    </p>
                   </div>
                 </button>
               <% else %>
@@ -386,14 +459,26 @@ defmodule TeamrcWeb.MemberDetailLive do
                       else: "border-base-content/15"
                     )
                   ]}>
-                    <svg :if={assigned || always_on} xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    <svg
+                      :if={assigned || always_on}
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-3 w-3"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clip-rule="evenodd"
+                      />
                     </svg>
                   </div>
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
-                      <span class="font-mono font-medium text-xs"><%= skill["id"] %></span>
-                      <span :if={skill["title"]} class="text-xs text-base-content/50"><%= skill["title"] %></span>
+                      <span class="font-mono font-medium text-xs">{skill["id"]}</span>
+                      <span :if={skill["title"]} class="text-xs text-base-content/50">
+                        {skill["title"]}
+                      </span>
                       <span
                         :if={always_on}
                         class="inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary/70"
@@ -401,14 +486,18 @@ defmodule TeamrcWeb.MemberDetailLive do
                         all agents
                       </span>
                     </div>
-                    <p :if={skill["description"]} class="text-xs text-base-content/40 mt-0.5"><%= skill["description"] %></p>
+                    <p :if={skill["description"]} class="text-xs text-base-content/40 mt-0.5">
+                      {skill["description"]}
+                    </p>
                   </div>
                 </div>
               <% end %>
             <% end %>
           </div>
         <% else %>
-          <p class="text-xs text-base-content/40">No skills defined for this team. Add skills on the team dashboard.</p>
+          <p class="text-xs text-base-content/40">
+            No skills defined for this team. Add skills on the team dashboard.
+          </p>
         <% end %>
       </section>
 
