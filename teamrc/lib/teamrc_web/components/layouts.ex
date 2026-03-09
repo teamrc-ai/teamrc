@@ -113,6 +113,36 @@ defmodule TeamrcWeb.Layouts do
       </div>
     </main>
 
+    <footer class="border-t border-base-300/40 py-6 mt-auto">
+      <div class="mx-auto max-w-2xl px-6 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <p class="text-xs text-base-content/30">
+          teamrc is experimental software
+        </p>
+        <nav class="flex items-center gap-4">
+          <a
+            href={~p"/terms"}
+            class="text-xs text-base-content/30 hover:text-base-content/50 transition-colors"
+          >
+            Terms
+          </a>
+          <a
+            href={~p"/privacy"}
+            class="text-xs text-base-content/30 hover:text-base-content/50 transition-colors"
+          >
+            Privacy
+          </a>
+          <a
+            href="https://github.com/teamrc-app/teamrc"
+            target="_blank"
+            rel="noopener"
+            class="text-xs text-base-content/30 hover:text-base-content/50 transition-colors"
+          >
+            GitHub
+          </a>
+        </nav>
+      </div>
+    </footer>
+
     <.flash_group flash={@flash} />
     """
   end

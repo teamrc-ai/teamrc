@@ -110,6 +110,27 @@ defmodule Teamrc.Accounts do
     end
   end
 
+  @doc "Check if a Clerk user has a machine token associated with a team."
+  def is_team_participant?(nil, _team_id), do: false
+
+  def is_team_participant?(clerk_user_id, team_id) do
+    account = get_account_with_tokens(clerk_user_id)
+
+    if account do
+      tokens = Enum.map(account.account_tokens, & &1.token)
+
+      from(tt in TokenTeam,
+        where: tt.team_id == ^team_id and tt.token in ^tokens,
+        select: tt.token,
+        limit: 1
+      )
+      |> Repo.one()
+      |> is_binary()
+    else
+      false
+    end
+  end
+
   @doc "Resolve participants for a single team."
   def resolve_participants(team_id) do
     Map.get(resolve_participants_batch([team_id]), team_id, [])

@@ -6,6 +6,7 @@ defmodule TeamrcWeb.TeamDetailLive do
   alias Teamrc.Repo
   alias Teamrc.Schema.{Team, Invite, Member, TokenTeam}
   import Ecto.Query
+  import TeamrcWeb.LiveHelpers
 
   @max_members 20
 
@@ -17,67 +18,34 @@ defmodule TeamrcWeb.TeamDetailLive do
       {:ok, %{access_level: :private_gate}} ->
         {:ok,
          assign(socket,
-           page_title: "Private Team",
-           team_id: team_id,
-           access_level: :private_gate,
-           can_edit: false,
-           team: nil,
-           clone_token: nil,
-           participants: [],
-           invites: [],
-           invite_access: nil,
-           invite_code: nil,
-           editing_section: nil,
-           edit_team_name: "",
-           member_mode: nil,
-           member_catalog: nil,
-           new_member_name: "",
-           new_member_role: "",
-           new_member_soul: "",
-           new_member_skills: [],
-           generating_invite: false,
-           generated_invite: nil,
-           skill_mode: nil,
-           skill_catalog: nil,
-           editing_skill: nil,
-           skill_id: "",
-           skill_title: "",
-           skill_description: "",
-           skill_body: "",
-           skill_always_apply: false
+           default_form_assigns() ++
+             [
+               page_title: "Private Team",
+               team_id: team_id,
+               access_level: :private_gate,
+               can_edit: false,
+               team: nil,
+               clone_token: nil,
+               participants: [],
+               invites: []
+             ]
          )}
 
       {:ok, data} ->
         {:ok,
          assign(socket,
-           page_title: data.team.name,
-           team_id: team_id,
-           team: data.team,
-           access_level: data.access_level,
-           can_edit: data.access_level == :owner,
-           clone_token: data.clone_token,
-           participants: data.participants,
-           invites: data.invites,
-           invite_access: nil,
-           invite_code: nil,
-           editing_section: nil,
-           edit_team_name: data.team.name,
-           member_mode: nil,
-           member_catalog: nil,
-           new_member_name: "",
-           new_member_role: "",
-           new_member_soul: "",
-           new_member_skills: [],
-           generating_invite: false,
-           generated_invite: nil,
-           skill_mode: nil,
-           skill_catalog: nil,
-           editing_skill: nil,
-           skill_id: "",
-           skill_title: "",
-           skill_description: "",
-           skill_body: "",
-           skill_always_apply: false
+           default_form_assigns() ++
+             [
+               page_title: data.team.name,
+               team_id: team_id,
+               team: data.team,
+               access_level: data.access_level,
+               can_edit: data.access_level == :owner,
+               clone_token: data.clone_token,
+               participants: data.participants,
+               invites: data.invites,
+               edit_team_name: data.team.name
+             ]
          )}
 
       :not_found ->
@@ -86,6 +54,31 @@ defmodule TeamrcWeb.TeamDetailLive do
          |> put_flash(:error, "Team not found.")
          |> redirect(to: ~p"/new")}
     end
+  end
+
+  defp default_form_assigns do
+    [
+      invite_access: nil,
+      invite_code: nil,
+      editing_section: nil,
+      edit_team_name: "",
+      member_mode: nil,
+      member_catalog: nil,
+      new_member_name: "",
+      new_member_role: "",
+      new_member_soul: "",
+      new_member_skills: [],
+      generating_invite: false,
+      generated_invite: nil,
+      skill_mode: nil,
+      skill_catalog: nil,
+      editing_skill: nil,
+      skill_id: "",
+      skill_title: "",
+      skill_description: "",
+      skill_body: "",
+      skill_always_apply: false
+    ]
   end
 
   @impl true
@@ -172,7 +165,7 @@ defmodule TeamrcWeb.TeamDetailLive do
 
       team ->
         clerk_user_id = assigns[:clerk_user_id]
-        is_participant = check_participant(clerk_user_id, team.id)
+        is_participant = Accounts.is_team_participant?(clerk_user_id, team.id)
 
         access_level =
           cond do
@@ -204,29 +197,6 @@ defmodule TeamrcWeb.TeamDetailLive do
     end
   end
 
-  defp check_participant(nil, _team_id), do: false
-
-  defp check_participant(clerk_user_id, team_id) do
-    account = Accounts.get_account_with_tokens(clerk_user_id)
-
-    if account do
-      account_tokens = Enum.map(account.account_tokens, & &1.token)
-      team_tokens = load_team_tokens(team_id)
-      Enum.any?(account_tokens, fn t -> t in team_tokens end)
-    else
-      false
-    end
-  end
-
-  defp load_team_tokens(team_id) do
-    from(tt in TokenTeam,
-      where: tt.team_id == ^team_id,
-      select: tt.token,
-      distinct: true
-    )
-    |> Repo.all()
-  end
-
   defp load_active_invites(team_id) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
@@ -236,29 +206,6 @@ defmodule TeamrcWeb.TeamDetailLive do
       select: %{code: i.code, expires_at: i.expires_at}
     )
     |> Repo.all()
-  end
-
-  # --- Security ---
-
-  defp require_edit_access(socket, fun) do
-    if socket.assigns.can_edit do
-      case socket.assigns[:invite_access] do
-        nil ->
-          fun.()
-
-        invite ->
-          if DateTime.compare(invite.expires_at, DateTime.utc_now()) == :gt do
-            fun.()
-          else
-            {:noreply,
-             socket
-             |> assign(invite_access: nil, can_edit: false, invite_code: nil)
-             |> put_flash(:error, "This invite has expired. Changes cannot be saved.")}
-          end
-      end
-    else
-      {:noreply, put_flash(socket, :error, "You don't have permission to edit this team.")}
-    end
   end
 
   # --- Team name editing ---
@@ -597,15 +544,27 @@ defmodule TeamrcWeb.TeamDetailLive do
       team = socket.assigns.team
       updated_skills = Enum.reject(team.skills, &(&1["id"] == skill_id))
 
-      # Also remove the skill from any members that have it
-      team.members
-      |> Enum.filter(fn m -> skill_id in (m.skills || []) end)
-      |> Enum.each(fn m ->
-        new_skills = List.delete(m.skills || [], skill_id)
-        m |> Member.changeset(%{skills: new_skills}) |> Repo.update()
-      end)
+      result =
+        Repo.transaction(fn ->
+          # Remove the skill from any members that have it
+          team.members
+          |> Enum.filter(fn m -> skill_id in (m.skills || []) end)
+          |> Enum.each(fn m ->
+            new_skills = List.delete(m.skills || [], skill_id)
 
-      case team |> Team.changeset(%{skills: updated_skills}) |> Repo.update() do
+            case m |> Member.changeset(%{skills: new_skills}) |> Repo.update() do
+              {:ok, _} -> :ok
+              {:error, changeset} -> Repo.rollback(changeset)
+            end
+          end)
+
+          case team |> Team.changeset(%{skills: updated_skills}) |> Repo.update() do
+            {:ok, updated_team} -> updated_team
+            {:error, changeset} -> Repo.rollback(changeset)
+          end
+        end)
+
+      case result do
         {:ok, updated_team} ->
           {:noreply,
            reset_skill_form(
@@ -901,6 +860,9 @@ defmodule TeamrcWeb.TeamDetailLive do
           <p class="text-sm text-base-content/50 mb-3">
             Run this command to join the team. Expires in <span class="text-base-content/70 font-medium"><%= time_remaining(@invite_access.expires_at) %></span>.
           </p>
+          <p class="text-xs text-amber-500/80 mb-3">
+            Invite codes grant full edit access — only share with people you trust.
+          </p>
           <p :if={!@clerk_email} class="text-sm text-base-content/50 mb-4">
             For permanent access, <a
               href={~p"/"}
@@ -950,7 +912,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               </div>
             </div>
             <p class="text-xs text-base-content/40">
-              This copies the team config to your machine. To sync ongoing changes, ask for an invite code.
+              Copies the team config to your machine (read-only). Run <code class="font-mono text-base-content/50">teamrc pull</code> anytime to get the latest updates.
             </p>
           </div>
         </section>
@@ -1595,6 +1557,9 @@ defmodule TeamrcWeb.TeamDetailLive do
               Generate invite
             </button>
           </div>
+          <p class="text-xs text-base-content/40 mb-3">
+            Invite codes grant <span class="text-amber-500/80 font-medium">full edit access</span> to this team — members, skills, knowledge, and settings. Only share with collaborators you trust.
+          </p>
 
           <%!-- Newly generated invite --%>
           <div
@@ -1628,7 +1593,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               </div>
             </div>
             <p class="text-xs text-base-content/40 mt-2">
-              Expires in {time_remaining(@generated_invite.expires_at)}
+              Expires in {time_remaining(@generated_invite.expires_at)}. Anyone with this code can edit this team.
             </p>
           </div>
 
@@ -1661,7 +1626,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               Clone Token
             </p>
             <p class="text-xs text-base-content/40 mb-2">
-              Anyone with this token can copy the team config (read-only, no sync).
+              Anyone with this token can copy the team config and pull updates (read-only — no edit access).
             </p>
             <div class="terminal-block rounded-lg overflow-hidden">
               <div class="px-3 py-2">

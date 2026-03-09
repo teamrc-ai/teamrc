@@ -198,12 +198,6 @@ defmodule Teamrc.Catalog do
     }
   end
 
-  @doc "List all team templates with resolved metadata."
-  def list_team_templates do
-    list_teams()
-    |> Enum.map(fn id -> {id, resolve_team(id)} end)
-  end
-
   # Map team IDs to icons for the web UI
   defp team_icon("fullstack"), do: "code"
   defp team_icon("backend"), do: "server"

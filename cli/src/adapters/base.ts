@@ -33,6 +33,7 @@ export interface TeamDefinition {
   teamId?: string;
   relay?: string;
   platforms?: string[];
+  cloneToken?: string;
 }
 
 export const VALID_PLATFORMS = [

@@ -2,8 +2,9 @@ defmodule TeamrcWeb.MemberDetailLive do
   use TeamrcWeb, :live_view
 
   alias Teamrc.{Accounts, Repo}
-  alias Teamrc.Schema.{Team, Invite, Member, TokenTeam}
+  alias Teamrc.Schema.{Team, Invite, Member}
   import Ecto.Query
+  import TeamrcWeb.LiveHelpers
 
   # --- Mount ---
 
@@ -24,7 +25,7 @@ defmodule TeamrcWeb.MemberDetailLive do
          |> redirect(to: "/teams/#{team_id}")}
 
       true ->
-        owner_access = check_owner_access(team.id, socket.assigns)
+        owner_access = Accounts.is_team_participant?(socket.assigns[:clerk_user_id], team.id)
         invite_access = load_valid_invite(team.id, invite_code)
 
         can_view =
@@ -87,51 +88,6 @@ defmodule TeamrcWeb.MemberDetailLive do
       end
 
     {:noreply, socket}
-  end
-
-  defp check_owner_access(team_id, assigns) do
-    clerk_user_id = assigns[:clerk_user_id]
-
-    if clerk_user_id do
-      account = Accounts.get_account_with_tokens(clerk_user_id)
-
-      if account do
-        tokens = Enum.map(account.account_tokens, & &1.token)
-
-        team_tokens =
-          from(tt in TokenTeam, where: tt.team_id == ^team_id, select: tt.token)
-          |> Repo.all()
-
-        Enum.any?(team_tokens, fn t -> t in tokens end)
-      else
-        false
-      end
-    else
-      false
-    end
-  end
-
-  # --- Security ---
-
-  defp require_edit_access(socket, fun) do
-    if socket.assigns.can_edit do
-      case socket.assigns[:invite_access] do
-        nil ->
-          fun.()
-
-        invite ->
-          if DateTime.compare(invite.expires_at, DateTime.utc_now()) == :gt do
-            fun.()
-          else
-            {:noreply,
-             socket
-             |> assign(invite_access: nil, can_edit: false, invite_code: nil)
-             |> put_flash(:error, "This invite has expired.")}
-          end
-      end
-    else
-      {:noreply, put_flash(socket, :error, "You don't have permission to edit.")}
-    end
   end
 
   defp load_valid_invite(_team_id, nil), do: nil

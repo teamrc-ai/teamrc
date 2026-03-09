@@ -119,7 +119,7 @@ defmodule TeamrcWeb.ApiController do
 
   defp validate_members(nil), do: :ok
   defp validate_members(members) when is_list(members) do
-    if length(members) > @max_members do
+    if length(members) >= @max_members do
       {:error, "team may have at most #{@max_members} members"}
     else
       :ok
@@ -169,6 +169,7 @@ defmodule TeamrcWeb.ApiController do
   defp validate_knowledge(_), do: {:error, "knowledge must be a string"}
 
   defp put_if_present(map, _key, nil), do: map
+  defp put_if_present(map, _key, []), do: map
   defp put_if_present(map, key, val), do: Map.put(map, key, val)
 
   defp sanitize_team(team) do

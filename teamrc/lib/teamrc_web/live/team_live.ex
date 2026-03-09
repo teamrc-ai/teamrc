@@ -31,7 +31,7 @@ defmodule TeamrcWeb.TeamLive do
   defp do_create_team(template, socket) do
     members =
       Enum.map(template.members, fn m ->
-        m |> Map.take([:name, :role, :soul, :skills]) |> Map.put(:from_catalog, true)
+        Map.take(m, [:name, :role, :soul, :skills])
       end)
 
     team = build_team_payload(template.team_name, members, template.skills, template.default_platforms)

@@ -1112,50 +1112,95 @@ program
   .action(async (opts: { platform?: string; scope?: string; global?: boolean }) => {
     p.intro("teamrc");
 
-    const ctx = requireTeamContext();
-    const { config, client } = ctx;
-    const platforms = await requirePlatforms(opts.platform);
-    const scope = await selectScope(opts);
-    const adapter = ctx.adapters[0];
+    // Check for clone-only teams (no teamId, but has cloneToken)
+    const projectYaml = readTeamYaml(TEAM_YAML);
+    const globalYaml = readTeamYaml(GLOBAL_TEAM_YAML);
+    const localYaml = projectYaml ?? globalYaml;
+    const isClone = !localYaml?.teamId && !!localYaml?.cloneToken;
 
-    const s = p.spinner();
-    try {
-      s.start("Pulling from relay...");
-      const remoteTeam = await client.getTeam();
-      validateTeamName(remoteTeam.name);
-      const team = remoteTeamToDefinition(remoteTeam);
+    if (isClone) {
+      // Clone pull: read-only fetch via clone token, no knowledge
+      const platforms = await requirePlatforms(opts.platform);
+      const scope = await selectScope(opts);
+      const relayUrl = localYaml!.relay ?? getRelayUrl();
+      const kp = await requireKeypair();
+      const client = new TeamrcClient(relayUrl, kp.privateKey, toToken(kp.publicKey));
 
-      // Preserve local YAML metadata
-      team.teamId = ctx.team.teamId;
-      team.relay = ctx.team.relay;
-      team.platforms = ctx.team.platforms;
+      const s = p.spinner();
+      try {
+        s.start("Pulling from relay (read-only)...");
+        const remoteTeam = await client.cloneByToken(localYaml!.cloneToken!);
+        validateTeamName(remoteTeam.name);
+        const team = remoteTeamToDefinition(remoteTeam);
 
-      // Merge knowledge
-      if (remoteTeam.knowledge) {
-        const localKnowledge = adapter.readKnowledge();
-        const merged = mergeKnowledge(localKnowledge, remoteTeam.knowledge);
-        if (merged.length <= MAX_KNOWLEDGE_SIZE) {
-          adapter.writeKnowledge(merged);
-        } else {
-          p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
+        // Preserve local metadata
+        team.cloneToken = localYaml!.cloneToken;
+        team.relay = localYaml!.relay;
+        team.platforms = localYaml!.platforms;
+
+        const yamlPath = projectYaml ? TEAM_YAML : GLOBAL_TEAM_YAML;
+        writeTeamYaml(yamlPath, team);
+        s.stop(`Pulled "${team.name}" (${team.members.length} agents, read-only).`);
+
+        for (const pl of platforms) {
+          const a = getAdapter(pl);
+          a.writeTeam(team, scope);
+          p.log.step(`Applied to ${pl} (${scope} scope).`);
         }
+
+        p.outro("Done. Knowledge is not synced for cloned teams.");
+      } catch (err) {
+        s.error("Pull failed.");
+        p.log.error((err as Error).message);
+        process.exit(1);
       }
+    } else {
+      // Full member pull
+      const ctx = requireTeamContext();
+      const { client } = ctx;
+      const platforms = await requirePlatforms(opts.platform);
+      const scope = await selectScope(opts);
+      const adapter = ctx.adapters[0];
 
-      writeTeamYaml(TEAM_YAML, team);
-      s.stop(`Pulled "${team.name}" (${team.members.length} agents).`);
+      const s = p.spinner();
+      try {
+        s.start("Pulling from relay...");
+        const remoteTeam = await client.getTeam();
+        validateTeamName(remoteTeam.name);
+        const team = remoteTeamToDefinition(remoteTeam);
 
-      // Apply to platforms
-      for (const pl of platforms) {
-        const a = getAdapter(pl);
-        a.writeTeam(team, scope);
-        p.log.step(`Applied to ${pl} (${scope} scope).`);
+        // Preserve local YAML metadata
+        team.teamId = ctx.team.teamId;
+        team.relay = ctx.team.relay;
+        team.platforms = ctx.team.platforms;
+
+        // Merge knowledge (members only)
+        if (remoteTeam.knowledge) {
+          const localKnowledge = adapter.readKnowledge();
+          const merged = mergeKnowledge(localKnowledge, remoteTeam.knowledge);
+          if (merged.length <= MAX_KNOWLEDGE_SIZE) {
+            adapter.writeKnowledge(merged);
+          } else {
+            p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
+          }
+        }
+
+        writeTeamYaml(TEAM_YAML, team);
+        s.stop(`Pulled "${team.name}" (${team.members.length} agents).`);
+
+        // Apply to platforms
+        for (const pl of platforms) {
+          const a = getAdapter(pl);
+          a.writeTeam(team, scope);
+          p.log.step(`Applied to ${pl} (${scope} scope).`);
+        }
+
+        p.outro("Done.");
+      } catch (err) {
+        s.error("Pull failed.");
+        p.log.error((err as Error).message);
+        process.exit(1);
       }
-
-      p.outro("Done.");
-    } catch (err) {
-      s.error("Pull failed.");
-      p.log.error((err as Error).message);
-      process.exit(1);
     }
   });
 
@@ -1221,9 +1266,15 @@ program
         teamDef.name = opts.name;
       }
 
+      // Save clone token + relay for future pulls
+      if (code.startsWith("trc_cl_")) {
+        teamDef.cloneToken = code;
+        teamDef.relay = relayUrl;
+      }
+
       // Write canonical YAML
-      writeTeamYaml(TEAM_YAML, teamDef);
-      p.log.step(`Wrote ${TEAM_YAML}`);
+      writeTeamYaml(scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML, teamDef);
+      p.log.step(`Wrote ${scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML}`);
 
       // Apply to each platform
       for (const pl of platforms) {
@@ -1233,7 +1284,11 @@ program
       }
 
       p.log.success(`Cloned "${teamDef.name}" (${teamDef.members.length} agents) locally.`);
-      p.outro("Cloned locally. To join and sync with the original team, use `teamrc join <invite-code>`.");
+      if (code.startsWith("trc_cl_")) {
+        p.outro("Cloned. Run `teamrc pull` to fetch updates.");
+      } else {
+        p.outro("Cloned locally. To join and sync with the original team, use `teamrc join <invite-code>`.");
+      }
     } catch (err) {
       s.error("Failed to clone team.");
       p.log.error((err as Error).message);

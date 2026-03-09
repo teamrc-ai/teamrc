@@ -240,11 +240,15 @@ defmodule Teamrc.Teams do
 
     case result do
       nil -> {:reply, :error, state}
-      %Team{} = team -> {:reply, {:ok, team_to_map(team)}, state}
+      %Team{} = team ->
+        # Clone responses exclude knowledge
+        map = team_to_map(team) |> Map.delete("knowledge")
+        {:reply, {:ok, map}, state}
     end
   end
 
-  def handle_call({:set_visibility, team_id, visibility}, _from, state) do
+  def handle_call({:set_visibility, team_id, visibility}, _from, state)
+      when visibility in ["public", "private"] do
     case Repo.get(Team, team_id) do
       nil ->
         {:reply, {:error, :not_found}, state}
@@ -268,6 +272,10 @@ defmodule Teamrc.Teams do
             {:reply, {:error, changeset}, state}
         end
     end
+  end
+
+  def handle_call({:set_visibility, _team_id, _visibility}, _from, state) do
+    {:reply, {:error, :invalid_visibility}, state}
   end
 
   @impl true

@@ -86,6 +86,7 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
 
   // Parse new multi-project fields
   const teamId = data.teamId ? String(data.teamId) : undefined;
+  const cloneToken = data.cloneToken ? String(data.cloneToken) : undefined;
   const relay = data.relay ? String(data.relay) : undefined;
   if (relay) validateRelayUrl(relay);
   let platforms: string[] | undefined;
@@ -106,6 +107,7 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
     members,
     skills: parsedSkills,
     ...(teamId ? { teamId } : {}),
+    ...(cloneToken ? { cloneToken } : {}),
     ...(relay ? { relay } : {}),
     ...(platforms ? { platforms } : {}),
   };
@@ -115,6 +117,7 @@ export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
   const data: Record<string, unknown> = {
     name: team.name,
     ...(team.teamId ? { teamId: team.teamId } : {}),
+    ...(team.cloneToken ? { cloneToken: team.cloneToken } : {}),
     ...(team.relay ? { relay: team.relay } : {}),
     ...(team.platforms ? { platforms: team.platforms } : {}),
     members: team.members.map((m) => {

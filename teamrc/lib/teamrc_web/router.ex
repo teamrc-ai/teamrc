@@ -67,6 +67,8 @@ defmodule TeamrcWeb.Router do
       live "/guide/web-ui", GuideLive, :web_ui
       live "/guide/faq", GuideLive, :faq
       live "/auth/verify", AuthVerifyLive
+      live "/terms", LegalLive, :terms
+      live "/privacy", LegalLive, :privacy
     end
 
     live_session :authenticated,
