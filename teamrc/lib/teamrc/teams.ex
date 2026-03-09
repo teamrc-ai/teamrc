@@ -61,6 +61,16 @@ defmodule Teamrc.Teams do
     GenServer.call(pid, {:create_invite, token, ttl_hours, team_id})
   end
 
+  @doc "Preview a team by clone token. Returns {:ok, team_map} or :error."
+  def preview_by_clone_token(pid \\ __MODULE__, clone_token) do
+    GenServer.call(pid, {:preview_by_clone_token, clone_token})
+  end
+
+  @doc "Set team visibility and manage clone token. Returns {:ok, team} or {:error, reason}."
+  def set_visibility(team_id, visibility) do
+    GenServer.call(__MODULE__, {:set_visibility, team_id, visibility})
+  end
+
   # --- GenServer Callbacks ---
 
   @impl true
@@ -220,6 +230,46 @@ defmodule Teamrc.Teams do
     end
   end
 
+  def handle_call({:preview_by_clone_token, clone_token}, _from, state) do
+    result =
+      from(t in Team,
+        where: t.clone_token == ^clone_token and t.visibility == "public",
+        preload: [:members]
+      )
+      |> Repo.one()
+
+    case result do
+      nil -> {:reply, :error, state}
+      %Team{} = team -> {:reply, {:ok, team_to_map(team)}, state}
+    end
+  end
+
+  def handle_call({:set_visibility, team_id, visibility}, _from, state) do
+    case Repo.get(Team, team_id) do
+      nil ->
+        {:reply, {:error, :not_found}, state}
+
+      team ->
+        attrs =
+          case visibility do
+            "public" ->
+              clone_token = team.clone_token || generate_clone_token()
+              %{visibility: "public", clone_token: clone_token}
+
+            "private" ->
+              %{visibility: "private", clone_token: nil}
+          end
+
+        case team |> Team.changeset(attrs) |> Repo.update() do
+          {:ok, updated_team} ->
+            {:reply, {:ok, updated_team}, state}
+
+          {:error, changeset} ->
+            {:reply, {:error, changeset}, state}
+        end
+    end
+  end
+
   @impl true
   def handle_cast({:token_revoked, token}, state) do
     {:noreply, update_in(state.token_teams, &Map.delete(&1, token))}
@@ -267,6 +317,10 @@ defmodule Teamrc.Teams do
 
   defp generate_invite_code do
     "trc_inv_" <> Base.url_encode64(:crypto.strong_rand_bytes(18), padding: false)
+  end
+
+  defp generate_clone_token do
+    "trc_cl_" <> Base.url_encode64(:crypto.strong_rand_bytes(18), padding: false)
   end
 
   defp create_team_in_db(team_data) do

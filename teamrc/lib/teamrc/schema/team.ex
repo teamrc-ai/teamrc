@@ -9,6 +9,8 @@ defmodule Teamrc.Schema.Team do
     field :skills, {:array, :map}, default: []
     field :platforms, {:array, :string}, default: []
     field :knowledge, :string
+    field :visibility, :string, default: "private"
+    field :clone_token, :string
     has_many :members, Teamrc.Schema.Member
     has_many :invites, Teamrc.Schema.Invite
 
@@ -19,11 +21,13 @@ defmodule Teamrc.Schema.Team do
 
   def changeset(team, attrs) do
     team
-    |> cast(attrs, [:name, :skills, :platforms, :knowledge])
+    |> cast(attrs, [:name, :skills, :platforms, :knowledge, :visibility, :clone_token])
     |> validate_required([:name])
     |> validate_length(:name, max: 64)
     |> validate_length(:knowledge, max: 100_000)
     |> validate_format(:name, ~r/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/)
+    |> validate_inclusion(:visibility, ["public", "private"])
+    |> unique_constraint(:clone_token)
     |> validate_entry_ids(:skills)
   end
 

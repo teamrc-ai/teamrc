@@ -1198,14 +1198,14 @@ program
 // --- clone ---
 program
   .command("clone")
-  .description("Clone a team locally from an invite code without joining")
-  .argument("<invite-code>", "Team invitation code")
+  .description("Clone a team locally from an invite code or clone token without joining")
+  .argument("<code>", "Invite code (trc_inv_...) or clone token (trc_cl_...)")
   .option("--relay <url>", "Relay server URL")
   .option("--platform <platform>", "Override platform detection")
   .option("--scope <scope>", "Team scope: project or global")
   .option("--global", "Clone as global team")
   .option("--name <name>", "Override team name")
-  .action(async (inviteCode: string, opts: { relay?: string; platform?: string; scope?: string; global?: boolean; name?: string }) => {
+  .action(async (code: string, opts: { relay?: string; platform?: string; scope?: string; global?: boolean; name?: string }) => {
     p.intro("teamrc");
 
     const platforms = await requirePlatforms(opts.platform);
@@ -1218,8 +1218,13 @@ program
 
     const s = p.spinner();
     try {
-      s.start("Fetching team preview...");
-      const previewTeam = await client.previewByInvite(inviteCode);
+      s.start("Fetching team...");
+      let previewTeam;
+      if (code.startsWith("trc_cl_")) {
+        previewTeam = await client.cloneByToken(code);
+      } else {
+        previewTeam = await client.previewByInvite(code);
+      }
       const teamDef = remoteTeamToDefinition(previewTeam);
       s.stop(`Found "${teamDef.name}" (${teamDef.members.length} agents).`);
 

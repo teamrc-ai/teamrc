@@ -5,18 +5,22 @@ defmodule Teamrc.Repo.Migrations.CreateTeams do
     create table(:teams, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :name, :string, null: false
-      add :rules, :jsonb, default: "[]"
       add :skills, :jsonb, default: "[]"
+      add :platforms, :jsonb, default: "[]"
+      add :knowledge, :text
+      add :visibility, :string, null: false, default: "private"
+      add :clone_token, :string
 
       timestamps(type: :utc_datetime)
     end
+
+    create unique_index(:teams, [:clone_token], where: "clone_token IS NOT NULL")
 
     create table(:members, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :name, :string, null: false
       add :role, :string, null: false, default: ""
       add :soul, :text
-      add :rules, :jsonb, default: "[]"
       add :skills, :jsonb, default: "[]"
       add :team_id, references(:teams, type: :binary_id, on_delete: :delete_all), null: false
 
@@ -41,6 +45,9 @@ defmodule Teamrc.Repo.Migrations.CreateTeams do
       add :id, :binary_id, primary_key: true
       add :token, :string, null: false
       add :team_id, references(:teams, type: :binary_id, on_delete: :delete_all), null: false
+      add :scope, :string, default: "project"
+      add :project_name, :string
+      add :last_seen_at, :utc_datetime
 
       timestamps(type: :utc_datetime)
     end

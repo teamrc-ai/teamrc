@@ -18,6 +18,12 @@ defmodule TeamrcWeb.Router do
     plug TeamrcWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
   end
 
+  pipeline :public_api do
+    plug :accepts, ["json"]
+    plug TeamrcWeb.Plugs.CORS
+    plug TeamrcWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
+  end
+
   pipeline :clerk_api do
     plug :accepts, ["json"]
     plug TeamrcWeb.Plugs.CORS
@@ -57,6 +63,13 @@ defmodule TeamrcWeb.Router do
       live "/guide/faq", GuideLive, :faq
       live "/auth/verify", AuthVerifyLive
     end
+  end
+
+  # Public API (no auth required)
+  scope "/api", TeamrcWeb do
+    pipe_through :public_api
+
+    get "/teams/clone/:clone_token", ApiController, :clone_team
   end
 
   scope "/api", TeamrcWeb do

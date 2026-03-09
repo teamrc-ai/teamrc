@@ -25,9 +25,5 @@ defmodule Teamrc.Repo.Migrations.CreateAccounts do
 
     create index(:account_tokens, [:account_id])
     create unique_index(:account_tokens, [:token])
-
-    alter table(:teams) do
-      add :owner_account_id, references(:accounts, type: :binary_id), null: true
-    end
   end
 end

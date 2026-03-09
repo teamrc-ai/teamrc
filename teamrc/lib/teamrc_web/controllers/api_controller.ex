@@ -86,6 +86,13 @@ defmodule TeamrcWeb.ApiController do
     end
   end
 
+  def clone_team(conn, %{"clone_token" => clone_token}) do
+    case Teams.preview_by_clone_token(clone_token) do
+      {:ok, team} -> json(conn, %{team: team})
+      :error -> conn |> put_status(:not_found) |> json(%{error: "invalid_clone_token"})
+    end
+  end
+
   # --- Input Validation ---
 
   defp validate_team(team) do

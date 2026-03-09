@@ -23,15 +23,14 @@ defmodule TeamrcWeb.MemberDetailLive do
          |> redirect(to: "/teams/#{team_id}")}
 
       true ->
-        can_edit_owner = check_owner_access(team.id, socket.assigns)
+        can_edit = check_owner_access(team.id, socket.assigns)
 
         {:ok,
          assign(socket,
            page_title: "#{member.name} — #{team.name}",
            team: team,
            member: member,
-           can_edit_owner: can_edit_owner,
-           can_edit: can_edit_owner,
+           can_edit: can_edit,
            invite_access: nil,
            invite_code: nil,
            edit_name: member.name,
@@ -104,22 +103,23 @@ defmodule TeamrcWeb.MemberDetailLive do
   # --- Security ---
 
   defp require_edit_access(socket, fun) do
-    cond do
-      socket.assigns.can_edit_owner ->
-        fun.()
-
-      invite = socket.assigns[:invite_access] ->
-        if DateTime.compare(invite.expires_at, DateTime.utc_now()) == :gt do
+    if socket.assigns.can_edit do
+      case socket.assigns[:invite_access] do
+        nil ->
           fun.()
-        else
-          {:noreply,
-           socket
-           |> assign(invite_access: nil, can_edit: false, invite_code: nil)
-           |> put_flash(:error, "This invite has expired.")}
-        end
 
-      true ->
-        {:noreply, put_flash(socket, :error, "You don't have permission to edit.")}
+        invite ->
+          if DateTime.compare(invite.expires_at, DateTime.utc_now()) == :gt do
+            fun.()
+          else
+            {:noreply,
+             socket
+             |> assign(invite_access: nil, can_edit: false, invite_code: nil)
+             |> put_flash(:error, "This invite has expired.")}
+          end
+      end
+    else
+      {:noreply, put_flash(socket, :error, "You don't have permission to edit.")}
     end
   end
 

@@ -1333,9 +1333,55 @@ defmodule TeamrcWeb.GuideLive do
       </div>
     </section>
 
-    <%!-- Step 2: Team dashboard --%>
+    <%!-- Step 2: Visibility --%>
     <section class="space-y-4">
-      <.section_heading id="dashboard" title="2. Team dashboard" />
+      <.section_heading id="visibility" title="2. Visibility" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        Teams are <span class="font-semibold">private by default</span>. Only authenticated participants
+        (machines that have joined via invite code) can view a private team's page. If someone who isn't
+        a participant visits the URL, they'll see a "This team is private" message.
+      </p>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        You can toggle a team to <span class="font-semibold">public</span> if you want anyone with the
+        link to view and clone the config. Public teams show a read-only view of the team's members,
+        skills, and knowledge. They don't expose invites, participants, or edit controls to non-participants.
+      </p>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        The visibility toggle lives on the team dashboard, right next to the team name.
+      </p>
+
+      <%!-- Mockup: visibility toggle --%>
+      <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
+        <div class="px-5 pt-5 pb-3 space-y-1">
+          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-sm font-bold">Visibility toggle</p>
+        </div>
+        <div class="px-5 pb-5">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-mono font-bold">my-team</span>
+            <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-base-200 text-base-content/40">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+              </svg>
+              private
+            </span>
+            <span class="text-[10px] text-primary font-medium cursor-pointer">Make public</span>
+          </div>
+        </div>
+      </div>
+
+      <.callout title="When to use public vs. private">
+        <p>
+          Use <span class="font-semibold">private</span> for teams with proprietary instructions or
+          internal workflows. Use <span class="font-semibold">public</span> when you want to share your
+          team setup with the community or let others clone your config without needing an invite.
+        </p>
+      </.callout>
+    </section>
+
+    <%!-- Step 3: Team dashboard --%>
+    <section class="space-y-4">
+      <.section_heading id="dashboard" title="3. Team dashboard" />
       <p class="text-sm text-base-content/70 leading-relaxed">
         After creating a team (or opening one via invite link), you land on the dashboard.
         This is where you manage everything: members, skills, invites.
@@ -1402,9 +1448,9 @@ defmodule TeamrcWeb.GuideLive do
       </div>
     </section>
 
-    <%!-- Step 3: Adding members --%>
+    <%!-- Step 4: Adding members --%>
     <section class="space-y-4">
-      <.section_heading id="add-member" title="3. Adding a member" />
+      <.section_heading id="add-member" title="4. Adding a member" />
       <p class="text-sm text-base-content/70 leading-relaxed">
         Click "Add team member" on the dashboard. You'll see the agent catalog,
         organized by category. Pick a pre-built agent or create a custom one.
@@ -1494,9 +1540,9 @@ defmodule TeamrcWeb.GuideLive do
       </div>
     </section>
 
-    <%!-- Step 4: Member detail --%>
+    <%!-- Step 5: Member detail --%>
     <section class="space-y-4">
-      <.section_heading id="member-detail" title="4. Editing a member" />
+      <.section_heading id="member-detail" title="5. Editing a member" />
       <p class="text-sm text-base-content/70 leading-relaxed">
         Click a member card on the dashboard to open their detail page.
         Here you can edit their name, role, instructions, and toggle which skills are assigned to them.
@@ -1577,9 +1623,9 @@ defmodule TeamrcWeb.GuideLive do
       </div>
     </section>
 
-    <%!-- Step 5: Adding skills --%>
+    <%!-- Step 6: Adding skills --%>
     <section class="space-y-4">
-      <.section_heading id="add-skill" title="5. Adding a skill" />
+      <.section_heading id="add-skill" title="6. Adding a skill" />
       <p class="text-sm text-base-content/70 leading-relaxed">
         Click "Add skill" on the dashboard. Like members, you can pick from the catalog or write one from scratch.
         Skills are defined at the team level, then assigned to individual members on their detail page.
@@ -1631,9 +1677,19 @@ defmodule TeamrcWeb.GuideLive do
       </div>
     </section>
 
-    <%!-- Step 6: Invites --%>
+    <%!-- Step 7: Sharing --%>
     <section class="space-y-4">
-      <.section_heading id="invites" title="6. Sharing your team" />
+      <.section_heading id="invites" title="7. Sharing your team" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        There are two ways to share a team, and they work differently.
+      </p>
+
+      <.sub_heading id="invite-codes" title="Invite codes (sync access)" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        Invite codes create an <span class="font-semibold">ongoing sync relationship</span>. When someone
+        joins with an invite code, their machine becomes a participant. They'll receive updates when
+        the team changes, and they can push changes back. Invite codes expire after 24 hours.
+      </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
         Scroll down on the dashboard to find the Invites section. Click "Generate invite" to create a new code.
         Share it as a CLI command or as a URL.
@@ -1665,14 +1721,60 @@ defmodule TeamrcWeb.GuideLive do
           </p>
         </div>
       </div>
+
+      <.sub_heading id="clone-tokens" title="Clone tokens (read-only copy)" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        Clone tokens let someone <span class="font-semibold">copy your team config as a snapshot</span>
+        without joining the sync loop. They're only available for public teams. Unlike invite codes,
+        clone tokens don't expire and don't grant write access or ongoing updates.
+      </p>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        When your team is public, the clone token and command appear on the dashboard. Anyone who visits
+        your public team page also sees a "Clone this team" section with the CLI command.
+      </p>
+
+      <%!-- Mockup: clone token section --%>
+      <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
+        <div class="px-5 pt-5 pb-3 space-y-1">
+          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-sm font-bold">Clone token (public teams only)</p>
+        </div>
+        <div class="px-5 pb-5 space-y-3">
+          <div class="flex items-center gap-2">
+            <p class="text-xs font-semibold">Clone</p>
+            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-500/10 text-emerald-600">
+              public
+            </span>
+          </div>
+          <div class="terminal-block rounded-lg overflow-hidden">
+            <div class="px-3 py-2 flex items-center justify-between">
+              <code class="text-emerald-400 text-xs font-mono">npx teamrc clone trc_cl_r4s5t6</code>
+              <span class="text-[10px] font-mono text-white/30">copy</span>
+            </div>
+          </div>
+          <p class="text-[10px] text-base-content/40">
+            This copies the current team config. No ongoing sync. Use an invite code for that.
+          </p>
+        </div>
+      </div>
+
+      <.callout title="Clone vs. join">
+        <p>
+          <span class="font-semibold">Clone</span> (<.code_inline>trc_cl_...</.code_inline>): one-time
+          snapshot, no sync, no expiry. Good for sharing templates or letting people try your setup.
+          <span class="font-semibold">Join</span> (<.code_inline>trc_inv_...</.code_inline>): ongoing
+          sync, full participation, expires in 24 hours. Good for teammates.
+        </p>
+      </.callout>
     </section>
 
-    <%!-- Step 7: Connected machines --%>
+    <%!-- Step 8: Connected machines --%>
     <section class="space-y-4">
-      <.section_heading id="machines" title="7. Connected machines" />
+      <.section_heading id="machines" title="8. Connected machines" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        If you're signed in and you own the team, you'll see a list of every machine that's syncing with it.
-        This section is only visible to you. Other team participants can't see your machines or hostnames.
+        Your connected machines are listed on the <span class="font-semibold">personal dashboard</span>
+        at <.code_inline>/dashboard</.code_inline>, not on the team page. Only you can see your machines.
+        Other team participants can't see your machine names, hostnames, or tokens.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
         Each card shows the machine name (your computer's hostname), whether it's scoped to a specific
@@ -1681,11 +1783,11 @@ defmodule TeamrcWeb.GuideLive do
         and the CLI will let you know before it happens.
       </p>
 
-      <%!-- Mockup: machines section (populated) --%>
+      <%!-- Mockup: machines section on /dashboard --%>
       <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
         <div class="px-5 pt-5 pb-3 space-y-1">
           <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
-          <p class="text-sm font-bold">Active machines</p>
+          <p class="text-sm font-bold">Dashboard: active machines</p>
         </div>
         <div class="px-5 pb-5 space-y-1.5">
           <div class="flex items-center justify-between mb-2">
@@ -1758,15 +1860,16 @@ defmodule TeamrcWeb.GuideLive do
         <p>
           Machine names come from your computer's hostname, and they're only shared when you
           run <.code_inline>teamrc login</.code_inline>. The CLI warns you before sending it.
-          If a machine hasn't logged in, it shows as "Unnamed." Only the team owner can see
-          this section. Other participants can't see your machines.
+          If a machine hasn't logged in, it shows as "Unnamed." Machines are only visible to you
+          on your personal dashboard. They never appear on the team page, and other team participants
+          can't see them.
         </p>
       </.callout>
     </section>
 
-    <%!-- Step 8: Knowledge --%>
+    <%!-- Step 9: Knowledge --%>
     <section class="space-y-4">
-      <.section_heading id="knowledge" title="8. Team knowledge" />
+      <.section_heading id="knowledge" title="9. Team knowledge" />
       <p class="text-sm text-base-content/70 leading-relaxed">
         The knowledge section shows shared context that your agents have written during their work.
         When an agent discovers something important (an architecture decision, a debugging insight,
@@ -1787,18 +1890,7 @@ defmodule TeamrcWeb.GuideLive do
         <div class="px-5 pb-5 space-y-2">
           <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-3">Knowledge</p>
           <div class="rounded-lg border border-base-300 bg-base-100 px-4 py-3">
-            <pre class="text-xs font-mono text-base-content/70 whitespace-pre-wrap break-words">## Database
-- Using Postgres 18, connection pool size is 10
-- Migrations run automatically on deploy
-
-## Auth
-- Ed25519 keypairs, one per machine
-- Tokens are base64url-encoded public keys
-- Never log private keys
-
-## Frontend
-- Tailwind CSS with DaisyUI, no custom CSS files
-- All components in lib/teamrc_web/components/</pre>
+            <pre class="text-xs font-mono text-base-content/70 whitespace-pre-wrap break-words"><%= "## Database\n- Using Postgres 18, connection pool size is 10\n- Migrations run automatically on deploy\n\n## Auth\n- Ed25519 keypairs, one per machine\n- Tokens are base64url-encoded public keys\n- Never log private keys\n\n## Frontend\n- Tailwind CSS with DaisyUI, no custom CSS files\n- All components in lib/teamrc_web/components/" %></pre>
           </div>
         </div>
       </div>
@@ -2343,6 +2435,47 @@ defmodule TeamrcWeb.GuideLive do
           The relay stores your team configuration. It doesn't store source code or anything
           beyond what's in your <.code_inline>.teamrc.yaml</.code_inline>.
           See <a href="/guide/sync#auth" class="text-primary/80 hover:text-primary">Authentication</a> for details.
+        </p>
+      </.faq_item>
+
+      <.faq_item question="What's the difference between public and private teams?">
+        <p class="text-sm text-base-content/70 leading-relaxed">
+          <span class="font-semibold">Private</span> teams (the default) are only visible to
+          authenticated participants. If someone visits the team page URL without access, they see
+          a "This team is private" message. <span class="font-semibold">Public</span> teams can be
+          viewed by anyone with the link. Visitors see a read-only view of the team config (members,
+          skills, knowledge) and can clone it. They still can't edit anything or see invites.
+        </p>
+        <p class="text-sm text-base-content/70 leading-relaxed mt-2">
+          You can toggle visibility on the team dashboard at any time. Making a team public also
+          generates a clone token that anyone can use to copy the config.
+          See the <a href="/guide/web-ui#visibility" class="text-primary/80 hover:text-primary">Visibility section</a> for more.
+        </p>
+      </.faq_item>
+
+      <.faq_item question="What's the difference between cloning and joining?">
+        <p class="text-sm text-base-content/70 leading-relaxed">
+          <span class="font-semibold">Cloning</span> (<.code_inline>teamrc clone trc_cl_...</.code_inline>)
+          copies the current team config as a one-time snapshot. You get the YAML and generated files,
+          but there's no ongoing connection to the original team. Clone tokens don't expire.
+        </p>
+        <p class="text-sm text-base-content/70 leading-relaxed mt-2">
+          <span class="font-semibold">Joining</span> (<.code_inline>teamrc join trc_inv_...</.code_inline>)
+          creates an ongoing sync relationship. Your machine becomes a participant and receives updates
+          whenever the team changes. You can also push changes back. Invite codes expire after 24 hours.
+        </p>
+        <p class="text-sm text-base-content/70 leading-relaxed mt-2">
+          Use clone to try out someone's setup or use it as a starting point for your own team.
+          Use join when you want to stay in sync with collaborators.
+        </p>
+      </.faq_item>
+
+      <.faq_item question="Can someone see my machine name?">
+        <p class="text-sm text-base-content/70 leading-relaxed">
+          No. Your machines are only visible to you, on your personal dashboard
+          (<.code_inline>/dashboard</.code_inline>). Other team participants can't see your machine names,
+          hostnames, or tokens. Machine names come from your computer's hostname and are only shared
+          when you run <.code_inline>teamrc login</.code_inline>. The CLI warns you before sending it.
         </p>
       </.faq_item>
 

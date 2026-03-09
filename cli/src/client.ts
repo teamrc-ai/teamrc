@@ -239,6 +239,16 @@ export class TeamrcClient {
     return data.team;
   }
 
+  async cloneByToken(cloneToken: string): Promise<TeamrcTeam> {
+    const res = await fetch(`${this.baseUrl}/api/teams/clone/${encodeURIComponent(cloneToken)}`);
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Clone failed: ${res.status} ${body}`);
+    }
+    const data = (await res.json()) as { team: TeamrcTeam };
+    return data.team;
+  }
+
   async createInvite(ttlHours: number = 24): Promise<{ invite_code: string; expires_at: string }> {
     const body = JSON.stringify({
       token: this.token,
