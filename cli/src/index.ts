@@ -3,8 +3,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-
-import { execFileSync } from "node:child_process";
 import { Command } from "commander";
 import * as p from "@clack/prompts";
 import {
@@ -24,6 +22,7 @@ import { getAdapter, VALID_PLATFORMS, type TeamScope, type TeamDefinition, type 
 import { resolveTeam, listTeams, templateToTeamDefinition, listAgentCategories, loadAgent, loadSkill, agentRecommendedSkills, type TeamTemplate } from "./catalog.js";
 import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "./team-yaml.js";
 import type { TeamrcConfig } from "./config.js";
+import { buildInviteUrl, openBrowser, openBrowserIfSameOrigin } from "./browser.js";
 
 // ---------------------------------------------------------------------------
 // Global options — parsed from root program, threaded through all commands
@@ -230,21 +229,8 @@ async function deviceAuthFlow(client: TeamrcClient, machineName: string, relayUr
     "Authenticate",
   );
 
-  // Try to open browser automatically (only if same origin as relay)
-  if (deviceAuth.verification_url.startsWith("https://")) {
-    try {
-      const relayOrigin = new URL(relayUrl).origin;
-      const verifyOrigin = new URL(deviceAuth.verification_url).origin;
-      if (verifyOrigin === relayOrigin) {
-        const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
-        execFileSync(openCmd, [deviceAuth.verification_url], { stdio: "ignore" });
-      } else {
-        // Don't auto-open URLs from different origins
-      }
-    } catch {
-      // URL parsing failed, skip auto-open
-    }
-  }
+  // Only auto-open URLs that point back to the configured relay.
+  openBrowserIfSameOrigin(deviceAuth.verification_url, relayUrl);
 
   s.start("Waiting for confirmation... (press Ctrl-C to cancel)");
 
@@ -533,6 +519,7 @@ program
         );
       }
 
+      p.log.info("Tip: Run `teamrc dashboard` to open this team in your browser.");
       p.outro("Customize agents and skills in .teamrc.yaml, then run teamrc apply");
     } catch (err) {
       s.error("Failed to create team on relay.");
@@ -641,6 +628,7 @@ program
         }
       }
 
+      p.log.info("Tip: Run `teamrc dashboard` to manage this team in your browser.");
       p.outro("Next: Run teamrc daemon to start live sync");
     } catch (err) {
       s.error("Failed to join team.");
@@ -1253,6 +1241,48 @@ program
     }
   });
 
+// --- dashboard ---
+program
+  .command("dashboard")
+  .description("Open the current team in your browser")
+  .option("--ttl <hours>", "Dashboard link expiry in hours", "24")
+  .action(async (opts: { ttl: string }) => {
+    p.intro("teamrc");
+
+    const ctx = requireTeamContext();
+    const ttlHours = parseInt(opts.ttl, 10);
+
+    if (isNaN(ttlHours) || ttlHours < 1) {
+      p.log.error("TTL must be a positive number of hours.");
+      process.exit(1);
+    }
+
+    const s = p.spinner();
+    try {
+      s.start("Creating dashboard link...");
+      const result = await ctx.client.createInvite(ttlHours);
+      const relayUrl = ctx.team.relay ?? ctx.config.relay;
+      const dashboardUrl = buildInviteUrl(relayUrl, result.invite_code);
+      const opened = openBrowser(dashboardUrl);
+      s.stop("Dashboard link ready.");
+
+      p.note(
+        `${dashboardUrl}\n\nTeam:    ${ctx.team.name || "your team"}\nExpires: ${ttlHours} hours`,
+        "Dashboard",
+      );
+
+      if (opened) {
+        p.outro("Opened the team dashboard in your browser.");
+      } else {
+        p.outro("Open the dashboard URL above in your browser.");
+      }
+    } catch (err) {
+      s.error("Failed to open dashboard.");
+      p.log.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
 // --- invite ---
 program
   .command("invite")
@@ -1282,7 +1312,7 @@ program
         "Invite",
       );
 
-      p.outro("Share this command with your teammates.");
+      p.outro("Share this command with your teammates. For your own browser session, use `teamrc dashboard`.");
     } catch (err) {
       s.error("Failed to create invite.");
       p.log.error((err as Error).message);

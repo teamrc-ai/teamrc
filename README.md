@@ -82,6 +82,7 @@ Fields:
 | `teamrc init` | Detect platform, create agents, write `.teamrc.yaml`, connect to relay |
 | `teamrc join <token>` | Join an existing team and set up locally. `--no-sync` for local-only |
 | `teamrc clone <token>` | Copy a team locally without joining sync. `--name` to override name |
+| `teamrc dashboard` | Open the current team in your browser. `--ttl <hours>` (default: 24) |
 | `teamrc invite` | Generate an invite code for your team. `--ttl <hours>` (default: 24, max: 168) |
 | `teamrc apply` | Apply `.teamrc.yaml` to local platform(s) |
 | `teamrc export` | Export team from relay to `.teamrc.yaml` |
