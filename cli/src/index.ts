@@ -208,6 +208,8 @@ function requireTeamContext(): TeamContext {
 // Device auth flow with spinner
 // ---------------------------------------------------------------------------
 async function deviceAuthFlow(client: TeamrcClient, machineName: string, relayUrl: string): Promise<boolean> {
+  p.log.info(`Your machine name ("${machineName}") will be visible to the team owner.`);
+
   const s = p.spinner();
 
   let deviceAuth;
