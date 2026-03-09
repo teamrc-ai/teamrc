@@ -47,7 +47,14 @@ defmodule TeamrcWeb.Router do
       live "/dashboard", DashboardLive
       live "/teams/:id", TeamDetailLive
       live "/teams/:team_id/members/:member_id", MemberDetailLive
-      live "/guide", GuideLive
+      live "/guide", GuideLive, :overview
+      live "/guide/concepts", GuideLive, :concepts
+      live "/guide/cli", GuideLive, :cli
+      live "/guide/platforms", GuideLive, :platforms
+      live "/guide/sync", GuideLive, :sync
+      live "/guide/config", GuideLive, :config
+      live "/guide/web-ui", GuideLive, :web_ui
+      live "/guide/faq", GuideLive, :faq
       live "/auth/verify", AuthVerifyLive
     end
   end

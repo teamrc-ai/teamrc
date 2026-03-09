@@ -47,8 +47,9 @@ defmodule TeamrcWeb.Layouts do
             </div>
             <span class="text-sm font-semibold tracking-tight">teamrc</span>
           </a>
-          <nav :if={@clerk_email} class="hidden sm:flex items-center gap-1">
+          <nav class="hidden sm:flex items-center gap-1">
             <a
+              :if={@clerk_email}
               href={~p"/dashboard"}
               class="trc-focus rounded-md px-2.5 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/80 hover:bg-base-200/60 transition-colors"
             >
