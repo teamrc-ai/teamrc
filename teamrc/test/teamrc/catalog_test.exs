@@ -275,6 +275,40 @@ defmodule Teamrc.CatalogTest do
   end
 
   # ---------------------------------------------------------------------------
+  # agent_recommended_skills
+  # ---------------------------------------------------------------------------
+
+  describe "agent_recommended_skills/1" do
+    test "returns skills for backend-dev from team templates" do
+      skills = Catalog.agent_recommended_skills("backend-dev")
+      assert is_list(skills)
+      assert length(skills) > 0
+      assert "write-tests" in skills
+    end
+
+    test "returns sorted list" do
+      skills = Catalog.agent_recommended_skills("backend-dev")
+      assert skills == Enum.sort(skills)
+    end
+
+    test "returns empty list for unknown agent" do
+      assert Catalog.agent_recommended_skills("nonexistent-agent-xyz") == []
+    end
+
+    test "all recommended skills exist in the skill catalog" do
+      categories = Catalog.list_agent_categories()
+      all_agents = Enum.flat_map(categories, & &1["agents"])
+
+      for name <- all_agents do
+        for skill_id <- Catalog.agent_recommended_skills(name) do
+          assert Catalog.load_skill(skill_id),
+                 "Agent #{name} recommends nonexistent skill: #{skill_id}"
+        end
+      end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Cross-reference integrity
   # ---------------------------------------------------------------------------
 

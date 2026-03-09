@@ -86,6 +86,19 @@ defmodule Teamrc.Catalog do
     end)
   end
 
+  @doc "Returns the union of skill IDs recommended for an agent across all team templates."
+  def agent_recommended_skills(agent_name) do
+    list_teams()
+    |> Enum.reduce(MapSet.new(), fn team_id, acc ->
+      team = load_team_raw(team_id)
+      agent_skills = team["agentSkills"] || %{}
+      skills = Map.get(agent_skills, agent_name, [])
+      MapSet.union(acc, MapSet.new(skills))
+    end)
+    |> MapSet.to_list()
+    |> Enum.sort()
+  end
+
   @doc "List skill categories with their skill lists. Auto-discovers new skills."
   def list_skill_categories do
     dir = Path.join(@templates_dir, "skills")

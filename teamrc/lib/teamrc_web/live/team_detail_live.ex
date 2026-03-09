@@ -32,6 +32,8 @@ defmodule TeamrcWeb.TeamDetailLive do
            member_catalog: nil,
            new_member_name: "",
            new_member_role: "",
+           new_member_soul: "",
+           new_member_skills: [],
            generating_invite: false,
            generated_invite: nil,
            skill_mode: nil,
@@ -246,20 +248,29 @@ defmodule TeamrcWeb.TeamDetailLive do
       end)
       |> Enum.reject(fn cat -> cat.agents == [] end)
 
-    {:noreply, assign(socket, member_mode: :picker, member_catalog: catalog, new_member_name: "", new_member_role: "")}
+    {:noreply, assign(socket, member_mode: :picker, member_catalog: catalog, new_member_name: "", new_member_role: "", new_member_soul: "", new_member_skills: [])}
   end
 
   def handle_event("cancel_member", _params, socket) do
-    {:noreply, assign(socket, member_mode: nil, member_catalog: nil, new_member_name: "", new_member_role: "")}
+    {:noreply, assign(socket, member_mode: nil, member_catalog: nil, new_member_name: "", new_member_role: "", new_member_soul: "", new_member_skills: [])}
   end
 
   def handle_event("pick_catalog_member", %{"agent-name" => agent_name}, socket) do
     agent = Catalog.load_agent(agent_name)
-    {:noreply, assign(socket, member_mode: :form, new_member_name: agent["name"], new_member_role: agent["role"])}
+    recommended_skills = Catalog.agent_recommended_skills(agent_name)
+
+    {:noreply,
+     assign(socket,
+       member_mode: :form,
+       new_member_name: agent["name"],
+       new_member_role: agent["role"],
+       new_member_soul: agent["soul"] || "",
+       new_member_skills: recommended_skills
+     )}
   end
 
   def handle_event("custom_member", _params, socket) do
-    {:noreply, assign(socket, member_mode: :form, new_member_name: "", new_member_role: "")}
+    {:noreply, assign(socket, member_mode: :form, new_member_name: "", new_member_role: "", new_member_soul: "", new_member_skills: [])}
   end
 
   def handle_event("add_member", _params, socket) do
@@ -271,10 +282,42 @@ defmodule TeamrcWeb.TeamDetailLive do
       else
         name = String.trim(socket.assigns.new_member_name)
         role = String.trim(socket.assigns.new_member_role)
+        soul = String.trim(socket.assigns.new_member_soul)
 
         if name != "" and role != "" do
+          recommended = socket.assigns.new_member_skills
+          existing_ids = MapSet.new(team.skills, & &1["id"])
+
+          # Add missing recommended skills to the team
+          new_team_skills =
+            recommended
+            |> Enum.reject(&MapSet.member?(existing_ids, &1))
+            |> Enum.flat_map(fn skill_id ->
+              case safe_load_skill(skill_id) do
+                nil -> []
+                skill -> [catalog_skill_to_map(skill)]
+              end
+            end)
+
+          team =
+            if new_team_skills != [] do
+              case team |> Team.changeset(%{skills: team.skills ++ new_team_skills}) |> Repo.update() do
+                {:ok, t} -> Repo.preload(t, :members, force: true)
+                {:error, _} -> team
+              end
+            else
+              team
+            end
+
+          # Only assign skills that actually exist on the team now
+          all_team_skill_ids = MapSet.new(team.skills, & &1["id"])
+          member_skills = Enum.filter(recommended, &MapSet.member?(all_team_skill_ids, &1))
+
+          attrs = %{name: name, role: role, skills: member_skills}
+          attrs = if soul != "", do: Map.put(attrs, :soul, soul), else: attrs
+
           case %Member{team_id: team.id}
-               |> Member.changeset(%{name: name, role: role})
+               |> Member.changeset(attrs)
                |> Repo.insert() do
             {:ok, _member} ->
               updated_team = Repo.preload(team, :members, force: true)
@@ -284,6 +327,8 @@ defmodule TeamrcWeb.TeamDetailLive do
                  team: updated_team,
                  new_member_name: "",
                  new_member_role: "",
+                 new_member_soul: "",
+                 new_member_skills: [],
                  member_mode: nil,
                  member_catalog: nil
                )}
@@ -514,6 +559,19 @@ defmodule TeamrcWeb.TeamDetailLive do
   end
 
   # --- Helpers ---
+
+  defp catalog_skill_to_map(skill) do
+    %{"id" => skill["id"], "body" => skill["body"]}
+    |> then(fn s -> if skill["title"], do: Map.put(s, "title", skill["title"]), else: s end)
+    |> then(fn s -> if skill["description"], do: Map.put(s, "description", skill["description"]), else: s end)
+    |> then(fn s -> if skill["alwaysApply"], do: Map.put(s, "alwaysApply", true), else: s end)
+  end
+
+  defp safe_load_skill(skill_id) do
+    Catalog.load_skill(skill_id)
+  rescue
+    _ -> nil
+  end
 
   defp reset_skill_form(socket) do
     assign(socket,
