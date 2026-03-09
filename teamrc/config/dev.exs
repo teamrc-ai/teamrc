@@ -18,7 +18,7 @@ config :teamrc, Teamrc.Repo,
 # to bundle .js and .css sources.
 config :teamrc, TeamrcWeb.Endpoint,
   http: [ip: {0, 0, 0, 0}],
-  check_origin: ["//localhost", "//127.0.0.1", "//mermaid.cates.fm"],
+  check_origin: ["//localhost", "//127.0.0.1", "//teamrc.cates.fm"],
   code_reloader: true,
   debug_errors: true,
   secret_key_base: "nFyhEXC+bC5UrQxKy6IHiFWIHk/qxvVBP+0Dx9MnId44+dbvKJuck2k4+/oyIzva",
