@@ -12,10 +12,11 @@ defmodule TeamrcWeb.ApiController do
   @max_skill_body_bytes 10_000  # 10KB per skill body
   @id_re ~r/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
 
-  def create_team(conn, %{"token" => token, "team" => team}) do
+  def create_team(conn, %{"token" => token, "team" => team} = params) do
     with :ok <- validate_team(team) do
       team = sanitize_team(team)
-      {:ok, team_data} = Teams.put_team(token, team)
+      team_id = params["team_id"]
+      {:ok, team_data} = Teams.put_team(token, team, team_id)
 
       conn
       |> put_status(:created)
@@ -28,8 +29,8 @@ defmodule TeamrcWeb.ApiController do
     end
   end
 
-  def get_team(conn, %{"token" => token}) do
-    case Teams.get_team(token) do
+  def get_team(conn, %{"token" => token} = params) do
+    case Teams.get_team(token, params["team_id"]) do
       {:ok, team} ->
         json(conn, %{team: team})
 
@@ -169,11 +170,13 @@ defmodule TeamrcWeb.ApiController do
       |> Enum.map(fn m ->
         %{"name" => to_string(m["name"] || ""), "role" => to_string(m["role"] || "")}
         |> put_if_present("skills", m["skills"])
+        |> put_if_present("soul", m["soul"])
       end)
 
     %{"name" => team["name"], "members" => members}
     |> put_if_present("skills", team["skills"])
     |> put_if_present("knowledge", team["knowledge"])
+    |> put_if_present("platforms", team["platforms"])
   end
 
   defp safe_integer(nil, default), do: default

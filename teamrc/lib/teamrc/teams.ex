@@ -15,8 +15,12 @@ defmodule Teamrc.Teams do
   end
 
   @doc "Store a team under a token (used by authenticated API create)."
-  def put_team(pid \\ __MODULE__, token, team_attrs) do
-    GenServer.call(pid, {:put_team, token, team_attrs})
+  def put_team(token, team_attrs, team_id \\ nil) do
+    GenServer.call(__MODULE__, {:put_team, token, team_attrs, team_id})
+  end
+
+  def put_team_to(pid, token, team_attrs, team_id \\ nil) when is_pid(pid) do
+    GenServer.call(pid, {:put_team, token, team_attrs, team_id})
   end
 
   @doc "Create a team with a random invite code. Returns {:ok, invite_code}."
@@ -30,8 +34,12 @@ defmodule Teamrc.Teams do
   end
 
   @doc "Get a team by token. Returns {:ok, team_map} or :error."
-  def get_team(pid \\ __MODULE__, token) do
-    GenServer.call(pid, {:get_team, token})
+  def get_team(token, team_id \\ nil) do
+    GenServer.call(__MODULE__, {:get_team, token, team_id})
+  end
+
+  def get_team_from(pid, token, team_id \\ nil) when is_pid(pid) do
+    GenServer.call(pid, {:get_team, token, team_id})
   end
 
   @doc "Get all teams for a token. Returns {:ok, [team_map]} or :error."
@@ -66,10 +74,10 @@ defmodule Teamrc.Teams do
   end
 
   @impl true
-  def handle_call({:put_team, token, team_attrs}, _from, state) do
+  def handle_call({:put_team, token, team_attrs, team_id_param}, _from, state) do
     team_data = normalize_team(team_attrs)
 
-    case first_team_id(state, token) do
+    case resolve_team_id(state, token, team_id_param) do
       nil ->
         case create_team_in_db(team_data) do
           {:ok, team} ->
@@ -137,8 +145,8 @@ defmodule Teamrc.Teams do
     end
   end
 
-  def handle_call({:get_team, token}, _from, state) do
-    case first_team_id(state, token) do
+  def handle_call({:get_team, token, team_id_param}, _from, state) do
+    case resolve_team_id(state, token, team_id_param) do
       nil ->
         {:reply, :error, state}
 
@@ -332,6 +340,8 @@ defmodule Teamrc.Teams do
           "title" => s["title"] || s[:title],
           "description" => s["description"] || s[:description],
           "alwaysApply" => s["alwaysApply"] || s[:alwaysApply],
+          "globs" => s["globs"] || s[:globs],
+          "userInvocable" => s["userInvocable"] || s[:userInvocable],
           "body" => s["body"] || s[:body]
         }
         |> Enum.reject(fn {_k, v} -> is_nil(v) end)
