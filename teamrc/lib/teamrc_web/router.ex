@@ -104,7 +104,9 @@ defmodule TeamrcWeb.Router do
 
     get "/account", AccountController, :show
     get "/account/teams", AccountController, :teams
+    get "/account/export", AccountController, :export
     delete "/account/machines/:token", AccountController, :revoke_machine
+    delete "/account", AccountController, :delete
   end
 
   scope "/api", TeamrcWeb do

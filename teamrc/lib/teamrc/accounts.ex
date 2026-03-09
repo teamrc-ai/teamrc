@@ -177,6 +177,88 @@ defmodule Teamrc.Accounts do
     end
   end
 
+  @doc "Delete an account and all associated data (tokens, token_teams). Teams themselves are preserved."
+  def delete_account(clerk_user_id) do
+    case get_account_with_tokens(clerk_user_id) do
+      nil ->
+        {:error, :not_found}
+
+      account ->
+        all_tokens = Enum.map(account.account_tokens, & &1.token)
+
+        Repo.transaction(fn ->
+          # Delete token_team associations for all tokens (including revoked)
+          if all_tokens != [] do
+            from(tt in TokenTeam, where: tt.token in ^all_tokens)
+            |> Repo.delete_all()
+          end
+
+          # Delete the account (cascades to account_tokens via FK)
+          Repo.delete!(account)
+        end)
+        |> case do
+          {:ok, _} ->
+            # Notify GenServer to drop all tokens from in-memory state
+            for token <- all_tokens do
+              GenServer.cast(Teamrc.Teams, {:token_revoked, token})
+            end
+
+            :ok
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+    end
+  end
+
+  @doc "Export all data associated with a Clerk account as a map."
+  def export_account_data(clerk_user_id) do
+    case get_account_with_tokens(clerk_user_id) do
+      nil ->
+        {:error, :not_found}
+
+      account ->
+        teams_with_machines = get_account_teams_with_machines(account.id)
+        team_ids = Enum.map(teams_with_machines, fn {team, _} -> team.id end)
+        participants = resolve_participants_batch(team_ids)
+
+        {:ok, %{
+          account: %{
+            id: account.id,
+            email: account.email,
+            created_at: account.inserted_at,
+            updated_at: account.updated_at
+          },
+          machines: Enum.map(account.account_tokens, fn at ->
+            %{
+              token: at.token,
+              machine_name: at.machine_name,
+              last_seen_at: at.last_seen_at,
+              revoked_at: at.revoked_at,
+              created_at: at.inserted_at
+            }
+          end),
+          teams: Enum.map(teams_with_machines, fn {team, machines} ->
+            %{
+              id: team.id,
+              name: team.name,
+              members: Enum.map(team.members, fn m ->
+                %{name: m.name, role: m.role, soul: m.soul, skills: m.skills}
+              end),
+              skills: team.skills || [],
+              platforms: team.platforms || [],
+              knowledge: team.knowledge,
+              visibility: team.visibility,
+              participants: Map.get(participants, team.id, []),
+              your_machines: Enum.map(machines, fn m ->
+                %{token: m.token, machine_name: m.machine_name, scope: m.scope, project_name: m.project_name}
+              end)
+            }
+          end)
+        }}
+    end
+  end
+
   def reassociate_teams(account_id, new_token) do
     case Repo.get_by(AccountToken, account_id: account_id, token: new_token) do
       nil ->

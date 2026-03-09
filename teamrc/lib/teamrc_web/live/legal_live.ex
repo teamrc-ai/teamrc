@@ -160,15 +160,12 @@ defmodule TeamrcWeb.LegalLive do
 
       <.legal_section title="9. Contact">
         <p>
-          For questions about these Terms, open an issue on the
-          <a
+          For questions about these Terms, open an issue on the <a
             href="https://github.com/teamrc-app/teamrc"
             class="text-primary hover:underline"
             target="_blank"
             rel="noopener"
-          >
-            teamrc GitHub repository
-          </a>.
+          >teamrc GitHub repository</a>.
         </p>
       </.legal_section>
     </div>
@@ -254,7 +251,11 @@ defmodule TeamrcWeb.LegalLive do
 
       <.legal_section title="4. Data Storage">
         <p>
-          Team configurations and account data are stored on the relay server. As experimental software, data retention and backup policies are not guaranteed. You should maintain local backups of your team configurations via <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">teamrc export</code> or your <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">.teamrc.yaml</code> files.
+          Team configurations and account data are stored on the relay server.
+          As experimental software, data retention and backup policies are not guaranteed.
+          You should maintain local backups of your team configurations
+          via <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">teamrc export</code>
+          or your <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">.teamrc.yaml</code> files.
         </p>
       </.legal_section>
 
@@ -268,16 +269,12 @@ defmodule TeamrcWeb.LegalLive do
         <p>The Service integrates with:</p>
         <ul>
           <li>
-            <strong>Clerk</strong>
-            — Optional authentication provider. Subject to
-            <a
+            <strong>Clerk</strong> — Optional authentication provider. Subject to <a
               href="https://clerk.com/legal/privacy"
               class="text-primary hover:underline"
               target="_blank"
               rel="noopener"
-            >
-              Clerk's Privacy Policy
-            </a>
+            >Clerk's Privacy Policy</a>
           </li>
         </ul>
       </.legal_section>
@@ -286,8 +283,8 @@ defmodule TeamrcWeb.LegalLive do
         <p>You can:</p>
         <ul>
           <li>
-            Delete your local data by removing <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">~/.teamrc/</code>
-            and your <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">.teamrc.yaml</code> files
+            Delete your local data by removing <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">~/.teamrc/</code> and
+            your <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">.teamrc.yaml</code> files
           </li>
           <li>Revoke machine tokens via the dashboard</li>
           <li>Request deletion of your relay-server data by contacting us</li>
@@ -302,15 +299,12 @@ defmodule TeamrcWeb.LegalLive do
 
       <.legal_section title="9. Contact">
         <p>
-          For privacy concerns, open an issue on the
-          <a
+          For privacy concerns, open an issue on the <a
             href="https://github.com/teamrc-app/teamrc"
             class="text-primary hover:underline"
             target="_blank"
             rel="noopener"
-          >
-            teamrc GitHub repository
-          </a>.
+          >teamrc GitHub repository</a>.
         </p>
       </.legal_section>
     </div>

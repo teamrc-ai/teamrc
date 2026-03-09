@@ -87,6 +87,18 @@ window.addEventListener("trc:sign-out", async () => {
   window.location.href = "/auth/sign-out"
 })
 
+// File download handler (used by data export)
+window.addEventListener("phx:trc:download", (e) => {
+  const {data, filename} = e.detail
+  const blob = new Blob([data], {type: "application/json"})
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+})
+
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 

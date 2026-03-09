@@ -49,7 +49,8 @@ defmodule TeamrcWeb.DashboardLive do
         participants: participants,
         machine_teams: machine_teams,
         expanded_team: nil,
-        confirming_revoke: nil
+        confirming_revoke: nil,
+        confirming_delete: false
       )
     else
       assign(socket,
@@ -60,7 +61,8 @@ defmodule TeamrcWeb.DashboardLive do
         participants: %{},
         machine_teams: %{},
         expanded_team: nil,
-        confirming_revoke: nil
+        confirming_revoke: nil,
+        confirming_delete: false
       )
     end
   end
@@ -109,6 +111,35 @@ defmodule TeamrcWeb.DashboardLive do
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to revoke machine.")}
+    end
+  end
+
+  def handle_event("confirm_delete_account", _params, socket) do
+    {:noreply, assign(socket, confirming_delete: true)}
+  end
+
+  def handle_event("cancel_delete_account", _params, socket) do
+    {:noreply, assign(socket, confirming_delete: false)}
+  end
+
+  def handle_event("delete_account", _params, socket) do
+    case Accounts.delete_account(socket.assigns.clerk_user_id) do
+      :ok ->
+        {:noreply, redirect(socket, to: ~p"/auth/sign-out")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to delete account. Please try again.")}
+    end
+  end
+
+  def handle_event("export_data", _params, socket) do
+    case Accounts.export_account_data(socket.assigns.clerk_user_id) do
+      {:ok, data} ->
+        json = Jason.encode!(data, pretty: true)
+        {:noreply, push_event(socket, "trc:download", %{data: json, filename: "teamrc-export.json"})}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to export data.")}
     end
   end
 
@@ -396,6 +427,72 @@ defmodule TeamrcWeb.DashboardLive do
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <%!-- Account section --%>
+      <section class="border-t border-base-300/40 pt-8">
+        <div class="flex items-center gap-2 mb-4">
+          <h2 class="text-xs font-medium text-base-content/50 uppercase tracking-wider">Account</h2>
+        </div>
+
+        <div class="space-y-3">
+          <div class="flex items-center justify-between rounded-lg border border-base-300 bg-base-100 px-4 py-3">
+            <div>
+              <p class="text-sm font-medium"><%= @clerk_email %></p>
+              <p class="text-xs text-base-content/40">Signed in via Clerk</p>
+            </div>
+            <a
+              href={~p"/auth/sign-out"}
+              class="trc-focus rounded px-2.5 py-1 text-xs font-medium text-base-content/40 hover:text-base-content/60 hover:bg-base-200/60 transition-colors"
+            >
+              Sign out
+            </a>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              phx-click="export_data"
+              class="trc-focus inline-flex items-center gap-1.5 rounded-md border border-base-300 bg-base-100 px-3 py-1.5 text-xs font-medium text-base-content/60 hover:text-base-content/80 hover:border-base-300/80 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              Export my data
+            </button>
+
+            <%= if @confirming_delete do %>
+              <div class="flex items-center gap-2 animate-[fadeIn_150ms_ease-out]">
+                <span class="text-xs text-error/70">Delete account and all data?</span>
+                <button
+                  phx-click="delete_account"
+                  class="trc-focus rounded px-2.5 py-1 text-xs font-medium bg-error/10 text-error hover:bg-error/20 transition-colors"
+                >
+                  Yes, delete everything
+                </button>
+                <button
+                  phx-click="cancel_delete_account"
+                  class="trc-focus rounded px-2 py-1 text-xs font-medium text-base-content/40 hover:text-base-content/60 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            <% else %>
+              <button
+                phx-click="confirm_delete_account"
+                class="trc-focus inline-flex items-center gap-1.5 rounded-md border border-base-300 bg-base-100 px-3 py-1.5 text-xs font-medium text-base-content/40 hover:text-error hover:border-error/30 hover:bg-error/5 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                </svg>
+                Delete account
+              </button>
+            <% end %>
+          </div>
+
+          <p class="text-xs text-base-content/30">
+            Deleting your account removes your machines and team associations. Teams you created will remain accessible to other members.
+          </p>
         </div>
       </section>
     </div>
