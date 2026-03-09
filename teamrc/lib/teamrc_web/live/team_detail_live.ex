@@ -4,7 +4,7 @@ defmodule TeamrcWeb.TeamDetailLive do
   alias Phoenix.LiveView.JS
   alias Teamrc.{Accounts, Catalog, Teams}
   alias Teamrc.Repo
-  alias Teamrc.Schema.{Team, Invite, Member, TokenTeam, AccountToken}
+  alias Teamrc.Schema.{Team, Invite, Member, TokenTeam}
   import Ecto.Query
 
   @max_members 20
@@ -19,7 +19,6 @@ defmodule TeamrcWeb.TeamDetailLive do
          assign(socket,
            page_title: data.team.name,
            team: data.team,
-           machines: data.machines,
            participants: data.participants,
            invites: data.invites,
            can_edit_owner: data.can_edit,
@@ -104,15 +103,15 @@ defmodule TeamrcWeb.TeamDetailLive do
 
       team ->
         clerk_user_id = assigns[:clerk_user_id]
-        machines = load_team_machines(team.id)
+        team_tokens = load_team_tokens(team.id)
 
         can_edit =
           if clerk_user_id do
             account = Accounts.get_account_with_tokens(clerk_user_id)
 
             if account do
-              tokens = Enum.map(account.account_tokens, & &1.token)
-              Enum.any?(machines, fn m -> m.token in tokens end)
+              account_tokens = Enum.map(account.account_tokens, & &1.token)
+              Enum.any?(account_tokens, fn t -> t in team_tokens end)
             else
               false
             end
@@ -126,7 +125,6 @@ defmodule TeamrcWeb.TeamDetailLive do
         {:ok,
          %{
            team: team,
-           machines: machines,
            participants: participants,
            invites: invites,
            can_edit: can_edit
@@ -134,21 +132,13 @@ defmodule TeamrcWeb.TeamDetailLive do
     end
   end
 
-  defp load_team_machines(team_id) do
+  defp load_team_tokens(team_id) do
     from(tt in TokenTeam,
-      left_join: at in AccountToken,
-      on: at.token == tt.token and is_nil(at.revoked_at),
       where: tt.team_id == ^team_id,
-      select: %{
-        token: tt.token,
-        scope: tt.scope,
-        project_name: tt.project_name,
-        last_seen_at: coalesce(tt.last_seen_at, at.last_seen_at),
-        machine_name: at.machine_name
-      }
+      select: tt.token,
+      distinct: true
     )
     |> Repo.all()
-    |> Enum.uniq_by(& &1.token)
   end
 
   defp load_active_invites(team_id) do
@@ -589,23 +579,6 @@ defmodule TeamrcWeb.TeamDetailLive do
   defp member_path(team_id, member_id, nil), do: "/teams/#{team_id}/members/#{member_id}"
   defp member_path(team_id, member_id, code), do: "/teams/#{team_id}/members/#{member_id}?invite=#{code}"
 
-  defp truncate_token(token) when is_binary(token), do: String.slice(token, 0, 12) <> "..."
-  defp truncate_token(_), do: ""
-
-  defp time_ago(nil), do: "never"
-
-  defp time_ago(datetime) do
-    now = DateTime.utc_now()
-    diff = DateTime.diff(now, datetime, :second)
-
-    cond do
-      diff < 60 -> "just now"
-      diff < 3600 -> "#{div(diff, 60)} min ago"
-      diff < 86400 -> "#{div(diff, 3600)} hr ago"
-      diff < 604_800 -> "#{div(diff, 86400)} days ago"
-      true -> Calendar.strftime(datetime, "%b %d, %Y")
-    end
-  end
 
   defp time_remaining(expires_at) do
     now = DateTime.utc_now()
@@ -839,6 +812,29 @@ defmodule TeamrcWeb.TeamDetailLive do
                 class="trc-focus flex-[2] rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm placeholder:text-base-content/30 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
               />
             </div>
+
+            <%!-- Catalog agent preview: what's included --%>
+            <div :if={@new_member_soul != "" || @new_member_skills != []} class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-base-content/40">
+              <span :if={@new_member_soul != ""} class="inline-flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                </svg>
+                Includes instructions
+              </span>
+              <span :if={@new_member_skills != []} class="inline-flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                </svg>
+                <%= length(@new_member_skills) %> skill<%= if length(@new_member_skills) != 1, do: "s" %>:
+              </span>
+              <span
+                :for={skill_id <- @new_member_skills}
+                class="inline-flex items-center rounded bg-base-200 px-1.5 py-0.5 text-[10px] font-mono text-base-content/50"
+              >
+                <%= skill_id %>
+              </span>
+            </div>
+
             <div class="flex gap-2">
               <button
                 phx-click="add_member"
@@ -1124,43 +1120,7 @@ defmodule TeamrcWeb.TeamDetailLive do
         </div>
       </section>
 
-      <%!-- Active machines (visible to all) --%>
-      <section>
-        <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-3">
-          Active Machines
-          <span class="font-mono text-base-content/30 ml-1"><%= length(@machines) %></span>
-        </p>
-
-        <div :if={@machines == []} class="rounded-md border border-dashed border-base-300 bg-base-200/20 p-4 text-center">
-          <p class="text-xs text-base-content/40">No machines syncing this team yet. Run the join command to connect.</p>
-        </div>
-
-        <div :if={@machines != []} class="space-y-1.5">
-          <div
-            :for={machine <- @machines}
-            class="flex items-center gap-3 rounded-md border border-base-300 bg-base-100 px-3 py-2.5"
-          >
-            <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-base-200 text-base-content/30">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25" />
-              </svg>
-            </div>
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-medium truncate"><%= machine.machine_name || "Unnamed" %></span>
-                <code :if={@can_edit_owner} class="text-[10px] font-mono text-base-content/25"><%= truncate_token(machine.token) %></code>
-              </div>
-              <div class="flex items-center gap-2 text-xs text-base-content/35 mt-0.5">
-                <span :if={machine.scope == "global"} class="font-mono">global</span>
-                <span :if={machine.project_name} class="font-mono"><%= machine.project_name %></span>
-                <span><%= time_ago(machine.last_seen_at) %></span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <%!-- Participants (owner only) --%>
+      <%!-- Participants (authenticated participants only) --%>
       <section :if={@can_edit_owner && @participants != []}>
         <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-3">Participants</p>
         <div class="flex flex-wrap gap-1.5">
