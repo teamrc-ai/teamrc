@@ -1,0 +1,10 @@
+id: cite-sources
+title: Cite Sources
+category: constraints
+description: "Require citations for every factual claim with authoritative sources"
+alwaysApply: true
+body: |
+  Every factual claim must include a citation to a primary or authoritative
+  secondary source. Prefer peer-reviewed papers, official documentation, and
+  first-party data over blog posts or social media. Flag any claim that cannot
+  be independently verified.

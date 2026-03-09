@@ -31,10 +31,10 @@ defmodule TeamrcWeb.AccountControllerTest do
       })
       |> Repo.insert!()
 
-    # Create a team with members and rules
+    # Create a team with members and skills
     team =
       %Team{}
-      |> Team.changeset(%{name: "test-team", rules: [%{"id" => "r1", "content" => "rule1"}]})
+      |> Team.changeset(%{name: "test-team", skills: [%{"id" => "s1", "body" => "skill1"}]})
       |> Repo.insert!()
 
     Ecto.build_assoc(team, :members)
@@ -94,7 +94,7 @@ defmodule TeamrcWeb.AccountControllerTest do
       assert team_resp["id"] == team.id
       assert team_resp["name"] == "test-team"
       assert team_resp["agent_count"] == 1
-      assert team_resp["rule_count"] == 1
+      assert team_resp["skill_count"] == 1
       assert "test@example.com" in team_resp["participants"]
     end
 

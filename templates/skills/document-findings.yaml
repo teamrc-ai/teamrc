@@ -1,0 +1,10 @@
+id: document-findings
+title: Document Findings
+category: constraints
+description: "Structured documentation for vulnerabilities and security risks"
+alwaysApply: true
+body: |
+  Every vulnerability, misconfiguration, or risk must be documented with a
+  severity rating (Critical/High/Medium/Low/Info), reproduction steps, and a
+  recommended remediation. Findings without actionable remediation guidance
+  are incomplete.

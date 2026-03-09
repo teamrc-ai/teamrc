@@ -11,9 +11,9 @@ import {
   type PlatformAdapter,
   type TeamDefinition,
   type TeamMember,
-  type Rule,
+  type Skill,
 } from "./base.js";
-import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
+import { resolveAgentSkills } from "../resolve-skills.js";
 
 export class CursorAdapter implements PlatformAdapter {
   readonly supportsSync = false;
@@ -50,17 +50,21 @@ export class CursorAdapter implements PlatformAdapter {
   }
 
   writeTeam(team: TeamDefinition): void {
-    // Write all rules as .mdc files (project-level, Cursor's native format)
-    if (team.rules) {
-      for (const rule of team.rules) {
-        this.writeRuleMdc(rule);
-      }
+    // Clean old rule files and skill dirs
+    const oldRules = this.listTbRules();
+    for (const f of oldRules) {
+      fs.unlinkSync(path.join(this.rulesDir(), f));
     }
-    // Write native skill directories
+    cleanupSkillDirs(this.skillsDir());
+
+    // Route skills: alwaysApply/globs → .mdc rule, otherwise → SKILL.md
     if (team.skills) {
-      const dir = this.skillsDir();
       for (const skill of team.skills) {
-        writeSkillDir(dir, skill);
+        if (skill.alwaysApply || (skill.globs && skill.globs.length > 0)) {
+          this.writeSkillAsMdc(skill);
+        } else {
+          writeSkillDir(this.skillsDir(), skill);
+        }
       }
     }
     // Write individual subagent .md files
@@ -98,22 +102,7 @@ export class CursorAdapter implements PlatformAdapter {
     }
     bodyParts.push("");
 
-    // Add resolved rules
-    const agentRules = resolveAgentRules(member, team);
-    if (agentRules.length > 0) {
-      bodyParts.push("## Rules");
-      bodyParts.push("");
-      for (const r of agentRules) {
-        const title = r.title || r.id;
-        const body = typeof r.body === "string" ? r.body : "";
-        bodyParts.push(`### ${title}`);
-        bodyParts.push("");
-        bodyParts.push(body);
-        bodyParts.push("");
-      }
-    }
-
-    // Add resolved skills
+    // Add resolved skills (per-agent, inlined into body for Cursor)
     const agentSkills = resolveAgentSkills(member, team);
     if (agentSkills.length > 0) {
       bodyParts.push("## Skills");
@@ -155,17 +144,17 @@ ${body}
     fs.writeFileSync(filePath, content);
   }
 
-  private writeRuleMdc(rule: Rule): void {
+  private writeSkillAsMdc(skill: Skill): void {
     const dir = this.rulesDir();
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    const fileName = `trc-${rule.id}.mdc`;
+    const fileName = `trc-${skill.id}.mdc`;
     const filePath = path.join(dir, fileName);
 
-    const description = JSON.stringify((rule.title || rule.id).replace(/[\n\r]/g, " "));
-    const globs = rule.globs ? `globs: ${JSON.stringify(rule.globs)}` : "";
-    const alwaysApply = rule.alwaysApply !== undefined ? `alwaysApply: ${rule.alwaysApply}` : "alwaysApply: false";
-    const body = typeof rule.body === "string" ? rule.body : "";
+    const description = JSON.stringify((skill.description || skill.title || skill.id).replace(/[\n\r]/g, " "));
+    const globs = skill.globs ? `globs: ${JSON.stringify(skill.globs)}` : "";
+    const alwaysApply = skill.alwaysApply ? "alwaysApply: true" : "alwaysApply: false";
+    const body = typeof skill.body === "string" ? skill.body : "";
 
     const frontmatter = [
       "---",
@@ -193,15 +182,6 @@ ${body}
       const slug = slugify(member.name);
       sections.push(`## ${sanitizeMarkerContent(member.name)} (\`trc-${slug}\`)`, "");
       sections.push(`**Role:** ${sanitizeMarkerContent(member.role)}`, "");
-
-      const agentRules = resolveAgentRules(member, team);
-      if (agentRules.length > 0) {
-        sections.push("**Rules:**");
-        for (const r of agentRules) {
-          sections.push(`- \`${sanitizeMarkerContent(r.id)}\``);
-        }
-        sections.push("");
-      }
 
       const agentSkills = resolveAgentSkills(member, team);
       if (agentSkills.length > 0) {

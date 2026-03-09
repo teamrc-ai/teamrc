@@ -22,33 +22,26 @@ export interface PortableAgent {
   teamName: string;
 }
 
-export interface Rule {
-  id: string;
-  title?: string;
-  globs?: string[];
-  alwaysApply?: boolean;
-  body: string | { source: string };
-}
-
 export interface Skill {
   id: string;
   title?: string;
   description?: string;
-  body?: string | { source: string };
+  alwaysApply?: boolean;
+  globs?: string[];
+  userInvocable?: boolean;
+  body: string | { source: string };
 }
 
 export interface TeamMember {
   name: string;
   role: string;
   soul?: string;
-  rules?: string[];   // references Rule.id
   skills?: string[];  // references Skill.id
 }
 
 export interface TeamDefinition {
   name: string;
   members: TeamMember[];
-  rules?: Rule[];
   skills?: Skill[];
   teamId?: string;
   relay?: string;
@@ -97,7 +90,7 @@ export interface PlatformAdapter {
 
 /** Write a native SKILL.md file for a skill in the given base directory */
 export function writeSkillDir(baseDir: string, skill: Skill): void {
-  if (skill.body && typeof skill.body !== "string") return; // skip source-referenced skills
+  if (typeof skill.body !== "string") return; // skip source-referenced skills
   const skillDir = path.join(baseDir, `trc-${skill.id}`);
   if (!fs.existsSync(skillDir)) fs.mkdirSync(skillDir, { recursive: true });
 
@@ -105,7 +98,7 @@ export function writeSkillDir(baseDir: string, skill: Skill): void {
   lines.push(`name: trc-${skill.id}`);
   if (skill.description) lines.push(`description: ${JSON.stringify(skill.description)}`);
   lines.push("---", "");
-  if (skill.body && typeof skill.body === "string") lines.push(skill.body);
+  lines.push(skill.body);
 
   fs.writeFileSync(path.join(skillDir, "SKILL.md"), lines.join("\n") + "\n");
 }

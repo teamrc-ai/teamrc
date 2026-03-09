@@ -39,17 +39,17 @@ describe("Codex adapter", () => {
     assert.ok(content.includes("Search code"));
   });
 
-  it("writes subagent TOML files to .codex/agents/", async () => {
+  it("writes subagent TOML files with skills to .codex/agents/", async () => {
     const { CodexAdapter } = await import("../adapters/codex.js");
     const adapter = new CodexAdapter();
 
     const team = {
       name: "test-team",
       members: [
-        { name: "architect", role: "design architecture", rules: ["rule_style"] },
+        { name: "architect", role: "design architecture", skills: ["skill_style"] },
         { name: "coder", role: "write code" },
       ],
-      rules: [{ id: "rule_style", title: "Code Style", body: "Use prettier." }],
+      skills: [{ id: "skill_style", title: "Code Style", alwaysApply: true, body: "Use prettier." }],
     };
 
     adapter.writeTeam(team);

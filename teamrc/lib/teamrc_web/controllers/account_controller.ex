@@ -54,7 +54,7 @@ defmodule TeamrcWeb.AccountController do
               id: team.id,
               name: team.name,
               agent_count: length(team.members),
-              rule_count: length(team.rules || []),
+              skill_count: length(team.skills || []),
               platforms: team.platforms || [],
               participants: Map.get(participants_map, team.id, ["anonymous"]),
               machines:

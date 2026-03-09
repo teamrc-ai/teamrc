@@ -1,0 +1,12 @@
+id: performance-profiling
+title: Performance Profiling
+category: quality
+description: "Measure before optimizing, profile to find real bottlenecks"
+userInvocable: true
+alwaysApply: false
+body: |
+  Measure before optimizing — never guess where the bottleneck is. Use a profiler
+  to identify actual hot paths before making changes. Set performance budgets for
+  critical operations. Benchmark before and after each optimization to confirm
+  improvement. Document the workload and environment used for profiling so results
+  are reproducible.

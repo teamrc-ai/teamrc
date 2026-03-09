@@ -9,7 +9,7 @@ defmodule TeamrcWeb.TeamLiveTest do
     assert html =~ "Full-Stack Product"
     assert html =~ "Security Testing"
     assert html =~ "Marketing"
-    assert html =~ "Custom Team"
+    assert html =~ "Custom"
   end
 
   test "selecting a template shows the customize form", %{conn: conn} do
@@ -40,12 +40,17 @@ defmodule TeamrcWeb.TeamLiveTest do
   test "updates team name and enables create button", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/new")
 
-    # Select custom template (empty name)
+    # Select custom template (pre-fills "my-team")
     view |> element("button[phx-value-template='custom']") |> render_click()
+    html = render(view)
+    assert html =~ "bg-primary"
+
+    # Clear the name — button should disable
+    view |> element("#team-name") |> render_keyup(%{"value" => ""})
     html = render(view)
     assert html =~ "cursor-not-allowed"
 
-    # Set a team name
+    # Set a new name — button should re-enable
     view |> element("#team-name") |> render_keyup(%{"value" => "my-project"})
     html = render(view)
     assert html =~ "bg-primary"
@@ -117,22 +122,22 @@ defmodule TeamrcWeb.TeamLiveTest do
     assert html =~ "analytics-lead"
   end
 
-  test "per-member rule assignment toggles", %{conn: conn} do
+  test "per-member skill assignment toggles", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/new")
 
-    # Select fullstack template (has rules)
+    # Select fullstack template (has skills)
     view |> element("button[phx-value-template='fullstack']") |> render_click()
 
     # Enable advanced mode
     view |> element("button", "Advanced") |> render_click()
     html = render(view)
 
-    # Rules should appear as toggleable chips on each member
+    # Skills should appear as toggleable chips on each member
     assert html =~ "write-tests"
     assert html =~ "small-commits"
 
-    # Toggle a rule on a member
-    view |> element("button[phx-click='toggle_member_rule'][phx-value-member-index='0'][phx-value-rule-id='write-tests']") |> render_click()
+    # Toggle a skill on a member
+    view |> element("button[phx-click='toggle_member_skill'][phx-value-member-index='0'][phx-value-skill-id='write-tests']") |> render_click()
     html = render(view)
     assert html =~ "bg-primary/15"
   end

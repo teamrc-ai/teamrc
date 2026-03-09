@@ -1,19 +1,18 @@
 import * as fs from "node:fs";
 import YAML from "yaml";
-import { validateAgentName, VALID_PLATFORMS, type TeamDefinition, type TeamMember, type Rule, type Skill } from "./adapters/base.js";
+import { validateAgentName, VALID_PLATFORMS, type TeamDefinition, type TeamMember, type Skill } from "./adapters/base.js";
 
 export const TEAM_YAML = ".teamrc.yaml";
 
 const MAX_YAML_SIZE = 256 * 1024; // 256 KB
 const MAX_MEMBERS = 100;
-const MAX_RULES = 200;
 const MAX_SKILLS = 200;
 const TEAM_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9 _-]{0,63}$/;
-const RULE_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
+const SKILL_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 
-export function validateRuleId(id: string): void {
-  if (!RULE_ID_RE.test(id)) {
-    throw new Error(`Invalid rule/skill ID: ${JSON.stringify(id)}. Must be 1-64 alphanumeric characters, hyphens, or underscores.`);
+export function validateSkillId(id: string): void {
+  if (!SKILL_ID_RE.test(id)) {
+    throw new Error(`Invalid skill ID: ${JSON.stringify(id)}. Must be 1-64 alphanumeric characters, hyphens, or underscores.`);
   }
 }
 
@@ -54,45 +53,31 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
     validateAgentName(name);
     const member: TeamMember = { name, role: String(m.role || "") };
     if (m.soul) member.soul = String(m.soul);
-    if (Array.isArray(m.rules)) member.rules = m.rules.map((r: unknown) => String(r));
     if (Array.isArray(m.skills)) member.skills = m.skills.map((s: unknown) => String(s));
     return member;
   });
-
-  const rawRules = data.rules || [];
-  if (Array.isArray(rawRules) && rawRules.length > MAX_RULES) {
-    throw new Error(`.teamrc.yaml rules must have at most ${MAX_RULES} entries`);
-  }
-  const rules: Rule[] = Array.isArray(rawRules)
-    ? rawRules.map((r: Record<string, unknown>) => {
-        const id = String(r.id || "");
-        validateRuleId(id);
-        return {
-          id,
-          ...(r.title ? { title: String(r.title) } : {}),
-          ...(Array.isArray(r.globs) ? { globs: r.globs.filter((g: unknown): g is string => typeof g === "string") } : {}),
-          ...(r.alwaysApply !== undefined ? { alwaysApply: Boolean(r.alwaysApply) } : {}),
-          body: parseBody(r.body),
-        };
-      })
-    : [];
 
   const rawSkills = data.skills || [];
   if (Array.isArray(rawSkills) && rawSkills.length > MAX_SKILLS) {
     throw new Error(`.teamrc.yaml skills must have at most ${MAX_SKILLS} entries`);
   }
-  const skills: Skill[] = Array.isArray(rawSkills)
+  const parsedSkills: Skill[] = Array.isArray(rawSkills)
     ? rawSkills.map((s: Record<string, unknown>) => {
         const id = String(s.id || "");
-        validateRuleId(id);
+        validateSkillId(id);
         return {
           id,
           ...(s.title ? { title: String(s.title) } : {}),
           ...(s.description ? { description: String(s.description) } : {}),
-          ...(s.body !== undefined ? { body: parseBody(s.body) } : {}),
+          ...(Array.isArray(s.globs) ? { globs: s.globs.filter((g: unknown): g is string => typeof g === "string") } : {}),
+          ...(s.alwaysApply !== undefined ? { alwaysApply: Boolean(s.alwaysApply) } : {}),
+          ...(s.userInvocable !== undefined ? { userInvocable: Boolean(s.userInvocable) } : {}),
+          body: parseBody(s.body),
         };
       })
     : [];
+
+  const skills: Skill[] = parsedSkills;
 
   const teamName = data.name || "";
   if (teamName) validateTeamName(teamName);
@@ -118,7 +103,6 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
   return {
     name: teamName,
     members,
-    rules,
     skills,
     ...(teamId ? { teamId } : {}),
     ...(relay ? { relay } : {}),
@@ -137,29 +121,20 @@ export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
     members: team.members.map((m) => {
       const entry: Record<string, unknown> = { name: m.name, role: m.role };
       if (m.soul) entry.soul = m.soul;
-      if (m.rules && m.rules.length > 0) entry.rules = m.rules;
       if (m.skills && m.skills.length > 0) entry.skills = m.skills;
       return entry;
     }),
   };
-
-  if (team.rules && team.rules.length > 0) {
-    data.rules = team.rules.map((r) => {
-      const entry: Record<string, unknown> = { id: r.id };
-      if (r.title) entry.title = r.title;
-      if (r.globs) entry.globs = r.globs;
-      if (r.alwaysApply !== undefined) entry.alwaysApply = r.alwaysApply;
-      entry.body = r.body;
-      return entry;
-    });
-  }
 
   if (team.skills && team.skills.length > 0) {
     data.skills = team.skills.map((s) => {
       const entry: Record<string, unknown> = { id: s.id };
       if (s.title) entry.title = s.title;
       if (s.description) entry.description = s.description;
-      if (s.body) entry.body = s.body;
+      if (s.alwaysApply !== undefined) entry.alwaysApply = s.alwaysApply;
+      if (s.globs) entry.globs = s.globs;
+      if (s.userInvocable !== undefined) entry.userInvocable = s.userInvocable;
+      entry.body = s.body;
       return entry;
     });
   }

@@ -1,0 +1,12 @@
+id: api-documentation
+title: API Documentation
+category: documentation
+description: "Document every endpoint with params, bodies, and examples"
+userInvocable: true
+alwaysApply: false
+body: |
+  Document every API endpoint: HTTP method, path, query and path parameters,
+  request body schema, response body schema, possible error codes, and at least
+  one working example per endpoint. Keep documentation in sync with code — update
+  docs in the same commit as the implementation change. Include authentication
+  requirements and rate limits where applicable.

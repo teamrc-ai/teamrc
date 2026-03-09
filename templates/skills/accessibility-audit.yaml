@@ -1,0 +1,12 @@
+id: accessibility-audit
+title: Accessibility Audit
+category: quality
+description: "Check WCAG 2.1 AA compliance across UI components"
+userInvocable: true
+alwaysApply: false
+body: |
+  Audit UI components against WCAG 2.1 AA criteria. Verify color contrast ratios
+  meet minimums (4.5:1 for text, 3:1 for large text). Ensure all interactive
+  elements are keyboard navigable with visible focus indicators. Check that screen
+  readers can parse content correctly using semantic HTML and ARIA attributes.
+  Test focus management during modal, dropdown, and route transitions.

@@ -1,0 +1,12 @@
+id: runbook-writing
+title: Runbook Writing
+category: documentation
+description: "Write operational runbooks with diagnosis and resolution steps"
+userInvocable: true
+alwaysApply: false
+body: |
+  Write operational runbooks for every production system. Each runbook covers one
+  failure mode: symptoms to look for, diagnosis steps to confirm the issue,
+  resolution steps to fix it, and an escalation path if resolution fails. Include
+  copy-pasteable commands for every step. Keep runbooks versioned alongside the
+  code they describe.

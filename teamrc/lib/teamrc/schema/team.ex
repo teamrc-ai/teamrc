@@ -6,7 +6,6 @@ defmodule Teamrc.Schema.Team do
 
   schema "teams" do
     field :name, :string
-    field :rules, {:array, :map}, default: []
     field :skills, {:array, :map}, default: []
     field :platforms, {:array, :string}, default: []
     has_many :members, Teamrc.Schema.Member
@@ -19,11 +18,10 @@ defmodule Teamrc.Schema.Team do
 
   def changeset(team, attrs) do
     team
-    |> cast(attrs, [:name, :rules, :skills, :platforms])
+    |> cast(attrs, [:name, :skills, :platforms])
     |> validate_required([:name])
     |> validate_length(:name, max: 64)
     |> validate_format(:name, ~r/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/)
-    |> validate_entry_ids(:rules)
     |> validate_entry_ids(:skills)
   end
 

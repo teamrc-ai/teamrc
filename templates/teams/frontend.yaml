@@ -1,0 +1,31 @@
+label: Frontend & Design
+description: "Build user interfaces, design systems, and accessible web experiences"
+defaultPlatforms:
+  - claude-code
+  - cursor
+
+name: frontend-team
+
+agents:
+  - ux-designer
+  - frontend-dev
+  - accessibility-specialist
+  - qa-engineer
+
+skills:
+  - write-tests
+  - no-any-types
+  - main-thread-discipline
+  - structured-error-handling
+  - input-validation-boundary
+
+agentSkills:
+  frontend-dev:
+    - write-tests
+    - no-any-types
+    - main-thread-discipline
+    - structured-error-handling
+    - input-validation-boundary
+  qa-engineer:
+    - write-tests
+  accessibility-specialist: []

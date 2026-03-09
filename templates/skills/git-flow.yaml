@@ -1,0 +1,11 @@
+id: git-flow
+title: Git Flow
+category: workflow
+description: "Use Git Flow branching model with structured branch types"
+alwaysApply: true
+body: |
+  Use the Git Flow branching model. Main holds production-ready code. Develop
+  is the integration branch. Create feature/* branches from develop, release/*
+  branches for stabilization, and hotfix/* branches from main for urgent fixes.
+  Never commit directly to main or develop. Merge feature branches back to
+  develop via pull request with review.

@@ -13,9 +13,8 @@ defmodule TeamrcWeb.ApiController do
   @max_platform_length 64
   @max_file_path_length 512
   @max_files_per_sync 100
-  @max_rules 50
   @max_skills 50
-  @max_rule_body_bytes 10_000  # 10KB per rule/skill body
+  @max_skill_body_bytes 10_000  # 10KB per skill body
   @id_re ~r/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
 
   def create_team(conn, %{"token" => token, "team" => team}) do
@@ -223,7 +222,7 @@ defmodule TeamrcWeb.ApiController do
   defp validate_team(team) do
     with :ok <- validate_team_name(team["name"]),
          :ok <- validate_members(team["members"]),
-         :ok <- validate_rules_and_skills(team["rules"], team["skills"]) do
+         :ok <- validate_skills(team["skills"]) do
       :ok
     end
   end
@@ -251,11 +250,8 @@ defmodule TeamrcWeb.ApiController do
   end
   defp validate_members(_), do: {:error, "members must be a list"}
 
-  defp validate_rules_and_skills(rules, skills) do
-    with :ok <- validate_entries(rules, "rules", @max_rules),
-         :ok <- validate_entries(skills, "skills", @max_skills) do
-      :ok
-    end
+  defp validate_skills(skills) do
+    validate_entries(skills, "skills", @max_skills)
   end
 
   defp validate_entries(nil, _label, _max), do: :ok
@@ -273,11 +269,11 @@ defmodule TeamrcWeb.ApiController do
           nil ->
             oversized = Enum.find(entries, fn entry ->
               body = entry["body"]
-              is_binary(body) and byte_size(body) > @max_rule_body_bytes
+              is_binary(body) and byte_size(body) > @max_skill_body_bytes
             end)
             case oversized do
               nil -> :ok
-              entry -> {:error, "#{label} entry '#{entry["id"]}' body exceeds #{@max_rule_body_bytes} bytes"}
+              entry -> {:error, "#{label} entry '#{entry["id"]}' body exceeds #{@max_skill_body_bytes} bytes"}
             end
           entry -> {:error, "#{label} entry has invalid id: '#{entry["id"] || "missing"}'"}
         end
@@ -306,12 +302,10 @@ defmodule TeamrcWeb.ApiController do
       (team["members"] || [])
       |> Enum.map(fn m ->
         %{"name" => to_string(m["name"] || ""), "role" => to_string(m["role"] || "")}
-        |> put_if_present("rules", m["rules"])
         |> put_if_present("skills", m["skills"])
       end)
 
     %{"name" => team["name"], "members" => members}
-    |> put_if_present("rules", team["rules"])
     |> put_if_present("skills", team["skills"])
   end
 

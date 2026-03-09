@@ -1,0 +1,77 @@
+categories:
+  - id: process
+    label: Development Process
+    skills:
+      - tdd
+      - code-review
+      - pair-programming
+      - refactoring
+      - debugging-systematic
+
+  - id: architecture
+    label: Architecture
+    skills:
+      - api-first
+      - schema-design
+      - event-driven
+      - microservices-decomposition
+
+  - id: quality
+    label: Quality
+    skills:
+      - write-tests
+      - verify-fixes
+      - security-audit
+      - performance-profiling
+      - accessibility-audit
+      - load-testing
+      - no-any-types
+
+  - id: documentation
+    label: Documentation
+    skills:
+      - adr-writing
+      - api-documentation
+      - runbook-writing
+      - changelog-maintenance
+
+  - id: workflow
+    label: Workflow
+    skills:
+      - small-commits
+      - conventional-commits
+      - git-flow
+      - trunk-based-dev
+      - feature-flags
+      - rollback-plan
+
+  - id: constraints
+    label: Constraints
+    skills:
+      - brand-voice
+      - cite-sources
+      - document-findings
+      - infra-as-code
+      - go-concurrency-safety
+      - elixir-process-safety
+      - rust-ownership-safety
+      - swift-concurrency-safety
+      - secrets-management
+      - database-constraints
+      - safe-migrations
+      - idempotent-operations
+      - input-validation-boundary
+      - graceful-degradation
+      - structured-error-handling
+      - main-thread-discipline
+      - deterministic-builds
+      - interrupt-safety
+      - smart-contract-safety
+
+  - id: analysis
+    label: Analysis
+    skills:
+      - root-cause-analysis
+      - incident-postmortem
+      - dependency-audit
+      - tech-debt-assessment

@@ -21,6 +21,7 @@ import {
   getRelayUrl,
 } from "./config.js";
 import { getAdapter, VALID_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
+import { resolveTeam, listTeams, templateToTeamDefinition, type TeamTemplate } from "./catalog.js";
 import { resolveChange } from "./merge.js";
 import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML } from "./team-yaml.js";
 import { resolveTeamSource } from "./resolve-source.js";
@@ -181,21 +182,6 @@ function requireTeamContext(): TeamContext {
     };
   }
 
-  // 3. Legacy fallback: top-level teamId in config
-  if (config.teamId) {
-    const legacyPlatform = config.platform ? config.platform.split(",")[0] : detectPlatforms()[0] ?? "claude-code";
-    const platforms = config.platform ? config.platform.split(",") : [legacyPlatform];
-    const client = new TeamrcClient(config.relay, kp.privateKey, config.token, config.teamId);
-    return {
-      team: { name: "", members: [], teamId: config.teamId },
-      scope: "project",
-      config,
-      client,
-      platforms,
-      adapters: platforms.map((pl) => getAdapter(pl)),
-    };
-  }
-
   p.log.error("No team configured. Run `teamrc init` or `teamrc join`.");
   process.exit(1);
 }
@@ -316,6 +302,62 @@ program
   .option("--no-color", "Disable colored output")
   .option("-v, --verbose", "Show detailed output");
 
+// ---------------------------------------------------------------------------
+// Template selection helpers
+// ---------------------------------------------------------------------------
+
+/** Prompt the user to select a team template, or resolve from --template flag */
+async function selectTemplate(templateFlag?: string): Promise<TeamTemplate> {
+  const teamIds = listTeams();
+
+  // If --template flag provided or non-interactive, resolve directly
+  if (templateFlag) {
+    if (!teamIds.includes(templateFlag)) {
+      p.log.error(`Unknown template: ${templateFlag}. Valid options: ${teamIds.join(", ")}`);
+      process.exit(1);
+    }
+    return resolveTeam(templateFlag);
+  }
+
+  if (isNonInteractive()) {
+    return resolveTeam("custom");
+  }
+
+  const selected = await p.select({
+    message: "What kind of team?",
+    options: teamIds.map((id) => {
+      const t = resolveTeam(id);
+      return {
+        value: id,
+        label: t.label,
+        hint: t.description,
+      };
+    }),
+  });
+  handleCancel(selected);
+  return resolveTeam(selected as string);
+}
+
+/** Prompt for a team name with a default value */
+async function promptTeamName(defaultName: string): Promise<string> {
+  if (isNonInteractive()) return defaultName;
+
+  const name = await p.text({
+    message: "Team name",
+    initialValue: defaultName,
+    validate: (val) => {
+      if (!val || !val.trim()) return "Team name is required";
+      try {
+        validateTeamName(val.trim());
+      } catch (e) {
+        return (e as Error).message;
+      }
+    },
+  });
+  handleCancel(name);
+  return (name as string).trim();
+}
+
 // --- init ---
 program
   .command("init")
@@ -324,7 +366,8 @@ program
   .option("--platform <platform>", "Override platform detection")
   .option("--global", "Install as global team (all projects)")
   .option("--name <name>", "Team name")
-  .action(async (opts: { relay?: string; platform?: string; global?: boolean; name?: string }) => {
+  .option("--template <id>", "Use a team template (fullstack, backend, security, marketing, research, devops, custom)")
+  .action(async (opts: { relay?: string; platform?: string; global?: boolean; name?: string; template?: string }) => {
     p.intro("teamrc");
 
     const platforms = await requirePlatforms(opts.platform);
@@ -337,20 +380,33 @@ program
     // Read existing team from platform-native files
     const firstAdapter = getAdapter(platforms[0]);
     const existingTeam = firstAdapter.readTeam();
-    const team: TeamDefinition = existingTeam ?? {
-      name: opts.name ?? "my-team",
-      members: [{ name: "agent", role: "General-purpose assistant" }],
-    };
 
-    // If --name was provided, override the team name
-    if (opts.name && existingTeam) {
-      team.name = opts.name;
-    }
+    let team: TeamDefinition;
 
-    if (!existingTeam) {
-      p.log.info("No existing agents found. Creating defaults.");
+    if (existingTeam) {
+      // Existing team found — use it
+      p.log.info(`Found existing team "${existingTeam.name}" with ${existingTeam.members.length} agent(s).`);
+      team = existingTeam;
+      if (opts.name) team.name = opts.name;
     } else {
-      p.log.info(`Found existing team "${team.name}" with ${team.members.length} agent(s).`);
+      // No existing team — select a template
+      const template = await selectTemplate(opts.template);
+
+      if (template.id === "custom") {
+        // Custom: prompt for team name, start with one default agent
+        const teamName = opts.name ?? await promptTeamName("my-team");
+        team = {
+          name: teamName,
+          members: [{ name: "agent", role: "General-purpose assistant" }],
+        };
+      } else {
+        // Template selected: convert template to TeamDefinition
+        const teamName = opts.name ?? await promptTeamName(template.teamName);
+        team = templateToTeamDefinition(template, teamName);
+
+        const memberNames = template.members.map((m) => m.name).join(", ");
+        p.log.info(`Template "${template.label}": ${template.members.length} agents (${memberNames})`);
+      }
     }
 
     // Apply to each platform's native format
@@ -491,9 +547,9 @@ program
       for (const pl of platforms) {
         const adapter = getAdapter(pl);
         adapter.writeTeam(teamDef, scope);
-        const ruleCount = teamDef.rules?.length ?? 0;
-        const detail = ruleCount > 0
-          ? `${teamDef.members.length} agents, ${ruleCount} rules`
+        const skillCount = teamDef.skills?.length ?? 0;
+        const detail = skillCount > 0
+          ? `${teamDef.members.length} agents, ${skillCount} skills`
           : `${teamDef.members.length} agents`;
         appliedLines.push(`  ${pl.padEnd(14)} ${detail}`);
       }
@@ -575,10 +631,8 @@ program
     for (const pl of platforms) {
       const adapter = getAdapter(pl);
       adapter.writeTeam(team, scope);
-      const ruleCount = team.rules?.length ?? 0;
       const skillCount = team.skills?.length ?? 0;
       const parts = [`${team.members.length} agents`];
-      if (ruleCount > 0) parts.push(`${ruleCount} rules`);
       if (skillCount > 0) parts.push(`${skillCount} skills`);
       appliedLines.push(`  ${pl.padEnd(14)} ${parts.join(", ")}`);
     }
@@ -810,8 +864,8 @@ program
     }
 
     const yamlTeam = readTeamYaml(TEAM_YAML);
-    const teamId = yamlTeam?.teamId ?? config.teamId ?? config.globalTeam?.teamId ?? null;
-    const platformStr = yamlTeam?.platforms?.join(",") ?? config.platform ?? config.globalTeam?.platforms?.join(",") ?? detectPlatforms()[0] ?? "claude-code";
+    const teamId = yamlTeam?.teamId ?? config.globalTeam?.teamId ?? null;
+    const platformStr = yamlTeam?.platforms?.join(",") ?? config.globalTeam?.platforms?.join(",") ?? detectPlatforms()[0] ?? "claude-code";
     const activePlatform = platformStr.split(",")[0];
     const adapter = getAdapter(activePlatform);
     const localTeam = yamlTeam ?? adapter.readTeam();
@@ -1140,8 +1194,8 @@ program
       return;
     }
 
-    const whoamiTeamId = config.teamId ?? config.globalTeam?.teamId ?? "none";
-    const whoamiPlatform = config.platform ?? config.globalTeam?.platforms?.join(",") ?? "none";
+    const whoamiTeamId = config.globalTeam?.teamId ?? "none";
+    const whoamiPlatform = config.globalTeam?.platforms?.join(",") ?? "none";
 
     if (useJson) {
       jsonOutput({
@@ -1279,9 +1333,7 @@ program
 
     // 5. Platform agents match
     if (config && yamlTeam) {
-      const doctorPlatform = config.platform
-        ? config.platform.split(",")[0]
-        : (config.globalTeam?.platforms?.[0] ?? detectPlatforms()[0] ?? "claude-code");
+      const doctorPlatform = config.globalTeam?.platforms?.[0] ?? detectPlatforms()[0] ?? "claude-code";
       const adapter = getAdapter(doctorPlatform);
       const platformTeam = adapter.readTeam();
       if (platformTeam) {
@@ -1331,7 +1383,7 @@ program
       return;
     }
 
-    const platforms = config.platform ? config.platform.split(",") : (config.globalTeam?.platforms ?? detectPlatforms());
+    const platforms = config.globalTeam?.platforms ?? detectPlatforms();
 
     // Determine team name for confirmation
     let teamName: string | null = null;
@@ -1341,7 +1393,7 @@ program
     }
 
     p.log.warn(
-      "This will remove all teamrc agents, rules, skills, and knowledge\n" +
+      "This will remove all teamrc agents, skills, and knowledge\n" +
       "from this machine. Other team members keep their setup.",
     );
 

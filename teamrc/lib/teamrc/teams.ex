@@ -531,12 +531,12 @@ defmodule Teamrc.Teams do
   defp create_team_in_db(team_data) do
     Repo.transaction(fn ->
       case %Team{}
-           |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills, platforms: team_data.platforms})
+           |> Team.changeset(%{name: team_data.name, skills: team_data.skills, platforms: team_data.platforms})
            |> Repo.insert() do
         {:ok, team} ->
           for m <- team_data.members do
             %Member{team_id: team.id}
-            |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], rules: m.rules, skills: m.skills})
+            |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], skills: m.skills})
             |> Repo.insert!()
           end
 
@@ -553,7 +553,7 @@ defmodule Teamrc.Teams do
       team = Repo.get!(Team, team_id)
 
       case team
-           |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills, platforms: team_data.platforms})
+           |> Team.changeset(%{name: team_data.name, skills: team_data.skills, platforms: team_data.platforms})
            |> Repo.update() do
         {:ok, team} ->
           # Replace members atomically within the transaction
@@ -561,7 +561,7 @@ defmodule Teamrc.Teams do
 
           for m <- team_data.members do
             %Member{team_id: team_id}
-            |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], rules: m.rules, skills: m.skills})
+            |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], skills: m.skills})
             |> Repo.insert!()
           end
 
@@ -581,21 +581,8 @@ defmodule Teamrc.Teams do
           name: m["name"] || m[:name] || "",
           role: m["role"] || m[:role] || "",
           soul: m["soul"] || m[:soul],
-          rules: m["rules"] || m[:rules] || [],
           skills: m["skills"] || m[:skills] || []
         }
-      end)
-
-    rules =
-      (attrs["rules"] || attrs[:rules] || [])
-      |> Enum.map(fn r ->
-        %{
-          "id" => r["id"] || r[:id] || "",
-          "title" => r["title"] || r[:title],
-          "body" => r["body"] || r[:body] || ""
-        }
-        |> Enum.reject(fn {_k, v} -> is_nil(v) end)
-        |> Map.new()
       end)
 
     skills =
@@ -605,6 +592,7 @@ defmodule Teamrc.Teams do
           "id" => s["id"] || s[:id] || "",
           "title" => s["title"] || s[:title],
           "description" => s["description"] || s[:description],
+          "alwaysApply" => s["alwaysApply"] || s[:alwaysApply],
           "body" => s["body"] || s[:body]
         }
         |> Enum.reject(fn {_k, v} -> is_nil(v) end)
@@ -613,7 +601,7 @@ defmodule Teamrc.Teams do
 
     platforms = attrs["platforms"] || attrs[:platforms] || []
 
-    %{name: attrs["name"] || attrs[:name] || "", members: members, rules: rules, skills: skills, platforms: platforms}
+    %{name: attrs["name"] || attrs[:name] || "", members: members, skills: skills, platforms: platforms}
   end
 
   defp put_if_present(map, _key, nil), do: map
@@ -628,11 +616,9 @@ defmodule Teamrc.Teams do
         Enum.map(team.members, fn m ->
           %{"name" => m.name, "role" => m.role}
           |> put_if_present("soul", m.soul)
-          |> put_if_present("rules", m.rules)
           |> put_if_present("skills", m.skills)
         end)
     }
-    |> put_if_present("rules", team.rules)
     |> put_if_present("skills", team.skills)
     |> put_if_present("platforms", team.platforms)
   end

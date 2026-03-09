@@ -1,0 +1,11 @@
+id: incident-postmortem
+title: Incident Postmortem
+category: analysis
+description: "Write a blame-free postmortem with timeline and action items"
+userInvocable: true
+body: |
+  Construct a timeline from the first signal through detection, response, and
+  resolution. Identify contributing factors and the root cause without assigning
+  individual blame. Focus on systemic improvements: process gaps, missing
+  monitoring, unclear runbooks. List concrete action items with owners and due
+  dates. Prioritize actions that prevent recurrence over those that speed detection.

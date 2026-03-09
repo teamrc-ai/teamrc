@@ -23,3 +23,17 @@ Clean SaaS dashboard with developer-native accents. Light and spacious for the w
 3. **Progressive disclosure** — Show the simple path first (templates, one-click creation), reveal complexity only when needed (advanced rules/skills config).
 4. **Trust through consistency** — Same patterns, same spacing, same interaction models everywhere. Predictability builds confidence in infrastructure tools.
 5. **Accessible by default** — WCAG AA compliance, both light and dark themes, sufficient contrast ratios, keyboard navigable. No accessibility as an afterthought.
+
+<!-- teamrc -->
+## teamrc Team: my-team
+
+This project has a synced agent team managed by teamrc.
+
+Members:
+- **agent** — General-purpose assistant
+
+Each member is defined as a subagent in `.claude/agents/`. Delegate tasks to them based on their roles.
+
+### Team Knowledge
+Shared findings and decisions are stored in `.claude/team-knowledge.md`. Read this file at the start of every session for context from other agents and machines. When you discover something important (architecture decisions, gotchas, debugging insights), append it to this file so other team members can benefit.
+<!-- /teamrc -->

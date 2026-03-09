@@ -1,0 +1,9 @@
+id: verify-fixes
+title: Verify Fixes
+category: quality
+description: "Re-test vulnerabilities after patches to confirm effectiveness"
+alwaysApply: true
+body: |
+  After a vulnerability is patched, re-run the original proof-of-concept to
+  confirm the fix is effective. Check for bypass variants and regression. A
+  fix is not confirmed until the original attack vector no longer succeeds.

@@ -1,0 +1,12 @@
+id: tech-debt-assessment
+title: Tech Debt Assessment
+category: analysis
+description: "Categorize and prioritize technical debt by impact and effort"
+userInvocable: true
+body: |
+  Categorize technical debt by type: architecture, code quality, test
+  coverage, and documentation. For each item, estimate the remediation effort
+  and quantify the ongoing cost of carrying the debt in terms of velocity,
+  reliability, and onboarding friction. Prioritize by impact-to-effort ratio,
+  tackling high-impact low-effort items first. Document any debt that is
+  intentionally accepted and the rationale behind it.

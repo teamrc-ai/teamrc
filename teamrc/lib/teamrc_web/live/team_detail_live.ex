@@ -375,12 +375,12 @@ defmodule TeamrcWeb.TeamDetailLive do
                 <span class="text-sm font-mono font-medium"><%= member.name %></span>
               </div>
               <p class="text-xs text-base-content/50 mt-0.5"><%= member.role %></p>
-              <div :if={member.rules != []} class="flex flex-wrap gap-1 mt-1.5">
+              <div :if={member.skills != []} class="flex flex-wrap gap-1 mt-1.5">
                 <span
-                  :for={rule_id <- member.rules}
+                  :for={skill_id <- member.skills}
                   class="inline-flex items-center rounded bg-base-200/60 px-1.5 py-0.5 text-[10px] font-mono text-base-content/40"
                 >
-                  <%= rule_id %>
+                  <%= skill_id %>
                 </span>
               </div>
             </div>
@@ -429,25 +429,6 @@ defmodule TeamrcWeb.TeamDetailLive do
           >
             Add member
           </button>
-        </div>
-      </section>
-
-      <%!-- Rules --%>
-      <section :if={@team.rules != []}>
-        <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-3">
-          Rules
-          <span class="font-mono text-base-content/30 ml-1"><%= length(@team.rules) %></span>
-        </p>
-        <div class="space-y-1.5">
-          <div
-            :for={rule <- @team.rules}
-            class="rounded-md border border-base-300 bg-base-100 px-3 py-2.5"
-          >
-            <div class="flex items-center gap-2 mb-1">
-              <span class="text-xs font-mono font-medium text-primary/70"><%= rule["id"] %></span>
-            </div>
-            <p class="text-sm text-base-content/60 line-clamp-2"><%= rule["body"] %></p>
-          </div>
         </div>
       </section>
 

@@ -46,10 +46,10 @@ describe("Gemini CLI adapter", () => {
     const team = {
       name: "test-team",
       members: [
-        { name: "architect", role: "system design", rules: ["rule_style"] },
+        { name: "architect", role: "system design", skills: ["skill_style"] },
         { name: "developer", role: "implementation" },
       ],
-      rules: [{ id: "rule_style", title: "Code Style", body: "Use prettier." }],
+      skills: [{ id: "skill_style", title: "Code Style", alwaysApply: true, body: "Use prettier." }],
     };
 
     adapter.writeTeam(team, "project");
@@ -59,18 +59,18 @@ describe("Gemini CLI adapter", () => {
     assert.ok(fs.existsSync(path.join(agentDir, "trc-architect.md")));
     assert.ok(fs.existsSync(path.join(agentDir, "trc-developer.md")));
 
-    // Check architect has rules
+    // Check architect has skills
     const architectContent = fs.readFileSync(path.join(agentDir, "trc-architect.md"), "utf-8");
     assert.ok(architectContent.includes('name: "trc-architect"'));
     assert.ok(architectContent.includes('description: "system design"'));
-    assert.ok(architectContent.includes("## Rules"));
+    assert.ok(architectContent.includes("## Skills"));
     assert.ok(architectContent.includes("Code Style"));
     assert.ok(architectContent.includes("Use prettier."));
 
-    // Check developer has no rules
+    // Check developer has no skills section
     const devContent = fs.readFileSync(path.join(agentDir, "trc-developer.md"), "utf-8");
     assert.ok(devContent.includes('name: "trc-developer"'));
-    assert.ok(!devContent.includes("## Rules"));
+    assert.ok(!devContent.includes("## Skills"));
   });
 
   it("writes GEMINI.md with team knowledge marker block", async () => {
@@ -92,7 +92,6 @@ describe("Gemini CLI adapter", () => {
     assert.ok(content.includes("<!-- /teamrc -->"));
     assert.ok(content.includes("test-team"));
     assert.ok(content.includes("architect"));
-    // Should NOT contain agent definitions (those are in .gemini/agents/)
     assert.ok(!content.includes("## Rules"));
   });
 

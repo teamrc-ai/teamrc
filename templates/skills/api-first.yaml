@@ -1,0 +1,10 @@
+id: api-first
+title: API-First Design
+category: architecture
+description: "Design API contracts before writing implementation code"
+alwaysApply: true
+body: |
+  Design the API contract (endpoints, request/response schemas, error codes)
+  before writing implementation code. Document the contract in OpenAPI or a
+  similar spec format. Implementation should conform to the spec, not the
+  other way around.

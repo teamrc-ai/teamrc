@@ -1,23 +1,19 @@
 import { signMessage } from "./auth.js";
-import type { Rule, Skill, TeamDefinition } from "./adapters/base.js";
-import { validateRuleId } from "./team-yaml.js";
+import type { Skill, TeamDefinition } from "./adapters/base.js";
+import { validateSkillId } from "./team-yaml.js";
 
 export interface TeamrcTeam {
   id: string;
   name: string;
-  members: Array<{ name: string; role: string; platform?: string; rules?: string[]; skills?: string[] }>;
-  rules?: Rule[];
+  members: Array<{ name: string; role: string; platform?: string; skills?: string[] }>;
   skills?: Skill[];
   created_at?: string;
 }
 
 export function remoteTeamToDefinition(team: TeamrcTeam): TeamDefinition {
-  // Validate rule/skill IDs from the relay to prevent path traversal
-  const rules = team.rules?.filter((r) => {
-    try { validateRuleId(r.id); return true; } catch { return false; }
-  });
+  // Validate skill IDs from the relay to prevent path traversal
   const skills = team.skills?.filter((s) => {
-    try { validateRuleId(s.id); return true; } catch { return false; }
+    try { validateSkillId(s.id); return true; } catch { return false; }
   });
 
   return {
@@ -25,10 +21,8 @@ export function remoteTeamToDefinition(team: TeamrcTeam): TeamDefinition {
     members: team.members.map((m) => ({
       name: m.name,
       role: m.role,
-      ...(m.rules?.length ? { rules: m.rules } : {}),
       ...(m.skills?.length ? { skills: m.skills } : {}),
     })),
-    ...(rules?.length ? { rules } : {}),
     ...(skills?.length ? { skills } : {}),
   };
 }

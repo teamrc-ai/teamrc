@@ -105,7 +105,7 @@ describe("writeTeamYaml", () => {
   });
 });
 
-describe("readTeamYaml with rules and skills", () => {
+describe("readTeamYaml with skills", () => {
   let tmpDir: string;
 
   beforeEach(() => {
@@ -116,34 +116,6 @@ describe("readTeamYaml with rules and skills", () => {
     fs.rmSync(tmpDir, { recursive: true });
   });
 
-  it("parses rules from YAML", () => {
-    const yaml = `name: my-team
-members:
-  - name: architect
-    role: design
-rules:
-  - id: rule_style
-    title: Code Style
-    body: "Use prettier."
-  - id: rule_security
-    globs:
-      - "*.ts"
-    alwaysApply: true
-    body: "Validate all inputs."
-`;
-    const filePath = path.join(tmpDir, ".teamrc.yaml");
-    fs.writeFileSync(filePath, yaml);
-
-    const result = readTeamYaml(filePath);
-    assert.ok(result);
-    assert.equal(result.rules!.length, 2);
-    assert.equal(result.rules![0].id, "rule_style");
-    assert.equal(result.rules![0].title, "Code Style");
-    assert.equal(result.rules![0].body, "Use prettier.");
-    assert.deepEqual(result.rules![1].globs, ["*.ts"]);
-    assert.equal(result.rules![1].alwaysApply, true);
-  });
-
   it("parses skills from YAML", () => {
     const yaml = `name: my-team
 members:
@@ -152,6 +124,7 @@ members:
 skills:
   - id: skill_search
     description: Search the codebase
+    body: "Search it."
   - id: skill_deploy
     title: Deploy
     description: Deploy to production
@@ -168,32 +141,54 @@ skills:
     assert.equal(result.skills![1].body, "Run npm deploy.");
   });
 
-  it("parses agent rule/skill references", () => {
+  it("parses skills with alwaysApply and globs", () => {
     const yaml = `name: my-team
 members:
   - name: architect
     role: design
-    rules:
-      - rule_style
-    skills:
-      - skill_search
-rules:
-  - id: rule_style
-    body: "Use prettier."
 skills:
-  - id: skill_search
-    description: Search code
+  - id: skill_style
+    title: Code Style
+    alwaysApply: true
+    body: "Use prettier."
+  - id: skill_security
+    globs:
+      - "*.ts"
+    body: "Validate all inputs."
 `;
     const filePath = path.join(tmpDir, ".teamrc.yaml");
     fs.writeFileSync(filePath, yaml);
 
     const result = readTeamYaml(filePath);
     assert.ok(result);
-    assert.deepEqual(result.members[0].rules, ["rule_style"]);
+    assert.equal(result.skills!.length, 2);
+    assert.equal(result.skills![0].id, "skill_style");
+    assert.equal(result.skills![0].alwaysApply, true);
+    assert.equal(result.skills![0].body, "Use prettier.");
+    assert.deepEqual(result.skills![1].globs, ["*.ts"]);
+  });
+
+  it("parses agent skill references", () => {
+    const yaml = `name: my-team
+members:
+  - name: architect
+    role: design
+    skills:
+      - skill_search
+skills:
+  - id: skill_search
+    description: Search code
+    body: "Search it."
+`;
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    fs.writeFileSync(filePath, yaml);
+
+    const result = readTeamYaml(filePath);
+    assert.ok(result);
     assert.deepEqual(result.members[0].skills, ["skill_search"]);
   });
 
-  it("works without rules or skills (backward compat)", () => {
+  it("works without skills", () => {
     const yaml = `name: old-team
 members:
   - name: agent
@@ -204,27 +199,24 @@ members:
 
     const result = readTeamYaml(filePath);
     assert.ok(result);
-    assert.deepEqual(result.rules, []);
     assert.deepEqual(result.skills, []);
   });
 
-  it("roundtrips rules and skills through write/read", () => {
+  it("roundtrips skills through write/read", () => {
     const filePath = path.join(tmpDir, ".teamrc.yaml");
     const team = {
       name: "roundtrip-team",
-      members: [{ name: "agent-a", role: "role-a", rules: ["rule_x"], skills: ["skill_y"] }],
-      rules: [{ id: "rule_x", body: "Do X." }],
-      skills: [{ id: "skill_y", description: "Does Y" }],
+      members: [{ name: "agent-a", role: "role-a", skills: ["skill_y"] }],
+      skills: [{ id: "skill_y", description: "Does Y", alwaysApply: true, body: "Do Y." }],
     };
 
     writeTeamYaml(filePath, team);
     const result = readTeamYaml(filePath);
 
     assert.ok(result);
-    assert.equal(result.rules!.length, 1);
-    assert.equal(result.rules![0].id, "rule_x");
     assert.equal(result.skills!.length, 1);
     assert.equal(result.skills![0].id, "skill_y");
-    assert.deepEqual(result.members[0].rules, ["rule_x"]);
+    assert.equal(result.skills![0].alwaysApply, true);
+    assert.deepEqual(result.members[0].skills, ["skill_y"]);
   });
 });

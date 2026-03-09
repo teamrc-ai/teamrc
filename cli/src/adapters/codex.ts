@@ -11,7 +11,7 @@ import {
   type TeamDefinition,
   type TeamMember,
 } from "./base.js";
-import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
+import { resolveAgentSkills } from "../resolve-skills.js";
 
 export class CodexAdapter implements PlatformAdapter {
   readonly supportsSync = false;
@@ -83,22 +83,7 @@ export class CodexAdapter implements PlatformAdapter {
       instructionParts.push("");
     }
 
-    // Add resolved rules
-    const agentRules = resolveAgentRules(member, team);
-    if (agentRules.length > 0) {
-      instructionParts.push("## Rules");
-      instructionParts.push("");
-      for (const r of agentRules) {
-        const title = r.title || r.id;
-        const body = typeof r.body === "string" ? r.body : "";
-        instructionParts.push(`### ${title}`);
-        instructionParts.push("");
-        instructionParts.push(body);
-        instructionParts.push("");
-      }
-    }
-
-    // Add resolved skills
+    // Add resolved skills (per-agent, inlined into developer_instructions)
     const agentSkills = resolveAgentSkills(member, team);
     if (agentSkills.length > 0) {
       instructionParts.push("## Skills");
@@ -197,15 +182,6 @@ export class CodexAdapter implements PlatformAdapter {
       const slug = slugify(member.name);
       sections.push(`## ${sanitizeMarkerContent(member.name)} (\`trc-${slug}\`)`, "");
       sections.push(`**Role:** ${sanitizeMarkerContent(member.role)}`, "");
-
-      const agentRules = resolveAgentRules(member, team);
-      if (agentRules.length > 0) {
-        sections.push("**Rules:**");
-        for (const r of agentRules) {
-          sections.push(`- \`${sanitizeMarkerContent(r.id)}\``);
-        }
-        sections.push("");
-      }
 
       const agentSkills = resolveAgentSkills(member, team);
       if (agentSkills.length > 0) {

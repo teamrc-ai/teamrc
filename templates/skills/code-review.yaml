@@ -1,0 +1,12 @@
+id: code-review
+title: Code Review
+category: process
+description: "Systematic review for correctness, readability, and security"
+userInvocable: true
+alwaysApply: false
+body: |
+  Review code systematically in this order: correctness (does it do what it
+  claims?), readability (can someone unfamiliar follow it?), performance (are
+  there obvious inefficiencies?), security (input validation, auth checks,
+  secrets exposure?), and test coverage (are edge cases tested?). Flag issues
+  by severity. Suggest specific improvements, not just problems.

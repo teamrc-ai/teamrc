@@ -17,7 +17,7 @@ import {
   type TeamMember,
   type TeamScope,
 } from "./base.js";
-import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
+import { resolveAgentSkills } from "../resolve-skills.js";
 
 export class GeminiAdapter implements PlatformAdapter {
   readonly supportsSync = true;
@@ -474,27 +474,17 @@ function buildAgentFile(teamName: string, member: TeamMember, team?: TeamDefinit
     ? member.soul
     : `You are ${member.name}, a ${safeRoleText} on the ${safeTeamNameText} team.\n\nFocus on your role and collaborate with your teammates.`;
 
-  let rulesSection = "";
+  let skillsSection = "";
   if (team) {
-    const resolvedRules = resolveAgentRules(member, team);
-    if (resolvedRules.length > 0) {
-      const ruleBlocks = resolvedRules.map((r) => {
-        const title = r.title || r.id;
-        const body = typeof r.body === "string" ? r.body : "";
-        return `### ${title}\n\n${body}`;
-      }).join("\n\n");
-      rulesSection += `\n## Rules\n\n${ruleBlocks}\n`;
-    }
-
     const resolvedSkills = resolveAgentSkills(member, team);
     if (resolvedSkills.length > 0) {
       const skillBlocks = resolvedSkills.map((s) => {
         const title = s.title || s.id;
         const desc = s.description ? `${s.description}\n\n` : "";
-        const body = s.body ? (typeof s.body === "string" ? s.body : "") : "";
+        const body = typeof s.body === "string" ? s.body : "";
         return `### ${title}\n\n${desc}${body}`;
       }).join("\n\n");
-      rulesSection += `\n## Skills\n\n${skillBlocks}\n`;
+      skillsSection = `\n## Skills\n\n${skillBlocks}\n`;
     }
   }
 
@@ -506,5 +496,5 @@ description: "${safeRole}"
 # Team: ${safeTeamNameText}
 
 ${soulContent}
-${rulesSection}`;
+${skillsSection}`;
 }

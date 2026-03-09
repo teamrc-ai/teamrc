@@ -1,0 +1,13 @@
+
+
+# --- teamrc start ---
+
+[agents]
+max_threads = 1
+max_depth = 1
+
+[agents.trc-agent]
+description = "General-purpose assistant"
+config_file = "agents/trc-agent.toml"
+
+# --- teamrc end ---

@@ -1,0 +1,37 @@
+label: Mobile Development
+description: "Build and ship mobile apps with great UX and performance"
+defaultPlatforms:
+  - claude-code
+  - cursor
+
+name: mobile-team
+
+agents:
+  - product-manager
+  - mobile-dev
+  - backend-dev
+  - qa-engineer
+
+skills:
+  - write-tests
+  - small-commits
+  - main-thread-discipline
+  - secrets-management
+  - idempotent-operations
+  - structured-error-handling
+  - input-validation-boundary
+
+agentSkills:
+  mobile-dev:
+    - write-tests
+    - small-commits
+    - main-thread-discipline
+    - structured-error-handling
+  backend-dev:
+    - write-tests
+    - secrets-management
+    - idempotent-operations
+    - structured-error-handling
+    - input-validation-boundary
+  qa-engineer:
+    - write-tests
