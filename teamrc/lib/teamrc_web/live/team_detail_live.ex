@@ -28,7 +28,8 @@ defmodule TeamrcWeb.TeamDetailLive do
            invite_code: nil,
            editing_section: nil,
            edit_team_name: data.team.name,
-           show_add_member: false,
+           member_mode: nil,
+           member_catalog: nil,
            new_member_name: "",
            new_member_role: "",
            generating_invite: false,
@@ -230,8 +231,35 @@ defmodule TeamrcWeb.TeamDetailLive do
     {:noreply, assign(socket, new_member_role: value)}
   end
 
-  def handle_event("toggle_add_member", _params, socket) do
-    {:noreply, assign(socket, show_add_member: !socket.assigns.show_add_member)}
+  def handle_event("show_member_picker", _params, socket) do
+    existing_names = MapSet.new(socket.assigns.team.members, & &1.name)
+
+    catalog =
+      Catalog.list_agent_categories()
+      |> Enum.map(fn cat ->
+        agents =
+          cat["agents"]
+          |> Enum.map(fn name -> Catalog.load_agent(name) end)
+          |> Enum.reject(fn a -> MapSet.member?(existing_names, a["name"]) end)
+
+        %{id: cat["id"], label: cat["label"], agents: agents}
+      end)
+      |> Enum.reject(fn cat -> cat.agents == [] end)
+
+    {:noreply, assign(socket, member_mode: :picker, member_catalog: catalog, new_member_name: "", new_member_role: "")}
+  end
+
+  def handle_event("cancel_member", _params, socket) do
+    {:noreply, assign(socket, member_mode: nil, member_catalog: nil, new_member_name: "", new_member_role: "")}
+  end
+
+  def handle_event("pick_catalog_member", %{"agent-name" => agent_name}, socket) do
+    agent = Catalog.load_agent(agent_name)
+    {:noreply, assign(socket, member_mode: :form, new_member_name: agent["name"], new_member_role: agent["role"])}
+  end
+
+  def handle_event("custom_member", _params, socket) do
+    {:noreply, assign(socket, member_mode: :form, new_member_name: "", new_member_role: "")}
   end
 
   def handle_event("add_member", _params, socket) do
@@ -256,7 +284,8 @@ defmodule TeamrcWeb.TeamDetailLive do
                  team: updated_team,
                  new_member_name: "",
                  new_member_role: "",
-                 show_add_member: false
+                 member_mode: nil,
+                 member_catalog: nil
                )}
 
             {:error, _} ->
@@ -663,9 +692,10 @@ defmodule TeamrcWeb.TeamDetailLive do
 
         <%!-- Add member --%>
         <div :if={@can_edit} class="mt-3">
+          <%!-- Default: show "Add team member" button --%>
           <button
-            :if={!@show_add_member}
-            phx-click="toggle_add_member"
+            :if={is_nil(@member_mode)}
+            phx-click="show_member_picker"
             class="trc-focus inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-base-content/50 hover:text-primary hover:bg-primary/5 transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -674,7 +704,62 @@ defmodule TeamrcWeb.TeamDetailLive do
             Add team member
           </button>
 
-          <div :if={@show_add_member} class="rounded-lg border border-base-300 bg-base-200/30 p-3 space-y-2 animate-[fadeIn_150ms_ease-out]">
+          <%!-- Step 1: Member picker (pre-built catalog + custom option) --%>
+          <div :if={@member_mode == :picker} class="rounded-lg border border-base-300 bg-base-200/30 p-4 space-y-4 animate-[fadeIn_150ms_ease-out]">
+            <div class="flex items-center justify-between">
+              <p class="text-xs font-medium text-base-content/60">Add a team member</p>
+              <button
+                phx-click="cancel_member"
+                class="trc-focus text-xs text-base-content/30 hover:text-base-content/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+
+            <%!-- Custom member option --%>
+            <button
+              phx-click="custom_member"
+              class="trc-focus w-full text-left rounded-lg border border-base-300 bg-base-100 px-3 py-2.5 hover:border-primary/30 transition-colors"
+            >
+              <div class="flex items-center gap-2.5">
+                <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-base-200 text-base-content/40">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div>
+                  <span class="text-sm font-medium">Create custom agent</span>
+                  <p class="text-xs text-base-content/40">Define a new agent from scratch</p>
+                </div>
+              </div>
+            </button>
+
+            <%!-- Pre-built agents by category --%>
+            <%= for category <- @member_catalog do %>
+              <div>
+                <p class="text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-1.5"><%= category.label %></p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  <%= for agent <- category.agents do %>
+                    <button
+                      phx-click="pick_catalog_member"
+                      phx-value-agent-name={agent["name"]}
+                      class="trc-focus text-left rounded-md border border-base-300 bg-base-100 px-2.5 py-2 hover:border-primary/30 transition-colors"
+                    >
+                      <span class="text-xs font-mono font-medium text-base-content truncate"><%= agent["name"] %></span>
+                      <p class="text-[11px] text-base-content/40 mt-0.5 line-clamp-1"><%= agent["role"] %></p>
+                    </button>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+
+            <%= if @member_catalog == [] do %>
+              <p class="text-xs text-base-content/40 text-center py-2">All available pre-built agents have already been added.</p>
+            <% end %>
+          </div>
+
+          <%!-- Step 2: Member form (for custom or pre-filled from catalog) --%>
+          <div :if={@member_mode == :form} class="rounded-lg border border-base-300 bg-base-200/30 p-3 space-y-2 animate-[fadeIn_150ms_ease-out]">
             <div class="flex gap-2">
               <input
                 type="text"
@@ -711,7 +796,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                 Add
               </button>
               <button
-                phx-click="toggle_add_member"
+                phx-click="cancel_member"
                 class="trc-focus rounded px-3 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/70 transition-colors"
               >
                 Cancel

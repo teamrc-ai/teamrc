@@ -44,6 +44,7 @@ defmodule TeamrcWeb.InviteLiveTest do
     {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
 
     view |> element("button", "Add team member") |> render_click()
+    view |> element("button[phx-click='custom_member']") |> render_click()
 
     view |> element("input[placeholder='agent-name']") |> render_keyup(%{"value" => "new-agent"})
     view |> element("input[placeholder='Role description']") |> render_keyup(%{"value" => "testing"})
