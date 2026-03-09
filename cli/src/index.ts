@@ -306,32 +306,25 @@ program
 // Template selection helpers
 // ---------------------------------------------------------------------------
 
-/** Prompt the user to select a team template, or resolve from --template flag */
-async function selectTemplate(templateFlag?: string): Promise<TeamTemplate> {
+/** Prompt the user to select a team template, or resolve from --team flag */
+async function selectTemplate(teamFlag?: string): Promise<TeamTemplate> {
   const teamIds = listTeams();
 
-  // If --template flag provided or non-interactive, resolve directly
-  if (templateFlag) {
-    if (!teamIds.includes(templateFlag)) {
-      p.log.error(`Unknown template: ${templateFlag}. Valid options: ${teamIds.join(", ")}`);
+  if (teamFlag) {
+    if (!teamIds.includes(teamFlag)) {
+      p.log.error(`Unknown team: ${teamFlag}. Options: ${teamIds.join(", ")}`);
       process.exit(1);
     }
-    return resolveTeam(templateFlag);
+    return resolveTeam(teamFlag);
   }
 
-  if (isNonInteractive()) {
-    return resolveTeam("custom");
-  }
+  if (isNonInteractive()) return resolveTeam("custom");
 
   const selected = await p.select({
     message: "What kind of team?",
     options: teamIds.map((id) => {
       const t = resolveTeam(id);
-      return {
-        value: id,
-        label: t.label,
-        hint: t.description,
-      };
+      return { value: id, label: t.label, hint: t.description };
     }),
   });
   handleCancel(selected);
@@ -366,8 +359,8 @@ program
   .option("--platform <platform>", "Override platform detection")
   .option("--global", "Install as global team (all projects)")
   .option("--name <name>", "Team name")
-  .option("--template <id>", "Use a team template (fullstack, backend, security, marketing, research, devops, custom)")
-  .action(async (opts: { relay?: string; platform?: string; global?: boolean; name?: string; template?: string }) => {
+  .option("--team <id>", "Team template (fullstack, backend, frontend, security, devops, custom, ...)")
+  .action(async (opts: { relay?: string; platform?: string; global?: boolean; name?: string; team?: string }) => {
     p.intro("teamrc");
 
     const platforms = await requirePlatforms(opts.platform);
@@ -390,22 +383,13 @@ program
       if (opts.name) team.name = opts.name;
     } else {
       // No existing team — select a template
-      const template = await selectTemplate(opts.template);
+      const template = await selectTemplate(opts.team);
+      const teamName = opts.name ?? await promptTeamName(template.id === "custom" ? "my-team" : template.teamName);
+      team = templateToTeamDefinition(template, teamName);
 
-      if (template.id === "custom") {
-        // Custom: prompt for team name, start with one default agent
-        const teamName = opts.name ?? await promptTeamName("my-team");
-        team = {
-          name: teamName,
-          members: [{ name: "agent", role: "General-purpose assistant" }],
-        };
-      } else {
-        // Template selected: convert template to TeamDefinition
-        const teamName = opts.name ?? await promptTeamName(template.teamName);
-        team = templateToTeamDefinition(template, teamName);
-
+      if (template.id !== "custom") {
         const memberNames = template.members.map((m) => m.name).join(", ");
-        p.log.info(`Template "${template.label}": ${template.members.length} agents (${memberNames})`);
+        p.log.info(`${template.members.length} agents: ${memberNames}`);
       }
     }
 
@@ -493,7 +477,7 @@ program
         );
       }
 
-      p.outro("Next: Add members to .teamrc.yaml, then run teamrc apply");
+      p.outro("Customize agents and skills in .teamrc.yaml, then run teamrc apply");
     } catch (err) {
       s.error("Failed to create team on relay.");
       p.log.warn(`Relay error: ${(err as Error).message}`);
