@@ -1,6 +1,6 @@
 # teamrc Architecture
 
-**Last updated:** 2026-03-09
+**Last updated:** 2026-03-10
 
 ## Overview
 
@@ -16,7 +16,7 @@ flowchart TD
   A[".teamrc.yaml (local)"] --> B["teamrc CLI"]
   B --> C["Signed API calls"]
   C --> D["Relay (Phoenix + Bandit)"]
-  D --> E["Teamrc.Teams GenServer"]
+  D --> E["Teamrc.Teams context"]
   E --> F["PostgreSQL (Ecto Repo)"]
   B --> G["Platform adapters"]
   G --> H["Native agent files (.claude/.cursor/.codex/.gemini/.agents)"]
@@ -42,7 +42,7 @@ Primary files:
 - Phoenix router + controllers for API and web traffic
 - LiveView UI for team management and onboarding
 - Ecto/Postgrex for persistence
-- In-memory services for team membership mapping and device auth flow
+- In-memory GenServer for device auth flow (ephemeral state)
 
 Primary files:
 - `teamrc/lib/teamrc_web/router.ex`
@@ -90,12 +90,12 @@ Primary files:
 
 ## Runtime State and Concurrency Model
 
-### `Teamrc.Teams` GenServer
+### `Teamrc.Teams` Context Module
 
-- Maintains in-memory `token -> MapSet(team_id)` mapping loaded from DB at boot
-- Most team API operations are synchronous `GenServer.call`
-- DB queries and transactions are executed inside `handle_call`
-- This is simple and correct for moderate load, but serializes those paths through one process per node
+- Plain Ecto context module — no GenServer, no in-memory state
+- All operations (CRUD, invites, authorization) query Postgres directly in the caller's process
+- Authorization checks (token → team_id mapping) use the `token_teams` table
+- Full concurrency — each Phoenix endpoint process runs its own queries independently
 
 ### `Teamrc.DeviceAuth` GenServer
 
@@ -185,14 +185,12 @@ Clerk + Signature API:
 
 ## Architectural Tradeoffs
 
-1. **Simple server state model:** easy to reason about, fewer moving parts.
-2. **Serialized team paths:** current `Teams` GenServer can become a throughput bottleneck at high concurrency.
+1. **Stateless team operations:** Teams context is a plain Ecto module — fully concurrent, no serialization bottleneck.
+2. **GenServer only for ephemeral state:** DeviceAuth uses GenServer for short-lived auth requests (15-min TTL). This is appropriate since the state is transient and doesn't need persistence.
 3. **No revision history:** relay stores current state, not versioned diffs.
 4. **CLI-driven merge semantics:** knowledge merge/diff logic lives in CLI for deterministic local behavior.
 
 ## Future Evolution (Suggested)
 
-1. Move team CRUD read/write path to stateless context functions directly over Repo.
-2. Keep GenServers for genuinely ephemeral/stateful workflows (device auth, timers).
-3. Add optional revision table (`team_revisions`) if server-side history/audit is needed.
-4. Introduce ETag/revision-based pull checks to reduce unnecessary daemon poll payload.
+1. Add optional revision table (`team_revisions`) if server-side history/audit is needed.
+2. Introduce ETag/revision-based pull checks to reduce unnecessary daemon poll payload.

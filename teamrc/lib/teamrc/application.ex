@@ -24,7 +24,7 @@ defmodule Teamrc.Application do
       Teamrc.Repo,
       {DNSCluster, query: Application.get_env(:teamrc, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Teamrc.PubSub},
-      {Teamrc.Teams, name: Teamrc.Teams},
+
       {Teamrc.DeviceAuth, name: Teamrc.DeviceAuth},
       # Start to serve requests, typically the last entry
       TeamrcWeb.Endpoint

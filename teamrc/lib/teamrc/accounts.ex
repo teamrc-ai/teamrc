@@ -170,9 +170,6 @@ defmodule Teamrc.Accounts do
           |> Repo.delete_all()
         end)
 
-        # Notify GenServer to remove token from in-memory state
-        GenServer.cast(Teamrc.Teams, {:token_revoked, token})
-
         :ok
     end
   end
@@ -198,11 +195,6 @@ defmodule Teamrc.Accounts do
         end)
         |> case do
           {:ok, _} ->
-            # Notify GenServer to drop all tokens from in-memory state
-            for token <- all_tokens do
-              GenServer.cast(Teamrc.Teams, {:token_revoked, token})
-            end
-
             :ok
 
           {:error, reason} ->

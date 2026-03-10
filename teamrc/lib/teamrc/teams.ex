@@ -1,5 +1,5 @@
 defmodule Teamrc.Teams do
-  use GenServer
+  @moduledoc "Context module for team operations. No GenServer — all queries run in the caller's process."
 
   import Ecto.Query
   alias Teamrc.Repo
@@ -7,111 +7,33 @@ defmodule Teamrc.Teams do
 
   @invite_ttl_hours 24
 
-  # --- Client API ---
+  # --- Public API ---
 
-  def start_link(opts \\ []) do
-    name = Keyword.get(opts, :name, __MODULE__)
-    GenServer.start_link(__MODULE__, %{}, name: name)
-  end
-
-  @doc "Store a team under a token (used by authenticated API create)."
+  @doc "Create or update a team for a token."
   def put_team(token, team_attrs, team_id \\ nil) do
-    GenServer.call(__MODULE__, {:put_team, token, team_attrs, team_id})
-  end
-
-  def put_team_to(pid, token, team_attrs, team_id \\ nil) when is_pid(pid) do
-    GenServer.call(pid, {:put_team, token, team_attrs, team_id})
-  end
-
-  @doc "Create a team with a random invite code. Returns {:ok, invite_code}."
-  def create_team_with_invite(pid \\ __MODULE__, team_attrs) do
-    GenServer.call(pid, {:create_team_with_invite, team_attrs})
-  end
-
-  @doc "Join a team by invite code. Returns {:ok, team_map} or :error."
-  def join_by_invite(pid \\ __MODULE__, invite_code, token) do
-    GenServer.call(pid, {:join_by_invite, invite_code, token})
-  end
-
-  @doc "Get a team by token. Returns {:ok, team_map} or :error."
-  def get_team(token, team_id \\ nil) do
-    GenServer.call(__MODULE__, {:get_team, token, team_id})
-  end
-
-  def get_team_from(pid, token, team_id \\ nil) when is_pid(pid) do
-    GenServer.call(pid, {:get_team, token, team_id})
-  end
-
-  @doc "Get all teams for a token. Returns {:ok, [team_map]} or :error."
-  def get_teams(pid \\ __MODULE__, token) do
-    GenServer.call(pid, {:get_teams, token})
-  end
-
-  @doc "Preview a team by invite code without joining. Returns {:ok, team_map} or :error."
-  def preview_by_invite(pid \\ __MODULE__, invite_code) do
-    GenServer.call(pid, {:preview_by_invite, invite_code})
-  end
-
-  @doc "Create a new invite code for a team the token belongs to. Returns {:ok, code, expires_at} or :error."
-  def create_invite(token, ttl_hours, team_id \\ nil) do
-    GenServer.call(__MODULE__, {:create_invite, token, ttl_hours, team_id})
-  end
-
-  def create_invite_from(pid, token, ttl_hours, team_id \\ nil) when is_pid(pid) do
-    GenServer.call(pid, {:create_invite, token, ttl_hours, team_id})
-  end
-
-  @doc "Preview a team by clone token. Returns {:ok, team_map} or :error."
-  def preview_by_clone_token(pid \\ __MODULE__, clone_token) do
-    GenServer.call(pid, {:preview_by_clone_token, clone_token})
-  end
-
-  @doc "Set team visibility and manage clone token. Returns {:ok, team} or {:error, reason}."
-  def set_visibility(team_id, visibility) do
-    GenServer.call(__MODULE__, {:set_visibility, team_id, visibility})
-  end
-
-  # --- GenServer Callbacks ---
-
-  @impl true
-  def init(_opts) do
-    token_teams =
-      Repo.all(TokenTeam)
-      |> Enum.group_by(& &1.token, & &1.team_id)
-      |> Map.new(fn {token, team_ids} -> {token, MapSet.new(team_ids)} end)
-
-    {:ok, %{token_teams: token_teams}}
-  end
-
-  @impl true
-  def handle_call({:put_team, token, team_attrs, team_id_param}, _from, state) do
     team_data = normalize_team(team_attrs)
 
-    case resolve_team_id(state, token, team_id_param) do
+    case resolve_team_id(token, team_id) do
       nil ->
         case create_team_in_db(team_data) do
           {:ok, team} ->
             upsert_token_team(token, team.id)
-            token_teams = Map.update(state.token_teams, token, MapSet.new([team.id]), &MapSet.put(&1, team.id))
-            state = %{state | token_teams: token_teams}
-            {:reply, {:ok, team_to_map(team)}, state}
+            {:ok, team_to_map(team)}
 
           {:error, reason} ->
-            {:reply, {:error, reason}, state}
+            {:error, reason}
         end
 
-      team_id ->
-        case update_team_in_db(team_id, team_data) do
-          {:ok, team} ->
-            {:reply, {:ok, team_to_map(team)}, state}
-
-          {:error, reason} ->
-            {:reply, {:error, reason}, state}
+      resolved_id ->
+        case update_team_in_db(resolved_id, team_data) do
+          {:ok, team} -> {:ok, team_to_map(team)}
+          {:error, reason} -> {:error, reason}
         end
     end
   end
 
-  def handle_call({:create_team_with_invite, team_attrs}, _from, state) do
+  @doc "Create a team with a random invite code. Returns {:ok, invite_code, team_id}."
+  def create_team_with_invite(team_attrs) do
     team_data = normalize_team(team_attrs)
     invite_code = generate_invite_code()
     expires_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(@invite_ttl_hours * 3600)
@@ -122,18 +44,19 @@ defmodule Teamrc.Teams do
              |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team.id})
              |> Repo.insert() do
           {:ok, _invite} ->
-            {:reply, {:ok, invite_code, team.id}, state}
+            {:ok, invite_code, team.id}
 
           {:error, _changeset} ->
-            {:reply, {:error, :invite_creation_failed}, state}
+            {:error, :invite_creation_failed}
         end
 
       {:error, reason} ->
-        {:reply, {:error, reason}, state}
+        {:error, reason}
     end
   end
 
-  def handle_call({:join_by_invite, invite_code, token}, _from, state) do
+  @doc "Join a team by invite code. Returns {:ok, team_map} or :error."
+  def join_by_invite(invite_code, token) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     result =
@@ -145,52 +68,53 @@ defmodule Teamrc.Teams do
 
     case result do
       nil ->
-        {:reply, :error, state}
+        :error
 
       %Invite{team: team} ->
         upsert_token_team(token, team.id)
-        token_teams = Map.update(state.token_teams, token, MapSet.new([team.id]), &MapSet.put(&1, team.id))
-        state = %{state | token_teams: token_teams}
-        {:reply, {:ok, team_to_map(team)}, state}
+        {:ok, team_to_map(team)}
     end
   end
 
-  def handle_call({:get_team, token, team_id_param}, _from, state) do
-    case resolve_team_id(state, token, team_id_param) do
+  @doc "Get a team by token. Returns {:ok, team_map} or :error."
+  def get_team(token, team_id \\ nil) do
+    case resolve_team_id(token, team_id) do
       nil ->
-        {:reply, :error, state}
+        :error
 
-      team_id ->
-        team = Repo.get(Team, team_id) |> Repo.preload(:members)
+      resolved_id ->
+        team = Repo.get(Team, resolved_id) |> Repo.preload(:members)
 
         if team do
-          {:reply, {:ok, team_to_map(team)}, state}
+          {:ok, team_to_map(team)}
         else
-          {:reply, :error, state}
+          :error
         end
     end
   end
 
-  def handle_call({:get_teams, token}, _from, state) do
-    case Map.get(state.token_teams, token) do
-      nil ->
-        {:reply, :error, state}
+  @doc "Get all teams for a token. Returns {:ok, [team_map]} or :error."
+  def get_teams(token) do
+    team_ids =
+      from(tt in TokenTeam, where: tt.token == ^token, select: tt.team_id)
+      |> Repo.all()
 
-      team_ids ->
+    case team_ids do
+      [] ->
+        :error
+
+      ids ->
         teams =
-          team_ids
-          |> MapSet.to_list()
-          |> Enum.map(fn team_id ->
-            Repo.get(Team, team_id) |> Repo.preload(:members)
-          end)
-          |> Enum.reject(&is_nil/1)
+          from(t in Team, where: t.id in ^ids, preload: [:members])
+          |> Repo.all()
           |> Enum.map(&team_to_map/1)
 
-        {:reply, {:ok, teams}, state}
+        {:ok, teams}
     end
   end
 
-  def handle_call({:preview_by_invite, invite_code}, _from, state) do
+  @doc "Preview a team by invite code without joining. Returns {:ok, team_map} or :error."
+  def preview_by_invite(invite_code) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     result =
@@ -201,36 +125,35 @@ defmodule Teamrc.Teams do
       |> Repo.one()
 
     case result do
-      nil ->
-        {:reply, :error, state}
-
-      %Invite{team: team} ->
-        {:reply, {:ok, team_to_map(team)}, state}
+      nil -> :error
+      %Invite{team: team} -> {:ok, team_to_map(team)}
     end
   end
 
-  def handle_call({:create_invite, token, ttl_hours, team_id_param}, _from, state) do
-    case resolve_team_id(state, token, team_id_param) do
+  @doc "Create a new invite code for a team the token belongs to. Returns {:ok, code, expires_at} or :error."
+  def create_invite(token, ttl_hours, team_id \\ nil) do
+    case resolve_team_id(token, team_id) do
       nil ->
-        {:reply, :error, state}
+        :error
 
-      team_id ->
+      resolved_id ->
         invite_code = generate_invite_code()
         expires_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(ttl_hours * 3600)
 
         case %Invite{}
-             |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team_id})
+             |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: resolved_id})
              |> Repo.insert() do
           {:ok, _invite} ->
-            {:reply, {:ok, invite_code, expires_at}, state}
+            {:ok, invite_code, expires_at}
 
           {:error, _changeset} ->
-            {:reply, {:error, :invite_creation_failed}, state}
+            {:error, :invite_creation_failed}
         end
     end
   end
 
-  def handle_call({:preview_by_clone_token, clone_token}, _from, state) do
+  @doc "Preview a team by clone token. Returns {:ok, team_map} or :error."
+  def preview_by_clone_token(clone_token) do
     result =
       from(t in Team,
         where: t.clone_token == ^clone_token and t.visibility == "public",
@@ -239,19 +162,18 @@ defmodule Teamrc.Teams do
       |> Repo.one()
 
     case result do
-      nil -> {:reply, :error, state}
+      nil -> :error
       %Team{} = team ->
-        # Clone responses exclude knowledge
         map = team_to_map(team) |> Map.delete("knowledge")
-        {:reply, {:ok, map}, state}
+        {:ok, map}
     end
   end
 
-  def handle_call({:set_visibility, team_id, visibility}, _from, state)
-      when visibility in ["public", "private"] do
+  @doc "Set team visibility and manage clone token. Returns {:ok, team} or {:error, reason}."
+  def set_visibility(team_id, visibility) when visibility in ["public", "private"] do
     case Repo.get(Team, team_id) do
       nil ->
-        {:reply, {:error, :not_found}, state}
+        {:error, :not_found}
 
       team ->
         attrs =
@@ -264,44 +186,25 @@ defmodule Teamrc.Teams do
               %{visibility: "private", clone_token: nil}
           end
 
-        case team |> Team.changeset(attrs) |> Repo.update() do
-          {:ok, updated_team} ->
-            {:reply, {:ok, updated_team}, state}
-
-          {:error, changeset} ->
-            {:reply, {:error, changeset}, state}
-        end
+        team |> Team.changeset(attrs) |> Repo.update()
     end
   end
 
-  def handle_call({:set_visibility, _team_id, _visibility}, _from, state) do
-    {:reply, {:error, :invalid_visibility}, state}
-  end
-
-  @impl true
-  def handle_cast({:token_revoked, token}, state) do
-    {:noreply, update_in(state.token_teams, &Map.delete(&1, token))}
-  end
+  def set_visibility(_team_id, _visibility), do: {:error, :invalid_visibility}
 
   # --- Private helpers ---
 
-  defp first_team_id(state, token) do
-    case Map.get(state.token_teams, token) do
-      nil -> nil
-      %MapSet{} = set ->
-        if MapSet.size(set) == 0, do: nil, else: Enum.at(set, 0)
-    end
+  defp resolve_team_id(token, nil) do
+    from(tt in TokenTeam, where: tt.token == ^token, select: tt.team_id, limit: 1)
+    |> Repo.one()
   end
 
-  # Resolve team_id for a token. If team_id is provided, verify the token belongs to that team.
-  # Otherwise fall back to the first team (backward compat).
-  defp resolve_team_id(state, token, nil), do: first_team_id(state, token)
-  defp resolve_team_id(state, token, team_id) do
-    case Map.get(state.token_teams, token) do
-      nil -> nil
-      %MapSet{} = set ->
-        if MapSet.member?(set, team_id), do: team_id, else: nil
-    end
+  defp resolve_team_id(token, team_id) do
+    from(tt in TokenTeam,
+      where: tt.token == ^token and tt.team_id == ^team_id,
+      select: tt.team_id
+    )
+    |> Repo.one()
   end
 
   defp upsert_token_team(token, team_id) do
