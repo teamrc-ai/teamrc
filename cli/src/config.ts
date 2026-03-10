@@ -53,7 +53,7 @@ export function detectPlatforms(): string[] {
     "cursor": () => fs.existsSync(path.join(cwd, ".cursor")),
     "codex": () => fs.existsSync(path.join(home, ".codex")) || fs.existsSync(path.join(cwd, ".codex")),
     "gemini": () => fs.existsSync(path.join(cwd, ".gemini")) || fs.existsSync(path.join(home, ".gemini")),
-    "openclaw": () => fs.existsSync(path.join(home, ".agents")) || fs.existsSync(path.join(cwd, ".agents")),
+    "openclaw": () => fs.existsSync(path.join(home, ".openclaw")),
     "copilot": () => fs.existsSync(path.join(cwd, ".github")),
     "amazon-q": () => fs.existsSync(path.join(home, ".amazonq")) || fs.existsSync(path.join(cwd, ".amazonq")),
     "windsurf": () => fs.existsSync(path.join(cwd, ".windsurf")),

@@ -18,7 +18,7 @@ import {
   detectPlatforms,
   getRelayUrl,
 } from "./config.js";
-import { getAdapter, VALID_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
+import { getAdapter, VALID_PLATFORMS, GLOBAL_ONLY_PLATFORMS, PROJECT_ONLY_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
 import { resolveTeam, listTeams, templateToTeamDefinition, listAgentCategories, loadAgent, loadSkill, agentRecommendedSkills, type TeamTemplate } from "./catalog.js";
 import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "./team-yaml.js";
 import type { TeamrcConfig } from "./config.js";
@@ -70,7 +70,7 @@ function handleCancel(value: unknown): void {
 // ---------------------------------------------------------------------------
 // Platform resolution with clack multiselect
 // ---------------------------------------------------------------------------
-async function requirePlatforms(override?: string): Promise<string[]> {
+async function requirePlatforms(override?: string, scope?: TeamScope): Promise<string[]> {
   if (override) {
     const requested = override.split(",").map((s) => s.trim()).filter(Boolean);
     for (const pl of requested) {
@@ -95,21 +95,34 @@ async function requirePlatforms(override?: string): Promise<string[]> {
     return detected;
   }
 
-  // Platforms with working adapters (exclude unimplemented ones)
   const UNIMPLEMENTED_PLATFORMS = ["copilot", "amazon-q", "windsurf", "cline"];
   const selectablePlatforms = VALID_PLATFORMS.filter(
     (pl) => !UNIMPLEMENTED_PLATFORMS.includes(pl),
   );
 
-  // Interactive multi-select with detected platforms pre-selected
+  const isDisabled = (pl: string): boolean => {
+    if (scope === "project" && GLOBAL_ONLY_PLATFORMS.includes(pl)) return true;
+    if (scope === "global" && PROJECT_ONLY_PLATFORMS.includes(pl)) return true;
+    return false;
+  };
+
+  const scopeHint = (pl: string): string | undefined => {
+    if (scope === "project" && GLOBAL_ONLY_PLATFORMS.includes(pl)) return "global only";
+    if (scope === "global" && PROJECT_ONLY_PLATFORMS.includes(pl)) return "project only";
+    return detected.includes(pl) ? "detected" : undefined;
+  };
+
   const selected = await p.multiselect({
     message: "Which platforms?",
     options: selectablePlatforms.map((pl) => ({
       value: pl,
       label: pl,
-      hint: detected.includes(pl) ? "detected" : undefined,
+      hint: scopeHint(pl),
+      disabled: isDisabled(pl),
     })),
-    initialValues: detected.filter((pl) => !UNIMPLEMENTED_PLATFORMS.includes(pl)),
+    initialValues: detected.filter(
+      (pl) => !UNIMPLEMENTED_PLATFORMS.includes(pl) && !isDisabled(pl),
+    ),
     required: true,
   });
   handleCancel(selected);
@@ -298,6 +311,13 @@ async function selectScope(opts: { scope?: string; global?: boolean }): Promise<
   return scope as TeamScope;
 }
 
+/** Resolve effective scope for a platform (respects global-only and project-only constraints) */
+function effectiveScope(platform: string, scope: TeamScope): TeamScope {
+  if (GLOBAL_ONLY_PLATFORMS.includes(platform)) return "global";
+  if (PROJECT_ONLY_PLATFORMS.includes(platform)) return "project";
+  return scope;
+}
+
 // ---------------------------------------------------------------------------
 // JSON output helper
 // ---------------------------------------------------------------------------
@@ -380,8 +400,8 @@ program
   .action(async (opts: { relay?: string; platform?: string; global?: boolean; name?: string; team?: string }) => {
     p.intro("teamrc");
 
-    const platforms = await requirePlatforms(opts.platform);
     const scope = await selectScope(opts);
+    const platforms = await requirePlatforms(opts.platform, scope);
 
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
@@ -449,7 +469,7 @@ program
     const platformSummary: string[] = [];
     for (const pl of platforms) {
       const adapter = getAdapter(pl);
-      adapter.writeTeam(team, scope);
+      adapter.writeTeam(team, effectiveScope(pl, scope));
       platformSummary.push(pl);
     }
     p.log.step(`Applied to: ${platformSummary.join(", ")}`);
@@ -541,8 +561,8 @@ program
   .action(async (inviteCode: string, opts: { relay?: string; platform?: string; global?: boolean }) => {
     p.intro("teamrc");
 
-    const platforms = await requirePlatforms(opts.platform);
     const scope = await selectScope(opts);
+    const platforms = await requirePlatforms(opts.platform, scope);
 
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
@@ -571,7 +591,7 @@ program
       const appliedLines: string[] = [];
       for (const pl of platforms) {
         const adapter = getAdapter(pl);
-        adapter.writeTeam(teamDef, scope);
+        adapter.writeTeam(teamDef, effectiveScope(pl, scope));
         const skillCount = teamDef.skills?.length ?? 0;
         const detail = skillCount > 0
           ? `${teamDef.members.length} agents, ${skillCount} skills`
@@ -647,7 +667,8 @@ program
   .action(async (opts: { platform?: string; scope?: string; global?: boolean }) => {
     p.intro("teamrc");
 
-    const platforms = await requirePlatforms(opts.platform);
+    const scope = await selectScope(opts);
+    const platforms = await requirePlatforms(opts.platform, scope);
     let team;
     try {
       team = readTeamYaml(TEAM_YAML);
@@ -669,15 +690,13 @@ program
       process.exit(1);
     }
 
-    const scope = await selectScope(opts);
-
     const s = p.spinner();
     s.start(`Applying "${team.name}" to ${platforms.length} platform(s)...`);
 
     const appliedLines: string[] = [];
     for (const pl of platforms) {
       const adapter = getAdapter(pl);
-      adapter.writeTeam(team, scope);
+      adapter.writeTeam(team, effectiveScope(pl, scope));
       const skillCount = team.skills?.length ?? 0;
       const parts = [`${team.members.length} agents`];
       if (skillCount > 0) parts.push(`${skillCount} skills`);
@@ -825,8 +844,8 @@ program
 
     const ctx = requireTeamContext();
     const { client, config } = ctx;
-    const platforms = await requirePlatforms(opts.platform);
     const scope = await selectScope(opts);
+    const platforms = await requirePlatforms(opts.platform, scope);
     const adapter = ctx.adapters[0];
 
     const s = p.spinner();
@@ -869,7 +888,7 @@ program
       // Apply to platforms
       for (const pl of platforms) {
         const a = getAdapter(pl);
-        a.writeTeam(remoteDef, scope);
+        a.writeTeam(remoteDef, effectiveScope(pl, scope));
       }
       s.stop("Pulled and applied.");
 
@@ -1120,8 +1139,8 @@ program
 
     if (isClone) {
       // Clone pull: read-only fetch via clone token, no knowledge
-      const platforms = await requirePlatforms(opts.platform);
       const scope = await selectScope(opts);
+      const platforms = await requirePlatforms(opts.platform, scope);
       const relayUrl = localYaml!.relay ?? getRelayUrl();
       const kp = await requireKeypair();
       const client = new TeamrcClient(relayUrl, kp.privateKey, toToken(kp.publicKey));
@@ -1144,8 +1163,8 @@ program
 
         for (const pl of platforms) {
           const a = getAdapter(pl);
-          a.writeTeam(team, scope);
-          p.log.step(`Applied to ${pl} (${scope} scope).`);
+          a.writeTeam(team, effectiveScope(pl, scope));
+          p.log.step(`Applied to ${pl} (${effectiveScope(pl, scope)} scope).`);
         }
 
         p.outro("Done. Knowledge is not synced for cloned teams.");
@@ -1158,8 +1177,8 @@ program
       // Full member pull
       const ctx = requireTeamContext();
       const { client } = ctx;
-      const platforms = await requirePlatforms(opts.platform);
       const scope = await selectScope(opts);
+      const platforms = await requirePlatforms(opts.platform, scope);
       const adapter = ctx.adapters[0];
 
       const s = p.spinner();
@@ -1191,8 +1210,8 @@ program
         // Apply to platforms
         for (const pl of platforms) {
           const a = getAdapter(pl);
-          a.writeTeam(team, scope);
-          p.log.step(`Applied to ${pl} (${scope} scope).`);
+          a.writeTeam(team, effectiveScope(pl, scope));
+          p.log.step(`Applied to ${pl} (${effectiveScope(pl, scope)} scope).`);
         }
 
         p.outro("Done.");
@@ -1241,8 +1260,8 @@ program
   .action(async (code: string, opts: { relay?: string; platform?: string; scope?: string; global?: boolean; name?: string }) => {
     p.intro("teamrc");
 
-    const platforms = await requirePlatforms(opts.platform);
     const scope = await selectScope(opts);
+    const platforms = await requirePlatforms(opts.platform, scope);
 
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
@@ -1279,7 +1298,7 @@ program
       // Apply to each platform
       for (const pl of platforms) {
         const adapter = getAdapter(pl);
-        adapter.writeTeam(teamDef, scope);
+        adapter.writeTeam(teamDef, effectiveScope(pl, scope));
         p.log.step(`${pl} configured.`);
       }
 
@@ -1773,7 +1792,7 @@ program
     writeTeamYaml(yamlPath, team);
     for (const pl of platforms) {
       const adapter = getAdapter(pl);
-      adapter.writeTeam(team, scope);
+      adapter.writeTeam(team, effectiveScope(pl, scope));
     }
 
     // Summary
@@ -1870,6 +1889,99 @@ program
     }
 
     p.outro(`${totalAgents} agents. Use \`teamrc add-member <name>\` to add one to your team.`);
+  });
+
+// --- erase ---
+program
+  .command("erase")
+  .description("Permanently erase this machine's token and all associated team data from the relay")
+  .option("-y, --yes", "Skip confirmation prompt")
+  .action(async (opts: { yes?: boolean }) => {
+    p.intro("teamrc");
+
+    const kp = loadKeypair();
+    if (!kp) {
+      p.log.error("No keypair found. Nothing to erase.");
+      process.exit(1);
+    }
+    const token = toToken(kp.publicKey);
+    const config = loadConfig();
+    if (!config) {
+      p.log.error("Not initialized. Nothing to erase.");
+      process.exit(1);
+    }
+
+    const relayUrl = config.relay;
+    const client = new TeamrcClient(relayUrl, kp.privateKey, token);
+
+    // Fetch current status to show what will be erased
+    let teamCount = 0;
+    let teamName: string | null = null;
+    try {
+      const remoteTeam = await client.getTeam();
+      teamName = remoteTeam.name;
+      teamCount = 1;
+    } catch {
+      // May have multiple teams or none
+    }
+
+    // Also try YAML for team name
+    if (!teamName) {
+      try {
+        const yamlTeam = readTeamYaml(TEAM_YAML) ?? readTeamYaml(GLOBAL_TEAM_YAML);
+        teamName = yamlTeam?.name ?? null;
+      } catch {
+        // ignore parse errors
+      }
+    }
+
+    p.log.warn(
+      "This will permanently erase this machine's token and all\n" +
+      "associated team data from the relay. This cannot be undone.",
+    );
+    if (teamName) {
+      p.log.info(`Team: ${teamName}`);
+    }
+    p.log.info(`Token: ${token.slice(0, 16)}...`);
+
+    const skipConfirm = opts.yes ?? globals().yes;
+    if (!skipConfirm) {
+      if (teamName) {
+        requireTTY("--yes");
+        const confirmation = await p.text({
+          message: `Type "${teamName}" to confirm erasure:`,
+          validate: (value) => {
+            if (value !== teamName) return `Please type "${teamName}" to confirm.`;
+          },
+        });
+        handleCancel(confirmation);
+      } else {
+        requireTTY("--yes");
+        const shouldErase = await p.confirm({
+          message: "Erase all data for this token from the relay?",
+          initialValue: false,
+        });
+        handleCancel(shouldErase);
+        if (!shouldErase) {
+          p.cancel("Cancelled.");
+          return;
+        }
+      }
+    }
+
+    const s = p.spinner();
+    try {
+      s.start("Erasing from relay...");
+      const result = await client.eraseToken();
+      s.stop("Erased.");
+
+      p.log.success(`Removed ${result.teams_removed} team(s) from relay.`);
+      p.outro("Local files are unchanged. Run `teamrc delete` to also remove local config.");
+    } catch (err) {
+      s.error("Erase failed.");
+      p.log.error((err as Error).message);
+      process.exit(1);
+    }
   });
 
 program.parse();

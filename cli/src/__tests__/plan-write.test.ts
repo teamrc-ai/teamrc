@@ -110,13 +110,22 @@ describe("planWrite", () => {
     assert.ok(actions.some((a) => a.description === "teamrc section"));
   });
 
-  it("openclaw: plans agents, skills, and AGENTS.md", async () => {
+  it("openclaw: plans per-agent workspaces, shared skills, and openclaw.json", async () => {
     const { OpenClawAdapter } = await import("../adapters/openclaw.js");
-    const adapter = new OpenClawAdapter();
-    const actions = adapter.planWrite(team, "project");
+    const origHome = process.env.HOME;
+    process.env.HOME = tmpDir;
+    try {
+      const adapter = new OpenClawAdapter();
+      const actions = adapter.planWrite(team);
 
-    assert.ok(actions.some((a) => a.description === "agent: dev"));
-    assert.ok(actions.some((a) => a.description?.startsWith("skill:")));
-    assert.ok(actions.some((a) => a.description === "teamrc routing"));
+      assert.ok(actions.some((a) => a.description === "agent workspace: dev"), "Should plan agent workspace");
+      assert.ok(actions.some((a) => a.description === "agent workspace: reviewer"), "Should plan reviewer workspace");
+      assert.ok(actions.some((a) => a.description === "agent soul: dev"), "Should plan SOUL.md");
+      assert.ok(actions.some((a) => a.description?.startsWith("skill:")), "Should plan skills");
+      assert.ok(actions.some((a) => a.description === "agent registration"), "Should plan openclaw.json update");
+    } finally {
+      if (origHome !== undefined) process.env.HOME = origHome;
+      else delete process.env.HOME;
+    }
   });
 });

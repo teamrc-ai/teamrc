@@ -48,6 +48,12 @@ export const VALID_PLATFORMS = [
   "cline",
 ] as const;
 
+/** Platforms that only support global scope (no per-project config) */
+export const GLOBAL_ONLY_PLATFORMS: readonly string[] = ["openclaw"] as const;
+
+/** Platforms that only support project scope (no global config) */
+export const PROJECT_ONLY_PLATFORMS: readonly string[] = ["cursor", "codex"] as const;
+
 export type TeamScope = "project" | "global";
 
 /** Strip HTML comment sequences to prevent marker injection */
