@@ -3,7 +3,7 @@ defmodule Teamrc.Teams do
 
   import Ecto.Query
   alias Teamrc.Repo
-  alias Teamrc.Schema.{Team, Member, Invite, TokenTeam}
+  alias Teamrc.Schema.{Team, Member, Invite, TokenTeam, AccountToken}
 
   @invite_ttl_hours 24
 
@@ -15,7 +15,7 @@ defmodule Teamrc.Teams do
 
     case resolve_team_id(token, team_id) do
       nil ->
-        case create_team_in_db(team_data) do
+        case create_team_in_db(team_data, token) do
           {:ok, team} ->
             upsert_token_team(token, team.id)
             {:ok, team_to_map(team)}
@@ -33,13 +33,14 @@ defmodule Teamrc.Teams do
   end
 
   @doc "Create a team with a random invite code. Returns {:ok, invite_code, team_id}."
-  def create_team_with_invite(team_attrs) do
+  def create_team_with_invite(team_attrs, opts \\ []) do
     team_data = normalize_team(team_attrs)
     invite_code = generate_invite_code()
     expires_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(@invite_ttl_hours * 3600)
+    owner_account_id = Keyword.get(opts, :owner_account_id)
 
     Repo.transaction(fn ->
-      case create_team_in_db_inner(team_data) do
+      case create_team_in_db_inner(team_data, nil, owner_account_id) do
         {:ok, team} ->
           case %Invite{}
                |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team.id})
@@ -175,14 +176,18 @@ defmodule Teamrc.Teams do
     end
   end
 
-  @doc "Set team visibility with auth check. Token must be associated with the team."
+  @doc "Set team visibility. Requires the token to belong to the team's owner account."
   def set_visibility(token, team_id, visibility) when visibility in ["public", "private"] do
     case resolve_team_id(token, team_id) do
       nil ->
         {:error, :not_authorized}
 
-      ^team_id ->
-        do_set_visibility(team_id, visibility)
+      resolved_team_id ->
+        if Teamrc.Accounts.is_team_owner?(token, resolved_team_id) do
+          do_set_visibility(resolved_team_id, visibility)
+        else
+          {:error, :not_owner}
+        end
     end
   end
 
@@ -201,10 +206,51 @@ defmodule Teamrc.Teams do
               %{visibility: "public", clone_token: clone_token}
 
             "private" ->
-              %{visibility: "private", clone_token: nil}
+              %{visibility: "private"}
           end
 
         team |> Team.changeset(attrs) |> Repo.update()
+    end
+  end
+
+  @doc "Claim ownership of a team using the claim secret. Requires the token to have a linked account."
+  def claim_ownership(token, claim_secret) do
+    # Resolve the team by the claim secret
+    team =
+      from(t in Team, where: t.owner_claim_secret == ^claim_secret and is_nil(t.owner_account_id))
+      |> Repo.one()
+
+    case team do
+      nil ->
+        {:error, :invalid_secret}
+
+      %Team{} = team ->
+        # Verify the token has a linked account
+        account_id = resolve_owner_from_token(token)
+
+        if is_nil(account_id) do
+          {:error, :no_account}
+        else
+          # Verify the token belongs to this team
+          is_member =
+            from(tt in TokenTeam, where: tt.token == ^token and tt.team_id == ^team.id, select: tt.id, limit: 1)
+            |> Repo.one()
+
+          if is_nil(is_member) do
+            {:error, :not_member}
+          else
+            # Atomic claim — only succeeds if still unclaimed
+            {count, _} =
+              from(t in Team, where: t.id == ^team.id and is_nil(t.owner_account_id))
+              |> Repo.update_all(set: [owner_account_id: account_id, owner_claim_secret: nil])
+
+            if count == 1 do
+              {:ok, :claimed}
+            else
+              {:error, :already_claimed}
+            end
+          end
+        end
     end
   end
 
@@ -246,18 +292,35 @@ defmodule Teamrc.Teams do
     "trc_cl_" <> Base.url_encode64(:crypto.strong_rand_bytes(18), padding: false)
   end
 
-  defp create_team_in_db(team_data) do
+  defp generate_claim_secret do
+    "trc_ocs_" <> Base.url_encode64(:crypto.strong_rand_bytes(18), padding: false)
+  end
+
+  defp create_team_in_db(team_data, token) do
     Repo.transaction(fn ->
-      case create_team_in_db_inner(team_data) do
+      case create_team_in_db_inner(team_data, token) do
         {:ok, team} -> team
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
   end
 
-  defp create_team_in_db_inner(team_data) do
+  defp create_team_in_db_inner(team_data, token, owner_account_id \\ nil) do
+    # If a token is provided and no explicit owner, check if the token already has a linked account
+    resolved_owner =
+      owner_account_id || resolve_owner_from_token(token)
+
+    # Generate a claim secret only when there is no owner yet (CLI flow).
+    # Web wizard sets owner_account_id directly, so no secret needed.
+    claim_secret = if is_nil(resolved_owner), do: generate_claim_secret()
+
+    team_attrs =
+      %{name: team_data.name, skills: team_data.skills, platforms: team_data.platforms, knowledge: team_data.knowledge}
+      |> put_non_nil(:owner_claim_secret, claim_secret)
+      |> put_non_nil(:owner_account_id, resolved_owner)
+
     case %Team{}
-         |> Team.changeset(%{name: team_data.name, skills: team_data.skills, platforms: team_data.platforms, knowledge: team_data.knowledge})
+         |> Team.changeset(team_attrs)
          |> Repo.insert() do
       {:ok, team} ->
         Enum.each(team_data.members, fn m ->
@@ -335,6 +398,20 @@ defmodule Teamrc.Teams do
     %{name: attrs["name"] || attrs[:name] || "", members: members, skills: skills, platforms: platforms, knowledge: knowledge}
   end
 
+  defp resolve_owner_from_token(nil), do: nil
+
+  defp resolve_owner_from_token(token) do
+    from(at in AccountToken,
+      where: at.token == ^token and is_nil(at.revoked_at),
+      select: at.account_id,
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  defp put_non_nil(map, _key, nil), do: map
+  defp put_non_nil(map, key, val), do: Map.put(map, key, val)
+
   defp put_if_present(map, _key, nil), do: map
   defp put_if_present(map, _key, []), do: map
   defp put_if_present(map, key, val), do: Map.put(map, key, val)
@@ -354,5 +431,6 @@ defmodule Teamrc.Teams do
     }
     |> put_if_present("skills", team.skills)
     |> put_if_present("platforms", team.platforms)
+    |> put_if_present("owner_claim_secret", team.owner_claim_secret)
   end
 end

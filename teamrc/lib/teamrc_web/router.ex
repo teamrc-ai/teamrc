@@ -100,6 +100,8 @@ defmodule TeamrcWeb.Router do
     post "/teams", ApiController, :create_team
     post "/teams/preview", ApiController, :preview_team
     post "/teams/invite", ApiController, :create_invite
+    post "/teams/visibility", ApiController, :set_visibility
+    post "/teams/claim", ApiController, :claim_ownership
     delete "/token/erase", ApiController, :erase_token
     get "/teams/all/:token", ApiController, :get_teams
     get "/teams/:token", ApiController, :get_team

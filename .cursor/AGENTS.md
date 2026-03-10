@@ -1,5 +1,3 @@
-
-
 <!-- teamrc -->
 # Team: product-team
 

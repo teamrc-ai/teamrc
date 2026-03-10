@@ -11,6 +11,7 @@ export interface TeamrcTeam {
   knowledge?: string;
   updated_at?: string;
   created_at?: string;
+  owner_claim_secret?: string;
 }
 
 // Size caps for relay-sourced content to prevent resource exhaustion
@@ -292,6 +293,40 @@ export class TeamrcClient {
     return this.signedDelete<{ status: string; teams_removed: number }>(
       `/api/token/${encodeURIComponent(this.token)}/erase`,
     );
+  }
+
+  async claimOwnership(claimSecret: string): Promise<{ status: string }> {
+    const body = JSON.stringify({
+      token: this.token,
+      claim_secret: claimSecret,
+      ...(this.teamId ? { team_id: this.teamId } : {}),
+    });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/teams/claim`, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(await this.errorMessage(res, "claimOwnership failed"));
+    return (await res.json()) as { status: string };
+  }
+
+  async setVisibility(visibility: "public" | "private"): Promise<{ visibility: string; clone_token: string | null }> {
+    const body = JSON.stringify({
+      token: this.token,
+      visibility,
+      ...(this.teamId ? { team_id: this.teamId } : {}),
+    });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/teams/visibility`, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(await this.errorMessage(res, "setVisibility failed"));
+    return (await res.json()) as { visibility: string; clone_token: string | null };
   }
 
   async createInvite(ttlHours: number = 24): Promise<{ invite_code: string; expires_at: string }> {

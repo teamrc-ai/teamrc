@@ -208,11 +208,17 @@ defmodule Teamrc.SecurityAuditTest do
   # Fix 11: set_visibility auth check
   # ---------------------------------------------------------------------------
 
-  describe "set_visibility requires token auth" do
-    test "authorized token can set visibility" do
+  describe "set_visibility requires owner auth" do
+    test "owner can set visibility" do
       token = "trc_ak_vis_#{:erlang.unique_integer([:positive])}"
       {:ok, team_data} = Teams.put_team(token, %{"name" => "vis-team", "members" => []})
       team_id = team_data["id"]
+      claim_secret = team_data["owner_claim_secret"]
+
+      # Link account and claim ownership via secret
+      {:ok, account} = Accounts.find_or_create_account("clerk_vis_#{:erlang.unique_integer([:positive])}", "vis@test.com")
+      Accounts.link_token(account.id, token, "test-machine")
+      {:ok, :claimed} = Teams.claim_ownership(token, claim_secret)
 
       assert {:ok, updated} = Teams.set_visibility(token, team_id, "public")
       assert updated.visibility == "public"
@@ -220,12 +226,20 @@ defmodule Teamrc.SecurityAuditTest do
 
       assert {:ok, updated} = Teams.set_visibility(token, team_id, "private")
       assert updated.visibility == "private"
-      refute updated.clone_token
+    end
+
+    test "non-owner team member is rejected" do
+      token = "trc_ak_vis_own_#{:erlang.unique_integer([:positive])}"
+      {:ok, team_data} = Teams.put_team(token, %{"name" => "vis-team2", "members" => []})
+      team_id = team_data["id"]
+
+      # Token is a member but has no linked account — not the owner
+      assert {:error, :not_owner} = Teams.set_visibility(token, team_id, "public")
     end
 
     test "unauthorized token is rejected" do
-      token = "trc_ak_vis_own_#{:erlang.unique_integer([:positive])}"
-      {:ok, team_data} = Teams.put_team(token, %{"name" => "vis-team2", "members" => []})
+      token = "trc_ak_vis_own2_#{:erlang.unique_integer([:positive])}"
+      {:ok, team_data} = Teams.put_team(token, %{"name" => "vis-team2b", "members" => []})
       team_id = team_data["id"]
 
       other_token = "trc_ak_vis_other_#{:erlang.unique_integer([:positive])}"
@@ -238,6 +252,131 @@ defmodule Teamrc.SecurityAuditTest do
       team_id = team_data["id"]
 
       assert {:error, :invalid_visibility} = Teams.set_visibility(token, team_id, "invalid")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Ownership fixes
+  # ---------------------------------------------------------------------------
+
+  describe "ownership fixes" do
+    test "creator with existing account gets ownership immediately" do
+      # Create account and link token BEFORE creating the team
+      token = "trc_ak_own_imm_#{:erlang.unique_integer([:positive])}"
+      {:ok, account} = Accounts.find_or_create_account("clerk_own_imm_#{:erlang.unique_integer([:positive])}", "own_imm@test.com")
+      {:ok, _} = Accounts.link_token(account.id, token, "test-machine")
+
+      # Create team — should get ownership immediately since token has a linked account
+      {:ok, team_data} = Teams.put_team(token, %{"name" => "imm-owner-team", "members" => []})
+      team_id = team_data["id"]
+
+      # Verify ownership was set and no claim secret generated (owner already known)
+      team = Repo.get(Team, team_id)
+      assert team.owner_account_id == account.id
+      assert is_nil(team.owner_claim_secret)
+    end
+
+    test "clone token is preserved when toggling private then public" do
+      token = "trc_ak_clone_pres_#{:erlang.unique_integer([:positive])}"
+      {:ok, team_data} = Teams.put_team(token, %{"name" => "clone-pres-team", "members" => []})
+      team_id = team_data["id"]
+      claim_secret = team_data["owner_claim_secret"]
+
+      # Link account and claim ownership
+      {:ok, account} = Accounts.find_or_create_account("clerk_clone_pres_#{:erlang.unique_integer([:positive])}", "clone@test.com")
+      Accounts.link_token(account.id, token, "test-machine")
+      {:ok, :claimed} = Teams.claim_ownership(token, claim_secret)
+
+      # Set public — generates clone_token
+      assert {:ok, updated} = Teams.set_visibility(token, team_id, "public")
+      assert updated.visibility == "public"
+      clone_token = updated.clone_token
+      assert clone_token
+
+      # Set private — clone_token should be preserved (not cleared)
+      assert {:ok, updated} = Teams.set_visibility(token, team_id, "private")
+      assert updated.visibility == "private"
+      team = Repo.get(Team, team_id)
+      assert team.clone_token == clone_token
+
+      # Set public again — should reuse the same clone_token
+      assert {:ok, updated} = Teams.set_visibility(token, team_id, "public")
+      assert updated.visibility == "public"
+      assert updated.clone_token == clone_token
+    end
+
+    test "claim secret is generated for unclaimed teams" do
+      token = "trc_ak_claim_sec_#{:erlang.unique_integer([:positive])}"
+      {:ok, team_data} = Teams.put_team(token, %{"name" => "claim-secret-team", "members" => []})
+
+      # Team should have a claim secret since creator has no linked account
+      team = Repo.get(Team, team_data["id"])
+      assert team.owner_claim_secret
+      assert String.starts_with?(team.owner_claim_secret, "trc_ocs_")
+      assert is_nil(team.owner_account_id)
+
+      # Claim secret should also be in the API response
+      assert team_data["owner_claim_secret"] == team.owner_claim_secret
+    end
+
+    test "claim_ownership with valid secret sets owner" do
+      token = "trc_ak_claim_#{:erlang.unique_integer([:positive])}"
+      {:ok, team_data} = Teams.put_team(token, %{"name" => "claim-team", "members" => []})
+      claim_secret = team_data["owner_claim_secret"]
+      team_id = team_data["id"]
+
+      # Link account to the token
+      {:ok, account} = Accounts.find_or_create_account("clerk_claim_#{:erlang.unique_integer([:positive])}", "claim@test.com")
+      {:ok, _} = Accounts.link_token(account.id, token, "test-machine")
+
+      # Claim ownership
+      assert {:ok, :claimed} = Teams.claim_ownership(token, claim_secret)
+
+      # Verify ownership set and secret cleared
+      team = Repo.get(Team, team_id)
+      assert team.owner_account_id == account.id
+      assert is_nil(team.owner_claim_secret)
+    end
+
+    test "claim_ownership fails with wrong secret" do
+      token = "trc_ak_bad_claim_#{:erlang.unique_integer([:positive])}"
+      {:ok, _team_data} = Teams.put_team(token, %{"name" => "bad-claim-team", "members" => []})
+
+      {:ok, account} = Accounts.find_or_create_account("clerk_bad_claim_#{:erlang.unique_integer([:positive])}", "bad@test.com")
+      {:ok, _} = Accounts.link_token(account.id, token, "test-machine")
+
+      assert {:error, :invalid_secret} = Teams.claim_ownership(token, "trc_ocs_wrong")
+    end
+
+    test "claim_ownership fails without linked account" do
+      token = "trc_ak_no_acct_#{:erlang.unique_integer([:positive])}"
+      {:ok, team_data} = Teams.put_team(token, %{"name" => "no-acct-team", "members" => []})
+
+      assert {:error, :no_account} = Teams.claim_ownership(token, team_data["owner_claim_secret"])
+    end
+
+    test "claim_ownership fails for non-member" do
+      creator_token = "trc_ak_creator2_#{:erlang.unique_integer([:positive])}"
+      {:ok, team_data} = Teams.put_team(creator_token, %{"name" => "non-member-team", "members" => []})
+
+      other_token = "trc_ak_other2_#{:erlang.unique_integer([:positive])}"
+      {:ok, account} = Accounts.find_or_create_account("clerk_other2_#{:erlang.unique_integer([:positive])}", "other2@test.com")
+      {:ok, _} = Accounts.link_token(account.id, other_token, "other-machine")
+
+      assert {:error, :not_member} = Teams.claim_ownership(other_token, team_data["owner_claim_secret"])
+    end
+
+    test "double claim fails" do
+      token = "trc_ak_dbl_claim_#{:erlang.unique_integer([:positive])}"
+      {:ok, team_data} = Teams.put_team(token, %{"name" => "dbl-claim-team", "members" => []})
+      claim_secret = team_data["owner_claim_secret"]
+
+      {:ok, account} = Accounts.find_or_create_account("clerk_dbl_#{:erlang.unique_integer([:positive])}", "dbl@test.com")
+      {:ok, _} = Accounts.link_token(account.id, token, "test-machine")
+
+      assert {:ok, :claimed} = Teams.claim_ownership(token, claim_secret)
+      # Second claim with same secret should fail (secret was cleared)
+      assert {:error, :invalid_secret} = Teams.claim_ownership(token, claim_secret)
     end
   end
 

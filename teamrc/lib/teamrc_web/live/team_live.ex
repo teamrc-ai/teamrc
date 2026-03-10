@@ -36,7 +36,10 @@ defmodule TeamrcWeb.TeamLive do
 
     team = build_team_payload(template.team_name, members, template.skills, template.default_platforms)
 
-    case Teams.create_team_with_invite(team) do
+    # If the Clerk user is authenticated, set them as owner immediately
+    opts = resolve_owner_opts(socket.assigns[:clerk_user_id], socket.assigns[:clerk_email])
+
+    case Teams.create_team_with_invite(team, opts) do
       {:ok, invite_code, team_id} ->
         {:noreply, socket |> put_flash(:invite_code, invite_code) |> redirect(to: "/teams/#{team_id}")}
 
@@ -75,6 +78,16 @@ defmodule TeamrcWeb.TeamLive do
         end),
       skills: skills_clean
     }
+  end
+
+  defp resolve_owner_opts(nil, _email), do: []
+  defp resolve_owner_opts(_clerk_user_id, nil), do: []
+
+  defp resolve_owner_opts(clerk_user_id, clerk_email) do
+    case Teamrc.Accounts.find_or_create_account(clerk_user_id, clerk_email) do
+      {:ok, account} -> [owner_account_id: account.id]
+      _ -> []
+    end
   end
 
   defp put_if(map, nil, _key), do: map

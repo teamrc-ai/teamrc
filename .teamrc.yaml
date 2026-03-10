@@ -1,5 +1,5 @@
 name: product-team
-teamId: f9713f27-49d1-4cd6-97cb-be79c934d7a5
+teamId: 6389c685-7121-4c15-957e-03a9b54f0ba2
 relay: http://localhost:4000
 platforms:
   - claude-code

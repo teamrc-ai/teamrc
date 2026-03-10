@@ -11,6 +11,8 @@ defmodule Teamrc.Schema.Team do
     field :knowledge, :string
     field :visibility, :string, default: "private"
     field :clone_token, :string
+    field :owner_account_id, :binary_id
+    field :owner_claim_secret, :string
     has_many :members, Teamrc.Schema.Member
     has_many :invites, Teamrc.Schema.Invite
 
@@ -21,7 +23,7 @@ defmodule Teamrc.Schema.Team do
 
   def changeset(team, attrs) do
     team
-    |> cast(attrs, [:name, :skills, :platforms, :knowledge, :visibility, :clone_token])
+    |> cast(attrs, [:name, :skills, :platforms, :knowledge, :visibility, :clone_token, :owner_account_id, :owner_claim_secret])
     |> validate_required([:name])
     |> validate_length(:name, max: 64)
     |> validate_length(:knowledge, max: 100_000)

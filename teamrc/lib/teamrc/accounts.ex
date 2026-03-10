@@ -18,25 +18,28 @@ defmodule Teamrc.Accounts do
   def link_token(account_id, token, machine_name) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    case Repo.get_by(AccountToken, token: token) do
-      nil ->
-        %AccountToken{}
-        |> AccountToken.changeset(%{
-          account_id: account_id,
-          token: token,
-          machine_name: machine_name,
-          last_seen_at: now
-        })
-        |> Repo.insert()
+    result =
+      case Repo.get_by(AccountToken, token: token) do
+        nil ->
+          %AccountToken{}
+          |> AccountToken.changeset(%{
+            account_id: account_id,
+            token: token,
+            machine_name: machine_name,
+            last_seen_at: now
+          })
+          |> Repo.insert()
 
-      existing ->
-        existing
-        |> AccountToken.changeset(%{
-          machine_name: machine_name || existing.machine_name,
-          last_seen_at: now
-        })
-        |> Repo.update()
-    end
+        existing ->
+          existing
+          |> AccountToken.changeset(%{
+            machine_name: machine_name || existing.machine_name,
+            last_seen_at: now
+          })
+          |> Repo.update()
+      end
+
+    result
   end
 
   def get_account_with_tokens(clerk_user_id) do
@@ -255,6 +258,22 @@ defmodule Teamrc.Accounts do
             }
           end)
         }}
+    end
+  end
+
+  @doc "Check if a token belongs to the team's owner account."
+  def is_team_owner?(token, team_id) do
+    case Repo.get_by(AccountToken, token: token) do
+      nil -> false
+      %{revoked_at: revoked} when not is_nil(revoked) -> false
+      %{account_id: account_id} ->
+        from(t in Teamrc.Schema.Team,
+          where: t.id == ^team_id and t.owner_account_id == ^account_id,
+          select: t.id,
+          limit: 1
+        )
+        |> Repo.one()
+        |> is_binary()
     end
   end
 

@@ -24,6 +24,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                team_id: team_id,
                access_level: :private_gate,
                can_edit: false,
+               is_owner: false,
                team: nil,
                clone_token: nil,
                participants: [],
@@ -40,7 +41,8 @@ defmodule TeamrcWeb.TeamDetailLive do
                team_id: team_id,
                team: data.team,
                access_level: data.access_level,
-               can_edit: data.access_level == :owner,
+               can_edit: data.access_level in [:owner, :participant],
+               is_owner: data.access_level == :owner,
                clone_token: data.clone_token,
                participants: data.participants,
                invites: data.invites,
@@ -141,6 +143,7 @@ defmodule TeamrcWeb.TeamDetailLive do
           page_title: team.name,
           access_level: :viewer,
           can_edit: true,
+          is_owner: false,
           clone_token: nil,
           participants: [],
           invites: [],
@@ -167,10 +170,12 @@ defmodule TeamrcWeb.TeamDetailLive do
       team ->
         clerk_user_id = assigns[:clerk_user_id]
         is_participant = Accounts.is_team_participant?(clerk_user_id, team.id)
+        account = if clerk_user_id, do: Accounts.get_account_with_tokens(clerk_user_id)
 
         access_level =
           cond do
-            is_participant -> :owner
+            is_participant && account && account.id == team.owner_account_id -> :owner
+            is_participant -> :participant
             team.visibility == "public" -> :viewer
             true -> :private_gate
           end
@@ -636,6 +641,9 @@ defmodule TeamrcWeb.TeamDetailLive do
                clone_token: clone_token
              )}
 
+          {:error, :not_owner} ->
+            {:noreply, put_flash(socket, :error, "Only the team owner can change visibility.")}
+
           {:error, _} ->
             {:noreply, put_flash(socket, :error, "Failed to update visibility.")}
         end
@@ -652,7 +660,10 @@ defmodule TeamrcWeb.TeamDetailLive do
     account = Accounts.get_account_with_tokens(clerk_user_id)
 
     if account do
-      tokens = Enum.map(account.account_tokens, & &1.token)
+      tokens =
+        account.account_tokens
+        |> Enum.reject(& &1.revoked_at)
+        |> Enum.map(& &1.token)
 
       from(tt in TokenTeam,
         where: tt.team_id == ^team_id and tt.token in ^tokens,
@@ -813,7 +824,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               {@team.visibility}
             </span>
             <button
-              :if={@can_edit}
+              :if={@is_owner}
               phx-click="toggle_visibility"
               class="trc-focus rounded px-1.5 py-0.5 text-[10px] font-medium text-base-content/50 hover:text-base-content/60 hover:bg-base-200/60 transition-colors"
             >

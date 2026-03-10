@@ -93,6 +93,52 @@ defmodule TeamrcWeb.ApiController do
     end
   end
 
+  def set_visibility(conn, %{"visibility" => visibility} = params) do
+    token = conn.assigns[:verified_token]
+    team_id = params["team_id"]
+
+    case Teams.set_visibility(token, team_id, visibility) do
+      {:ok, team} ->
+        json(conn, %{
+          visibility: team.visibility,
+          clone_token: team.clone_token
+        })
+
+      {:error, :not_authorized} ->
+        conn |> put_status(:forbidden) |> json(%{error: "not a team member"})
+
+      {:error, :not_owner} ->
+        conn |> put_status(:forbidden) |> json(%{error: "only the team owner can change visibility. Link your account with `teamrc login`."})
+
+      {:error, :not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "not_found"})
+
+      {:error, :invalid_visibility} ->
+        conn |> put_status(:bad_request) |> json(%{error: "visibility must be 'public' or 'private'"})
+    end
+  end
+
+  def claim_ownership(conn, %{"claim_secret" => claim_secret}) do
+    token = conn.assigns[:verified_token]
+
+    case Teams.claim_ownership(token, claim_secret) do
+      {:ok, :claimed} ->
+        json(conn, %{status: "claimed"})
+
+      {:error, :invalid_secret} ->
+        conn |> put_status(:not_found) |> json(%{error: "invalid or already-claimed ownership token"})
+
+      {:error, :no_account} ->
+        conn |> put_status(:forbidden) |> json(%{error: "link your account first with `teamrc login`"})
+
+      {:error, :not_member} ->
+        conn |> put_status(:forbidden) |> json(%{error: "you must be a team member to claim ownership"})
+
+      {:error, :already_claimed} ->
+        conn |> put_status(:conflict) |> json(%{error: "team already has an owner"})
+    end
+  end
+
   def erase_token(conn, _params) do
     token = conn.assigns[:verified_token]
 

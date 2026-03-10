@@ -403,69 +403,37 @@ program
     const scope = await selectScope(opts);
     const platforms = await requirePlatforms(opts.platform, scope);
 
+    // Guard: refuse to re-init if a team already exists in this scope
+    const yamlPath = scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
+    let existingYaml;
+    try {
+      existingYaml = readTeamYaml(yamlPath);
+    } catch {
+      // Corrupt YAML is treated as not existing — init will overwrite it
+    }
+    if (existingYaml?.teamId) {
+      p.log.error(`Already initialized: "${existingYaml.name}" (${yamlPath}).`);
+      p.log.info(`To add platforms, run: teamrc apply --platform <platforms>`);
+      p.log.info(`To start over, run: teamrc delete`);
+      process.exit(1);
+    }
+
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
     const relayUrl = getRelayUrl(opts.relay);
 
-    const firstAdapter = getAdapter(platforms[0]);
+    // Select a team template
+    const template = await selectTemplate(opts.team);
+    const teamName = opts.name ?? await promptTeamName(template.id === "custom" ? "my-team" : template.teamName);
+    const team = templateToTeamDefinition(template, teamName);
 
-    // Check for existing .teamrc.yaml first (highest precedence)
-    let existingYaml;
-    try {
-      existingYaml = readTeamYaml(TEAM_YAML);
-    } catch (e) {
-      p.log.error(`Failed to parse .teamrc.yaml: ${e instanceof Error ? e.message : e}`);
-      process.exit(1);
-    }
-
-    let team: TeamDefinition;
-
-    if (existingYaml) {
-      p.log.info(`Found existing .teamrc.yaml: "${existingYaml.name}" with ${existingYaml.members.length} agent(s).`);
-      team = existingYaml;
-      if (opts.name) team.name = opts.name;
-    } else {
-      // Scan ALL platforms for existing teams
-      const platformTeams: Array<{ platform: string; team: TeamDefinition }> = [];
-      for (const pl of platforms) {
-        const adapter = getAdapter(pl);
-        const t = adapter.readTeam();
-        if (t) platformTeams.push({ platform: pl, team: t });
-      }
-
-      if (platformTeams.length > 0) {
-        let selectedTeam: TeamDefinition;
-        if (platformTeams.length === 1 || isNonInteractive()) {
-          selectedTeam = platformTeams[0].team;
-          p.log.info(`Found existing team "${selectedTeam.name}" in ${platformTeams[0].platform}.`);
-        } else {
-          const choice = await p.select({
-            message: "Found existing teams. Which one?",
-            options: platformTeams.map((pt) => ({
-              value: pt.platform,
-              label: `${pt.team.name} (${pt.platform})`,
-              hint: `${pt.team.members.length} agents`,
-            })),
-          });
-          handleCancel(choice);
-          selectedTeam = platformTeams.find((pt) => pt.platform === choice)!.team;
-        }
-        team = selectedTeam;
-        if (opts.name) team.name = opts.name;
-      } else {
-        // No existing team — select a template
-        const template = await selectTemplate(opts.team);
-        const teamName = opts.name ?? await promptTeamName(template.id === "custom" ? "my-team" : template.teamName);
-        team = templateToTeamDefinition(template, teamName);
-
-        if (template.id !== "custom") {
-          const memberNames = template.members.map((m) => m.name).join(", ");
-          p.log.info(`${template.members.length} agents: ${memberNames}`);
-        }
-      }
+    if (template.id !== "custom") {
+      const memberNames = template.members.map((m) => m.name).join(", ");
+      p.log.info(`${template.members.length} agents: ${memberNames}`);
     }
 
     // Apply to each platform's native format
+    const firstAdapter = getAdapter(platforms[0]);
     const platformSummary: string[] = [];
     for (const pl of platforms) {
       const adapter = getAdapter(pl);
@@ -509,18 +477,48 @@ program
         saveConfig({ relay: relayUrl, token });
       }
 
-      // Offer account linking
-      if (!isNonInteractive()) {
-        const shouldLink = await p.confirm({
-          message: "Link your account? (optional, for recovery & dashboard)",
-          initialValue: false,
-        });
-        handleCancel(shouldLink);
-        if (shouldLink) {
-          const machineName = os.hostname();
-          await deviceAuthFlow(client, machineName, relayUrl);
-        } else {
-          p.log.info("Tip: Run `teamrc login` anytime to link your account.");
+      // Show ownership token and offer to claim now
+      if (relayTeam.owner_claim_secret) {
+        p.note(
+          `${relayTeam.owner_claim_secret}\n\nThe owner can make this team publicly cloneable\nwith \`teamrc share\`.`,
+          "Ownership token — save this somewhere safe",
+        );
+
+        if (!isNonInteractive()) {
+          const shouldClaim = await p.confirm({
+            message: "Claim ownership now? (links your account)",
+            initialValue: false,
+          });
+          handleCancel(shouldClaim);
+          if (shouldClaim) {
+            const machineName = os.hostname();
+            const success = await deviceAuthFlow(client, machineName, relayUrl);
+            if (success) {
+              try {
+                await client.claimOwnership(relayTeam.owner_claim_secret);
+                p.log.step("Ownership claimed.");
+              } catch {
+                p.log.warn("Account linked, but ownership claim failed. Run `teamrc claim <token>` later.");
+              }
+            }
+          } else {
+            p.log.info("Run `teamrc claim <token>` anytime to claim ownership.");
+          }
+        }
+      } else {
+        // Fallback: offer account linking without ownership
+        if (!isNonInteractive()) {
+          const shouldLink = await p.confirm({
+            message: "Link your account? (optional, for recovery & dashboard)",
+            initialValue: false,
+          });
+          handleCancel(shouldLink);
+          if (shouldLink) {
+            const machineName = os.hostname();
+            await deviceAuthFlow(client, machineName, relayUrl);
+          } else {
+            p.log.info("Tip: Run `teamrc login` anytime to link your account.");
+          }
         }
       }
 
@@ -1389,6 +1387,82 @@ program
       p.outro("Share this command with your teammates. For your own browser session, use `teamrc dashboard`.");
     } catch (err) {
       s.error("Failed to create invite.");
+      p.log.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+// --- share ---
+program
+  .command("share")
+  .description("Make your team publicly cloneable (requires linked account)")
+  .option("--off", "Make team private (disable cloning)")
+  .action(async (opts: { off?: boolean }) => {
+    p.intro("teamrc");
+
+    const config = loadConfig();
+    if (!config?.account?.email) {
+      p.log.error("teamrc share requires a linked account. Run `teamrc login` first.");
+      process.exit(1);
+    }
+
+    const ctx = requireTeamContext();
+    const { client } = ctx;
+    const visibility = opts.off ? "private" : "public";
+
+    const s = p.spinner();
+    try {
+      s.start(opts.off ? "Making team private..." : "Making team public...");
+      const result = await client.setVisibility(visibility);
+      s.stop(opts.off ? "Team is now private." : "Team is now public.");
+
+      if (result.clone_token) {
+        p.note(
+          `npx teamrc clone ${result.clone_token}\n\nAnyone with this command can clone your team definition.\nNo invite needed — read-only, no sync.`,
+          "Clone command",
+        );
+      }
+
+      p.outro(opts.off ? "Cloning disabled." : "Share the clone command above. Use `teamrc share --off` to disable.");
+    } catch (err) {
+      s.error("Failed to update visibility.");
+      p.log.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+// --- claim ---
+program
+  .command("claim")
+  .description("Claim ownership of a team using its ownership token")
+  .argument("<secret>", "Ownership token (trc_ocs_...)")
+  .action(async (secret: string) => {
+    p.intro("teamrc");
+
+    if (!secret.startsWith("trc_ocs_")) {
+      p.log.error("Invalid ownership token. Expected format: trc_ocs_...");
+      process.exit(1);
+    }
+
+    const config = loadConfig();
+    if (!config?.account?.email) {
+      p.log.error("You must link your account first. Run `teamrc login`.");
+      process.exit(1);
+    }
+
+    const ctx = requireTeamContext();
+    const { client } = ctx;
+
+    const s = p.spinner();
+    try {
+      s.start("Claiming ownership...");
+      await client.claimOwnership(secret);
+      s.stop("Ownership claimed.");
+
+      p.log.info(`You are now the owner of "${ctx.team.name}".`);
+      p.outro("Use `teamrc share` to make this team publicly cloneable.");
+    } catch (err) {
+      s.error("Failed to claim ownership.");
       p.log.error((err as Error).message);
       process.exit(1);
     }
