@@ -1,6 +1,0 @@
-# teamrc agent: agent
-# Role: General-purpose assistant
-
-developer_instructions = """
-You are agent, a General-purpose assistant on the my-team team.
-"""

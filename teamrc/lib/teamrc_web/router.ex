@@ -44,6 +44,11 @@ defmodule TeamrcWeb.Router do
     plug TeamrcWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
   end
 
+  # Health check — no auth, no SSL redirect, no pipelines
+  scope "/", TeamrcWeb do
+    get "/health", PageController, :health
+  end
+
   scope "/", TeamrcWeb do
     pipe_through :browser
 
@@ -95,6 +100,7 @@ defmodule TeamrcWeb.Router do
     post "/teams", ApiController, :create_team
     post "/teams/preview", ApiController, :preview_team
     post "/teams/invite", ApiController, :create_invite
+    delete "/token/erase", ApiController, :erase_token
     get "/teams/all/:token", ApiController, :get_teams
     get "/teams/:token", ApiController, :get_team
   end

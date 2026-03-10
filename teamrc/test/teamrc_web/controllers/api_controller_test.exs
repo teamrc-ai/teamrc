@@ -111,4 +111,98 @@ defmodule TeamrcWeb.ApiControllerTest do
       assert resp["error"] == "not a team member"
     end
   end
+
+  describe "DELETE /api/token/erase" do
+    test "erases all token_teams for the requesting token", %{conn: conn} do
+      token = "trc_ak_erase_#{:erlang.unique_integer([:positive])}"
+
+      # Create two teams associated with this token
+      {:ok, _team1} = Teamrc.Teams.put_team(token, %{"name" => "Erase Team 1", "members" => []})
+      {:ok, _team2} = Teamrc.Teams.put_team(token, %{"name" => "Erase Team 2", "members" => []}, nil)
+
+      # Verify the token has team associations
+      {:ok, teams_before} = Teamrc.Teams.get_teams(token)
+      assert length(teams_before) >= 1
+
+      # Call the erasure endpoint
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> delete("/api/token/erase?token=#{token}")
+
+      resp = json_response(conn, 200)
+      assert resp["status"] == "erased"
+      assert resp["teams_removed"] >= 1
+
+      # Verify all token_teams rows are gone
+      assert Teamrc.Teams.get_teams(token) == :error
+    end
+
+    test "erasure only affects the requesting token, not other tokens", %{conn: conn} do
+      token_a = "trc_ak_erase_a_#{:erlang.unique_integer([:positive])}"
+      token_b = "trc_ak_erase_b_#{:erlang.unique_integer([:positive])}"
+
+      # Create a team and have both tokens join it
+      {:ok, _team} = Teamrc.Teams.put_team(token_a, %{"name" => "Shared Team", "members" => []})
+      {:ok, team_data} = Teamrc.Teams.get_team(token_a)
+      team_id = team_data["id"]
+
+      # Have token_b join the same team via invite
+      {:ok, invite_code, _expires} = Teamrc.Teams.create_invite(token_a, 24, team_id)
+      {:ok, _} = Teamrc.Teams.join_by_invite(invite_code, token_b)
+
+      # Verify both tokens can see the team
+      assert {:ok, _} = Teamrc.Teams.get_team(token_a)
+      assert {:ok, _} = Teamrc.Teams.get_team(token_b)
+
+      # Erase token_a
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> delete("/api/token/erase?token=#{token_a}")
+
+      resp = json_response(conn, 200)
+      assert resp["status"] == "erased"
+      assert resp["teams_removed"] >= 1
+
+      # token_a should have no teams
+      assert Teamrc.Teams.get_teams(token_a) == :error
+
+      # token_b should still have access to the team
+      assert {:ok, _} = Teamrc.Teams.get_team(token_b)
+    end
+
+    test "returns success even with no teams to erase", %{conn: conn} do
+      token = "trc_ak_erase_empty_#{:erlang.unique_integer([:positive])}"
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> delete("/api/token/erase?token=#{token}")
+
+      resp = json_response(conn, 200)
+      assert resp["status"] == "erased"
+      assert resp["teams_removed"] == 0
+    end
+  end
+
+  describe "DELETE /api/token/erase (auth required)" do
+    setup do
+      # Disable skip_auth to test that signature verification is required
+      original = Application.get_env(:teamrc, :skip_auth, false)
+      Application.put_env(:teamrc, :skip_auth, false)
+      on_exit(fn -> Application.put_env(:teamrc, :skip_auth, original) end)
+      :ok
+    end
+
+    test "rejects requests without a valid signature", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> delete("/api/token/erase?token=trc_ak_nosig")
+
+      resp = json_response(conn, 401)
+      assert resp["error"] == "unauthorized"
+    end
+  end
 end

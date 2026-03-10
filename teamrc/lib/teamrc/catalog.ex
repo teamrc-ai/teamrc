@@ -22,17 +22,28 @@ defmodule Teamrc.Catalog do
 
   @doc "Load a team template's raw metadata (without resolving agent/skill refs)."
   def load_team_raw(id) do
+    validate_id!(id)
     read_yaml!(Path.join(@templates_dir, "teams/#{id}.yaml"))
   end
 
   @doc "Load an agent definition from the catalog."
   def load_agent(name) do
+    validate_id!(name)
     read_yaml!(Path.join(@templates_dir, "agents/#{name}.yaml"))
   end
 
   @doc "Load a skill definition from the catalog."
   def load_skill(id) do
+    validate_id!(id)
     read_yaml!(Path.join(@templates_dir, "skills/#{id}.yaml"))
+  end
+
+  defp validate_id!(id) do
+    unless Regex.match?(~r/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/, id) do
+      raise ArgumentError, "invalid template id: #{inspect(id)}"
+    end
+
+    id
   end
 
   @doc "List agent categories with their agent lists. Auto-discovers new agents."

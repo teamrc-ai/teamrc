@@ -93,6 +93,14 @@ defmodule TeamrcWeb.ApiController do
     end
   end
 
+  def erase_token(conn, _params) do
+    token = conn.assigns[:verified_token]
+
+    {:ok, count} = Teams.erase_token(token)
+
+    json(conn, %{status: "erased", teams_removed: count})
+  end
+
   # --- Input Validation ---
 
   defp validate_team(team) do
@@ -106,7 +114,10 @@ defmodule TeamrcWeb.ApiController do
 
   defp validate_team_name(nil), do: :ok
   defp validate_team_name(name) when is_binary(name) do
+    name = String.trim(name)
     cond do
+      name == "" ->
+        {:error, "team name must not be empty"}
       byte_size(name) > @max_team_name_length ->
         {:error, "team name must be #{@max_team_name_length} characters or fewer"}
       not Regex.match?(~r/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/, name) ->
@@ -119,7 +130,7 @@ defmodule TeamrcWeb.ApiController do
 
   defp validate_members(nil), do: :ok
   defp validate_members(members) when is_list(members) do
-    if length(members) >= @max_members do
+    if length(members) > @max_members do
       {:error, "team may have at most #{@max_members} members"}
     else
       :ok
@@ -181,7 +192,9 @@ defmodule TeamrcWeb.ApiController do
         |> put_if_present("soul", m["soul"])
       end)
 
-    %{"name" => team["name"], "members" => members}
+    trimmed_name = if is_binary(team["name"]), do: String.trim(team["name"]), else: team["name"]
+
+    %{"name" => trimmed_name, "members" => members}
     |> put_if_present("skills", team["skills"])
     |> put_if_present("knowledge", team["knowledge"])
     |> put_if_present("platforms", team["platforms"])

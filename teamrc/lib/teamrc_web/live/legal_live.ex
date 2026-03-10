@@ -71,7 +71,7 @@ defmodule TeamrcWeb.LegalLive do
     <div class="space-y-8">
       <div class="space-y-2">
         <h1 class="text-2xl font-bold tracking-tight">Terms of Service</h1>
-        <p class="text-sm text-base-content/50">Last updated: March 9, 2026</p>
+        <p class="text-sm text-base-content/50">Last updated: March 10, 2026</p>
       </div>
 
       <div class="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
@@ -89,9 +89,9 @@ defmodule TeamrcWeb.LegalLive do
             />
           </svg>
           <div class="space-y-1">
-            <p class="text-sm font-semibold text-amber-500">Experimental Software</p>
+            <p class="text-sm font-semibold text-amber-500">Pre-Release Software</p>
             <p class="text-sm text-base-content/70">
-              teamrc is experimental software in active development. Features may change, break, or be removed without notice. Data loss is possible. Do not rely on teamrc for production-critical workflows.
+              teamrc is pre-release software in active development. Features may change, break, or be removed without notice. Data loss is possible. Do not rely on teamrc for production-critical workflows.
             </p>
           </div>
         </div>
@@ -99,7 +99,7 @@ defmodule TeamrcWeb.LegalLive do
 
       <.legal_section title="1. Acceptance of Terms">
         <p>
-          By accessing or using teamrc ("the Service"), you agree to be bound by these Terms of Service. If you do not agree, do not use the Service.
+          By accessing or using teamrc ("the Service"), you agree to be bound by these Terms of Service. If you do not agree, do not use the Service. You must be at least 18 years old to use this Service.
         </p>
       </.legal_section>
 
@@ -109,8 +109,8 @@ defmodule TeamrcWeb.LegalLive do
         </p>
       </.legal_section>
 
-      <.legal_section title="3. Experimental Status">
-        <p>The Service is provided on an experimental, as-is basis. You acknowledge that:</p>
+      <.legal_section title="3. Pre-Release Status">
+        <p>The Service is provided on a pre-release, as-is basis. You acknowledge that:</p>
         <ul>
           <li>The Service is under active development and may contain bugs</li>
           <li>Features, APIs, and data formats may change without notice</li>
@@ -129,36 +129,58 @@ defmodule TeamrcWeb.LegalLive do
           <li>Keep your authentication tokens secure</li>
           <li>Maintain your own backups of team configurations</li>
         </ul>
-      </.legal_section>
-
-      <.legal_section title="5. Intellectual Property">
         <p>
-          Team configurations, agent definitions, and skills you create remain yours. The teamrc software is open-source and licensed under its respective license. Template catalog content provided by teamrc is available for use under the same license.
+          By joining a team via invite code, you grant other team members the ability to push agent configuration changes to your machines via the sync mechanism. You are responsible for reviewing synced configurations.
         </p>
       </.legal_section>
 
-      <.legal_section title="6. Limitation of Liability">
+      <.legal_section title="5. Acceptable Use">
+        <p>You may not use teamrc to:</p>
+        <ul>
+          <li>Distribute configurations that violate third-party AI platform terms of service</li>
+          <li>Process regulated data (healthcare, financial) without appropriate safeguards</li>
+          <li>Configure agents for unauthorized access to systems</li>
+          <li>Facilitate illegal activity</li>
+        </ul>
+      </.legal_section>
+
+      <.legal_section title="6. Intellectual Property">
         <p>
-          To the maximum extent permitted by law, teamrc and its maintainers shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of data, loss of profits, or service interruption, arising from your use of the Service.
-        </p>
-        <p>
-          The Service is provided "as is" and "as available" without warranties of any kind, express or implied.
+          The teamrc software is available under the MIT License. Team configurations you create remain yours. Template catalog content provided by teamrc is available for use under the same license.
         </p>
       </.legal_section>
 
-      <.legal_section title="7. Termination">
+      <.legal_section title="7. Limitation of Liability">
+        <p>
+          The Service is provided "as is" and "as available" without warranties of any kind, express or implied. To the maximum extent permitted by law, the maintainer shall not be liable for any damages arising from your use of the Service. This is free software. Use at your own risk.
+        </p>
+      </.legal_section>
+
+      <.legal_section title="8. AI Disclaimer">
+        <p>
+          teamrc is a configuration management tool. It does not use AI itself. We do not control the behavior of AI assistants configured using teamrc, and we are not responsible for actions taken by AI agents operating under configurations synced via teamrc. Team configurations, including agent instructions and skill content, directly influence AI behavior. You are solely responsible for reviewing all team configurations before deployment. Template catalog content is provided as-is without warranty of fitness for any particular purpose.
+        </p>
+      </.legal_section>
+
+      <.legal_section title="9. Termination">
         <p>
           We may suspend or terminate access to the Service at any time, for any reason, without prior notice. You may stop using the Service at any time by removing the CLI and deleting your local configuration.
         </p>
       </.legal_section>
 
-      <.legal_section title="8. Changes to Terms">
+      <.legal_section title="10. Changes to Terms">
         <p>
-          We may update these Terms at any time. Continued use of the Service after changes constitutes acceptance. Material changes will be communicated through the project repository or CLI.
+          We may update these Terms at any time. Continued use of the Service after changes constitutes acceptance. Material changes to these Terms will be communicated via the project repository, CLI update notices, and email (for users with linked accounts) at least 14 days before taking effect.
         </p>
       </.legal_section>
 
-      <.legal_section title="9. Contact">
+      <.legal_section title="11. No Warranty">
+        <p>
+          This Service is provided by an individual, free of charge, with no guarantees of any kind. Use at your own risk.
+        </p>
+      </.legal_section>
+
+      <.legal_section title="12. Contact">
         <p>
           For questions about these Terms, open an issue on the <a
             href="https://github.com/teamrc-app/teamrc"
@@ -181,7 +203,7 @@ defmodule TeamrcWeb.LegalLive do
     <div class="space-y-8">
       <div class="space-y-2">
         <h1 class="text-2xl font-bold tracking-tight">Privacy Policy</h1>
-        <p class="text-sm text-base-content/50">Last updated: March 9, 2026</p>
+        <p class="text-sm text-base-content/50">Last updated: March 10, 2026</p>
       </div>
 
       <div class="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
@@ -199,9 +221,9 @@ defmodule TeamrcWeb.LegalLive do
             />
           </svg>
           <div class="space-y-1">
-            <p class="text-sm font-semibold text-amber-500">Experimental Software</p>
+            <p class="text-sm font-semibold text-amber-500">Pre-Release Software</p>
             <p class="text-sm text-base-content/70">
-              teamrc is experimental software. Our data practices may evolve as the project matures. We will update this policy accordingly.
+              teamrc is pre-release software. Our data practices may evolve as the project matures. We will update this policy accordingly.
             </p>
           </div>
         </div>
@@ -220,7 +242,11 @@ defmodule TeamrcWeb.LegalLive do
           />
           <.data_item
             label="Account Information"
-            description="If you optionally sign in via Clerk: your email address, for machine management and recovery."
+            description="If you optionally sign in via Clerk: your Clerk user ID and email address, stored alongside your machine token associations for machine management and recovery."
+          />
+          <.data_item
+            label="Machine Hostnames"
+            description="When you link a Clerk account via teamrc login, your machine hostname is stored to help you identify machines on the dashboard. This hostname may contain personal information (e.g. john-macbook). Machines that have not linked a Clerk account do not have hostnames stored."
           />
           <.data_item
             label="Invite Codes"
@@ -239,7 +265,15 @@ defmodule TeamrcWeb.LegalLive do
         </ul>
       </.legal_section>
 
-      <.legal_section title="3. How We Use Your Data">
+      <.legal_section title="3. Cookies">
+        <p>
+          We use strictly necessary cookies for authentication. When you sign in via Clerk, session cookies
+          (<code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">_teamrc_key</code>)
+          are set to maintain your authenticated session. We do not use tracking, analytics, or advertising cookies.
+        </p>
+      </.legal_section>
+
+      <.legal_section title="4. How We Use Your Data">
         <p>Data is used solely to provide the Service:</p>
         <ul>
           <li>Authenticating your CLI requests via signed tokens</li>
@@ -249,62 +283,78 @@ defmodule TeamrcWeb.LegalLive do
         </ul>
       </.legal_section>
 
-      <.legal_section title="4. Data Storage">
+      <.legal_section title="5. Data Storage and Retention">
         <p>
-          Team configurations and account data are stored on the relay server.
-          As experimental software, data retention and backup policies are not guaranteed.
+          Team configurations and account data are stored on the relay server. Data is processed and stored in the United States.
           You should maintain local backups of your team configurations
           via <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">teamrc export</code>
           or your <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">.teamrc.yaml</code> files.
         </p>
+        <p>
+          Team data is retained as long as at least one active machine token is associated with the team. Orphaned teams (with no active token associations) may be purged after 90 days. Revoked tokens are retained for audit purposes for 30 days, then permanently deleted.
+        </p>
       </.legal_section>
 
-      <.legal_section title="5. Data Sharing">
+      <.legal_section title="6. Data Sharing">
         <p>
           We do not sell, rent, or share your data with third parties. Team configurations are shared only with other members of your team who have joined via invite code or clone token.
         </p>
       </.legal_section>
 
-      <.legal_section title="6. Third-Party Services">
+      <.legal_section title="7. Third-Party Services">
         <p>The Service integrates with:</p>
         <ul>
           <li>
-            <strong>Clerk</strong> — Optional authentication provider. Subject to <a
+            <strong>Clerk</strong>: Optional authentication provider. When you link a Clerk account, your Clerk user ID and email address are copied from Clerk into our database and stored alongside your machine token associations. We also periodically verify your Clerk session by fetching public keys from Clerk's servers. Subject to <a
               href="https://clerk.com/legal/privacy"
               class="text-primary hover:underline"
               target="_blank"
               rel="noopener"
-            >Clerk's Privacy Policy</a>
+            >Clerk's Privacy Policy</a>.
           </li>
         </ul>
       </.legal_section>
 
-      <.legal_section title="7. Your Rights">
-        <p>You can:</p>
-        <ul>
-          <li>
-            Delete your local data by removing <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">~/.teamrc/</code> and
-            your <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">.teamrc.yaml</code> files
-          </li>
-          <li>Revoke machine tokens via the dashboard</li>
-          <li>Request deletion of your relay-server data by contacting us</li>
-        </ul>
+      <.legal_section title="8. Your Rights">
+        <p><strong>For Clerk-linked accounts:</strong></p>
+        <p>
+          You can delete your account and all associated data via the dashboard or
+          <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">DELETE /api/account</code>
+          endpoint. This removes your account, all machine-token associations, and team participations.
+        </p>
+        <p><strong>For machine-token-only users:</strong></p>
+        <p>
+          You can erase all server-side data associated with your machine by running
+          <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">teamrc erase</code>
+          from that machine. This sends a signed request that deletes all team participations and data associated with that machine's token. Each machine must trigger erasure independently.
+        </p>
+        <p>
+          You can also delete your local data at any time by removing
+          <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">~/.teamrc/</code> and
+          your <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">.teamrc.yaml</code> files.
+        </p>
+        <p>
+          <strong>Privacy contact:</strong> For privacy inquiries, email
+          <a href="mailto:privacy@teamrc.dev" class="text-primary hover:underline">privacy@teamrc.dev</a>.
+          Do not use public issue trackers for privacy requests.
+        </p>
       </.legal_section>
 
-      <.legal_section title="8. Changes to This Policy">
+      <.legal_section title="9. Changes to This Policy">
         <p>
           We may update this Privacy Policy as the project evolves. Changes will be reflected in the "Last updated" date above and communicated through the project repository.
         </p>
       </.legal_section>
 
-      <.legal_section title="9. Contact">
+      <.legal_section title="10. Contact">
         <p>
-          For privacy concerns, open an issue on the <a
+          For general privacy concerns, open an issue on the <a
             href="https://github.com/teamrc-app/teamrc"
             class="text-primary hover:underline"
             target="_blank"
             rel="noopener"
-          >teamrc GitHub repository</a>.
+          >teamrc GitHub repository</a>. For personal data requests, email
+          <a href="mailto:privacy@teamrc.dev" class="text-primary hover:underline">privacy@teamrc.dev</a>.
         </p>
       </.legal_section>
     </div>
@@ -338,7 +388,7 @@ defmodule TeamrcWeb.LegalLive do
       <div class="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary/40 shrink-0" />
       <div>
         <span class="font-medium text-base-content/90">{@label}</span>
-        <span class="text-base-content/50"> — {@description}</span>
+        <span class="text-base-content/50">: {@description}</span>
       </div>
     </div>
     """

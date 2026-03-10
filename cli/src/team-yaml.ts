@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { randomBytes } from "node:crypto";
 import YAML from "yaml";
 import { validateAgentName, VALID_PLATFORMS, type TeamDefinition, type TeamMember, type Skill } from "./adapters/base.js";
 import { validateRelayUrl } from "./config.js";
@@ -142,7 +143,12 @@ export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
   }
 
   const yaml = YAML.stringify(data);
-  fs.writeFileSync(filePath, yaml);
+  // Atomic write: write to temp file, then rename (atomic on POSIX)
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const tmpPath = `${filePath}.${randomBytes(4).toString("hex")}.tmp`;
+  fs.writeFileSync(tmpPath, yaml);
+  fs.renameSync(tmpPath, filePath);
 }
 
 /** Merge knowledge strings using append-only dedup by line content */
@@ -178,17 +184,22 @@ export function resolveBody(
     if (!resolved.startsWith(realBase + path.sep) && resolved !== realBase) {
       throw new Error(`Path traversal blocked: source "${body.source}" resolves outside project directory`);
     }
-    if (!fs.existsSync(resolved)) return "";
-    const realResolved = fs.realpathSync(resolved);
+    // Eliminate TOCTOU race: skip existsSync pre-check, use try/catch on realpathSync
+    let realResolved: string;
+    try {
+      realResolved = fs.realpathSync(resolved);
+    } catch {
+      return ""; // file doesn't exist
+    }
     const realBaseResolved = fs.realpathSync(realBase);
     if (!realResolved.startsWith(realBaseResolved + path.sep) && realResolved !== realBaseResolved) {
       throw new Error(`Path traversal blocked: source "${body.source}" resolves outside project directory via symlink`);
     }
-    const stat = fs.statSync(resolved);
+    const stat = fs.statSync(realResolved);
     if (stat.size > MAX_SOURCE_SIZE) {
       throw new Error(`Source file "${body.source}" exceeds maximum size of ${MAX_SOURCE_SIZE} bytes`);
     }
-    return fs.readFileSync(resolved, "utf-8");
+    return fs.readFileSync(realResolved, "utf-8");
   }
   return "";
 }

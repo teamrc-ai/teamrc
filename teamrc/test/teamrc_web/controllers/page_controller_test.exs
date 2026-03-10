@@ -15,6 +15,11 @@ defmodule TeamrcWeb.PageControllerTest do
     assert redirected_to(conn) == "/dashboard"
   end
 
+  test "GET /health returns ok", %{conn: conn} do
+    conn = get(conn, "/health")
+    assert json_response(conn, 200) == %{"status" => "ok"}
+  end
+
   test "GET /auth/sign-out clears session and redirects", %{conn: conn} do
     conn =
       conn

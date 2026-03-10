@@ -1,0 +1,44 @@
+---
+name: trc-database-constraints
+title: "Database Constraints"
+description: "Enforce data integrity through database constraints, not just application code"
+---
+
+## Constraint Requirements
+- Use NOT NULL constraints on every column that should always have a value —
+  nullable columns should be the exception, not the default. Every nullable
+  column is a potential null pointer exception in application code.
+- Use FOREIGN KEY constraints for every relationship — they prevent orphaned
+  records and enforce referential integrity even when application code has
+  bugs. Every foreign key needs a corresponding index.
+- Use UNIQUE constraints for natural keys and business identifiers — email
+  addresses, usernames, slugs, and external IDs should be unique at the
+  database level, not just validated in application code.
+- Use CHECK constraints for domain rules — valid enum values, positive
+  amounts, date ranges, and format patterns. The database is your last
+  line of defense when the application layer has bugs.
+
+## Schema Discipline
+- Include inserted_at and updated_at timestamps (as timestamptz, always UTC)
+  on every table — they are essential for debugging, auditing, and sync.
+- Use UUIDs (v4 or v7) for primary keys in systems that merge data, shard,
+  or generate IDs client-side — auto-increment IDs leak growth rate and
+  break in distributed systems.
+- Never DELETE production data without a verified WHERE clause and a tested
+  backup — an unqualified DELETE is unrecoverable. Consider soft-delete
+  with an audit trail for sensitive data.
+- Never modify production data directly — use migrations, scripts, or admin
+  tools with audit logging. Direct SQL against production is a disaster
+  waiting to happen.
+
+## Index Strategy
+- Index every foreign key column — unindexed foreign keys cause full table
+  scans on joins and cascading deletes.
+- Design composite indexes with column order matching your query patterns —
+  an index on (a, b, c) supports queries filtering on (a), (a, b), and
+  (a, b, c), but not (b, c) alone.
+- Do not over-index — every index speeds reads but slows writes and
+  consumes storage. Add indexes guided by EXPLAIN ANALYZE, not speculation.
+- Monitor index usage periodically — unused indexes are pure overhead.
+  Remove them.
+

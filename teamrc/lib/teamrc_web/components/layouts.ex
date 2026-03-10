@@ -39,9 +39,10 @@ defmodule TeamrcWeb.Layouts do
   def app(assigns) do
     ~H"""
     <header class="border-b border-base-300/60 bg-base-100/80 backdrop-blur-sm sticky top-0 z-40">
+      <a href="#main-content" class="skip-link trc-focus">Skip to content</a>
       <nav class="mx-auto max-w-3xl flex items-center justify-between px-4 sm:px-6 h-14">
         <div class="flex items-center gap-6">
-          <a href="/" class="flex items-center gap-2.5 group">
+          <a href="/" class="flex items-center gap-2.5 group" aria-label="teamrc home">
             <div class="text-primary">
               <img src={~p"/images/logo.svg"} width="24" height="24" class="text-primary" />
             </div>
@@ -51,19 +52,19 @@ defmodule TeamrcWeb.Layouts do
             <a
               :if={@clerk_email}
               href={~p"/dashboard"}
-              class="trc-focus rounded-md px-2.5 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/80 hover:bg-base-200/60 transition-colors"
+              class="trc-focus rounded-md px-2.5 py-1.5 text-xs font-medium text-base-content/60 hover:text-base-content/90 hover:bg-base-200/60 transition-colors"
             >
               Dashboard
             </a>
             <a
               href={~p"/new"}
-              class="trc-focus rounded-md px-2.5 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/80 hover:bg-base-200/60 transition-colors"
+              class="trc-focus rounded-md px-2.5 py-1.5 text-xs font-medium text-base-content/60 hover:text-base-content/90 hover:bg-base-200/60 transition-colors"
             >
               Create Team
             </a>
             <a
               href={~p"/guide"}
-              class="trc-focus rounded-md px-2.5 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/80 hover:bg-base-200/60 transition-colors"
+              class="trc-focus rounded-md px-2.5 py-1.5 text-xs font-medium text-base-content/60 hover:text-base-content/90 hover:bg-base-200/60 transition-colors"
             >
               Guide
             </a>
@@ -76,13 +77,13 @@ defmodule TeamrcWeb.Layouts do
               <div class="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-primary text-[10px] font-bold">
                 <%= String.first(@clerk_email) |> String.upcase() %>
               </div>
-              <span class="text-xs text-base-content/60 font-mono hidden sm:inline max-w-[140px] truncate">
+              <span class="text-xs text-base-content/70 font-mono hidden sm:inline max-w-[140px] truncate">
                 <%= @clerk_email %>
               </span>
             </div>
             <a
               href={~p"/auth/sign-out"}
-              class="trc-focus rounded-md px-2 py-1.5 text-xs font-medium text-base-content/30 hover:text-base-content/60 transition-colors"
+              class="trc-focus rounded-md px-2 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/80 transition-colors"
             >
               Sign out
             </a>
@@ -98,12 +99,11 @@ defmodule TeamrcWeb.Layouts do
             </svg>
             Sign in
           </button>
-          <.theme_toggle />
         </div>
       </nav>
     </header>
 
-    <main class="flex-1 px-6 py-12 sm:px-8 sm:py-16">
+    <main id="main-content" class="flex-1 px-6 py-12 sm:px-8 sm:py-16">
       <div class="mx-auto max-w-2xl">
         <%= if assigns[:inner_content] do %>
           {@inner_content}
@@ -115,19 +115,19 @@ defmodule TeamrcWeb.Layouts do
 
     <footer class="border-t border-base-300/40 py-6 mt-auto">
       <div class="mx-auto max-w-2xl px-6 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <p class="text-xs text-base-content/30">
-          teamrc is experimental software
+        <p class="text-xs text-base-content/50">
+          teamrc is pre-release software
         </p>
         <nav class="flex items-center gap-4">
           <a
             href={~p"/terms"}
-            class="text-xs text-base-content/30 hover:text-base-content/50 transition-colors"
+            class="text-xs text-base-content/50 hover:text-base-content/70 transition-colors"
           >
             Terms
           </a>
           <a
             href={~p"/privacy"}
-            class="text-xs text-base-content/30 hover:text-base-content/50 transition-colors"
+            class="text-xs text-base-content/50 hover:text-base-content/70 transition-colors"
           >
             Privacy
           </a>
@@ -135,7 +135,7 @@ defmodule TeamrcWeb.Layouts do
             href="https://github.com/teamrc-app/teamrc"
             target="_blank"
             rel="noopener"
-            class="text-xs text-base-content/30 hover:text-base-content/50 transition-colors"
+            class="text-xs text-base-content/50 hover:text-base-content/70 transition-colors"
           >
             GitHub
           </a>
@@ -190,40 +190,4 @@ defmodule TeamrcWeb.Layouts do
     """
   end
 
-  @doc """
-  Provides dark vs light theme toggle based on themes defined in app.css.
-
-  See <head> in root.html.heex which applies the theme before page load.
-  """
-  def theme_toggle(assigns) do
-    ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 transition-[left]" />
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="system"
-      >
-        <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="light"
-      >
-        <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="dark"
-      >
-        <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-    </div>
-    """
-  end
 end

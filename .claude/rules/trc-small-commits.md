@@ -1,0 +1,4 @@
+Keep each commit focused on a single logical change. A commit should be
+reviewable in under five minutes. If a task requires multiple steps, break
+it into a sequence of commits that each leave the codebase in a working state.
+

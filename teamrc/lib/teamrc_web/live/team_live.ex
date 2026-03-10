@@ -38,7 +38,7 @@ defmodule TeamrcWeb.TeamLive do
 
     case Teams.create_team_with_invite(team) do
       {:ok, invite_code, team_id} ->
-        {:noreply, redirect(socket, to: "/teams/#{team_id}?invite=#{invite_code}")}
+        {:noreply, socket |> put_flash(:invite_code, invite_code) |> redirect(to: "/teams/#{team_id}")}
 
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, "Failed to create team.")}
@@ -82,6 +82,11 @@ defmodule TeamrcWeb.TeamLive do
   defp put_if(map, "", _key), do: map
   defp put_if(map, value, key), do: Map.put(map, key, value)
 
+  @known_icons ~w(code server shield megaphone wrench book cloud)
+
+  defp validated_icon(icon) when icon in @known_icons, do: icon
+  defp validated_icon(_), do: "code"
+
   defp template_icon("code"),
     do: ~s(<path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />)
 
@@ -110,11 +115,11 @@ defmodule TeamrcWeb.TeamLive do
     ~H"""
     <div class="max-w-2xl mx-auto">
       <div class="mb-8">
-        <p class="text-sm font-medium text-primary/70 mb-2">One team. Every platform. Always in sync.</p>
+        <p class="text-sm font-medium text-primary/80 mb-2">One team. Every platform. Always in sync.</p>
         <h1 class="text-2xl font-bold tracking-tight mb-1">Create a team</h1>
-        <p class="text-sm text-base-content/50">
+        <p class="text-sm text-base-content/60">
           Pick a template to get started instantly.
-          <a href={~p"/guide"} class="text-primary/70 hover:text-primary transition-colors">Learn how teamrc works &rarr;</a>
+          <a href={~p"/guide"} class="text-primary/80 hover:text-primary transition-colors">Learn how teamrc works &rarr;</a>
         </p>
       </div>
 
@@ -125,29 +130,29 @@ defmodule TeamrcWeb.TeamLive do
           phx-value-template={key}
           class="trc-card trc-focus group flex items-start gap-4 rounded-lg border border-base-300 bg-base-100 p-4 text-left hover:border-primary/30 hover:shadow-sm"
         >
-          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-base-200 text-base-content/50 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-base-200 text-base-content/60 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-[18px] w-[18px]">
-              <%= raw(template_icon(@templates[key].icon)) %>
+              <%= raw(template_icon(validated_icon(@templates[key].icon))) %>
             </svg>
           </div>
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
               <span class="font-semibold text-sm"><%= @templates[key].label %></span>
-              <span :if={key != "custom"} class="text-xs text-base-content/40 font-mono">
+              <span :if={key != "custom"} class="text-xs text-base-content/60 font-mono">
                 <%= length(@templates[key].members) %> agents
               </span>
             </div>
-            <div class="text-sm text-base-content/60 mt-0.5"><%= @templates[key].description %></div>
+            <div class="text-sm text-base-content/70 mt-0.5"><%= @templates[key].description %></div>
             <div :if={key != "custom"} class="mt-2.5 flex flex-wrap gap-1.5">
               <span
                 :for={member <- @templates[key].members}
-                class="inline-flex items-center rounded bg-base-200 px-2 py-0.5 text-xs font-mono text-base-content/60"
+                class="inline-flex items-center rounded bg-base-200 px-2 py-0.5 text-xs font-mono text-base-content/70"
               >
                 <%= member.name %>
               </span>
             </div>
           </div>
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content/20 group-hover:text-primary/50 mt-1 shrink-0 transition-colors" viewBox="0 0 20 20" fill="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content/50 group-hover:text-primary/80 mt-1 shrink-0 transition-colors" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
           </svg>
         </button>

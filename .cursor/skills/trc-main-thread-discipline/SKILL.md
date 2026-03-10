@@ -1,0 +1,46 @@
+---
+name: trc-main-thread-discipline
+description: "Never block the main/UI/render thread with I/O, computation, or allocations"
+---
+
+## Main Thread Protection
+- Never perform I/O operations (network requests, file reads, database
+  queries) on the main thread — offload to background threads or async
+  tasks. A single 100ms network call on the main thread drops 6 frames
+  and creates a visible stutter.
+- Never perform expensive computation on the main thread — sorting large
+  arrays, image processing, JSON parsing of large payloads, and
+  cryptographic operations must happen on background threads with results
+  dispatched back to the main thread.
+- Use structured concurrency for offloading work — async/await with
+  MainActor (Swift), Dispatchers.Main (Kotlin), or main thread dispatch
+  (iOS/Android). Avoid manual thread management.
+- Cumulative small operations on the main thread are as dangerous as one
+  large operation — 50 one-millisecond operations in a single frame drop
+  the frame just as effectively as one 50ms operation.
+
+## Rendering Performance
+- All scrolling and animations must maintain 60fps (120fps on ProMotion/
+  high-refresh displays) — common offenders include layout calculations
+  during scroll, image decoding on the main thread, and excessive view
+  hierarchy depth.
+- Use recycling patterns for long lists — UICollectionView/UITableView on
+  iOS, RecyclerView on Android, or virtualized lists on web. Creating a
+  view per item causes memory pressure and layout lag.
+- Lazy-load images and below-the-fold content — decode images off the
+  main thread and display placeholders until ready.
+- Respect platform motion preferences — honor prefers-reduced-motion (web),
+  Reduce Motion (iOS), and Remove Animations (Android). Disable non-
+  essential animations when the user requests it.
+
+## Real-Time Audio/Graphics
+- The audio callback / render loop is sacred — no allocations, no locks,
+  no system calls, no exceptions. A single missed deadline produces an
+  audible glitch or visible frame drop.
+- Pre-allocate all resources during initialization — buffers, textures,
+  voice pools, and data structures used in the hot path must be allocated
+  before the first frame or audio callback.
+- Use lock-free data structures for communication between the main/render
+  thread and worker threads — SPSC ring buffers, lock-free queues, and
+  atomic variables. Mutexes cause priority inversion and unbounded stalls.
+

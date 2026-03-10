@@ -38,20 +38,26 @@ defmodule Teamrc.Teams do
     invite_code = generate_invite_code()
     expires_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(@invite_ttl_hours * 3600)
 
-    case create_team_in_db(team_data) do
-      {:ok, team} ->
-        case %Invite{}
-             |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team.id})
-             |> Repo.insert() do
-          {:ok, _invite} ->
-            {:ok, invite_code, team.id}
+    Repo.transaction(fn ->
+      case create_team_in_db_inner(team_data) do
+        {:ok, team} ->
+          case %Invite{}
+               |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team.id})
+               |> Repo.insert() do
+            {:ok, _invite} ->
+              {invite_code, team.id}
 
-          {:error, _changeset} ->
-            {:error, :invite_creation_failed}
-        end
+            {:error, changeset} ->
+              Repo.rollback({:invite_creation_failed, changeset})
+          end
 
-      {:error, reason} ->
-        {:error, reason}
+        {:error, reason} ->
+          Repo.rollback(reason)
+      end
+    end)
+    |> case do
+      {:ok, {invite_code, team_id}} -> {:ok, invite_code, team_id}
+      {:error, _reason} -> {:error, :creation_failed}
     end
   end
 
@@ -169,8 +175,20 @@ defmodule Teamrc.Teams do
     end
   end
 
-  @doc "Set team visibility and manage clone token. Returns {:ok, team} or {:error, reason}."
-  def set_visibility(team_id, visibility) when visibility in ["public", "private"] do
+  @doc "Set team visibility with auth check. Token must be associated with the team."
+  def set_visibility(token, team_id, visibility) when visibility in ["public", "private"] do
+    case resolve_team_id(token, team_id) do
+      nil ->
+        {:error, :not_authorized}
+
+      ^team_id ->
+        do_set_visibility(team_id, visibility)
+    end
+  end
+
+  def set_visibility(_token, _team_id, _visibility), do: {:error, :invalid_visibility}
+
+  defp do_set_visibility(team_id, visibility) do
     case Repo.get(Team, team_id) do
       nil ->
         {:error, :not_found}
@@ -190,7 +208,14 @@ defmodule Teamrc.Teams do
     end
   end
 
-  def set_visibility(_team_id, _visibility), do: {:error, :invalid_visibility}
+  @doc "Erase all token_teams rows for a given token. Returns {:ok, count} with the number of rows deleted."
+  def erase_token(token) do
+    {count, _} =
+      from(tt in TokenTeam, where: tt.token == ^token)
+      |> Repo.delete_all()
+
+    {:ok, count}
+  end
 
   # --- Private helpers ---
 
@@ -223,25 +248,29 @@ defmodule Teamrc.Teams do
 
   defp create_team_in_db(team_data) do
     Repo.transaction(fn ->
-      case %Team{}
-           |> Team.changeset(%{name: team_data.name, skills: team_data.skills, platforms: team_data.platforms, knowledge: team_data.knowledge})
-           |> Repo.insert() do
-        {:ok, team} ->
-          Enum.each(team_data.members, fn m ->
-            case %Member{team_id: team.id}
-                 |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], skills: m.skills})
-                 |> Repo.insert() do
-              {:ok, _member} -> :ok
-              {:error, changeset} -> Repo.rollback(changeset)
-            end
-          end)
-
-          Repo.preload(team, :members)
-
-        {:error, changeset} ->
-          Repo.rollback(changeset)
+      case create_team_in_db_inner(team_data) do
+        {:ok, team} -> team
+        {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  defp create_team_in_db_inner(team_data) do
+    case %Team{}
+         |> Team.changeset(%{name: team_data.name, skills: team_data.skills, platforms: team_data.platforms, knowledge: team_data.knowledge})
+         |> Repo.insert() do
+      {:ok, team} ->
+        Enum.each(team_data.members, fn m ->
+          %Member{team_id: team.id}
+          |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], skills: m.skills})
+          |> Repo.insert!()
+        end)
+
+        {:ok, Repo.preload(team, :members)}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
   end
 
   defp update_team_in_db(team_id, team_data) do

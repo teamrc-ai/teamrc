@@ -1,0 +1,43 @@
+---
+name: trc-idempotent-operations
+description: "Design operations that produce the same result whether executed once or multiple times"
+---
+
+## API Idempotency
+- Design POST endpoints with idempotency keys so retries do not create
+  duplicates — mobile clients on flaky networks will retry, load balancers
+  will retry on timeout, and users will double-click.
+- GET, PUT, and DELETE should be naturally idempotent — GET never modifies
+  state, PUT sets state to a specific value (not a delta), and DELETE of
+  a non-existent resource succeeds silently.
+- Store idempotency keys server-side with the response — when a duplicate
+  request arrives with the same key, return the stored response instead of
+  re-executing the operation.
+- Idempotency keys should expire after a reasonable window (24-72 hours) —
+  indefinite storage creates unbounded growth.
+
+## Background Job Idempotency
+- Every background job must be idempotent — the job runner will retry on
+  failure, and duplicate delivery is the norm in distributed queues.
+  Running a job twice must produce the same result as running it once.
+- Use database constraints (unique indexes, upserts) to prevent duplicate
+  records from retry — application-level checks alone are insufficient
+  due to race conditions.
+- Design for at-least-once delivery — your handler must produce the same
+  result whether it runs once or five times. Check for existing results
+  before performing side effects.
+- Never perform non-reversible side effects (sending emails, charging
+  payments, calling external APIs) without first checking whether the
+  effect has already been performed — use a processed-events table or
+  similar deduplication mechanism.
+
+## Data Pipeline Idempotency
+- Data pipeline stages should be independently re-runnable — reprocessing
+  a day's data should produce identical output whether it runs fresh or
+  overwrites a previous run.
+- Use write modes that support idempotency: UPSERT, REPLACE, or
+  DELETE-then-INSERT with matching partition keys — not blind INSERT
+  which creates duplicates on retry.
+- Include processing metadata (batch ID, run timestamp) in output records
+  to enable deduplication and lineage tracking.
+

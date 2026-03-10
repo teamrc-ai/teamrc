@@ -142,19 +142,30 @@ describe("saveConfig + loadConfig roundtrip", () => {
 });
 
 describe("getRelayUrl", () => {
+  let tmpDir: string;
+  let origHome: string | undefined;
   let origEnv: string | undefined;
 
   beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-relay-"));
+    origHome = process.env["HOME"];
+    process.env["HOME"] = tmpDir;
     origEnv = process.env["TEAMRC_RELAY"];
     delete process.env["TEAMRC_RELAY"];
   });
 
   afterEach(() => {
+    if (origHome !== undefined) {
+      process.env["HOME"] = origHome;
+    } else {
+      delete process.env["HOME"];
+    }
     if (origEnv !== undefined) {
       process.env["TEAMRC_RELAY"] = origEnv;
     } else {
       delete process.env["TEAMRC_RELAY"];
     }
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   it("returns override URL when provided", () => {
@@ -174,8 +185,8 @@ describe("getRelayUrl", () => {
     assert.equal(result, "https://override.example.com");
   });
 
-  it("defaults to http://localhost:4000", () => {
+  it("defaults to https://teamrc.ai", () => {
     const result = getRelayUrl();
-    assert.equal(result, "http://localhost:4000");
+    assert.equal(result, "https://teamrc.ai");
   });
 });

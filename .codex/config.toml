@@ -3,11 +3,32 @@
 # --- teamrc start ---
 
 [agents]
-max_threads = 1
+multi_agent = true
+max_threads = 6
 max_depth = 1
 
-[agents.trc-agent]
-description = "General-purpose assistant"
-config_file = "agents/trc-agent.toml"
+[agents.trc-product-manager]
+description = "Product manager"
+config_file = "agents/trc-product-manager.toml"
+
+[agents.trc-team-lead]
+description = "Team lead"
+config_file = "agents/trc-team-lead.toml"
+
+[agents.trc-ux-designer]
+description = "UX designer"
+config_file = "agents/trc-ux-designer.toml"
+
+[agents.trc-frontend-dev]
+description = "Frontend developer"
+config_file = "agents/trc-frontend-dev.toml"
+
+[agents.trc-backend-dev]
+description = "Backend developer"
+config_file = "agents/trc-backend-dev.toml"
+
+[agents.trc-qa-engineer]
+description = "QA engineer"
+config_file = "agents/trc-qa-engineer.toml"
 
 # --- teamrc end ---

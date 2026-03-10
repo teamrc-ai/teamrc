@@ -34,11 +34,12 @@ defmodule TeamrcWeb.GuideLive do
         <a
           :for={{id, label, path} <- @pages}
           href={path}
+          aria-current={if(@current_page == id, do: "page")}
           class={[
             "trc-focus rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
             if(@current_page == id,
               do: "bg-primary/10 text-primary",
-              else: "text-base-content/40 hover:text-base-content/70 hover:bg-base-200/60"
+              else: "text-base-content/60 hover:text-base-content/70 hover:bg-base-200/60"
             )
           ]}
         >
@@ -143,12 +144,12 @@ defmodule TeamrcWeb.GuideLive do
   defp page_toc(assigns) do
     ~H"""
     <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-3">
-      <p class="text-[10px] font-medium text-base-content/40 uppercase tracking-wider">{@title}</p>
+      <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider">{@title}</p>
       <div class="grid gap-2 sm:grid-cols-2">
         <a
           :for={{href, label} <- @items}
           href={href}
-          class="text-sm text-base-content/55 hover:text-primary transition-colors"
+          class="text-sm text-base-content/70 hover:text-primary transition-colors"
         >
           {label}
         </a>
@@ -168,7 +169,7 @@ defmodule TeamrcWeb.GuideLive do
       class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1 hover:border-primary/30 transition-colors group"
     >
       <p class="text-sm font-semibold group-hover:text-primary transition-colors">{@title}</p>
-      <p class="text-xs text-base-content/50">{@desc}</p>
+      <p class="text-xs text-base-content/60">{@desc}</p>
     </a>
     """
   end
@@ -180,9 +181,9 @@ defmodule TeamrcWeb.GuideLive do
   defp page_get_started(assigns) do
     ~H"""
     <div>
-      <p class="text-sm font-medium text-primary/70 mb-2">Start here</p>
+      <p class="text-sm font-medium text-primary/80 mb-2">Start here</p>
       <h1 class="text-2xl font-bold tracking-tight mb-1">Get Started in 2 Minutes</h1>
-      <p class="text-sm text-base-content/50">
+      <p class="text-sm text-base-content/60">
         This is the fastest path from an empty repo to a working, synced team. If you want it running
         before you care about the details, do this.
       </p>
@@ -289,9 +290,9 @@ defmodule TeamrcWeb.GuideLive do
   defp page_overview(assigns) do
     ~H"""
     <div>
-      <p class="text-sm font-medium text-primary/70 mb-2">Documentation</p>
+      <p class="text-sm font-medium text-primary/80 mb-2">Documentation</p>
       <h1 class="text-2xl font-bold tracking-tight mb-1">teamrc Guide</h1>
-      <p class="text-sm text-base-content/50">
+      <p class="text-sm text-base-content/60">
         teamrc lets you define one agent team and apply it across Claude Code, Cursor, Codex, Gemini,
         and OpenClaw. Use this page to choose the shortest path to what you need.
       </p>
@@ -330,30 +331,30 @@ defmodule TeamrcWeb.GuideLive do
       </p>
       <div class="space-y-3">
         <div class="rounded-lg border border-base-300 bg-base-100 p-4 flex items-start gap-3">
-          <span class="text-primary/60 font-mono text-sm font-bold shrink-0 w-5">1.</span>
+          <span class="text-primary/80 font-mono text-sm font-bold shrink-0 w-5">1.</span>
           <div>
             <p class="text-sm font-semibold">Team definition</p>
-            <p class="text-sm text-base-content/60 mt-0.5">
+            <p class="text-sm text-base-content/70 mt-0.5">
               The source of truth. One definition of your agents, rules, and instructions, stored on the relay
               and optionally mirrored locally as <.code_inline>.teamrc.yaml</.code_inline>.
             </p>
           </div>
         </div>
         <div class="rounded-lg border border-base-300 bg-base-100 p-4 flex items-start gap-3">
-          <span class="text-primary/60 font-mono text-sm font-bold shrink-0 w-5">2.</span>
+          <span class="text-primary/80 font-mono text-sm font-bold shrink-0 w-5">2.</span>
           <div>
             <p class="text-sm font-semibold">Platform config files</p>
-            <p class="text-sm text-base-content/60 mt-0.5">
+            <p class="text-sm text-base-content/70 mt-0.5">
               The files each platform actually reads. teamrc generates them from the team definition,
               so you do not need to hand-edit each platform separately.
             </p>
           </div>
         </div>
         <div class="rounded-lg border border-base-300 bg-base-100 p-4 flex items-start gap-3">
-          <span class="text-primary/60 font-mono text-sm font-bold shrink-0 w-5">3.</span>
+          <span class="text-primary/80 font-mono text-sm font-bold shrink-0 w-5">3.</span>
           <div>
             <p class="text-sm font-semibold">The relay</p>
-            <p class="text-sm text-base-content/60 mt-0.5">
+            <p class="text-sm text-base-content/70 mt-0.5">
               The shared coordination point. Changes go up through the CLI or web UI, and machines pull
               them back down with <.code_inline>sync</.code_inline>, <.code_inline>pull</.code_inline>,
               or the background daemon.
@@ -408,7 +409,7 @@ defmodule TeamrcWeb.GuideLive do
     ~H"""
     <div>
       <h1 class="text-2xl font-bold tracking-tight mb-1">Core Concepts</h1>
-      <p class="text-sm text-base-content/50">
+      <p class="text-sm text-base-content/60">
         teamrc has four building blocks. They're simple on their own, but understanding how they relate
         to each other is the key to getting the most out of it.
       </p>
@@ -446,28 +447,28 @@ defmodule TeamrcWeb.GuideLive do
         and won't collide with files you create manually.
       </p>
       <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-2">
-        <p class="text-[10px] font-medium text-base-content/40 uppercase tracking-wider">
+        <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider">
           A member named "frontend" generates:
         </p>
-        <div class="space-y-1.5 text-xs font-mono text-base-content/60">
+        <div class="space-y-1.5 text-xs font-mono text-base-content/70">
           <div class="flex items-center gap-3">
-            <span class="text-base-content/30 w-20 text-right shrink-0">Claude Code</span>
+            <span class="text-base-content/50 w-20 text-right shrink-0">Claude Code</span>
             <span>.claude/agents/trc-frontend.md</span>
           </div>
           <div class="flex items-center gap-3">
-            <span class="text-base-content/30 w-20 text-right shrink-0">Cursor</span>
+            <span class="text-base-content/50 w-20 text-right shrink-0">Cursor</span>
             <span>.cursor/agents/trc-frontend.md</span>
           </div>
           <div class="flex items-center gap-3">
-            <span class="text-base-content/30 w-20 text-right shrink-0">Codex</span>
+            <span class="text-base-content/50 w-20 text-right shrink-0">Codex</span>
             <span>.codex/agents/trc-frontend.toml</span>
           </div>
           <div class="flex items-center gap-3">
-            <span class="text-base-content/30 w-20 text-right shrink-0">Gemini</span>
+            <span class="text-base-content/50 w-20 text-right shrink-0">Gemini</span>
             <span>.gemini/agents/trc-frontend.md</span>
           </div>
           <div class="flex items-center gap-3">
-            <span class="text-base-content/30 w-20 text-right shrink-0">OpenClaw</span>
+            <span class="text-base-content/50 w-20 text-right shrink-0">OpenClaw</span>
             <span>.agents/agents/trc-frontend.md</span>
           </div>
         </div>
@@ -627,7 +628,7 @@ defmodule TeamrcWeb.GuideLive do
         skipping anything already present. This means knowledge can only grow.
         It never loses information during sync.
       </p>
-      <p class="text-sm text-base-content/60 text-xs">
+      <p class="text-sm text-base-content/70 text-xs">
         When syncing through the relay, knowledge is capped at 100,000 bytes to prevent runaway growth.
       </p>
     </section>
@@ -636,21 +637,21 @@ defmodule TeamrcWeb.GuideLive do
     <section id="together" class="scroll-mt-20 space-y-3">
       <.section_heading id="together" title="How they fit together" />
       <div class="rounded-lg border border-base-300 bg-base-100 p-5">
-        <div class="space-y-4 text-sm text-base-content/60">
+        <div class="space-y-4 text-sm text-base-content/70">
           <div class="flex items-start gap-3">
-            <span class="text-primary/50 font-mono text-xs shrink-0 mt-0.5 w-24 text-right">
+            <span class="text-primary/80 font-mono text-xs shrink-0 mt-0.5 w-24 text-right">
               Team
             </span>
             <span>Has members and skills. One team definition, many machines.</span>
           </div>
           <div class="flex items-start gap-3">
-            <span class="text-primary/50 font-mono text-xs shrink-0 mt-0.5 w-24 text-right">
+            <span class="text-primary/80 font-mono text-xs shrink-0 mt-0.5 w-24 text-right">
               Member
             </span>
             <span>An agent with a name, role, and instructions. Gets assigned skills.</span>
           </div>
           <div class="flex items-start gap-3">
-            <span class="text-primary/50 font-mono text-xs shrink-0 mt-0.5 w-24 text-right">
+            <span class="text-primary/80 font-mono text-xs shrink-0 mt-0.5 w-24 text-right">
               Skill
             </span>
             <span>
@@ -658,13 +659,13 @@ defmodule TeamrcWeb.GuideLive do
             </span>
           </div>
           <div class="flex items-start gap-3">
-            <span class="text-primary/50 font-mono text-xs shrink-0 mt-0.5 w-24 text-right">
+            <span class="text-primary/80 font-mono text-xs shrink-0 mt-0.5 w-24 text-right">
               Instructions
             </span>
             <span>An agent's identity. Unique to one member, not shared.</span>
           </div>
           <div class="flex items-start gap-3">
-            <span class="text-primary/50 font-mono text-xs shrink-0 mt-0.5 w-24 text-right">
+            <span class="text-primary/80 font-mono text-xs shrink-0 mt-0.5 w-24 text-right">
               Knowledge
             </span>
             <span>Shared scratchpad. Every agent reads it, any agent can append to it.</span>
@@ -683,7 +684,7 @@ defmodule TeamrcWeb.GuideLive do
     ~H"""
     <div>
       <h1 class="text-2xl font-bold tracking-tight mb-1">CLI Reference</h1>
-      <p class="text-sm text-base-content/50">
+      <p class="text-sm text-base-content/60">
         This page is reference, not the fastest onboarding path. Use it when you want exact commands,
         flags, and common workflows.
       </p>
@@ -1029,17 +1030,17 @@ defmodule TeamrcWeb.GuideLive do
     <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-2.5" id={@name}>
       <div class="flex items-baseline gap-2">
         <code class="font-mono text-sm font-bold text-primary/80">{@name}</code>
-        <span class="text-xs text-base-content/40">{@desc}</span>
+        <span class="text-xs text-base-content/60">{@desc}</span>
       </div>
       <div class="bg-base-200/50 rounded px-3 py-1.5">
         <code class="font-mono text-xs text-base-content/70">{@usage}</code>
       </div>
-      <p class="text-sm text-base-content/60 leading-relaxed">{@details}</p>
+      <p class="text-sm text-base-content/70 leading-relaxed">{@details}</p>
       <div :if={@flags != []} class="space-y-1">
-        <p class="text-[10px] font-medium text-base-content/30 uppercase tracking-wider">Options</p>
+        <p class="text-[10px] font-medium text-base-content/50 uppercase tracking-wider">Options</p>
         <div :for={{flag, desc} <- @flags} class="flex items-start gap-2 text-xs">
-          <code class="font-mono text-base-content/50 shrink-0">{flag}</code>
-          <span class="text-base-content/40">{desc}</span>
+          <code class="font-mono text-base-content/60 shrink-0">{flag}</code>
+          <span class="text-base-content/60">{desc}</span>
         </div>
       </div>
     </div>
@@ -1054,7 +1055,7 @@ defmodule TeamrcWeb.GuideLive do
     ~H"""
     <div>
       <h1 class="text-2xl font-bold tracking-tight mb-1">Platforms</h1>
-      <p class="text-sm text-base-content/50">
+      <p class="text-sm text-base-content/60">
         Every platform has its own way of doing things. Here's how teamrc handles each one.
       </p>
     </div>
@@ -1096,27 +1097,27 @@ defmodule TeamrcWeb.GuideLive do
         Supports both project and global scope.
       </p>
       <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-2">
-        <p class="text-[10px] font-medium text-base-content/40 uppercase tracking-wider">
+        <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider">
           Generated files
         </p>
-        <div class="space-y-1.5 text-xs font-mono text-base-content/60">
+        <div class="space-y-1.5 text-xs font-mono text-base-content/70">
           <div>
-            <span class="text-base-content/30">agents →</span> .claude/agents/trc-&#123;name&#125;.md
+            <span class="text-base-content/50">agents →</span> .claude/agents/trc-&#123;name&#125;.md
           </div>
           <div>
-            <span class="text-base-content/30">always-apply skills →</span>
+            <span class="text-base-content/50">always-apply skills →</span>
             .claude/rules/trc-&#123;id&#125;.md
           </div>
           <div>
-            <span class="text-base-content/30">glob skills →</span>
+            <span class="text-base-content/50">glob skills →</span>
             .claude/rules/trc-&#123;id&#125;.md
           </div>
           <div>
-            <span class="text-base-content/30">on-demand skills →</span>
+            <span class="text-base-content/50">on-demand skills →</span>
             .claude/skills/trc-&#123;id&#125;/SKILL.md
           </div>
-          <div><span class="text-base-content/30">knowledge →</span> teamrc-knowledge.md</div>
-          <div><span class="text-base-content/30">team context →</span> updated in CLAUDE.md</div>
+          <div><span class="text-base-content/50">knowledge →</span> teamrc-knowledge.md</div>
+          <div><span class="text-base-content/50">team context →</span> updated in CLAUDE.md</div>
         </div>
       </div>
       <p class="text-sm text-base-content/70 leading-relaxed">
@@ -1137,23 +1138,23 @@ defmodule TeamrcWeb.GuideLive do
         Project scope only.
       </p>
       <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-2">
-        <p class="text-[10px] font-medium text-base-content/40 uppercase tracking-wider">
+        <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider">
           Generated files
         </p>
-        <div class="space-y-1.5 text-xs font-mono text-base-content/60">
+        <div class="space-y-1.5 text-xs font-mono text-base-content/70">
           <div>
-            <span class="text-base-content/30">agents →</span> .cursor/agents/trc-&#123;name&#125;.md
+            <span class="text-base-content/50">agents →</span> .cursor/agents/trc-&#123;name&#125;.md
           </div>
           <div>
-            <span class="text-base-content/30">always-apply/glob skills →</span>
+            <span class="text-base-content/50">always-apply/glob skills →</span>
             .cursor/rules/trc-&#123;id&#125;.mdc
           </div>
           <div>
-            <span class="text-base-content/30">on-demand skills →</span>
+            <span class="text-base-content/50">on-demand skills →</span>
             .cursor/skills/trc-&#123;id&#125;/SKILL.md
           </div>
-          <div><span class="text-base-content/30">knowledge →</span> teamrc-knowledge.md</div>
-          <div><span class="text-base-content/30">routing →</span> .cursor/AGENTS.md</div>
+          <div><span class="text-base-content/50">knowledge →</span> teamrc-knowledge.md</div>
+          <div><span class="text-base-content/50">routing →</span> .cursor/AGENTS.md</div>
         </div>
       </div>
       <p class="text-sm text-base-content/70 leading-relaxed">
@@ -1173,23 +1174,23 @@ defmodule TeamrcWeb.GuideLive do
         Supports both project and global scope.
       </p>
       <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-2">
-        <p class="text-[10px] font-medium text-base-content/40 uppercase tracking-wider">
+        <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider">
           Generated files
         </p>
-        <div class="space-y-1.5 text-xs font-mono text-base-content/60">
+        <div class="space-y-1.5 text-xs font-mono text-base-content/70">
           <div>
-            <span class="text-base-content/30">agents →</span> .codex/agents/trc-&#123;name&#125;.toml
+            <span class="text-base-content/50">agents →</span> .codex/agents/trc-&#123;name&#125;.toml
           </div>
           <div>
-            <span class="text-base-content/30">team config →</span>
+            <span class="text-base-content/50">team config →</span>
             .codex/config.toml (multi-agent section)
           </div>
-          <div><span class="text-base-content/30">routing →</span> AGENTS.md</div>
+          <div><span class="text-base-content/50">routing →</span> AGENTS.md</div>
           <div>
-            <span class="text-base-content/30">on-demand skills →</span>
+            <span class="text-base-content/50">on-demand skills →</span>
             .agents/skills/trc-&#123;id&#125;/SKILL.md
           </div>
-          <div><span class="text-base-content/30">knowledge →</span> teamrc-knowledge.md</div>
+          <div><span class="text-base-content/50">knowledge →</span> teamrc-knowledge.md</div>
         </div>
       </div>
       <p class="text-sm text-base-content/70 leading-relaxed">
@@ -1208,19 +1209,19 @@ defmodule TeamrcWeb.GuideLive do
         Supports both project and global scope.
       </p>
       <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-2">
-        <p class="text-[10px] font-medium text-base-content/40 uppercase tracking-wider">
+        <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider">
           Generated files
         </p>
-        <div class="space-y-1.5 text-xs font-mono text-base-content/60">
+        <div class="space-y-1.5 text-xs font-mono text-base-content/70">
           <div>
-            <span class="text-base-content/30">agents →</span> .gemini/agents/trc-&#123;name&#125;.md
+            <span class="text-base-content/50">agents →</span> .gemini/agents/trc-&#123;name&#125;.md
           </div>
           <div>
-            <span class="text-base-content/30">skills →</span>
+            <span class="text-base-content/50">skills →</span>
             .agents/skills/trc-&#123;id&#125;/SKILL.md
           </div>
-          <div><span class="text-base-content/30">knowledge →</span> teamrc-knowledge.md</div>
-          <div><span class="text-base-content/30">team context →</span> GEMINI.md</div>
+          <div><span class="text-base-content/50">knowledge →</span> teamrc-knowledge.md</div>
+          <div><span class="text-base-content/50">team context →</span> GEMINI.md</div>
         </div>
       </div>
       <p class="text-sm text-base-content/70 leading-relaxed">
@@ -1243,19 +1244,19 @@ defmodule TeamrcWeb.GuideLive do
         Supports both project and global scope.
       </p>
       <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-2">
-        <p class="text-[10px] font-medium text-base-content/40 uppercase tracking-wider">
+        <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider">
           Generated files
         </p>
-        <div class="space-y-1.5 text-xs font-mono text-base-content/60">
+        <div class="space-y-1.5 text-xs font-mono text-base-content/70">
           <div>
-            <span class="text-base-content/30">agents →</span> .agents/agents/trc-&#123;name&#125;.md
+            <span class="text-base-content/50">agents →</span> .agents/agents/trc-&#123;name&#125;.md
           </div>
           <div>
-            <span class="text-base-content/30">skills →</span>
+            <span class="text-base-content/50">skills →</span>
             .agents/skills/trc-&#123;id&#125;/SKILL.md
           </div>
-          <div><span class="text-base-content/30">knowledge →</span> .agents/team-knowledge.md</div>
-          <div><span class="text-base-content/30">routing →</span> AGENTS.md</div>
+          <div><span class="text-base-content/50">knowledge →</span> .agents/team-knowledge.md</div>
+          <div><span class="text-base-content/50">routing →</span> AGENTS.md</div>
         </div>
       </div>
       <p class="text-sm text-base-content/70 leading-relaxed">
@@ -1281,7 +1282,7 @@ defmodule TeamrcWeb.GuideLive do
     ~H"""
     <div>
       <h1 class="text-2xl font-bold tracking-tight mb-1">Syncing</h1>
-      <p class="text-sm text-base-content/50">
+      <p class="text-sm text-base-content/60">
         This is the part that makes teamrc useful beyond a single machine. Here's how it all works.
       </p>
     </div>
@@ -1308,15 +1309,15 @@ defmodule TeamrcWeb.GuideLive do
         This keeps the sync model simple: there's always one source of truth, and you always know where it is.
       </p>
       <div class="rounded-lg border border-base-300 bg-base-100 p-4">
-        <p class="text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-3">
+        <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-3">
           Sync flow
         </p>
-        <div class="flex items-center justify-between text-xs text-base-content/60">
+        <div class="flex items-center justify-between text-xs text-base-content/70">
           <div class="text-center space-y-1">
             <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-base-200">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 text-base-content/40"
+                class="h-5 w-5 text-base-content/60"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke-width="1.5"
@@ -1333,7 +1334,7 @@ defmodule TeamrcWeb.GuideLive do
           </div>
           <div class="flex-1 flex items-center justify-center px-4">
             <div class="w-full border-t border-dashed border-base-300 relative">
-              <span class="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-base-100 px-2 text-[10px] text-base-content/30 font-mono">
+              <span class="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-base-100 px-2 text-[10px] text-base-content/50 font-mono">
                 push/pull
               </span>
             </div>
@@ -1342,7 +1343,7 @@ defmodule TeamrcWeb.GuideLive do
             <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 text-primary/60"
+                class="h-5 w-5 text-primary/80"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke-width="1.5"
@@ -1359,7 +1360,7 @@ defmodule TeamrcWeb.GuideLive do
           </div>
           <div class="flex-1 flex items-center justify-center px-4">
             <div class="w-full border-t border-dashed border-base-300 relative">
-              <span class="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-base-100 px-2 text-[10px] text-base-content/30 font-mono">
+              <span class="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-base-100 px-2 text-[10px] text-base-content/50 font-mono">
                 push/pull
               </span>
             </div>
@@ -1368,7 +1369,7 @@ defmodule TeamrcWeb.GuideLive do
             <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-base-200">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 text-base-content/40"
+                class="h-5 w-5 text-base-content/60"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke-width="1.5"
@@ -1395,10 +1396,10 @@ defmodule TeamrcWeb.GuideLive do
       </p>
       <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-3">
         <div class="flex items-start gap-3 text-sm">
-          <span class="text-primary/50 font-mono font-bold shrink-0">1</span>
+          <span class="text-primary/80 font-mono font-bold shrink-0">1</span>
           <div>
             <p class="font-semibold">Read local state</p>
-            <p class="text-base-content/60 text-xs mt-0.5">
+            <p class="text-base-content/70 text-xs mt-0.5">
               Reads
               <.code_inline>.teamrc.yaml</.code_inline>
               and the knowledge file from disk.
@@ -1406,37 +1407,37 @@ defmodule TeamrcWeb.GuideLive do
           </div>
         </div>
         <div class="flex items-start gap-3 text-sm">
-          <span class="text-primary/50 font-mono font-bold shrink-0">2</span>
+          <span class="text-primary/80 font-mono font-bold shrink-0">2</span>
           <div>
             <p class="font-semibold">Push to relay</p>
-            <p class="text-base-content/60 text-xs mt-0.5">
+            <p class="text-base-content/70 text-xs mt-0.5">
               Sends the team definition and knowledge to the relay server.
             </p>
           </div>
         </div>
         <div class="flex items-start gap-3 text-sm">
-          <span class="text-primary/50 font-mono font-bold shrink-0">3</span>
+          <span class="text-primary/80 font-mono font-bold shrink-0">3</span>
           <div>
             <p class="font-semibold">Pull from relay</p>
-            <p class="text-base-content/60 text-xs mt-0.5">
+            <p class="text-base-content/70 text-xs mt-0.5">
               Fetches the latest team state (which may include changes from other machines or the web UI).
             </p>
           </div>
         </div>
         <div class="flex items-start gap-3 text-sm">
-          <span class="text-primary/50 font-mono font-bold shrink-0">4</span>
+          <span class="text-primary/80 font-mono font-bold shrink-0">4</span>
           <div>
             <p class="font-semibold">Merge knowledge</p>
-            <p class="text-base-content/60 text-xs mt-0.5">
+            <p class="text-base-content/70 text-xs mt-0.5">
               Appends any new lines from the remote knowledge to your local copy (deduped).
             </p>
           </div>
         </div>
         <div class="flex items-start gap-3 text-sm">
-          <span class="text-primary/50 font-mono font-bold shrink-0">5</span>
+          <span class="text-primary/80 font-mono font-bold shrink-0">5</span>
           <div>
             <p class="font-semibold">Apply to platforms</p>
-            <p class="text-base-content/60 text-xs mt-0.5">
+            <p class="text-base-content/70 text-xs mt-0.5">
               Regenerates config files for all detected platforms (Claude Code, Cursor, etc.).
             </p>
           </div>
@@ -1582,7 +1583,7 @@ defmodule TeamrcWeb.GuideLive do
     ~H"""
     <div>
       <h1 class="text-2xl font-bold tracking-tight mb-1">Web UI Tour</h1>
-      <p class="text-sm text-base-content/50">
+      <p class="text-sm text-base-content/60">
         A visual walkthrough of each screen. This is a tour, not the quickest onboarding path. If you just
         want to get running, start with <a
           href="/guide/get-started"
@@ -1621,7 +1622,7 @@ defmodule TeamrcWeb.GuideLive do
       <%!-- Mockup: template picker --%>
       <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
         <div class="px-5 pt-5 pb-3 space-y-1">
-          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-[10px] font-medium text-primary/80 uppercase tracking-wider">Screen</p>
           <p class="text-sm font-bold">Template picker</p>
         </div>
         <div class="px-5 pb-5 space-y-2.5">
@@ -1646,7 +1647,7 @@ defmodule TeamrcWeb.GuideLive do
           />
         </div>
         <div class="px-5 py-3 border-t border-base-300/60 bg-base-200/20">
-          <p class="text-xs text-base-content/40">
+          <p class="text-xs text-base-content/60">
             Click a template to create the team instantly.
           </p>
         </div>
@@ -1673,13 +1674,13 @@ defmodule TeamrcWeb.GuideLive do
       <%!-- Mockup: visibility toggle --%>
       <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
         <div class="px-5 pt-5 pb-3 space-y-1">
-          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-[10px] font-medium text-primary/80 uppercase tracking-wider">Screen</p>
           <p class="text-sm font-bold">Visibility toggle</p>
         </div>
         <div class="px-5 pb-5">
           <div class="flex items-center gap-2">
             <span class="text-sm font-mono font-bold">my-team</span>
-            <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-base-200 text-base-content/40">
+            <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-base-200 text-base-content/60">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-2.5 w-2.5"
@@ -1723,14 +1724,14 @@ defmodule TeamrcWeb.GuideLive do
       <%!-- Mockup: dashboard --%>
       <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
         <div class="px-5 pt-5 pb-3 space-y-1">
-          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-[10px] font-medium text-primary/80 uppercase tracking-wider">Screen</p>
           <p class="text-sm font-bold">Team dashboard</p>
         </div>
         <div class="px-5 pb-5 space-y-5">
           <%!-- Team name --%>
           <div>
             <p class="text-lg font-bold font-mono">my-project</p>
-            <p class="text-[10px] font-mono text-base-content/30 mt-0.5">team_abc123</p>
+            <p class="text-[10px] font-mono text-base-content/50 mt-0.5">team_abc123</p>
           </div>
 
           <%!-- Join command --%>
@@ -1748,7 +1749,7 @@ defmodule TeamrcWeb.GuideLive do
           <div class="space-y-2">
             <div class="flex items-center gap-2">
               <p class="text-xs font-semibold">Members</p>
-              <span class="text-[10px] font-mono text-base-content/30 bg-base-200 rounded px-1.5 py-0.5">
+              <span class="text-[10px] font-mono text-base-content/50 bg-base-200 rounded px-1.5 py-0.5">
                 3
               </span>
             </div>
@@ -1765,7 +1766,7 @@ defmodule TeamrcWeb.GuideLive do
               />
               <.mock_member_card name="qa-engineer" role="Quality assurance" skills={[]} />
             </div>
-            <button class="w-full rounded-lg border border-dashed border-base-300 py-2 text-xs text-base-content/30 hover:text-base-content/50 hover:border-base-content/20 transition-colors">
+            <button class="w-full rounded-lg border border-dashed border-base-300 py-2 text-xs text-base-content/50 hover:text-base-content/60 hover:border-base-content/20 transition-colors">
               + Add team member
             </button>
           </div>
@@ -1774,7 +1775,7 @@ defmodule TeamrcWeb.GuideLive do
           <div class="space-y-2">
             <div class="flex items-center gap-2">
               <p class="text-xs font-semibold">Skills</p>
-              <span class="text-[10px] font-mono text-base-content/30 bg-base-200 rounded px-1.5 py-0.5">
+              <span class="text-[10px] font-mono text-base-content/50 bg-base-200 rounded px-1.5 py-0.5">
                 2
               </span>
             </div>
@@ -1785,7 +1786,7 @@ defmodule TeamrcWeb.GuideLive do
           </div>
         </div>
         <div class="px-5 py-3 border-t border-base-300/60 bg-base-200/20">
-          <p class="text-xs text-base-content/40">
+          <p class="text-xs text-base-content/60">
             Click any member card to edit their instructions and skills.
             Click a skill to edit its body.
           </p>
@@ -1804,19 +1805,19 @@ defmodule TeamrcWeb.GuideLive do
       <%!-- Mockup: agent picker --%>
       <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
         <div class="px-5 pt-5 pb-3 space-y-1">
-          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-[10px] font-medium text-primary/80 uppercase tracking-wider">Screen</p>
           <p class="text-sm font-bold">Agent catalog picker</p>
         </div>
         <div class="px-5 pb-5 space-y-3">
           <%!-- Custom option --%>
           <button class="w-full rounded-lg border border-dashed border-base-300 p-3 text-left hover:border-primary/30 transition-colors">
             <p class="text-xs font-semibold">+ Create custom agent</p>
-            <p class="text-[10px] text-base-content/40 mt-0.5">Define a new agent from scratch</p>
+            <p class="text-[10px] text-base-content/60 mt-0.5">Define a new agent from scratch</p>
           </button>
 
           <%!-- Category --%>
           <div class="space-y-1.5">
-            <p class="text-[10px] font-medium text-base-content/30 uppercase tracking-wider">
+            <p class="text-[10px] font-medium text-base-content/50 uppercase tracking-wider">
               Core Development
             </p>
             <div class="grid grid-cols-2 gap-1.5">
@@ -1827,7 +1828,7 @@ defmodule TeamrcWeb.GuideLive do
             </div>
           </div>
           <div class="space-y-1.5">
-            <p class="text-[10px] font-medium text-base-content/30 uppercase tracking-wider">
+            <p class="text-[10px] font-medium text-base-content/50 uppercase tracking-wider">
               Quality
             </p>
             <div class="grid grid-cols-2 gap-1.5">
@@ -1837,7 +1838,7 @@ defmodule TeamrcWeb.GuideLive do
           </div>
         </div>
         <div class="px-5 py-3 border-t border-base-300/60 bg-base-200/20">
-          <p class="text-xs text-base-content/40">
+          <p class="text-xs text-base-content/60">
             Picking a catalog agent pre-fills their instructions and recommended skills.
           </p>
         </div>
@@ -1851,25 +1852,25 @@ defmodule TeamrcWeb.GuideLive do
       <%!-- Mockup: member form with preview --%>
       <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
         <div class="px-5 pt-5 pb-3 space-y-1">
-          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-[10px] font-medium text-primary/80 uppercase tracking-wider">Screen</p>
           <p class="text-sm font-bold">Add member confirmation</p>
         </div>
         <div class="px-5 pb-5 space-y-3">
           <div class="flex gap-2">
             <div class="flex-1">
-              <p class="text-[10px] text-base-content/30 uppercase tracking-wider mb-1">Name</p>
+              <p class="text-[10px] text-base-content/50 uppercase tracking-wider mb-1">Name</p>
               <div class="rounded border border-base-300 bg-base-200/30 px-2.5 py-1.5 text-xs font-mono">
                 frontend-dev
               </div>
             </div>
             <div class="flex-[2]">
-              <p class="text-[10px] text-base-content/30 uppercase tracking-wider mb-1">Role</p>
+              <p class="text-[10px] text-base-content/50 uppercase tracking-wider mb-1">Role</p>
               <div class="rounded border border-base-300 bg-base-200/30 px-2.5 py-1.5 text-xs">
                 Frontend development
               </div>
             </div>
           </div>
-          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-base-content/40">
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-base-content/60">
             <span class="inline-flex items-center gap-1">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -1900,10 +1901,10 @@ defmodule TeamrcWeb.GuideLive do
               </svg>
               2 skills:
             </span>
-            <span class="inline-flex rounded bg-base-200 px-1.5 py-0.5 text-[10px] font-mono text-base-content/50">
+            <span class="inline-flex rounded bg-base-200 px-1.5 py-0.5 text-[10px] font-mono text-base-content/60">
               code-style
             </span>
-            <span class="inline-flex rounded bg-base-200 px-1.5 py-0.5 text-[10px] font-mono text-base-content/50">
+            <span class="inline-flex rounded bg-base-200 px-1.5 py-0.5 text-[10px] font-mono text-base-content/60">
               write-tests
             </span>
           </div>
@@ -1911,7 +1912,7 @@ defmodule TeamrcWeb.GuideLive do
             <div class="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-content">
               Add
             </div>
-            <div class="rounded-md px-3 py-1.5 text-xs text-base-content/40">Cancel</div>
+            <div class="rounded-md px-3 py-1.5 text-xs text-base-content/60">Cancel</div>
           </div>
         </div>
       </div>
@@ -1928,20 +1929,20 @@ defmodule TeamrcWeb.GuideLive do
       <%!-- Mockup: member detail --%>
       <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
         <div class="px-5 pt-5 pb-3 space-y-1">
-          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-[10px] font-medium text-primary/80 uppercase tracking-wider">Screen</p>
           <p class="text-sm font-bold">Member detail</p>
         </div>
         <div class="px-5 pb-5 space-y-4">
           <%!-- Name + Role --%>
           <div class="space-y-2">
             <div>
-              <p class="text-[10px] text-base-content/30 uppercase tracking-wider mb-1">Name</p>
+              <p class="text-[10px] text-base-content/50 uppercase tracking-wider mb-1">Name</p>
               <div class="rounded border border-base-300 px-2.5 py-1.5 text-sm font-mono font-bold">
                 frontend-dev
               </div>
             </div>
             <div>
-              <p class="text-[10px] text-base-content/30 uppercase tracking-wider mb-1">Role</p>
+              <p class="text-[10px] text-base-content/50 uppercase tracking-wider mb-1">Role</p>
               <div class="rounded border border-base-300 px-2.5 py-1.5 text-xs">
                 Frontend development
               </div>
@@ -1951,9 +1952,9 @@ defmodule TeamrcWeb.GuideLive do
           <%!-- Instructions --%>
           <div>
             <div class="flex items-center gap-2 mb-1">
-              <p class="text-[10px] text-base-content/30 uppercase tracking-wider">Instructions</p>
+              <p class="text-[10px] text-base-content/50 uppercase tracking-wider">Instructions</p>
             </div>
-            <div class="rounded border border-base-300 bg-base-200/20 px-3 py-2 text-[11px] font-mono text-base-content/50 leading-relaxed h-20 overflow-hidden">
+            <div class="rounded border border-base-300 bg-base-200/20 px-3 py-2 text-[11px] font-mono text-base-content/60 leading-relaxed h-20 overflow-hidden">
               ## Identity
               You are the frontend specialist...
 
@@ -1965,8 +1966,8 @@ defmodule TeamrcWeb.GuideLive do
           <%!-- Skills toggles --%>
           <div>
             <div class="flex items-center gap-2 mb-1.5">
-              <p class="text-[10px] text-base-content/30 uppercase tracking-wider">Skills</p>
-              <span class="text-[10px] font-mono text-base-content/30 bg-base-200 rounded px-1.5 py-0.5">
+              <p class="text-[10px] text-base-content/50 uppercase tracking-wider">Skills</p>
+              <span class="text-[10px] font-mono text-base-content/50 bg-base-200 rounded px-1.5 py-0.5">
                 2
               </span>
             </div>
@@ -1987,18 +1988,18 @@ defmodule TeamrcWeb.GuideLive do
                   </svg>
                 </div>
                 <span class="text-xs font-mono font-semibold">code-style</span>
-                <span class="text-[10px] text-base-content/40">Code Style Guide</span>
+                <span class="text-[10px] text-base-content/60">Code Style Guide</span>
               </div>
               <div class="rounded-lg border border-base-300 bg-base-200/30 px-3 py-2 flex items-center gap-2">
                 <div class="w-3.5 h-3.5 rounded border-2 border-base-300"></div>
-                <span class="text-xs font-mono font-semibold text-base-content/50">write-tests</span>
-                <span class="text-[10px] text-base-content/30">Testing Requirements</span>
+                <span class="text-xs font-mono font-semibold text-base-content/60">write-tests</span>
+                <span class="text-[10px] text-base-content/50">Testing Requirements</span>
               </div>
               <div class="rounded-lg border border-primary/10 bg-primary/5 px-3 py-2 flex items-center gap-2 opacity-60">
                 <div class="w-3.5 h-3.5 rounded border-2 border-primary/30 bg-primary/10 flex items-center justify-center">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    class="h-2.5 w-2.5 text-primary/50"
+                    class="h-2.5 w-2.5 text-primary/80"
                     viewBox="0 0 20 20"
                     fill="currentColor"
                   >
@@ -2009,16 +2010,16 @@ defmodule TeamrcWeb.GuideLive do
                     />
                   </svg>
                 </div>
-                <span class="text-xs font-mono font-semibold text-base-content/40">
+                <span class="text-xs font-mono font-semibold text-base-content/60">
                   security-policy
                 </span>
-                <span class="text-[10px] text-base-content/30">all agents</span>
+                <span class="text-[10px] text-base-content/50">all agents</span>
               </div>
             </div>
           </div>
         </div>
         <div class="px-5 py-3 border-t border-base-300/60 bg-base-200/20 space-y-1">
-          <p class="text-xs text-base-content/40">
+          <p class="text-xs text-base-content/60">
             Click a skill to toggle it on or off for this member.
             Skills marked "all agents" are always active and can't be toggled.
           </p>
@@ -2037,27 +2038,27 @@ defmodule TeamrcWeb.GuideLive do
       <%!-- Mockup: skill form --%>
       <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
         <div class="px-5 pt-5 pb-3 space-y-1">
-          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-[10px] font-medium text-primary/80 uppercase tracking-wider">Screen</p>
           <p class="text-sm font-bold">Skill editor</p>
         </div>
         <div class="px-5 pb-5 space-y-3">
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <p class="text-[10px] text-base-content/30 uppercase tracking-wider mb-1">ID</p>
+              <p class="text-[10px] text-base-content/50 uppercase tracking-wider mb-1">ID</p>
               <div class="rounded border border-base-300 px-2.5 py-1.5 text-xs font-mono">
                 code-review
               </div>
             </div>
             <div>
-              <p class="text-[10px] text-base-content/30 uppercase tracking-wider mb-1">Title</p>
+              <p class="text-[10px] text-base-content/50 uppercase tracking-wider mb-1">Title</p>
               <div class="rounded border border-base-300 px-2.5 py-1.5 text-xs">
                 Code Review Guidelines
               </div>
             </div>
           </div>
           <div>
-            <p class="text-[10px] text-base-content/30 uppercase tracking-wider mb-1">Body</p>
-            <div class="rounded border border-base-300 bg-base-200/20 px-3 py-2 text-[11px] font-mono text-base-content/50 leading-relaxed h-16 overflow-hidden">
+            <p class="text-[10px] text-base-content/50 uppercase tracking-wider mb-1">Body</p>
+            <div class="rounded border border-base-300 bg-base-200/20 px-3 py-2 text-[11px] font-mono text-base-content/60 leading-relaxed h-16 overflow-hidden">
               Review all code changes for:
               - Correctness and edge cases
               - Security vulnerabilities
@@ -2069,17 +2070,17 @@ defmodule TeamrcWeb.GuideLive do
               <div class="w-3.5 h-3.5 rounded-full bg-base-content/30 absolute top-0.5 left-0.5">
               </div>
             </div>
-            <span class="text-base-content/50">Apply to all agents</span>
+            <span class="text-base-content/60">Apply to all agents</span>
           </div>
           <div class="flex items-center gap-2">
             <div class="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-content">
               Add skill
             </div>
-            <div class="rounded-md px-3 py-1.5 text-xs text-base-content/40">Cancel</div>
+            <div class="rounded-md px-3 py-1.5 text-xs text-base-content/60">Cancel</div>
           </div>
         </div>
         <div class="px-5 py-3 border-t border-base-300/60 bg-base-200/20">
-          <p class="text-xs text-base-content/40">
+          <p class="text-xs text-base-content/60">
             The body is markdown. Write whatever instructions you want the agent to follow.
             Enable "Apply to all agents" for team-wide rules.
           </p>
@@ -2108,7 +2109,7 @@ defmodule TeamrcWeb.GuideLive do
       <%!-- Mockup: invite section --%>
       <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
         <div class="px-5 pt-5 pb-3 space-y-1">
-          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-[10px] font-medium text-primary/80 uppercase tracking-wider">Screen</p>
           <p class="text-sm font-bold">Invites section</p>
         </div>
         <div class="px-5 pb-5 space-y-3">
@@ -2123,9 +2124,9 @@ defmodule TeamrcWeb.GuideLive do
                 <span class="text-[10px] font-mono text-white/30">copy</span>
               </div>
             </div>
-            <p class="text-[10px] text-base-content/40">Expires in 24 hours</p>
+            <p class="text-[10px] text-base-content/60">Expires in 24 hours</p>
           </div>
-          <p class="text-xs text-base-content/50 leading-relaxed">
+          <p class="text-xs text-base-content/60 leading-relaxed">
             To open this team in a browser, visit:
             <.code_inline>/invite/trc_inv_x7y8z9</.code_inline>
           </p>
@@ -2147,7 +2148,7 @@ defmodule TeamrcWeb.GuideLive do
       <%!-- Mockup: clone token section --%>
       <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
         <div class="px-5 pt-5 pb-3 space-y-1">
-          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-[10px] font-medium text-primary/80 uppercase tracking-wider">Screen</p>
           <p class="text-sm font-bold">Clone token (public teams only)</p>
         </div>
         <div class="px-5 pb-5 space-y-3">
@@ -2163,7 +2164,7 @@ defmodule TeamrcWeb.GuideLive do
               <span class="text-[10px] font-mono text-white/30">copy</span>
             </div>
           </div>
-          <p class="text-[10px] text-base-content/40">
+          <p class="text-[10px] text-base-content/60">
             This copies the current team config. No ongoing sync. Use an invite code for that.
           </p>
         </div>
@@ -2200,19 +2201,19 @@ defmodule TeamrcWeb.GuideLive do
       <%!-- Mockup: machines section on /dashboard --%>
       <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
         <div class="px-5 pt-5 pb-3 space-y-1">
-          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-[10px] font-medium text-primary/80 uppercase tracking-wider">Screen</p>
           <p class="text-sm font-bold">Dashboard: active machines</p>
         </div>
         <div class="px-5 pb-5 space-y-1.5">
           <div class="flex items-center justify-between mb-2">
-            <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider">
-              Active Machines <span class="font-mono text-base-content/30 ml-1">3</span>
+            <p class="text-xs font-medium text-base-content/60 uppercase tracking-wider">
+              Active Machines <span class="font-mono text-base-content/50 ml-1">3</span>
             </p>
           </div>
 
           <%!-- Machine 1 --%>
           <div class="flex items-center gap-3 rounded-md border border-base-300 bg-base-100 px-3 py-2.5">
-            <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-base-200 text-base-content/30">
+            <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-base-200 text-base-content/50">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-3.5 w-3.5"
@@ -2231,9 +2232,9 @@ defmodule TeamrcWeb.GuideLive do
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-medium truncate">MacBook Pro</span>
-                <code class="text-[10px] font-mono text-base-content/25">trc_ak_x7...q2</code>
+                <code class="text-[10px] font-mono text-base-content/50">trc_ak_x7...q2</code>
               </div>
-              <div class="flex items-center gap-2 text-xs text-base-content/35 mt-0.5">
+              <div class="flex items-center gap-2 text-xs text-base-content/50 mt-0.5">
                 <span class="font-mono">my-project</span>
                 <span>2 minutes ago</span>
               </div>
@@ -2242,7 +2243,7 @@ defmodule TeamrcWeb.GuideLive do
 
           <%!-- Machine 2 --%>
           <div class="flex items-center gap-3 rounded-md border border-base-300 bg-base-100 px-3 py-2.5">
-            <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-base-200 text-base-content/30">
+            <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-base-200 text-base-content/50">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-3.5 w-3.5"
@@ -2261,9 +2262,9 @@ defmodule TeamrcWeb.GuideLive do
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-medium truncate">GitHub Actions Runner</span>
-                <code class="text-[10px] font-mono text-base-content/25">trc_ak_m3...k8</code>
+                <code class="text-[10px] font-mono text-base-content/50">trc_ak_m3...k8</code>
               </div>
-              <div class="flex items-center gap-2 text-xs text-base-content/35 mt-0.5">
+              <div class="flex items-center gap-2 text-xs text-base-content/50 mt-0.5">
                 <span class="font-mono">global</span>
                 <span>15 minutes ago</span>
               </div>
@@ -2272,7 +2273,7 @@ defmodule TeamrcWeb.GuideLive do
 
           <%!-- Machine 3 --%>
           <div class="flex items-center gap-3 rounded-md border border-base-300 bg-base-100 px-3 py-2.5">
-            <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-base-200 text-base-content/30">
+            <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-base-200 text-base-content/50">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-3.5 w-3.5"
@@ -2291,9 +2292,9 @@ defmodule TeamrcWeb.GuideLive do
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-medium truncate">Unnamed</span>
-                <code class="text-[10px] font-mono text-base-content/25">trc_ak_p1...w5</code>
+                <code class="text-[10px] font-mono text-base-content/50">trc_ak_p1...w5</code>
               </div>
-              <div class="flex items-center gap-2 text-xs text-base-content/35 mt-0.5">
+              <div class="flex items-center gap-2 text-xs text-base-content/50 mt-0.5">
                 <span class="font-mono">my-project</span>
                 <span>3 hours ago</span>
               </div>
@@ -2330,11 +2331,11 @@ defmodule TeamrcWeb.GuideLive do
       <%!-- Mockup: knowledge section (populated) --%>
       <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
         <div class="px-5 pt-5 pb-3 space-y-1">
-          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-[10px] font-medium text-primary/80 uppercase tracking-wider">Screen</p>
           <p class="text-sm font-bold">Knowledge (populated)</p>
         </div>
         <div class="px-5 pb-5 space-y-2">
-          <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-3">
+          <p class="text-xs font-medium text-base-content/60 uppercase tracking-wider mb-3">
             Knowledge
           </p>
           <div class="rounded-lg border border-base-300 bg-base-100 px-4 py-3">
@@ -2346,15 +2347,15 @@ defmodule TeamrcWeb.GuideLive do
       <%!-- Mockup: knowledge section (empty) --%>
       <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden mt-4">
         <div class="px-5 pt-5 pb-3 space-y-1">
-          <p class="text-[10px] font-medium text-primary/50 uppercase tracking-wider">Screen</p>
+          <p class="text-[10px] font-medium text-primary/80 uppercase tracking-wider">Screen</p>
           <p class="text-sm font-bold">Knowledge (empty)</p>
         </div>
         <div class="px-5 pb-5 space-y-2">
-          <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-3">
+          <p class="text-xs font-medium text-base-content/60 uppercase tracking-wider mb-3">
             Knowledge
           </p>
           <div class="rounded-md border border-dashed border-base-300 bg-base-200/20 p-4 text-center">
-            <p class="text-xs text-base-content/40">
+            <p class="text-xs text-base-content/60">
               No knowledge yet. Knowledge is managed via the CLI.
             </p>
           </div>
@@ -2378,9 +2379,9 @@ defmodule TeamrcWeb.GuideLive do
     <section class="space-y-3">
       <.section_heading id="flow" title="The full flow" />
       <div class="rounded-lg border border-base-300 bg-base-100 p-5">
-        <div class="space-y-3 text-sm text-base-content/60">
+        <div class="space-y-3 text-sm text-base-content/70">
           <div class="flex items-start gap-3">
-            <span class="text-primary/50 font-mono font-bold shrink-0">1</span>
+            <span class="text-primary/80 font-mono font-bold shrink-0">1</span>
             <span>
               Create a team from a template (web) or
               <.code_inline>teamrc init</.code_inline>
@@ -2388,11 +2389,11 @@ defmodule TeamrcWeb.GuideLive do
             </span>
           </div>
           <div class="flex items-start gap-3">
-            <span class="text-primary/50 font-mono font-bold shrink-0">2</span>
+            <span class="text-primary/80 font-mono font-bold shrink-0">2</span>
             <span>Add or tweak members and skills on the dashboard</span>
           </div>
           <div class="flex items-start gap-3">
-            <span class="text-primary/50 font-mono font-bold shrink-0">3</span>
+            <span class="text-primary/80 font-mono font-bold shrink-0">3</span>
             <span>
               Run
               <.code_inline>teamrc pull</.code_inline>
@@ -2400,11 +2401,11 @@ defmodule TeamrcWeb.GuideLive do
             </span>
           </div>
           <div class="flex items-start gap-3">
-            <span class="text-primary/50 font-mono font-bold shrink-0">4</span>
+            <span class="text-primary/80 font-mono font-bold shrink-0">4</span>
             <span>Share the invite code to connect more machines or people</span>
           </div>
           <div class="flex items-start gap-3">
-            <span class="text-primary/50 font-mono font-bold shrink-0">5</span>
+            <span class="text-primary/80 font-mono font-bold shrink-0">5</span>
             <span>
               Keep editing. Run
               <.code_inline>teamrc sync</.code_inline>
@@ -2440,7 +2441,7 @@ defmodule TeamrcWeb.GuideLive do
       ]}>
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          class={["h-4 w-4", if(@highlighted, do: "text-primary/60", else: "text-base-content/30")]}
+          class={["h-4 w-4", if(@highlighted, do: "text-primary/80", else: "text-base-content/50")]}
           fill="none"
           viewBox="0 0 24 24"
           stroke-width="1.5"
@@ -2456,13 +2457,13 @@ defmodule TeamrcWeb.GuideLive do
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
           <p class="text-xs font-semibold">{@label}</p>
-          <span class="text-[10px] font-mono text-base-content/30">{length(@agents)} agents</span>
+          <span class="text-[10px] font-mono text-base-content/50">{length(@agents)} agents</span>
         </div>
-        <p class="text-[10px] text-base-content/40 mt-0.5">{@desc}</p>
+        <p class="text-[10px] text-base-content/60 mt-0.5">{@desc}</p>
         <div class="flex gap-1 mt-1">
           <span
             :for={name <- @agents}
-            class="inline-flex rounded bg-base-200 px-1.5 py-0.5 text-[9px] font-mono text-base-content/40"
+            class="inline-flex rounded bg-base-200 px-1.5 py-0.5 text-[9px] font-mono text-base-content/60"
           >
             {name}
           </span>
@@ -2470,7 +2471,7 @@ defmodule TeamrcWeb.GuideLive do
       </div>
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        class="h-4 w-4 text-base-content/20 shrink-0"
+        class="h-4 w-4 text-base-content/50 shrink-0"
         fill="none"
         viewBox="0 0 24 24"
         stroke-width="1.5"
@@ -2491,11 +2492,11 @@ defmodule TeamrcWeb.GuideLive do
     <div class="rounded-lg border border-base-300 p-2.5 flex items-center gap-2.5 hover:border-primary/20 transition-colors cursor-pointer">
       <div class="flex-1 min-w-0">
         <p class="text-xs font-mono font-semibold">{@name}</p>
-        <p class="text-[10px] text-base-content/40 mt-0.5">{@role}</p>
+        <p class="text-[10px] text-base-content/60 mt-0.5">{@role}</p>
         <div :if={@skills != []} class="flex gap-1 mt-1">
           <span
             :for={s <- @skills}
-            class="inline-flex rounded bg-base-200 px-1.5 py-0.5 text-[9px] font-mono text-base-content/40"
+            class="inline-flex rounded bg-base-200 px-1.5 py-0.5 text-[9px] font-mono text-base-content/60"
           >
             {s}
           </span>
@@ -2503,7 +2504,7 @@ defmodule TeamrcWeb.GuideLive do
       </div>
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        class="h-3.5 w-3.5 text-base-content/20 shrink-0"
+        class="h-3.5 w-3.5 text-base-content/50 shrink-0"
         fill="none"
         viewBox="0 0 24 24"
         stroke-width="1.5"
@@ -2527,12 +2528,12 @@ defmodule TeamrcWeb.GuideLive do
           <p class="text-xs font-mono font-semibold">{@id}</p>
           <span
             :if={@always_apply}
-            class="text-[9px] font-mono text-primary/60 bg-primary/10 rounded px-1.5 py-0.5"
+            class="text-[9px] font-mono text-primary/80 bg-primary/10 rounded px-1.5 py-0.5"
           >
             all agents
           </span>
         </div>
-        <p :if={@title} class="text-[10px] text-base-content/40 mt-0.5">{@title}</p>
+        <p :if={@title} class="text-[10px] text-base-content/60 mt-0.5">{@title}</p>
       </div>
     </div>
     """
@@ -2552,7 +2553,7 @@ defmodule TeamrcWeb.GuideLive do
       )
     ]}>
       <p class="text-[10px] font-mono font-semibold">{@name}</p>
-      <p class="text-[9px] text-base-content/40 mt-0.5">{@role}</p>
+      <p class="text-[9px] text-base-content/60 mt-0.5">{@role}</p>
     </div>
     """
   end
@@ -2615,7 +2616,7 @@ defmodule TeamrcWeb.GuideLive do
     ~H"""
     <div>
       <h1 class="text-2xl font-bold tracking-tight mb-1">Configuration</h1>
-      <p class="text-sm text-base-content/50">
+      <p class="text-sm text-base-content/60">
         Everything lives in one YAML file. Here's every field and option.
       </p>
     </div>
@@ -2770,17 +2771,17 @@ defmodule TeamrcWeb.GuideLive do
         <.code_inline>~/.teamrc/</.code_inline>
         directory stores machine-level configuration:
       </p>
-      <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-2 text-xs font-mono text-base-content/60">
+      <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-2 text-xs font-mono text-base-content/70">
         <div class="flex items-start gap-3">
-          <span class="text-base-content/30 shrink-0 w-28 text-right">key</span>
+          <span class="text-base-content/50 shrink-0 w-28 text-right">key</span>
           <span>Ed25519 keypair (JSON, mode 0600)</span>
         </div>
         <div class="flex items-start gap-3">
-          <span class="text-base-content/30 shrink-0 w-28 text-right">config.json</span>
+          <span class="text-base-content/50 shrink-0 w-28 text-right">config.json</span>
           <span>Token, relay URL, account email, machine name</span>
         </div>
         <div class="flex items-start gap-3">
-          <span class="text-base-content/30 shrink-0 w-28 text-right">team.yaml</span>
+          <span class="text-base-content/50 shrink-0 w-28 text-right">team.yaml</span>
           <span>Global team definition (when using --global scope)</span>
         </div>
       </div>
@@ -2840,33 +2841,33 @@ defmodule TeamrcWeb.GuideLive do
       <p class="text-sm text-base-content/70 leading-relaxed">
         These are the relay-enforced limits used by the web UI and sync endpoints:
       </p>
-      <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1.5 text-xs text-base-content/60">
+      <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1.5 text-xs text-base-content/70">
         <div class="flex items-center gap-3">
-          <span class="text-base-content/30 shrink-0 w-32 text-right">Team name</span>
+          <span class="text-base-content/50 shrink-0 w-32 text-right">Team name</span>
           <span>1-64 chars, alphanumeric + spaces/hyphens/underscores</span>
         </div>
         <div class="flex items-center gap-3">
-          <span class="text-base-content/30 shrink-0 w-32 text-right">Agent name</span>
+          <span class="text-base-content/50 shrink-0 w-32 text-right">Agent name</span>
           <span>1-64 chars, alphanumeric + hyphens/underscores</span>
         </div>
         <div class="flex items-center gap-3">
-          <span class="text-base-content/30 shrink-0 w-32 text-right">Max members</span>
+          <span class="text-base-content/50 shrink-0 w-32 text-right">Max members</span>
           <span>20 per team</span>
         </div>
         <div class="flex items-center gap-3">
-          <span class="text-base-content/30 shrink-0 w-32 text-right">Max skills</span>
+          <span class="text-base-content/50 shrink-0 w-32 text-right">Max skills</span>
           <span>50 per team</span>
         </div>
         <div class="flex items-center gap-3">
-          <span class="text-base-content/30 shrink-0 w-32 text-right">YAML size</span>
+          <span class="text-base-content/50 shrink-0 w-32 text-right">YAML size</span>
           <span>256 KB max</span>
         </div>
         <div class="flex items-center gap-3">
-          <span class="text-base-content/30 shrink-0 w-32 text-right">Knowledge</span>
+          <span class="text-base-content/50 shrink-0 w-32 text-right">Knowledge</span>
           <span>100,000 bytes max</span>
         </div>
         <div class="flex items-center gap-3">
-          <span class="text-base-content/30 shrink-0 w-32 text-right">Skill body</span>
+          <span class="text-base-content/50 shrink-0 w-32 text-right">Skill body</span>
           <span>10,000 bytes max per inline body</span>
         </div>
       </div>
@@ -2886,7 +2887,7 @@ defmodule TeamrcWeb.GuideLive do
     ~H"""
     <div>
       <h1 class="text-2xl font-bold tracking-tight mb-1">FAQ</h1>
-      <p class="text-sm text-base-content/50">
+      <p class="text-sm text-base-content/60">
         Questions we get asked a lot. If yours isn't here, reach out.
       </p>
     </div>

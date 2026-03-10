@@ -207,12 +207,14 @@ defmodule Teamrc.DeviceAuth do
   defp generate_user_code do
     chars = @user_code_alphabet
     len = length(chars)
-    bytes = :crypto.strong_rand_bytes(8)
+    limit = div(256, len) * len
 
     code =
-      for <<byte <- bytes>>, into: "" do
-        <<Enum.at(chars, rem(byte, len))>>
-      end
+      Stream.repeatedly(fn -> :crypto.strong_rand_bytes(1) |> :binary.first() end)
+      |> Stream.filter(&(&1 < limit))
+      |> Enum.take(8)
+      |> Enum.map(&Enum.at(chars, rem(&1, len)))
+      |> List.to_string()
 
     String.slice(code, 0, 4) <> "-" <> String.slice(code, 4, 4)
   end

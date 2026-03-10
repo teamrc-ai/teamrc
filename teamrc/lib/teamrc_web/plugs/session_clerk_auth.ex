@@ -51,6 +51,7 @@ defmodule TeamrcWeb.Plugs.SessionClerkAuth do
       case TeamrcWeb.Plugs.VerifyClerkJWT.verify_token(token) do
         {:ok, claims} ->
           conn
+          |> configure_session(renew: true)
           |> put_session("clerk_user_id", claims["sub"])
           |> put_session("clerk_email", TeamrcWeb.Plugs.VerifyClerkJWT.get_email(claims))
           |> put_session("clerk_verified_at", System.system_time(:second))

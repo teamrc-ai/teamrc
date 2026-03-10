@@ -138,9 +138,9 @@ There is no way to rotate keys. If a private key is compromised, the user must g
 
 **Recommended fix (future):** Add a key rotation endpoint where the old key signs a request containing the new public key.
 
-### 13. GenServer State Not Persisted
+### 13. GenServer State Not Persisted (FIXED — GenServer removed)
 
-Team-to-token mappings in `Teamrc.Teams` GenServer are in-memory only. A server restart loses all token-team associations (though Postgres teams persist). This is an availability concern, not directly a security issue.
+This issue described team-to-token mappings held in the `Teamrc.Teams` GenServer's in-memory state, which would be lost on server restart. This is no longer relevant: `Teamrc.Teams` was refactored from a GenServer to a plain Ecto context module that queries Postgres directly. There is no in-memory state — all team and token-team associations are persisted in the database and survive restarts.
 
 ---
 
@@ -398,7 +398,7 @@ Session data (including Clerk user IDs) was readable by the client. While signed
 | 10 | MEDIUM | WebSocket auth design | Noted |
 | 11 | LOW | Transparent token format | Noted |
 | 12 | LOW | No key rotation | Noted |
-| 13 | LOW | GenServer state loss | Noted |
+| 13 | LOW | GenServer state loss | Fixed (GenServer removed — all state in Postgres) |
 | 14 | CRITICAL | Missing validateAgentName in writeTeam | Fixed |
 | 15 | HIGH | YAML frontmatter injection | Fixed |
 | 16 | HIGH | No YAML file size limit | Fixed |

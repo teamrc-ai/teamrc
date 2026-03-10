@@ -1,0 +1,10 @@
+---
+description: "Testing requirements for new functions, endpoints, and components"
+alwaysApply: true
+---
+
+Every new function, endpoint, or component must have corresponding tests
+before the change is considered complete. Prefer unit tests for pure logic
+and integration tests for I/O boundaries. If modifying existing code, update
+or add tests to cover the changed behavior.
+

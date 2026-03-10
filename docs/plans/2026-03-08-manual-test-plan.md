@@ -1,6 +1,6 @@
 # Manual Test Plan — teamrc Multi-Platform
 
-**Date:** 2026-03-08
+**Date:** 2026-03-08 (updated 2026-03-10)
 **Goal:** Verify teamrc works end-to-end across all supported platforms, including rollback/restart scenarios.
 
 **Platforms covered:** Claude Code, Cursor, OpenClaw, Codex, Gemini, Claude Desktop
@@ -56,6 +56,10 @@ bash scripts/verify/run-all.sh
 **Not automated** (require manual testing):
 - Section 11: Agent usage verification — requires opening each platform and interacting with agents
 - Section 13.6–13.7: Browser verification page and timeout — requires browser interaction
+- Section 14: Team visibility & clone tokens — requires web UI interaction
+- Section 15: Dashboard command — requires browser
+- Section 16: Web dashboard & account management — requires Clerk auth + browser
+- Section 17: Legal & guide pages — requires browser
 
 ---
 
@@ -108,6 +112,12 @@ bash scripts/test/e2e.sh --role primary --phase 3
 | 9 | 5.4–5.5 | Corrupt config + missing keypair recovery |
 | 10 | — | Final status verification |
 
+**Sections not yet automated in E2E runner:**
+- Section 14: Team visibility & clone tokens
+- Section 15: Dashboard command
+- Section 16: Web dashboard & account management
+- Section 17: Legal & guide pages
+
 ---
 
 ## Section 1: Fresh Install (From Scratch)
@@ -125,7 +135,8 @@ rm -rf .cursor/skills/trc-* .cursor/skills/tb-*
 rm -f .codex/agents/trc-*.toml .codex/agents/tb-*.toml
 rm -f .gemini/agents/trc-*.md
 rm -rf .gemini/skills/trc-*
-rm -rf ~/.openclaw/workspaces/trc-* ~/.openclaw/workspaces/tb-*
+rm -rf .agents/agents/trc-*.md .agents/skills/trc-*
+rm -rf ~/.agents/agents/trc-*.md ~/.agents/skills/trc-*
 ```
 
 **Verify:** `ls ~/.teamrc` → "No such file or directory"
@@ -240,7 +251,7 @@ npx teamrc join <invite-code> --platform cursor,gemini
 - [ ] Cursor agents in `.cursor/agents/trc-*.md`
 - [ ] Gemini agents in `.gemini/agents/trc-*.md`
 
-### 2.3 Preview without joining
+### 2.3 Clone via invite code (preview without joining)
 
 ```bash
 npx teamrc clone <invite-code> --platform claude-code
@@ -249,7 +260,44 @@ npx teamrc clone <invite-code> --platform claude-code
 **Expected:**
 - [ ] `.teamrc.yaml` created (no teamId — local copy only)
 - [ ] Agent files created
-- [ ] "This is a local copy" message
+- [ ] Outro: "Cloned locally. To join and sync with the original team, use `teamrc join <invite-code>`."
+- [ ] No `cloneToken` in `.teamrc.yaml`
+
+### 2.4 Clone via clone token (public team)
+
+```bash
+# Requires a public team with a clone token (see Section 14)
+npx teamrc clone <clone-token> --platform claude-code
+```
+
+**Expected:**
+- [ ] `.teamrc.yaml` created with `cloneToken` field and `relay` field (no `teamId`)
+- [ ] Agent files created
+- [ ] Outro: "Cloned. Run `teamrc pull` to fetch updates."
+
+**Verify:**
+```bash
+grep "cloneToken" .teamrc.yaml    # Has trc_cl_... token
+grep "teamId" .teamrc.yaml        # Should NOT have teamId
+```
+
+### 2.5 Pull for clone-only teams
+
+```bash
+# After cloning via clone token (Section 2.4)
+npx teamrc pull
+```
+
+**Expected:**
+- [ ] Fetches latest team definition from relay (unauthenticated)
+- [ ] Updates local `.teamrc.yaml` and agent files
+- [ ] "Knowledge is not synced for cloned teams." message
+- [ ] `cloneToken` and `relay` preserved in YAML
+
+**Verify:**
+```bash
+grep "cloneToken" .teamrc.yaml    # Still present
+```
 
 ---
 
@@ -368,26 +416,31 @@ ls .gemini/skills/trc-*/SKILL.md
 
 ### 3.5 OpenClaw
 
+**Important:** OpenClaw uses `.agents/agents/` directory with Markdown format (native OpenHands format).
+
 **Init:**
 ```bash
 npx teamrc init --platform openclaw
 ```
 
-**Verify workspace:**
+**Verify agent file:**
 ```bash
-ls ~/.openclaw/workspaces/trc-*/
-cat ~/.openclaw/workspaces/trc-agent/SOUL.md
-cat ~/.openclaw/workspaces/trc-agent/AGENTS.md
+cat .agents/agents/trc-agent.md
 ```
-- [ ] Workspace directory exists at `~/.openclaw/workspaces/trc-agent/`
-- [ ] `SOUL.md` has agent personality
-- [ ] `AGENTS.md` has `<!-- teamrc:routing -->` / `<!-- /teamrc:routing -->` markers
+- [ ] Markdown with YAML frontmatter (`name:`, `description:`)
+- [ ] Body has role, soul, and teammate references
 
-**Verify registration:**
+**Verify routing:**
 ```bash
-cat openclaw.json
+cat AGENTS.md
 ```
-- [ ] Has `trc-agent` in agents array
+- [ ] Has `<!-- teamrc -->` / `<!-- /teamrc -->` markers
+- [ ] Lists agent with role
+
+**Verify skills (if defined):**
+```bash
+ls .agents/skills/trc-*/SKILL.md
+```
 
 ### 3.6 Claude Desktop (via Claude Code adapter)
 
@@ -688,7 +741,7 @@ npx teamrc init --platform claude-code,cursor,codex,gemini,openclaw
 - [ ] `.cursor/agents/trc-agent.md`
 - [ ] `.codex/agents/trc-agent.toml`
 - [ ] `.gemini/agents/trc-agent.md`
-- [ ] `~/.openclaw/workspaces/trc-agent/`
+- [ ] `.agents/agents/trc-agent.md`
 
 ### 7.2 Apply with custom team definition
 
@@ -704,16 +757,15 @@ members:
   - name: architect
     role: System design
     soul: "You think in abstractions and design patterns."
-    rules: [rule_style]
+    skills: [skill_style]
   - name: implementer
     role: Write code
-    rules: [rule_style]
-    skills: [skill_search]
-rules:
-  - id: rule_style
-    title: Code Style
-    body: "Use prettier and eslint."
+    skills: [skill_style, skill_search]
 skills:
+  - id: skill_style
+    description: Code Style
+    body: "Use prettier and eslint."
+    alwaysApply: true
   - id: skill_search
     description: Search the codebase
     body: "Use grep and find."
@@ -724,8 +776,9 @@ npx teamrc apply --platform claude-code,cursor,gemini
 
 **Verify:**
 - [ ] 2 agents on each platform
-- [ ] Rules applied per-agent (only those referenced)
-- [ ] Skills applied per-agent
+- [ ] Skills with `alwaysApply: true` written as native rules (per platform format)
+- [ ] On-demand skills written as SKILL.md files
+- [ ] Skills applied per-agent (only those referenced)
 
 ### 7.3 Export → apply roundtrip
 
@@ -857,8 +910,11 @@ ls -d .cursor/skills/tb-* 2>/dev/null
 # Codex agents
 ls .codex/agents/tb-*.toml 2>/dev/null
 
-# OpenClaw workspaces
+# OpenClaw agents (legacy path)
 ls -d ~/.openclaw/workspaces/tb-* 2>/dev/null
+
+# OpenClaw agents (current path)
+ls .agents/agents/tb-*.md 2>/dev/null
 
 # openclaw.json references
 grep -l "tb-" openclaw.json 2>/dev/null
@@ -892,8 +948,9 @@ bash scripts/uninstall.sh
 - [ ] All `tb-*.mdc` rule files removed from `.cursor/rules/`
 - [ ] All `tb-*/` skill dirs removed from `.cursor/skills/`
 - [ ] All `tb-*.toml` agent files removed from `.codex/agents/`
-- [ ] All `tb-*/` OpenClaw workspaces removed from `~/.openclaw/workspaces/`
-- [ ] `openclaw.json` cleaned of `tb-*` agent entries
+- [ ] All `tb-*/` OpenClaw workspaces removed from `~/.openclaw/workspaces/` (legacy path)
+- [ ] All `tb-*.md` agent files removed from `.agents/agents/` (current path)
+- [ ] `openclaw.json` cleaned of `tb-*` agent entries (if present)
 - [ ] Claude `~/.claude/settings.json` cleaned of `teambridge` hooks and `AGENT_TEAMS` env var
 - [ ] `CLAUDE.md` flagged for manual review (if TeamBridge section present)
 - [ ] `.codex/config.toml` flagged for manual review (if `tb-*` entries present)
@@ -935,7 +992,7 @@ grep -n "tb-" .codex/config.toml
 
 # Also check for any remaining references across the project
 grep -r "TeamBridge\|teambridge\|tb-" \
-  .claude/ .cursor/ .codex/ .gemini/ \
+  .claude/ .cursor/ .codex/ .gemini/ .agents/ \
   ~/.openclaw/workspaces/ \
   CLAUDE.md AGENTS.md GEMINI.md \
   openclaw.json .codex/config.toml \
@@ -1124,9 +1181,9 @@ npx teamrc sync
 **Setup:**
 ```yaml
 # .teamrc.yaml
-rules:
-  - id: rule_no_any
-    title: No Any Types
+skills:
+  - id: skill_no_any
+    description: No Any Types
     body: "Never use the `any` type in TypeScript. Always use proper types."
     alwaysApply: true
 ```
@@ -1519,14 +1576,350 @@ npx teamrc login
 
 ---
 
+## Section 14: Team Visibility & Clone Tokens
+
+Test the public/private team visibility toggle and clone token flow.
+
+### 14.1 Default visibility
+
+```bash
+npx teamrc init --platform claude-code
+npx teamrc status --json
+```
+
+**Expected:**
+- [ ] Team created with `visibility: "private"` (default)
+- [ ] No clone token generated
+
+### 14.2 Toggle visibility to public (web UI)
+
+1. Open the team detail page in the browser (`/teams/:id`)
+2. Click the "Make public" button
+
+**Expected:**
+- [ ] Visibility changes to "public"
+- [ ] Clone token generated and displayed (`trc_cl_...`)
+- [ ] "Copy" button for clone token works
+- [ ] Badge shows "public" state
+
+### 14.3 Toggle visibility back to private
+
+1. On the team detail page, click "Make private"
+
+**Expected:**
+- [ ] Visibility changes to "private"
+- [ ] Clone token cleared (no longer shown)
+- [ ] Badge shows "private" state
+
+### 14.4 Clone token access when public
+
+```bash
+# After making team public (14.2), copy the clone token
+# From a different directory / clean state:
+mkdir -p /tmp/teamrc-clone-test && cd /tmp/teamrc-clone-test
+npx teamrc clone <clone-token> --platform claude-code
+```
+
+**Expected:**
+- [ ] Team cloned successfully (no authentication required)
+- [ ] `.teamrc.yaml` has `cloneToken` and `relay`, no `teamId`
+- [ ] Agent files created
+
+### 14.5 Clone token access when private
+
+```bash
+# After making team private (14.3), try the old clone token
+mkdir -p /tmp/teamrc-clone-private && cd /tmp/teamrc-clone-private
+npx teamrc clone <old-clone-token> --platform claude-code
+```
+
+**Expected:**
+- [ ] Error: clone token not found / team not public
+- [ ] No files created
+
+### 14.6 Public team page (unauthenticated)
+
+1. Open `/teams/:id` in an incognito/logged-out browser for a **public** team
+
+**Expected:**
+- [ ] Team preview visible (name, members, skills)
+- [ ] Clone token shown with copy button
+- [ ] Knowledge NOT shown (stripped from public view)
+- [ ] No edit controls visible
+- [ ] "Clone" instructions shown
+
+### 14.7 Private team page (unauthenticated)
+
+1. Open `/teams/:id` in an incognito/logged-out browser for a **private** team
+
+**Expected:**
+- [ ] Access denied or redirect
+- [ ] No team data visible
+
+### 14.8 Clone API endpoint directly
+
+```bash
+# Public team:
+curl http://localhost:4000/api/teams/clone/<clone-token>
+```
+
+**Expected:**
+- [ ] Returns `{"team": {...}}` with team data
+- [ ] No `knowledge` field in response
+- [ ] 200 status
+
+```bash
+# Private team (old/invalid token):
+curl http://localhost:4000/api/teams/clone/trc_cl_invalid123
+```
+
+**Expected:**
+- [ ] 404 response
+- [ ] No team data leaked
+
+---
+
+## Section 15: Dashboard Command
+
+Test the `teamrc dashboard` CLI command that opens the team in a browser.
+
+### 15.1 Basic dashboard command
+
+```bash
+# Must have an initialized team
+npx teamrc dashboard
+```
+
+**Expected:**
+- [ ] Creates a temporary invite-based dashboard link
+- [ ] Prints the URL
+- [ ] Attempts to open URL in default browser
+- [ ] Default TTL is 24 hours
+
+### 15.2 Custom TTL
+
+```bash
+npx teamrc dashboard --ttl 1
+```
+
+**Expected:**
+- [ ] Link created with 1-hour expiry
+- [ ] URL shown and opened
+
+### 15.3 Invalid TTL
+
+```bash
+npx teamrc dashboard --ttl 0
+npx teamrc dashboard --ttl -5
+npx teamrc dashboard --ttl abc
+```
+
+**Expected:**
+- [ ] Error for each: TTL must be a positive integer
+- [ ] Exit code 1
+
+### 15.4 No team context
+
+```bash
+# From a directory without .teamrc.yaml
+cd /tmp && npx teamrc dashboard
+```
+
+**Expected:**
+- [ ] Error: no team context found
+- [ ] Exit code 1
+
+### 15.5 Dashboard link works in browser
+
+1. Run `npx teamrc dashboard` and open the printed URL
+
+**Expected:**
+- [ ] URL resolves to team page on relay
+- [ ] Team details visible (redirect from invite URL)
+
+---
+
+## Section 16: Web Dashboard & Account Management
+
+Test the authenticated dashboard at `/dashboard` and account management flows.
+
+### 16.1 Dashboard access without Clerk auth
+
+1. Open `/dashboard` in an incognito/logged-out browser
+
+**Expected:**
+- [ ] Redirected to `/new` (or sign-in page)
+- [ ] No account data visible
+
+### 16.2 Dashboard with Clerk auth
+
+1. Sign in via Clerk
+2. Open `/dashboard`
+
+**Expected:**
+- [ ] Page title: "Dashboard"
+- [ ] "Your Teams" section visible
+- [ ] "Your Machines" section visible
+- [ ] "Account" section visible at bottom
+- [ ] "Create team" button links to `/new`
+
+### 16.3 Teams section — with teams
+
+1. After linking machines that have teams
+
+**Expected:**
+- [ ] Teams listed with name (monospace), agent count badge, platform badges
+- [ ] Machine count shown per team
+- [ ] Last activity timestamp shown
+- [ ] Click a team row to expand details
+
+**Expanded details:**
+- [ ] Members listed with name and role badges
+- [ ] Skill count shown
+- [ ] Platform badges
+- [ ] Participant emails shown (your email marked as "you")
+- [ ] "View team details" link navigates to `/teams/:id`
+
+### 16.4 Teams section — empty state
+
+1. With a linked account but no teams
+
+**Expected:**
+- [ ] Icon + "No teams yet" message
+- [ ] Links to `/new` and `teamrc join` instructions
+
+### 16.5 Machines section — with machines
+
+1. After linking machines via `teamrc login`
+
+**Expected:**
+- [ ] Each machine shows: icon, machine name (or "Unnamed machine"), truncated token, last seen timestamp
+- [ ] Human-readable timestamps ("just now", "5 min ago", "2 hr ago", etc.)
+- [ ] "Revoke" button visible (hover on desktop, always on mobile)
+- [ ] Machine-to-team associations shown below each machine (scope badge → team name)
+
+### 16.6 Machines section — empty state
+
+1. With a linked account but no machines
+
+**Expected:**
+- [ ] Icon + "No machines linked yet"
+- [ ] Instructions to run `teamrc login`
+
+### 16.7 Revoke machine
+
+1. Click "Revoke" on a machine
+2. Confirm revocation
+
+**Expected:**
+- [ ] Confirmation prompt: "Revoke access?"
+- [ ] Machine removed from list after confirmation
+- [ ] Flash message confirms revocation
+- [ ] Revoked machine's `teamrc sync` returns 401/403
+
+**Cancel:**
+- [ ] Click "Cancel" dismisses the confirmation
+- [ ] Machine remains in list
+
+### 16.8 Export account data
+
+1. Click "Export data" button in the Account section
+
+**Expected:**
+- [ ] Downloads `teamrc-export.json`
+- [ ] JSON contains: account info, machines, teams
+- [ ] File is valid JSON
+
+### 16.9 Delete account
+
+1. Click "Delete account" button
+2. Confirm deletion
+
+**Expected:**
+- [ ] Confirmation prompt: "Delete account and all data?"
+- [ ] Disclaimer about team persistence for other members
+- [ ] After confirming: account deleted, redirected to sign-out
+- [ ] All machine tokens revoked
+- [ ] All team associations removed
+- [ ] Teams still accessible to other members
+
+**Cancel:**
+- [ ] Click "Cancel" dismisses the confirmation
+- [ ] Account remains intact
+
+### 16.10 Account section info
+
+**Expected:**
+- [ ] Shows Clerk email address
+- [ ] "Signed in via Clerk" label
+- [ ] "Sign out" link works (navigates to `/auth/sign-out`)
+
+---
+
+## Section 17: Legal & Guide Pages
+
+### 17.1 Terms of Service page
+
+1. Open `/terms`
+
+**Expected:**
+- [ ] Tab navigation with "Terms of Service" and "Privacy Policy"
+- [ ] "Terms of Service" tab is active
+- [ ] Pre-release warning banner (amber) shown
+- [ ] All 12 sections rendered (Acceptance, Description, Pre-Release Status, etc.)
+- [ ] Clicking "Privacy Policy" tab navigates to `/privacy`
+
+### 17.2 Privacy Policy page
+
+1. Open `/privacy`
+
+**Expected:**
+- [ ] Tab navigation with "Privacy Policy" tab active
+- [ ] Pre-release warning banner shown
+- [ ] All 10 sections rendered (What We Collect, What We Don't Collect, etc.)
+- [ ] Clicking "Terms of Service" tab navigates to `/terms`
+
+### 17.3 Guide pages
+
+Open each guide page and verify it loads:
+
+| Route | Expected Title |
+|-------|---------------|
+| `/guide` | Overview |
+| `/guide/get-started` | Getting Started |
+| `/guide/concepts` | Concepts |
+| `/guide/cli` | CLI |
+| `/guide/platforms` | Platforms |
+| `/guide/sync` | Sync |
+| `/guide/config` | Configuration |
+| `/guide/web-ui` | Web UI |
+| `/guide/faq` | FAQ |
+
+**Expected for each:**
+- [ ] Page loads without errors
+- [ ] Tab/section navigation between all 9 pages works
+- [ ] Content renders (not blank)
+- [ ] Active tab is highlighted
+
+### 17.4 App footer
+
+1. Open any page on the web UI
+
+**Expected:**
+- [ ] Footer visible at bottom
+- [ ] Links to Terms (`/terms`) and Privacy (`/privacy`)
+- [ ] Links work and navigate correctly
+
+---
+
 ## Platform-Specific Rollback Matrix
 
 | Scenario | Claude Code | Cursor | Codex | Gemini | OpenClaw |
 |----------|-------------|--------|-------|--------|----------|
-| `init` creates agent files | `.claude/agents/trc-*.md` | `.cursor/agents/trc-*.md` | `.codex/agents/trc-*.toml` | `.gemini/agents/trc-*.md` | `~/.openclaw/workspaces/trc-*/` |
+| `init` creates agent files | `.claude/agents/trc-*.md` | `.cursor/agents/trc-*.md` | `.codex/agents/trc-*.toml` | `.gemini/agents/trc-*.md` | `.agents/agents/trc-*.md` |
 | `delete` removes all artifacts | Yes | Yes | Yes | Yes | Yes |
 | `init` after `delete` works | Yes | Yes | Yes | Yes | Yes |
 | `join` after `delete` works | Yes | Yes | Yes | Yes | Yes |
 | `uninstall.sh` cleans everything | Yes | Yes | Yes | Yes | Yes |
-| Global scope supported | `~/.claude/agents/` | N/A (project only) | `~/.codex/agents/` | `~/.gemini/agents/` | Always global |
+| Global scope supported | `~/.claude/agents/` | N/A (project only) | `~/.codex/agents/` | `~/.gemini/agents/` | `~/.agents/agents/` |
 | `.teamrc.yaml` used (not legacy) | Yes | Yes | Yes | Yes | Yes |

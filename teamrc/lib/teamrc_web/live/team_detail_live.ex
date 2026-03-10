@@ -83,12 +83,13 @@ defmodule TeamrcWeb.TeamDetailLive do
 
   @impl true
   def handle_params(_params, uri, socket) do
-    # Check for invite code in query params (e.g. /teams/:id?invite=CODE)
+    # Check for invite code in query params (e.g. /teams/:id?invite=CODE) or flash
     query = URI.parse(uri).query
     query_params = if query, do: URI.decode_query(query), else: %{}
+    invite_code = query_params["invite"] || socket.assigns.flash["invite_code"]
 
     socket =
-      case query_params["invite"] do
+      case invite_code do
         nil ->
           socket
 
@@ -328,7 +329,7 @@ defmodule TeamrcWeb.TeamDetailLive do
     require_edit_access(socket, fn ->
       team = socket.assigns.team
 
-      if length(team.members) >= @max_members do
+      if length(team.members) > @max_members do
         {:noreply, put_flash(socket, :error, "Maximum #{@max_members} members reached.")}
       else
         name = String.trim(socket.assigns.new_member_name)
@@ -619,19 +620,25 @@ defmodule TeamrcWeb.TeamDetailLive do
       team = socket.assigns.team
       new_visibility = if team.visibility == "public", do: "private", else: "public"
 
-      case Teams.set_visibility(team.id, new_visibility) do
-        {:ok, updated_team} ->
-          updated_team = Repo.preload(updated_team, :members, force: true)
-          clone_token = if new_visibility == "public", do: updated_team.clone_token, else: nil
+      token = find_user_token_for_team(socket.assigns, team.id)
 
-          {:noreply,
-           assign(socket,
-             team: updated_team,
-             clone_token: clone_token
-           )}
+      if is_nil(token) do
+        {:noreply, put_flash(socket, :error, "No linked machine found for this team.")}
+      else
+        case Teams.set_visibility(token, team.id, new_visibility) do
+          {:ok, updated_team} ->
+            updated_team = Repo.preload(updated_team, :members, force: true)
+            clone_token = if new_visibility == "public", do: updated_team.clone_token, else: nil
 
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to update visibility.")}
+            {:noreply,
+             assign(socket,
+               team: updated_team,
+               clone_token: clone_token
+             )}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to update visibility.")}
+        end
       end
     end)
   end
@@ -717,7 +724,7 @@ defmodule TeamrcWeb.TeamDetailLive do
           <div class="flex h-12 w-12 items-center justify-center rounded-full bg-base-200">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              class="h-6 w-6 text-base-content/30"
+              class="h-6 w-6 text-base-content/50"
               fill="none"
               viewBox="0 0 24 24"
               stroke-width="1.5"
@@ -732,8 +739,8 @@ defmodule TeamrcWeb.TeamDetailLive do
           </div>
         </div>
         <h1 class="text-lg font-semibold">This team is private</h1>
-        <p class="text-sm text-base-content/50">You need an invite code to view this team.</p>
-        <p class="text-xs text-base-content/40">
+        <p class="text-sm text-base-content/60">You need an invite code to view this team.</p>
+        <p class="text-xs text-base-content/60">
           Ask the team owner for an invite, or <a
             href={~p"/new"}
             class="text-primary hover:text-primary/80"
@@ -745,7 +752,7 @@ defmodule TeamrcWeb.TeamDetailLive do
         <%!-- Back link --%>
         <a
           href={~p"/dashboard"}
-          class="trc-focus inline-flex items-center gap-1.5 text-xs font-medium text-base-content/40 hover:text-base-content/70 transition-colors rounded px-1 -ml-1"
+          class="trc-focus inline-flex items-center gap-1.5 text-xs font-medium text-base-content/60 hover:text-base-content/70 transition-colors rounded px-1 -ml-1"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -770,7 +777,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
               if(@team.visibility == "public",
                 do: "bg-emerald-500/10 text-emerald-600",
-                else: "bg-base-200 text-base-content/40"
+                else: "bg-base-200 text-base-content/60"
               )
             ]}>
               <svg
@@ -808,7 +815,7 @@ defmodule TeamrcWeb.TeamDetailLive do
             <button
               :if={@can_edit}
               phx-click="toggle_visibility"
-              class="trc-focus rounded px-1.5 py-0.5 text-[10px] font-medium text-base-content/30 hover:text-base-content/50 hover:bg-base-200/60 transition-colors"
+              class="trc-focus rounded px-1.5 py-0.5 text-[10px] font-medium text-base-content/50 hover:text-base-content/60 hover:bg-base-200/60 transition-colors"
             >
               Make {if @team.visibility == "public", do: "private", else: "public"}
             </button>
@@ -816,7 +823,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               :if={@can_edit}
               phx-click="toggle_edit"
               phx-value-section="name"
-              class="trc-focus rounded p-1 text-base-content/20 hover:text-base-content/50 transition-colors"
+              class="trc-focus rounded p-1 text-base-content/50 hover:text-base-content/60 transition-colors"
               aria-label="Rename team"
             >
               <svg
@@ -830,13 +837,15 @@ defmodule TeamrcWeb.TeamDetailLive do
             </button>
           </div>
           <div :if={@editing_section == "name"} class="flex items-center gap-2">
+            <label for="team-name" class="sr-only">Team name</label>
             <input
+              id="team-name"
               type="text"
               value={@edit_team_name}
               phx-keyup="update_edit_team_name"
               phx-debounce="300"
               maxlength="64"
-              class="trc-focus rounded-md border border-base-300 bg-base-100 px-3 py-1.5 text-lg font-mono font-bold focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
+              class="trc-focus rounded-md border border-base-300 bg-base-100 px-3 py-1.5 text-lg font-mono font-bold focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors"
             />
             <button
               phx-click="save_team_name"
@@ -847,23 +856,23 @@ defmodule TeamrcWeb.TeamDetailLive do
             <button
               phx-click="toggle_edit"
               phx-value-section="name"
-              class="trc-focus rounded-md px-3 py-1.5 text-sm font-medium text-base-content/40 hover:text-base-content/60 transition-colors"
+              class="trc-focus rounded-md px-3 py-1.5 text-sm font-medium text-base-content/60 hover:text-base-content/70 transition-colors"
             >
               Cancel
             </button>
           </div>
-          <p class="text-sm text-base-content/40 mt-1 font-mono">{@team.id}</p>
+          <p class="text-sm text-base-content/60 mt-1 font-mono">{@team.id}</p>
         </div>
 
         <%!-- Join command (shown when invite code is present) --%>
         <div :if={@invite_code}>
-          <p class="text-sm text-base-content/50 mb-3">
+          <p class="text-sm text-base-content/60 mb-3">
             Run this command to join the team. Expires in <span class="text-base-content/70 font-medium"><%= time_remaining(@invite_access.expires_at) %></span>.
           </p>
           <p class="text-xs text-amber-500/80 mb-3">
             Invite codes grant full edit access — only share with people you trust.
           </p>
-          <p :if={!@clerk_email} class="text-sm text-base-content/50 mb-4">
+          <p :if={!@clerk_email} class="text-sm text-base-content/60 mb-4">
             For permanent access, <a
               href={~p"/"}
               class="text-primary font-medium hover:text-primary/80 transition-colors"
@@ -885,6 +894,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                   JS.dispatch("trc:copy", detail: %{text: "npx teamrc join #{@invite_code}"})
                 }
                 class="trc-focus text-[10px] font-mono text-white/30 hover:text-white/60 transition-colors rounded px-1.5 py-0.5 hover:bg-white/5"
+                aria-label="Copy join command"
               >
                 copy
               </button>
@@ -902,7 +912,7 @@ defmodule TeamrcWeb.TeamDetailLive do
 
         <%!-- Clone box for public teams (shown to non-participants) --%>
         <section :if={@access_level == :viewer && @team.clone_token}>
-          <div class="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2">
+          <div class="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-2">
             <p class="text-xs font-semibold">Clone this team</p>
             <div class="terminal-block rounded-lg overflow-hidden">
               <div class="px-3 py-2">
@@ -911,8 +921,8 @@ defmodule TeamrcWeb.TeamDetailLive do
                 </code>
               </div>
             </div>
-            <p class="text-xs text-base-content/40">
-              Copies the team config to your machine (read-only). Run <code class="font-mono text-base-content/50">teamrc pull</code> anytime to get the latest updates.
+            <p class="text-xs text-base-content/60">
+              Copies the team config to your machine (read-only). Run <code class="font-mono text-base-content/60">teamrc pull</code> anytime to get the latest updates.
             </p>
           </div>
         </section>
@@ -920,8 +930,8 @@ defmodule TeamrcWeb.TeamDetailLive do
         <%!-- Members --%>
         <section>
           <div class="flex items-center justify-between mb-3">
-            <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider">
-              Members <span class="font-mono text-base-content/30 ml-1">{length(@team.members)}</span>
+            <p class="text-xs font-medium text-base-content/60 uppercase tracking-wider">
+              Members <span class="font-mono text-base-content/50 ml-1">{length(@team.members)}</span>
             </p>
           </div>
 
@@ -929,15 +939,15 @@ defmodule TeamrcWeb.TeamDetailLive do
             <a
               :for={member <- @team.members}
               href={member_path(@team.id, member.id, @invite_code)}
-              class="trc-focus group block rounded-lg border border-base-300 bg-base-100 p-4 hover:border-primary/20 transition-colors"
+              class="trc-focus group block rounded-lg border border-base-300 bg-base-100 p-4 hover:border-primary/30 transition-colors"
             >
               <div class="flex items-start justify-between">
                 <div>
                   <span class="font-mono font-semibold text-sm text-base-content">{member.name}</span>
-                  <p class="text-xs text-base-content/60 mt-0.5">{member.role}</p>
+                  <p class="text-xs text-base-content/70 mt-0.5">{member.role}</p>
                 </div>
                 <svg
-                  class="h-4 w-4 text-base-content/20 group-hover:text-primary/50 mt-0.5 shrink-0 transition-colors"
+                  class="h-4 w-4 text-base-content/50 group-hover:text-primary/80 mt-0.5 shrink-0 transition-colors"
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 20 20"
                   fill="currentColor"
@@ -952,7 +962,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               <div :if={member.skills != []} class="flex flex-wrap gap-1 mt-2">
                 <span
                   :for={skill_id <- member.skills}
-                  class="inline-flex items-center rounded bg-base-200 px-1.5 py-0.5 text-[10px] font-mono text-base-content/50"
+                  class="inline-flex items-center rounded bg-base-200 px-1.5 py-0.5 text-[10px] font-mono text-base-content/60"
                 >
                   {skill_id}
                 </span>
@@ -966,7 +976,7 @@ defmodule TeamrcWeb.TeamDetailLive do
             <button
               :if={is_nil(@member_mode)}
               phx-click="show_member_picker"
-              class="trc-focus inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-base-content/50 hover:text-primary hover:bg-primary/5 transition-colors"
+              class="trc-focus inline-flex items-center gap-1.5 rounded px-3 py-2 text-xs font-medium text-base-content/60 hover:text-primary hover:bg-primary/5 transition-colors"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -986,13 +996,15 @@ defmodule TeamrcWeb.TeamDetailLive do
             <%!-- Step 1: Member picker (pre-built catalog + custom option) --%>
             <div
               :if={@member_mode == :picker}
+              role="dialog"
+              aria-modal="true"
               class="rounded-lg border border-base-300 bg-base-200/30 p-4 space-y-4 animate-[fadeIn_150ms_ease-out]"
             >
               <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-base-content/60">Add a team member</p>
+                <p class="text-xs font-medium text-base-content/70">Add a team member</p>
                 <button
                   phx-click="cancel_member"
-                  class="trc-focus text-xs text-base-content/30 hover:text-base-content/50 transition-colors"
+                  class="trc-focus text-xs text-base-content/50 hover:text-base-content/60 transition-colors"
                 >
                   Cancel
                 </button>
@@ -1004,7 +1016,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                 class="trc-focus w-full text-left rounded-lg border border-base-300 bg-base-100 px-3 py-2.5 hover:border-primary/30 transition-colors"
               >
                 <div class="flex items-center gap-2.5">
-                  <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-base-200 text-base-content/40">
+                  <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-base-200 text-base-content/60">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       class="h-4 w-4"
@@ -1020,7 +1032,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                   </div>
                   <div>
                     <span class="text-sm font-medium">Create custom agent</span>
-                    <p class="text-xs text-base-content/40">Define a new agent from scratch</p>
+                    <p class="text-xs text-base-content/60">Define a new agent from scratch</p>
                   </div>
                 </div>
               </button>
@@ -1028,7 +1040,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               <%!-- Pre-built agents by category --%>
               <%= for category <- @member_catalog do %>
                 <div>
-                  <p class="text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-1.5">
+                  <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1.5">
                     {category.label}
                   </p>
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -1041,7 +1053,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                         <span class="text-xs font-mono font-medium text-base-content truncate">
                           {agent["name"]}
                         </span>
-                        <p class="text-[11px] text-base-content/40 mt-0.5 line-clamp-1">
+                        <p class="text-[11px] text-base-content/60 mt-0.5 line-clamp-1">
                           {agent["role"]}
                         </p>
                       </button>
@@ -1051,7 +1063,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               <% end %>
 
               <%= if @member_catalog == [] do %>
-                <p class="text-xs text-base-content/40 text-center py-2">
+                <p class="text-xs text-base-content/60 text-center py-2">
                   All available pre-built agents have already been added.
                 </p>
               <% end %>
@@ -1060,34 +1072,44 @@ defmodule TeamrcWeb.TeamDetailLive do
             <%!-- Step 2: Member form (for custom or pre-filled from catalog) --%>
             <div
               :if={@member_mode == :form}
+              role="dialog"
+              aria-modal="true"
               class="rounded-lg border border-base-300 bg-base-200/30 p-3 space-y-2 animate-[fadeIn_150ms_ease-out]"
             >
               <div class="flex gap-2">
-                <input
-                  type="text"
-                  value={@new_member_name}
-                  phx-keyup="update_new_member_name"
-                  phx-debounce="300"
-                  phx-mounted={JS.focus()}
-                  maxlength="64"
-                  placeholder="agent-name"
-                  class="trc-focus flex-1 rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm font-mono placeholder:text-base-content/30 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
-                />
-                <input
-                  type="text"
-                  value={@new_member_role}
-                  phx-keyup="update_new_member_role"
-                  phx-debounce="300"
-                  maxlength="256"
-                  placeholder="Role description"
-                  class="trc-focus flex-[2] rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm placeholder:text-base-content/30 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
-                />
+                <div class="flex-1">
+                  <label for="member-name" class="sr-only">Agent name</label>
+                  <input
+                    id="member-name"
+                    type="text"
+                    value={@new_member_name}
+                    phx-keyup="update_new_member_name"
+                    phx-debounce="300"
+                    phx-mounted={JS.focus()}
+                    maxlength="64"
+                    placeholder="agent-name"
+                    class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm font-mono placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors"
+                  />
+                </div>
+                <div class="flex-[2]">
+                  <label for="member-role" class="sr-only">Role description</label>
+                  <input
+                    id="member-role"
+                    type="text"
+                    value={@new_member_role}
+                    phx-keyup="update_new_member_role"
+                    phx-debounce="300"
+                    maxlength="256"
+                    placeholder="Role description"
+                    class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors"
+                  />
+                </div>
               </div>
 
               <%!-- Catalog agent preview: what's included --%>
               <div
                 :if={@new_member_soul != "" || @new_member_skills != []}
-                class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-base-content/40"
+                class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-base-content/60"
               >
                 <span :if={@new_member_soul != ""} class="inline-flex items-center gap-1">
                   <svg
@@ -1121,7 +1143,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                 </span>
                 <span
                   :for={skill_id <- @new_member_skills}
-                  class="inline-flex items-center rounded bg-base-200 px-1.5 py-0.5 text-[10px] font-mono text-base-content/50"
+                  class="inline-flex items-center rounded bg-base-200 px-1.5 py-0.5 text-[10px] font-mono text-base-content/60"
                 >
                   {skill_id}
                 </span>
@@ -1134,7 +1156,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                   class={[
                     "trc-focus rounded px-3 py-1.5 text-xs font-semibold transition-all",
                     if(@new_member_name == "" || @new_member_role == "",
-                      do: "bg-base-300 text-base-content/30 cursor-not-allowed",
+                      do: "bg-base-300 text-base-content/50 cursor-not-allowed",
                       else: "bg-primary text-primary-content hover:brightness-110"
                     )
                   ]}
@@ -1143,7 +1165,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                 </button>
                 <button
                   phx-click="cancel_member"
-                  class="trc-focus rounded px-3 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/70 transition-colors"
+                  class="trc-focus rounded px-3 py-1.5 text-xs font-medium text-base-content/60 hover:text-base-content/70 transition-colors"
                 >
                   Cancel
                 </button>
@@ -1155,15 +1177,15 @@ defmodule TeamrcWeb.TeamDetailLive do
         <%!-- Skills --%>
         <section>
           <div class="flex items-center justify-between mb-1">
-            <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider">
-              Skills <span class="font-mono text-base-content/30 ml-1">{length(@team.skills)}</span>
+            <p class="text-xs font-medium text-base-content/60 uppercase tracking-wider">
+              Skills <span class="font-mono text-base-content/50 ml-1">{length(@team.skills)}</span>
             </p>
           </div>
-          <p class="text-xs text-base-content/40 mb-3">
+          <p class="text-xs text-base-content/60 mb-3">
             Reusable instructions that can be assigned to individual agents. Skills marked
             <span class="font-semibold">all agents</span>
             apply to every agent automatically.
-            <a href={~p"/guide#skills"} class="text-primary/60 hover:text-primary transition-colors">
+            <a href={~p"/guide#skills"} class="text-primary/80 hover:text-primary transition-colors">
               Learn more
             </a>
           </p>
@@ -1178,7 +1200,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                       <span class="text-sm font-mono font-medium text-base-content">
                         {skill["id"]}
                       </span>
-                      <span :if={skill["title"]} class="text-xs text-base-content/50">
+                      <span :if={skill["title"]} class="text-xs text-base-content/60">
                         {skill["title"]}
                       </span>
                       <span
@@ -1188,18 +1210,18 @@ defmodule TeamrcWeb.TeamDetailLive do
                         all agents
                       </span>
                     </div>
-                    <p :if={skill["description"]} class="text-xs text-base-content/40 mt-0.5">
+                    <p :if={skill["description"]} class="text-xs text-base-content/60 mt-0.5">
                       {skill["description"]}
                     </p>
                   </div>
                   <div
                     :if={@can_edit}
-                    class="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    class="flex items-center gap-1 ml-2 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity"
                   >
                     <button
                       phx-click="edit_skill"
                       phx-value-skill-id={skill["id"]}
-                      class="trc-focus rounded p-1 text-base-content/30 hover:text-base-content/60 transition-colors"
+                      class="trc-focus rounded p-1 text-base-content/50 hover:text-base-content/70 transition-colors"
                       aria-label="Edit skill"
                     >
                       <svg
@@ -1215,7 +1237,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                       phx-click="delete_skill"
                       phx-value-skill-id={skill["id"]}
                       data-confirm={"Remove skill \"#{skill["id"]}\"? This will also unassign it from all agents."}
-                      class="trc-focus rounded p-1 text-base-content/30 hover:text-error transition-colors"
+                      class="trc-focus rounded p-1 text-base-content/50 hover:text-error transition-colors"
                       aria-label="Delete skill"
                     >
                       <svg
@@ -1240,7 +1262,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               :if={is_nil(@skill_mode)}
               class="rounded-md border border-dashed border-base-300 bg-base-200/20 p-4 text-center"
             >
-              <p class="text-xs text-base-content/40">
+              <p class="text-xs text-base-content/60">
                 No skills defined. Skills are shared instructions you can assign to specific agents.
               </p>
             </div>
@@ -1252,7 +1274,7 @@ defmodule TeamrcWeb.TeamDetailLive do
             <button
               :if={is_nil(@skill_mode)}
               phx-click="show_skill_picker"
-              class="trc-focus inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-base-content/50 hover:text-primary hover:bg-primary/5 transition-colors"
+              class="trc-focus inline-flex items-center gap-1.5 rounded px-3 py-2 text-xs font-medium text-base-content/60 hover:text-primary hover:bg-primary/5 transition-colors"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -1272,13 +1294,15 @@ defmodule TeamrcWeb.TeamDetailLive do
             <%!-- Step 1: Skill picker (pre-built catalog + custom option) --%>
             <div
               :if={@skill_mode == :picker}
+              role="dialog"
+              aria-modal="true"
               class="rounded-lg border border-base-300 bg-base-200/30 p-4 space-y-4 animate-[fadeIn_150ms_ease-out]"
             >
               <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-base-content/60">Add a skill</p>
+                <p class="text-xs font-medium text-base-content/70">Add a skill</p>
                 <button
                   phx-click="cancel_skill"
-                  class="trc-focus text-xs text-base-content/30 hover:text-base-content/50 transition-colors"
+                  class="trc-focus text-xs text-base-content/50 hover:text-base-content/60 transition-colors"
                 >
                   Cancel
                 </button>
@@ -1290,7 +1314,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                 class="trc-focus w-full text-left rounded-lg border border-base-300 bg-base-100 px-3 py-2.5 hover:border-primary/30 transition-colors"
               >
                 <div class="flex items-center gap-2.5">
-                  <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-base-200 text-base-content/40">
+                  <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-base-200 text-base-content/60">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       class="h-4 w-4"
@@ -1306,7 +1330,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                   </div>
                   <div>
                     <span class="text-sm font-medium">Write custom skill</span>
-                    <p class="text-xs text-base-content/40">
+                    <p class="text-xs text-base-content/60">
                       Define your own instructions from scratch
                     </p>
                   </div>
@@ -1316,7 +1340,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               <%!-- Pre-built skills by category --%>
               <%= for category <- @skill_catalog do %>
                 <div>
-                  <p class="text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-1.5">
+                  <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1.5">
                     {category.label}
                   </p>
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -1331,13 +1355,13 @@ defmodule TeamrcWeb.TeamDetailLive do
                         </span>
                         <p
                           :if={skill["description"]}
-                          class="text-[11px] text-base-content/40 mt-0.5 line-clamp-1"
+                          class="text-[11px] text-base-content/60 mt-0.5 line-clamp-1"
                         >
                           {skill["description"]}
                         </p>
                         <p
                           :if={is_nil(skill["description"]) && skill["title"]}
-                          class="text-[11px] text-base-content/40 mt-0.5"
+                          class="text-[11px] text-base-content/60 mt-0.5"
                         >
                           {skill["title"]}
                         </p>
@@ -1348,7 +1372,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               <% end %>
 
               <%= if @skill_catalog == [] do %>
-                <p class="text-xs text-base-content/40 text-center py-2">
+                <p class="text-xs text-base-content/60 text-center py-2">
                   All available pre-built skills have already been added.
                 </p>
               <% end %>
@@ -1357,15 +1381,17 @@ defmodule TeamrcWeb.TeamDetailLive do
             <%!-- Step 2: Skill form (for custom or pre-filled from catalog) --%>
             <div
               :if={@skill_mode == :form}
+              role="dialog"
+              aria-modal="true"
               class="rounded-lg border border-base-300 bg-base-200/30 p-4 space-y-3 animate-[fadeIn_150ms_ease-out]"
             >
               <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-base-content/60">
+                <p class="text-xs font-medium text-base-content/70">
                   {if @editing_skill, do: "Edit skill", else: "New skill"}
                 </p>
                 <button
                   phx-click="cancel_skill"
-                  class="trc-focus text-xs text-base-content/30 hover:text-base-content/50 transition-colors"
+                  class="trc-focus text-xs text-base-content/50 hover:text-base-content/60 transition-colors"
                 >
                   Cancel
                 </button>
@@ -1373,10 +1399,11 @@ defmodule TeamrcWeb.TeamDetailLive do
 
               <div class="grid grid-cols-2 gap-2">
                 <div>
-                  <label class="block text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-1">
+                  <label for="skill-id" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
                     ID
                   </label>
                   <input
+                    id="skill-id"
                     type="text"
                     value={@skill_id}
                     phx-keyup="update_skill_field"
@@ -1386,16 +1413,17 @@ defmodule TeamrcWeb.TeamDetailLive do
                     placeholder="code-style"
                     disabled={@editing_skill != nil}
                     class={[
-                      "trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm font-mono placeholder:text-base-content/30 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors",
+                      "trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm font-mono placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors",
                       if(@editing_skill, do: "opacity-50 cursor-not-allowed", else: "")
                     ]}
                   />
                 </div>
                 <div>
-                  <label class="block text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-1">
-                    Title <span class="text-base-content/25">(optional)</span>
+                  <label for="skill-title" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
+                    Title <span class="text-base-content/50">(optional)</span>
                   </label>
                   <input
+                    id="skill-title"
                     type="text"
                     value={@skill_title}
                     phx-keyup="update_skill_field"
@@ -1403,16 +1431,17 @@ defmodule TeamrcWeb.TeamDetailLive do
                     phx-debounce="300"
                     maxlength="128"
                     placeholder="Code Style Guide"
-                    class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm placeholder:text-base-content/30 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
+                    class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors"
                   />
                 </div>
               </div>
 
               <div>
-                <label class="block text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-1">
-                  Description <span class="text-base-content/25">(optional)</span>
+                <label for="skill-description" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
+                  Description <span class="text-base-content/50">(optional)</span>
                 </label>
                 <input
+                  id="skill-description"
                   type="text"
                   value={@skill_description}
                   phx-keyup="update_skill_field"
@@ -1420,21 +1449,22 @@ defmodule TeamrcWeb.TeamDetailLive do
                   phx-debounce="300"
                   maxlength="256"
                   placeholder="Enforces consistent code formatting and naming conventions"
-                  class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm placeholder:text-base-content/30 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
+                  class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors"
                 />
               </div>
 
               <div>
-                <label class="block text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-1">
+                <label for="skill-body" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
                   Body
                 </label>
                 <textarea
+                  id="skill-body"
                   phx-keyup="update_skill_field"
                   phx-value-field="body"
                   phx-debounce="500"
                   rows="6"
                   placeholder="The instructions for this skill in markdown..."
-                  class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-2 text-sm font-mono placeholder:text-base-content/30 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors resize-y"
+                  class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-2 text-sm font-mono placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors resize-y"
                 ><%= @skill_body %></textarea>
               </div>
 
@@ -1447,14 +1477,15 @@ defmodule TeamrcWeb.TeamDetailLive do
                   ]}
                   role="switch"
                   aria-checked={to_string(@skill_always_apply)}
+                  aria-label="Apply to all agents"
                 >
                   <span class={[
                     "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
                     if(@skill_always_apply, do: "translate-x-4", else: "translate-x-0")
                   ]} />
                 </button>
-                <span class="text-xs text-base-content/60">Apply to all agents</span>
-                <span class="text-[10px] text-base-content/30">
+                <span class="text-xs text-base-content/70">Apply to all agents</span>
+                <span class="text-[10px] text-base-content/50">
                   (otherwise, assign per-agent on their detail page)
                 </span>
               </div>
@@ -1466,7 +1497,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                   class={[
                     "trc-focus rounded px-3 py-1.5 text-xs font-semibold transition-all",
                     if(@skill_id == "" || @skill_body == "",
-                      do: "bg-base-300 text-base-content/30 cursor-not-allowed",
+                      do: "bg-base-300 text-base-content/50 cursor-not-allowed",
                       else: "bg-primary text-primary-content hover:brightness-110"
                     )
                   ]}
@@ -1475,7 +1506,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                 </button>
                 <button
                   phx-click="cancel_skill"
-                  class="trc-focus rounded px-3 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/70 transition-colors"
+                  class="trc-focus rounded px-3 py-1.5 text-xs font-medium text-base-content/60 hover:text-base-content/70 transition-colors"
                 >
                   Cancel
                 </button>
@@ -1486,7 +1517,7 @@ defmodule TeamrcWeb.TeamDetailLive do
 
         <%!-- Knowledge --%>
         <section>
-          <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-3">
+          <p class="text-xs font-medium text-base-content/60 uppercase tracking-wider mb-3">
             Knowledge
           </p>
           <div
@@ -1499,11 +1530,11 @@ defmodule TeamrcWeb.TeamDetailLive do
             :if={is_nil(@team.knowledge) || @team.knowledge == ""}
             class="rounded-md border border-dashed border-base-300 bg-base-200/20 p-4 text-center"
           >
-            <p class="text-xs text-base-content/40">
+            <p class="text-xs text-base-content/60">
               No knowledge yet. Knowledge is managed via the CLI.
               <a
                 href={~p"/guide#knowledge"}
-                class="text-primary/60 hover:text-primary transition-colors"
+                class="text-primary/80 hover:text-primary transition-colors"
               >
                 Learn more
               </a>
@@ -1513,7 +1544,7 @@ defmodule TeamrcWeb.TeamDetailLive do
 
         <%!-- Participants (owner only) --%>
         <section :if={@can_edit && @participants != []}>
-          <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-3">
+          <p class="text-xs font-medium text-base-content/60 uppercase tracking-wider mb-3">
             Participants
           </p>
           <div class="flex flex-wrap gap-1.5">
@@ -1523,7 +1554,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                 "inline-flex items-center rounded px-2 py-1 text-xs font-mono",
                 if(p == @clerk_email,
                   do: "bg-primary/10 text-primary",
-                  else: "bg-base-200/60 text-base-content/40"
+                  else: "bg-base-200/60 text-base-content/60"
                 )
               ]}
             >
@@ -1535,8 +1566,8 @@ defmodule TeamrcWeb.TeamDetailLive do
         <%!-- Invites (owner only) --%>
         <section :if={@can_edit}>
           <div class="flex items-center justify-between mb-3">
-            <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider">
-              Invites <span class="font-mono text-base-content/30 ml-1">{length(@invites)}</span>
+            <p class="text-xs font-medium text-base-content/60 uppercase tracking-wider">
+              Invites <span class="font-mono text-base-content/50 ml-1">{length(@invites)}</span>
             </p>
             <button
               phx-click="generate_invite"
@@ -1557,7 +1588,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               Generate invite
             </button>
           </div>
-          <p class="text-xs text-base-content/40 mb-3">
+          <p class="text-xs text-base-content/60 mb-3">
             Invite codes grant <span class="text-amber-500/80 font-medium">full edit access</span> to this team — members, skills, knowledge, and settings. Only share with collaborators you trust.
           </p>
 
@@ -1570,7 +1601,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               <p class="text-xs font-medium text-primary">New invite generated</p>
               <button
                 phx-click="dismiss_generated_invite"
-                class="trc-focus text-xs text-base-content/30 hover:text-base-content/50 transition-colors"
+                class="trc-focus text-xs text-base-content/50 hover:text-base-content/60 transition-colors"
               >
                 Dismiss
               </button>
@@ -1587,12 +1618,13 @@ defmodule TeamrcWeb.TeamDetailLive do
                     )
                   }
                   class="trc-focus text-[10px] font-mono text-white/30 hover:text-white/60 transition-colors rounded px-1.5 py-0.5 hover:bg-white/5"
+                  aria-label="Copy invite command"
                 >
                   copy
                 </button>
               </div>
             </div>
-            <p class="text-xs text-base-content/40 mt-2">
+            <p class="text-xs text-base-content/60 mt-2">
               Expires in {time_remaining(@generated_invite.expires_at)}. Anyone with this code can edit this team.
             </p>
           </div>
@@ -1603,8 +1635,8 @@ defmodule TeamrcWeb.TeamDetailLive do
               :for={invite <- @invites}
               class="flex items-center justify-between rounded-md border border-base-300 bg-base-100 px-3 py-2"
             >
-              <code class="text-xs font-mono text-base-content/50">{invite.code}</code>
-              <span class="text-[10px] text-base-content/30">
+              <code class="text-xs font-mono text-base-content/60">{invite.code}</code>
+              <span class="text-[10px] text-base-content/50">
                 expires in {time_remaining(invite.expires_at)}
               </span>
             </div>
@@ -1614,7 +1646,7 @@ defmodule TeamrcWeb.TeamDetailLive do
             :if={@invites == [] && is_nil(@generated_invite)}
             class="rounded-md border border-dashed border-base-300 bg-base-200/20 p-4 text-center"
           >
-            <p class="text-xs text-base-content/40">No active invites.</p>
+            <p class="text-xs text-base-content/60">No active invites.</p>
           </div>
 
           <%!-- Clone token display for owners --%>
@@ -1622,10 +1654,10 @@ defmodule TeamrcWeb.TeamDetailLive do
             :if={@team.visibility == "public" && @clone_token}
             class="mt-4 pt-4 border-t border-base-300"
           >
-            <p class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-2">
+            <p class="text-xs font-medium text-base-content/60 uppercase tracking-wider mb-2">
               Clone Token
             </p>
-            <p class="text-xs text-base-content/40 mb-2">
+            <p class="text-xs text-base-content/60 mb-2">
               Anyone with this token can copy the team config and pull updates (read-only — no edit access).
             </p>
             <div class="terminal-block rounded-lg overflow-hidden">

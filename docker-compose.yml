@@ -31,7 +31,7 @@ services:
     environment:
       DATABASE_URL: "ecto://teamrc:teamrc@db/teamrc"
       SECRET_KEY_BASE: "${SECRET_KEY_BASE:?SECRET_KEY_BASE is required — generate with: mix phx.gen.secret}"
-      PHX_HOST: "${PHX_HOST:-localhost}"
+      PHX_HOST: "${PHX_HOST:-teamrc.ai}"
       PORT: "4000"
       SESSION_SIGNING_SALT: "${SESSION_SIGNING_SALT:?SESSION_SIGNING_SALT is required}"
       LIVE_VIEW_SIGNING_SALT: "${LIVE_VIEW_SIGNING_SALT:?LIVE_VIEW_SIGNING_SALT is required}"

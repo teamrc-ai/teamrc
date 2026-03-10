@@ -1,7 +1,7 @@
 import { signMessage } from "./auth.js";
 import type { Skill, TeamDefinition } from "./adapters/base.js";
 
-import { validateSkillId } from "./team-yaml.js";
+import { validateSkillId, resolveBody } from "./team-yaml.js";
 
 export interface TeamrcTeam {
   id: string;
@@ -61,6 +61,9 @@ export class TeamrcClient {
   private token: string;
   private teamId?: string;
 
+  /** Default timeout for all fetch requests (30 seconds) */
+  static readonly FETCH_TIMEOUT_MS = 30_000;
+
   constructor(baseUrl: string, privateKey: Uint8Array, token: string, teamId?: string) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.privateKey = privateKey;
@@ -100,6 +103,7 @@ export class TeamrcClient {
         "x-trc-signature": signature,
         "x-trc-timestamp": timestamp,
       },
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, `GET ${path} failed`));
@@ -127,6 +131,7 @@ export class TeamrcClient {
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "createTeam failed"));
@@ -150,6 +155,7 @@ export class TeamrcClient {
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "join failed"));
@@ -158,7 +164,18 @@ export class TeamrcClient {
     return data.team;
   }
 
-  async pushTeam(team: TeamDefinition, knowledge?: string): Promise<TeamrcTeam> {
+  async pushTeam(team: TeamDefinition, knowledge?: string, basePath?: string): Promise<TeamrcTeam> {
+    // Resolve source-body skills to their actual content before sending
+    const resolvedSkills = team.skills?.map((s) => {
+      if (typeof s.body === "object" && s.body.source) {
+        const resolved = resolveBody(s.body, basePath ?? process.cwd());
+        if (!resolved) {
+          throw new Error(`Skill "${s.id}" references source "${s.body.source}" which could not be read`);
+        }
+        return { ...s, body: resolved };
+      }
+      return s;
+    });
     const body = JSON.stringify({
       token: this.token,
       ...(this.teamId ? { team_id: this.teamId } : {}),
@@ -169,7 +186,7 @@ export class TeamrcClient {
           role: m.role,
           ...(m.skills?.length ? { skills: m.skills } : {}),
         })),
-        ...(team.skills?.length ? { skills: team.skills } : {}),
+        ...(resolvedSkills?.length ? { skills: resolvedSkills } : {}),
         ...(knowledge ? { knowledge } : {}),
       },
     });
@@ -178,6 +195,7 @@ export class TeamrcClient {
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "pushTeam failed"));
@@ -199,6 +217,7 @@ export class TeamrcClient {
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "createDeviceAuth failed"));
@@ -233,6 +252,7 @@ export class TeamrcClient {
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(await this.errorMessage(res, "preview failed"));
     const data = (await res.json()) as { team: TeamrcTeam };
@@ -240,13 +260,38 @@ export class TeamrcClient {
   }
 
   async cloneByToken(cloneToken: string): Promise<TeamrcTeam> {
-    const res = await fetch(`${this.baseUrl}/api/teams/clone/${encodeURIComponent(cloneToken)}`);
+    const res = await fetch(`${this.baseUrl}/api/teams/clone/${encodeURIComponent(cloneToken)}`, {
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Clone failed: ${res.status} ${body}`);
+      throw new Error(await this.errorMessage(res, "clone failed"));
     }
     const data = (await res.json()) as { team: TeamrcTeam };
     return data.team;
+  }
+
+  private async signedDelete<T>(path: string): Promise<T> {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const message = `${timestamp}.DELETE ${path}`;
+    const signature = await signMessage(this.privateKey, message);
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: "DELETE",
+      headers: {
+        "x-trc-signature": signature,
+        "x-trc-timestamp": timestamp,
+      },
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      throw new Error(await this.errorMessage(res, `DELETE ${path} failed`));
+    }
+    return (await res.json()) as T;
+  }
+
+  async eraseToken(): Promise<{ status: string; teams_removed: number }> {
+    return this.signedDelete<{ status: string; teams_removed: number }>(
+      `/api/token/${encodeURIComponent(this.token)}/erase`,
+    );
   }
 
   async createInvite(ttlHours: number = 24): Promise<{ invite_code: string; expires_at: string }> {
@@ -260,6 +305,7 @@ export class TeamrcClient {
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(await this.errorMessage(res, "createInvite failed"));
     return (await res.json()) as { invite_code: string; expires_at: string };

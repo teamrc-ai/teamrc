@@ -117,15 +117,22 @@ defmodule Teamrc.Accounts do
     account = get_account_with_tokens(clerk_user_id)
 
     if account do
-      tokens = Enum.map(account.account_tokens, & &1.token)
+      tokens =
+        account.account_tokens
+        |> Enum.reject(& &1.revoked_at)
+        |> Enum.map(& &1.token)
 
-      from(tt in TokenTeam,
-        where: tt.team_id == ^team_id and tt.token in ^tokens,
-        select: tt.token,
-        limit: 1
-      )
-      |> Repo.one()
-      |> is_binary()
+      if tokens == [] do
+        false
+      else
+        from(tt in TokenTeam,
+          where: tt.team_id == ^team_id and tt.token in ^tokens,
+          select: tt.token,
+          limit: 1
+        )
+        |> Repo.one()
+        |> is_binary()
+      end
     else
       false
     end

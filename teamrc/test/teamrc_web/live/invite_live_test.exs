@@ -28,16 +28,30 @@ defmodule TeamrcWeb.InviteLiveTest do
     invite |> Ecto.Changeset.change(%{expires_at: expires_at}) |> Repo.update!()
   end
 
-  test "valid invite redirects to team dashboard", %{conn: conn} do
+  test "valid invite redirects to team dashboard via flash", %{conn: conn} do
     {code, team_id} = create_team_with_invite()
 
-    assert {:error, {:redirect, %{to: "/teams/" <> rest}}} = live(conn, "/invite/#{code}")
+    assert {:error, {:redirect, %{to: "/teams/" <> rest, flash: flash}}} =
+             live(conn, "/invite/#{code}")
+
     assert rest =~ team_id
-    assert rest =~ "invite=#{code}"
+    assert flash["invite_code"] == code
   end
 
-  test "invalid invite redirects to /new", %{conn: conn} do
-    assert {:error, {:redirect, %{to: "/new"}}} = live(conn, "/invite/trc_inv_nonexistent")
+  test "invalid invite renders error page", %{conn: conn} do
+    {:ok, _view, html} = live(conn, "/invite/trc_inv_nonexistent")
+    assert html =~ "Invalid Invite"
+    assert html =~ "This invite has expired or is invalid"
+  end
+
+  test "expired invite shows error page instead of redirect", %{conn: conn} do
+    {code, _team_id} = create_team_with_invite()
+    set_invite_expiry!(code, DateTime.utc_now() |> DateTime.add(-3600))
+
+    {:ok, _view, html} = live(conn, "/invite/#{code}")
+    assert html =~ "Invite Expired"
+    assert html =~ "This invite has expired or is invalid"
+    assert html =~ "Create a new team"
   end
 
   test "team dashboard shows join command via invite", %{conn: conn} do

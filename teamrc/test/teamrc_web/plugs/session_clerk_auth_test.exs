@@ -93,6 +93,32 @@ defmodule TeamrcWeb.Plugs.SessionClerkAuthTest do
     assert get_session(conn, "clerk_verified_at") >= now
   end
 
+  test "session is renewed on reverification (session ID rotation)", %{conn: conn} do
+    now = System.system_time(:second)
+
+    token =
+      build_jwt(%{
+        "sub" => "user_rotated",
+        "email" => "rotated@example.com",
+        "iss" => @issuer,
+        "aud" => @audience,
+        "exp" => now + 3600
+      })
+
+    conn =
+      conn
+      |> init_test_session(%{
+        "clerk_user_id" => "user_old",
+        "clerk_email" => "old@example.com",
+        "clerk_verified_at" => now - 901
+      })
+      |> Plug.Test.put_req_cookie("__session", token)
+      |> SessionClerkAuth.call(SessionClerkAuth.init([]))
+
+    # The session should be configured for renewal
+    assert conn.private[:plug_session_info] == :renew
+  end
+
   defp build_jwt(claims) do
     jws = %{"alg" => "RS256"}
     {_, token} = JOSE.JWT.sign(@rsa_key, jws, claims) |> JOSE.JWS.compact()

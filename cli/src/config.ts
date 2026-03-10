@@ -111,5 +111,5 @@ export function getRelayUrl(overrideUrl?: string): string {
     validateRelayUrl(config.relay);
     return config.relay;
   }
-  return "http://localhost:4000";
+  return "https://teamrc.ai";
 }

@@ -242,7 +242,8 @@ defmodule TeamrcWeb.MemberDetailLive do
       <%!-- Back navigation --%>
       <a
         href={team_path(@team.id, @invite_code)}
-        class="trc-focus inline-flex items-center gap-1.5 text-xs font-medium text-base-content/40 hover:text-base-content/70 transition-colors rounded px-1 -ml-1"
+        aria-label="Back to team"
+        class="trc-focus inline-flex items-center gap-1.5 text-xs font-medium text-base-content/60 hover:text-base-content/70 transition-colors rounded px-2 py-1 -ml-2"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -264,59 +265,63 @@ defmodule TeamrcWeb.MemberDetailLive do
         <%= if @can_edit do %>
           <div class="space-y-3">
             <div>
-              <label class="block text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-1">
+              <label for="member-name" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
                 Name
               </label>
               <input
+                id="member-name"
                 type="text"
                 value={@edit_name}
                 phx-keyup="update_name"
                 phx-debounce="300"
                 maxlength="64"
-                class="trc-focus w-full rounded-lg border border-base-300 bg-base-100 px-4 py-2.5 text-xl font-mono font-bold placeholder:text-base-content/30 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
+                class="trc-focus w-full rounded-lg border border-base-300 bg-base-100 px-4 py-2.5 text-xl font-mono font-bold placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
               />
             </div>
             <div>
-              <label class="block text-[10px] font-medium text-base-content/40 uppercase tracking-wider mb-1">
+              <label for="member-role" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
                 Role
               </label>
               <input
+                id="member-role"
                 type="text"
                 value={@edit_role}
                 phx-keyup="update_role"
                 phx-debounce="300"
                 maxlength="256"
-                class="trc-focus w-full rounded-lg border border-base-300 bg-base-100 px-4 py-2.5 text-sm placeholder:text-base-content/30 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
+                class="trc-focus w-full rounded-lg border border-base-300 bg-base-100 px-4 py-2.5 text-sm placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
               />
             </div>
           </div>
         <% else %>
           <h1 class="text-2xl font-bold tracking-tight font-mono">{@member.name}</h1>
-          <p class="text-sm text-base-content/60 mt-1">{@member.role}</p>
+          <p class="text-sm text-base-content/70 mt-1">{@member.role}</p>
         <% end %>
       </div>
 
       <%!-- Soul / Instructions --%>
       <section>
         <div class="flex items-center gap-2 mb-3">
-          <h2 class="text-xs font-medium text-base-content/50 uppercase tracking-wider">
+          <h2 class="text-xs font-medium text-base-content/60 uppercase tracking-wider">
             Instructions
           </h2>
           <a
             href={~p"/guide#instructions"}
-            class="text-[10px] text-primary/50 hover:text-primary transition-colors"
+            class="text-[10px] text-primary/80 hover:text-primary transition-colors"
           >
             ?
           </a>
         </div>
 
         <%= if @can_edit do %>
+          <label for="member-soul" class="sr-only">Instructions</label>
           <textarea
+            id="member-soul"
             phx-keyup="update_soul"
             phx-debounce="500"
             rows="20"
             placeholder="Write this agent's personality, behavioral guidelines, and instructions in markdown..."
-            class="trc-focus soul-editor w-full rounded-lg border border-base-300 bg-base-200/30 p-5 text-sm font-mono text-base-content/80 leading-relaxed placeholder:text-base-content/30 focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-colors resize-y"
+            class="trc-focus soul-editor w-full rounded-lg border border-base-300 bg-base-200/30 p-5 text-sm font-mono text-base-content/80 leading-relaxed placeholder:text-base-content/50 focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-colors resize-y"
           ><%= @edit_soul %></textarea>
         <% else %>
           <div class="soul-editor rounded-lg border border-base-300 bg-base-200/30">
@@ -326,7 +331,7 @@ defmodule TeamrcWeb.MemberDetailLive do
             ><%= @member.soul %></pre>
             <p
               :if={is_nil(@member.soul) || @member.soul == ""}
-              class="p-5 text-sm text-base-content/40 italic"
+              class="p-5 text-sm text-base-content/60 italic"
             >
               No instructions defined for this agent.
             </p>
@@ -336,15 +341,15 @@ defmodule TeamrcWeb.MemberDetailLive do
 
       <%!-- Skills --%>
       <section>
-        <h2 class="text-xs font-medium text-base-content/50 uppercase tracking-wider mb-1">
+        <h2 class="text-xs font-medium text-base-content/60 uppercase tracking-wider mb-1">
           Skills
-          <span class="font-mono text-base-content/30 ml-1">{length(@member.skills || [])}</span>
+          <span class="font-mono text-base-content/50 ml-1">{length(@member.skills || [])}</span>
         </h2>
-        <p class="text-xs text-base-content/40 mb-3">
+        <p class="text-xs text-base-content/60 mb-3">
           Toggle skills to assign them to this agent. Skills marked
           <span class="font-semibold">all agents</span>
           are automatically included and can't be removed.
-          <a href={~p"/guide#skills"} class="text-primary/60 hover:text-primary transition-colors">
+          <a href={~p"/guide#skills"} class="text-primary/80 hover:text-primary transition-colors">
             Learn more
           </a>
         </p>
@@ -391,11 +396,11 @@ defmodule TeamrcWeb.MemberDetailLive do
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
                       <span class="font-mono font-medium text-xs">{skill["id"]}</span>
-                      <span :if={skill["title"]} class="text-xs text-base-content/50">
+                      <span :if={skill["title"]} class="text-xs text-base-content/60">
                         {skill["title"]}
                       </span>
                     </div>
-                    <p :if={skill["description"]} class="text-xs text-base-content/40 mt-0.5">
+                    <p :if={skill["description"]} class="text-xs text-base-content/60 mt-0.5">
                       {skill["description"]}
                     </p>
                   </div>
@@ -432,17 +437,17 @@ defmodule TeamrcWeb.MemberDetailLive do
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
                       <span class="font-mono font-medium text-xs">{skill["id"]}</span>
-                      <span :if={skill["title"]} class="text-xs text-base-content/50">
+                      <span :if={skill["title"]} class="text-xs text-base-content/60">
                         {skill["title"]}
                       </span>
                       <span
                         :if={always_on}
-                        class="inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary/70"
+                        class="inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary/80"
                       >
                         all agents
                       </span>
                     </div>
-                    <p :if={skill["description"]} class="text-xs text-base-content/40 mt-0.5">
+                    <p :if={skill["description"]} class="text-xs text-base-content/60 mt-0.5">
                       {skill["description"]}
                     </p>
                   </div>
@@ -451,7 +456,7 @@ defmodule TeamrcWeb.MemberDetailLive do
             <% end %>
           </div>
         <% else %>
-          <p class="text-xs text-base-content/40">
+          <p class="text-xs text-base-content/60">
             No skills defined for this team. Add skills on the team dashboard.
           </p>
         <% end %>
@@ -466,12 +471,12 @@ defmodule TeamrcWeb.MemberDetailLive do
         >
           Save changes
         </button>
-        <span :if={!@dirty} class="text-xs text-base-content/30">All changes saved</span>
+        <span :if={!@dirty} class="text-xs text-base-content/50">All changes saved</span>
 
         <button
           phx-click="delete_member"
           data-confirm="Are you sure you want to remove this member?"
-          class="trc-focus rounded-lg px-4 py-2 text-xs font-medium text-base-content/30 hover:text-error hover:bg-error/10 transition-colors"
+          class="trc-focus rounded-lg px-4 py-2 text-xs font-medium text-base-content/50 hover:text-error hover:bg-error/10 transition-colors"
         >
           Remove member
         </button>

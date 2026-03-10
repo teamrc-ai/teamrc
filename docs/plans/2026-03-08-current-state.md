@@ -57,7 +57,7 @@
 | Feature | Status |
 |---------|--------|
 | Team CRUD via signed API | Working |
-| Multi-team per token (token → MapSet of team_ids) | Working |
+| Multi-team per token (token → team_ids via token_teams table) | Working |
 | Invite codes (24h TTL, 144-bit entropy, multi-use) | Working |
 | Push/pull with cross-platform delivery | Working |
 | Self-filtering (don't echo own entries) | Working |
@@ -135,7 +135,7 @@ The core multi-project infrastructure is built (config split, `team_id` routing,
 | Suite | Count | Command |
 |-------|-------|---------|
 | CLI (TypeScript) | 185 tests | `cd cli && npm test` |
-| Relay (Elixir) | 135 tests | `cd teamrc && mix test` |
+| Relay (Elixir) | 148 tests | `cd teamrc && mix test` |
 | E2E | 9 scenarios | `test/e2e.sh` (relay API with curl) |
 
 ---
@@ -166,7 +166,7 @@ cli/
 
 teamrc/
   lib/teamrc/
-    teams.ex                  — GenServer for team state + sync (multi-team per token)
+    teams.ex                  — Team context module (multi-team per token, queries Postgres directly)
     accounts.ex               — Accounts context
     device_auth.ex            — Device auth GenServer
     catalog.ex                — Template catalog loader (Elixir side)

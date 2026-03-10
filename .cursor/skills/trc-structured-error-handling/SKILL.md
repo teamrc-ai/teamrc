@@ -1,0 +1,47 @@
+---
+name: trc-structured-error-handling
+description: "Use typed, structured errors with proper propagation — never swallow exceptions"
+---
+
+## Error Type Design
+- Define structured error types with machine-readable codes, human-readable
+  messages, and contextual metadata — generic string errors lose information
+  at every layer they pass through.
+- Use the language's error type system: Result<T, E> in Rust, error
+  interface in Go, typed exceptions in Java/Python, {:ok, val} | {:error,
+  reason} tuples in Elixir. Follow the language's conventions.
+- Distinguish between recoverable errors (validation failures, not-found,
+  conflict) and unrecoverable errors (OOM, corrupted state, assertion
+  failures) — handle them differently.
+- Include the causal chain — wrap lower-level errors with higher-level
+  context so the full error path is traceable. "Failed to create user:
+  database error: connection refused" is actionable. "Something went wrong"
+  is not.
+
+## Error Handling Rules
+- Never catch and swallow errors silently — every catch block must either
+  handle the error meaningfully (retry, fallback, user notification) or
+  re-raise/propagate it. A catch block with only a log statement is
+  almost always a bug.
+- Never catch the base exception type (Exception in Java/Python,
+  error in Go, std::exception in C++) in production code unless you
+  are at the top-level error boundary — broad catches mask bugs.
+- Always include the original error as the cause when wrapping — losing
+  the original stack trace makes debugging impossible.
+- Use try-with-resources, context managers, defer, or RAII for cleanup —
+  manual resource cleanup in catch/finally blocks is error-prone and
+  frequently skipped on unexpected exception types.
+
+## Error Communication
+- Return identical error messages for authentication failures ("user not
+  found" vs. "wrong password") — different messages reveal valid usernames
+  to attackers.
+- Never expose internal error details (stack traces, SQL errors, file
+  paths) to external API consumers — map internal errors to safe,
+  documented error codes at the API boundary.
+- Log errors with structured metadata (request ID, user context, operation
+  name, error code) for debugging — unstructured error logs are difficult
+  to search and correlate.
+- Document all possible error responses for each API endpoint — consumers
+  need to handle every error code your API can return.
+
