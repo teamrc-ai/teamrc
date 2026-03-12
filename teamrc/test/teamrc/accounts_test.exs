@@ -123,6 +123,53 @@ defmodule Teamrc.AccountsTest do
       # Team itself should still exist
       assert Repo.get(Teamrc.Schema.Team, team_data["id"])
     end
+
+    test "clears owner_user_id on owned teams (BUG 4)" do
+      user = user_fixture()
+      token_str = "trc_ak_del_owner_#{:erlang.unique_integer([:positive])}"
+      {:ok, _mt} = Accounts.link_machine_token(user.id, token_str, "test-machine")
+
+      # Create a team owned by this user (token is linked to user, so owner resolves automatically)
+      {:ok, team_data} =
+        Teamrc.Teams.put_team(token_str, %{"name" => "owned-team", "members" => []})
+
+      team_id = team_data["id"]
+
+      # Verify ownership is set (token linked to user => owner_user_id set automatically)
+      team_before = Repo.get(Teamrc.Schema.Team, team_id)
+      assert team_before.owner_user_id == user.id
+
+      # Delete the user
+      assert :ok = Accounts.delete_user_and_data(user)
+
+      # Team should still exist but owner_user_id should be nil
+      team_after = Repo.get(Teamrc.Schema.Team, team_id)
+      assert team_after != nil
+      assert is_nil(team_after.owner_user_id)
+    end
+
+    test "clears owner_user_id on web-created teams (BUG 4)" do
+      user = user_fixture()
+
+      # Create team via web wizard with direct owner_user_id
+      {:ok, _invite_code, team_id} =
+        Teamrc.Teams.create_team_with_invite(
+          %{"name" => "web-owned-team", "members" => []},
+          owner_user_id: user.id
+        )
+
+      # Verify ownership is set
+      team_before = Repo.get(Teamrc.Schema.Team, team_id)
+      assert team_before.owner_user_id == user.id
+
+      # Delete the user
+      assert :ok = Accounts.delete_user_and_data(user)
+
+      # Team should still exist but owner_user_id should be nil
+      team_after = Repo.get(Teamrc.Schema.Team, team_id)
+      assert team_after != nil
+      assert is_nil(team_after.owner_user_id)
+    end
   end
 
   describe "export_user_data/1" do

@@ -345,7 +345,7 @@ defmodule Teamrc.Teams do
   @doc "Update a team's name. Returns {:ok, team_with_members} or {:error, changeset}."
   def update_team_name(team, new_name) do
     case team |> Team.changeset(%{name: new_name}) |> Repo.update() do
-      {:ok, updated_team} -> {:ok, Repo.preload(updated_team, :members, force: true)}
+      {:ok, updated_team} -> {:ok, recompute_hashes(updated_team.id)}
       {:error, changeset} -> {:error, changeset}
     end
   end
@@ -353,16 +353,23 @@ defmodule Teamrc.Teams do
   @doc "Update a team's skills list. Returns {:ok, team_with_members} or {:error, changeset}."
   def update_team_skills(team, skills) do
     case team |> Team.changeset(%{skills: skills}) |> Repo.update() do
-      {:ok, updated_team} -> {:ok, Repo.preload(updated_team, :members, force: true)}
+      {:ok, updated_team} -> {:ok, recompute_hashes(updated_team.id)}
       {:error, changeset} -> {:error, changeset}
     end
   end
 
   @doc "Add a member to a team. Returns {:ok, member} or {:error, changeset}."
   def add_member(team_id, attrs) do
-    %Member{team_id: team_id}
-    |> Member.changeset(attrs)
-    |> Repo.insert()
+    case %Member{team_id: team_id}
+         |> Member.changeset(attrs)
+         |> Repo.insert() do
+      {:ok, member} ->
+        recompute_hashes(team_id)
+        {:ok, member}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
   end
 
   @doc "Get a member by ID. Returns nil if not found."
@@ -372,20 +379,68 @@ defmodule Teamrc.Teams do
 
   @doc "Update a member. Returns {:ok, member} or {:error, changeset}."
   def update_member(member, changes) do
-    member
-    |> Member.changeset(changes)
-    |> Repo.update()
+    case member
+         |> Member.changeset(changes)
+         |> Repo.update() do
+      {:ok, updated_member} ->
+        recompute_hashes(updated_member.team_id)
+        {:ok, updated_member}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
   end
 
   @doc "Delete a member. Returns {:ok, member} or {:error, changeset}."
   def delete_member(member) do
-    Repo.delete(member)
+    team_id = member.team_id
+
+    case Repo.delete(member) do
+      {:ok, deleted_member} ->
+        recompute_hashes(team_id)
+        {:ok, deleted_member}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
   end
 
   @doc "Reload a team with members preloaded (force)."
   def reload_team_with_members(team) do
     Repo.preload(team, :members, force: true)
   end
+
+  @doc "Create an invite directly by team_id (no token verification). Use when the caller has already verified access (e.g. web-only owner)."
+  def create_invite_by_team_id(team_id, ttl_hours) do
+    invite_code = generate_invite_code()
+    expires_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(ttl_hours * 3600)
+
+    case %Invite{}
+         |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team_id})
+         |> Repo.insert() do
+      {:ok, _invite} ->
+        {:ok, invite_code, expires_at}
+
+      {:error, _changeset} ->
+        {:error, :invite_creation_failed}
+    end
+  end
+
+  @doc "Set team visibility by owner user_id (no token required). Use when the caller has already verified ownership (e.g. web-only owner)."
+  def set_visibility_by_owner(user_id, team_id, visibility) when visibility in ["public", "private"] do
+    case Repo.get(Team, team_id) do
+      nil ->
+        {:error, :not_found}
+
+      %Team{owner_user_id: ^user_id} ->
+        do_set_visibility(team_id, visibility)
+
+      _team ->
+        {:error, :not_owner}
+    end
+  end
+
+  def set_visibility_by_owner(_user_id, _team_id, _visibility), do: {:error, :invalid_visibility}
 
   @doc "Delete a skill from a team and remove it from all members. Returns {:ok, team_with_members} or {:error, reason}."
   def delete_skill(team, skill_id) do
@@ -412,7 +467,7 @@ defmodule Teamrc.Teams do
       end)
 
     case result do
-      {:ok, updated_team} -> {:ok, Repo.preload(updated_team, :members, force: true)}
+      {:ok, updated_team} -> {:ok, recompute_hashes(updated_team.id)}
       {:error, reason} -> {:error, reason}
     end
   end
@@ -436,6 +491,23 @@ defmodule Teamrc.Teams do
     else
       nil
     end
+  end
+
+  @doc "Recompute and persist content hashes for a team. Returns the updated team with members preloaded."
+  def recompute_hashes(team_id) do
+    team = Repo.get(Team, team_id) |> Repo.preload(:members)
+    hashes = ContentHash.compute_team_hashes(team)
+
+    {:ok, updated} =
+      team
+      |> Team.changeset(%{
+        members_hash: hashes.members_hash,
+        skills_hash: hashes.skills_hash,
+        knowledge_hash: hashes.knowledge_hash
+      })
+      |> Repo.update()
+
+    Repo.preload(updated, :members, force: true)
   end
 
   # --- Private helpers ---

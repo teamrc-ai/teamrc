@@ -621,6 +621,10 @@ defmodule Teamrc.Accounts do
         |> Repo.delete_all()
       end
 
+      # Clear owner_user_id on owned teams to prevent dangling references
+      from(t in Team, where: t.owner_user_id == ^user.id)
+      |> Repo.update_all(set: [owner_user_id: nil])
+
       # Explicitly delete session tokens (belt-and-suspenders with FK cascade)
       from(t in UserToken, where: t.user_id == ^user.id)
       |> Repo.delete_all()

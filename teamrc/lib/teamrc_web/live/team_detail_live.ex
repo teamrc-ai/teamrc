@@ -539,29 +539,32 @@ defmodule TeamrcWeb.TeamDetailLive do
     require_edit_access(socket, fn ->
       team = socket.assigns.team
 
-      case find_user_token_for_team(socket.assigns, team.id) do
-        nil ->
+      # Try token-based invite first; fall back to direct team_id invite for web-only owners
+      invite_result =
+        case find_user_token_for_team(socket.assigns, team.id) do
+          nil ->
+            if socket.assigns.is_owner do
+              Teams.create_invite_by_team_id(team.id, 24)
+            else
+              :error
+            end
+
+          token ->
+            Teams.create_invite(token, 24, team.id)
+        end
+
+      case invite_result do
+        {:ok, code, expires_at} ->
+          invites = Teams.list_active_invites(team.id)
+
           {:noreply,
-           put_flash(
-             socket,
-             :error,
-             "Unable to generate invite. No linked machine found for this team."
+           assign(socket,
+             invites: invites,
+             generated_invite: %{code: code, expires_at: expires_at}
            )}
 
-        token ->
-          case Teams.create_invite(token, 24, team.id) do
-            {:ok, code, expires_at} ->
-              invites = Teams.list_active_invites(team.id)
-
-              {:noreply,
-               assign(socket,
-                 invites: invites,
-                 generated_invite: %{code: code, expires_at: expires_at}
-               )}
-
-            :error ->
-              {:noreply, put_flash(socket, :error, "Failed to generate invite.")}
-          end
+        _ ->
+          {:noreply, put_flash(socket, :error, "Failed to generate invite.")}
       end
     end)
   end
@@ -577,28 +580,33 @@ defmodule TeamrcWeb.TeamDetailLive do
       team = socket.assigns.team
       new_visibility = if team.visibility == "public", do: "private", else: "public"
 
-      token = find_user_token_for_team(socket.assigns, team.id)
+      # Try token-based visibility toggle first; fall back to owner-based for web-only owners
+      visibility_result =
+        case find_user_token_for_team(socket.assigns, team.id) do
+          nil ->
+            current_user = socket.assigns.current_user
+            if current_user, do: Teams.set_visibility_by_owner(current_user.id, team.id, new_visibility), else: {:error, :not_authorized}
 
-      if is_nil(token) do
-        {:noreply, put_flash(socket, :error, "No linked machine found for this team.")}
-      else
-        case Teams.set_visibility(token, team.id, new_visibility) do
-          {:ok, updated_team} ->
-            updated_team = Teams.reload_team_with_members(updated_team)
-            clone_token = if new_visibility == "public", do: updated_team.clone_token, else: nil
-
-            {:noreply,
-             assign(socket,
-               team: updated_team,
-               clone_token: clone_token
-             )}
-
-          {:error, :not_owner} ->
-            {:noreply, put_flash(socket, :error, "Only the team owner can change visibility.")}
-
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to update visibility.")}
+          token ->
+            Teams.set_visibility(token, team.id, new_visibility)
         end
+
+      case visibility_result do
+        {:ok, updated_team} ->
+          updated_team = Teams.reload_team_with_members(updated_team)
+          clone_token = if new_visibility == "public", do: updated_team.clone_token, else: nil
+
+          {:noreply,
+           assign(socket,
+             team: updated_team,
+             clone_token: clone_token
+           )}
+
+        {:error, :not_owner} ->
+          {:noreply, put_flash(socket, :error, "Only the team owner can change visibility.")}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to update visibility.")}
       end
     end
   end
