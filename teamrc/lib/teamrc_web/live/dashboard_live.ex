@@ -211,7 +211,7 @@ defmodule TeamrcWeb.DashboardLive do
     ~H"""
     <div class="space-y-10">
       <%!-- Header --%>
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 class="text-2xl font-bold tracking-tight">Dashboard</h1>
           <p class="text-sm text-base-content/60 mt-1">
@@ -220,7 +220,7 @@ defmodule TeamrcWeb.DashboardLive do
         </div>
         <a
           href={~p"/new"}
-          class="trc-focus inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-content shadow-sm hover:brightness-110 active:scale-[0.99] transition-all duration-150"
+          class="trc-focus inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-content shadow-sm hover:brightness-110 active:scale-[0.99] transition-all duration-150 self-start sm:self-auto"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
@@ -287,7 +287,7 @@ defmodule TeamrcWeb.DashboardLive do
             </button>
 
             <%!-- Expanded team detail --%>
-            <div :if={@expanded_team == team.id} class="rounded-lg border border-base-300/60 bg-base-200/20 px-4 py-4 -mt-1 ml-4 space-y-4 animate-[fadeIn_150ms_ease-out]">
+            <div :if={@expanded_team == team.id} class="rounded-lg border border-base-300/60 bg-base-200/20 px-3 sm:px-4 py-4 -mt-1 ml-0 sm:ml-4 space-y-4 animate-[fadeIn_150ms_ease-out]">
               <%!-- Members --%>
               <div>
                 <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-2">Members</p>
@@ -379,8 +379,8 @@ defmodule TeamrcWeb.DashboardLive do
             :for={machine <- @machines}
             class="group rounded-lg border border-base-300 bg-base-100 px-4 py-3 transition-colors hover:border-base-300/80"
           >
-            <div class="flex items-center gap-4">
-              <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-base-200 text-base-content/60">
+            <div class="flex flex-wrap items-center gap-3 sm:gap-4">
+              <div class="hidden sm:flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-base-200 text-base-content/60">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25" />
                 </svg>
@@ -400,7 +400,7 @@ defmodule TeamrcWeb.DashboardLive do
               </div>
 
               <%!-- Revoke confirmation --%>
-              <div :if={@confirming_revoke == machine.token} role="alert" class="flex items-center gap-2 animate-[fadeIn_150ms_ease-out]">
+              <div :if={@confirming_revoke == machine.token} role="alert" class="flex flex-wrap items-center gap-2 animate-[fadeIn_150ms_ease-out]">
                 <span class="text-xs text-error/70">Revoke access?</span>
                 <button
                   phx-click="revoke_machine"
@@ -428,7 +428,7 @@ defmodule TeamrcWeb.DashboardLive do
             </div>
 
             <%!-- Machine team associations --%>
-            <div :if={Map.get(@machine_teams, machine.token, []) != []} class="mt-2 ml-12 space-y-1">
+            <div :if={Map.get(@machine_teams, machine.token, []) != []} class="mt-2 ml-0 sm:ml-12 space-y-1">
               <div :for={mt <- Map.get(@machine_teams, machine.token, [])} class="flex items-center gap-2 text-xs text-base-content/60">
                 <span :if={mt.scope == "global"} class="inline-flex items-center rounded bg-base-200/60 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-base-content/50">
                   global
@@ -466,7 +466,7 @@ defmodule TeamrcWeb.DashboardLive do
             </.link>
           </div>
 
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <button
               phx-click="export_data"
               class="trc-focus inline-flex items-center gap-1.5 rounded-md border border-base-300 bg-base-100 px-3 py-1.5 text-xs font-medium text-base-content/70 hover:text-base-content/80 hover:border-base-300/80 transition-colors"
@@ -478,7 +478,7 @@ defmodule TeamrcWeb.DashboardLive do
             </button>
 
             <%= if @confirming_delete do %>
-              <div role="alert" class="flex items-center gap-2 animate-[fadeIn_150ms_ease-out]">
+              <div role="alert" class="flex flex-wrap items-center gap-2 animate-[fadeIn_150ms_ease-out]">
                 <span class="text-xs text-error/70">Delete account and all data?</span>
                 <button
                   phx-click="delete_account"

@@ -306,9 +306,9 @@ defmodule TeamrcWeb.MemberDetailLive do
             id="member-soul"
             phx-keyup="update_soul"
             phx-debounce="500"
-            rows="20"
+            rows="12"
             placeholder="Write this agent's personality, behavioral guidelines, and instructions in markdown..."
-            class="trc-focus soul-editor w-full rounded-lg border border-base-300 bg-base-200/30 p-5 text-sm font-mono text-base-content/80 leading-relaxed placeholder:text-base-content/50 focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-colors resize-y"
+            class="trc-focus soul-editor w-full rounded-lg border border-base-300 bg-base-200/30 p-4 sm:p-5 text-sm font-mono text-base-content/80 leading-relaxed placeholder:text-base-content/50 focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-colors resize-y sm:min-h-[28rem]"
           ><%= @edit_soul %></textarea>
         <% else %>
           <div class="soul-editor rounded-lg border border-base-300 bg-base-200/30">
@@ -450,7 +450,7 @@ defmodule TeamrcWeb.MemberDetailLive do
       </section>
 
       <%!-- Actions --%>
-      <div :if={@can_edit} class="flex items-center justify-between pt-4 border-t border-base-200">
+      <div :if={@can_edit} class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-4 border-t border-base-200">
         <button
           :if={@dirty}
           phx-click="save"

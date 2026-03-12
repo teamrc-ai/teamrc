@@ -30,13 +30,13 @@ defmodule TeamrcWeb.GuideLive do
     ~H"""
     <div class="space-y-8">
       <%!-- Page nav --%>
-      <nav class="flex flex-wrap gap-1 border-b border-base-300 pb-3">
+      <nav class="flex gap-1 overflow-x-auto pb-3 border-b border-base-300 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
         <a
           :for={{id, label, path} <- @pages}
           href={path}
           aria-current={if(@current_page == id, do: "page")}
           class={[
-            "trc-focus rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+            "trc-focus rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors whitespace-nowrap",
             if(@current_page == id,
               do: "bg-primary/10 text-primary",
               else: "text-base-content/60 hover:text-base-content/70 hover:bg-base-200/60"
@@ -1820,7 +1820,7 @@ defmodule TeamrcWeb.GuideLive do
             <p class="text-[10px] font-medium text-base-content/50 uppercase tracking-wider">
               Core Development
             </p>
-            <div class="grid grid-cols-2 gap-1.5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               <.mock_catalog_agent name="frontend-dev" role="Frontend development" highlighted={true} />
               <.mock_catalog_agent name="backend-dev" role="Backend development" />
               <.mock_catalog_agent name="fullstack-dev" role="Full-stack development" />
@@ -1831,7 +1831,7 @@ defmodule TeamrcWeb.GuideLive do
             <p class="text-[10px] font-medium text-base-content/50 uppercase tracking-wider">
               Quality
             </p>
-            <div class="grid grid-cols-2 gap-1.5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               <.mock_catalog_agent name="qa-engineer" role="Quality assurance" />
               <.mock_catalog_agent name="code-reviewer" role="Code review" />
             </div>
@@ -2042,7 +2042,7 @@ defmodule TeamrcWeb.GuideLive do
           <p class="text-sm font-bold">Skill editor</p>
         </div>
         <div class="px-5 pb-5 space-y-3">
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <p class="text-[10px] text-base-content/50 uppercase tracking-wider mb-1">ID</p>
               <div class="rounded border border-base-300 px-2.5 py-1.5 text-xs font-mono">

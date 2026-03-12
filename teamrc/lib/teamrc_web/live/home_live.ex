@@ -59,16 +59,16 @@ defmodule TeamrcWeb.HomeLive do
           </div>
           <span class="text-[10px] font-mono text-white/25 ml-2">terminal</span>
         </div>
-        <div class="p-4 space-y-1.5">
+        <div class="p-4 space-y-1.5 overflow-x-auto">
           <div class="flex items-start gap-2">
             <span class="text-white/30 font-mono text-sm select-none">$</span>
-            <code class="text-emerald-400 text-sm font-mono">npx @teamrc/cli init</code>
-            <span class="text-white/20 text-sm font-mono ml-2"># create a team in this project</span>
+            <code class="text-emerald-400 text-sm font-mono whitespace-nowrap">npx @teamrc/cli init</code>
+            <span class="text-white/20 text-sm font-mono ml-2 hidden sm:inline whitespace-nowrap"># create a team in this project</span>
           </div>
           <div class="flex items-start gap-2">
             <span class="text-white/30 font-mono text-sm select-none">$</span>
-            <code class="text-emerald-400 text-sm font-mono">npx @teamrc/cli sync</code>
-            <span class="text-white/20 text-sm font-mono ml-2"># pull latest &amp; regenerate files</span>
+            <code class="text-emerald-400 text-sm font-mono whitespace-nowrap">npx @teamrc/cli sync</code>
+            <span class="text-white/20 text-sm font-mono ml-2 hidden sm:inline whitespace-nowrap"># pull latest &amp; regenerate files</span>
           </div>
         </div>
       </div>

@@ -69,21 +69,21 @@ defmodule TeamrcWeb.Layouts do
             </a>
           </nav>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 sm:gap-3">
           <%!-- Auth state: signed in --%>
           <div :if={@current_user} class="flex items-center gap-2">
-            <div class="flex items-center gap-2 rounded-md bg-base-200/50 px-2.5 py-1.5">
+            <div class="hidden sm:flex items-center gap-2 rounded-md bg-base-200/50 px-2.5 py-1.5">
               <div class="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-primary text-[10px] font-bold">
                 <%= String.first(@current_user.email) |> String.upcase() %>
               </div>
-              <span class="text-xs text-base-content/70 font-mono hidden sm:inline max-w-[140px] truncate">
+              <span class="text-xs text-base-content/70 font-mono max-w-[140px] truncate">
                 <%= @current_user.email %>
               </span>
             </div>
             <.link
               href={~p"/users/log-out"}
               method="delete"
-              class="trc-focus rounded-md px-2 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/80 transition-colors"
+              class="trc-focus hidden sm:inline-flex rounded-md px-2 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/80 transition-colors"
             >
               Sign out
             </.link>
@@ -99,11 +99,62 @@ defmodule TeamrcWeb.Layouts do
             </svg>
             Sign in
           </.link>
+          <%!-- Mobile menu button --%>
+          <button
+            phx-click={JS.toggle(to: "#mobile-menu", in: "fade-in", out: "fade-out")}
+            class="trc-focus sm:hidden rounded-md p-1.5 text-base-content/60 hover:text-base-content/80 hover:bg-base-200/60 transition-colors"
+            aria-label="Toggle menu"
+            aria-expanded="false"
+            aria-controls="mobile-menu"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+          </button>
         </div>
       </nav>
+      <%!-- Mobile menu dropdown --%>
+      <div id="mobile-menu" class="hidden sm:hidden border-t border-base-300/60 bg-base-100/95 backdrop-blur-sm px-4 py-3 space-y-1">
+        <a
+          :if={@current_user}
+          href={~p"/dashboard"}
+          class="trc-focus block rounded-md px-3 py-2 text-sm font-medium text-base-content/70 hover:text-base-content/90 hover:bg-base-200/60 transition-colors"
+        >
+          Dashboard
+        </a>
+        <a
+          href={~p"/new"}
+          class="trc-focus block rounded-md px-3 py-2 text-sm font-medium text-base-content/70 hover:text-base-content/90 hover:bg-base-200/60 transition-colors"
+        >
+          Create Team
+        </a>
+        <a
+          href={~p"/guide"}
+          class="trc-focus block rounded-md px-3 py-2 text-sm font-medium text-base-content/70 hover:text-base-content/90 hover:bg-base-200/60 transition-colors"
+        >
+          Guide
+        </a>
+        <div :if={@current_user} class="border-t border-base-300/40 pt-2 mt-2">
+          <div class="flex items-center gap-2 px-3 py-1.5">
+            <div class="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-primary text-[10px] font-bold">
+              <%= String.first(@current_user.email) |> String.upcase() %>
+            </div>
+            <span class="text-xs text-base-content/70 font-mono truncate">
+              <%= @current_user.email %>
+            </span>
+          </div>
+          <.link
+            href={~p"/users/log-out"}
+            method="delete"
+            class="trc-focus block rounded-md px-3 py-2 text-sm font-medium text-base-content/50 hover:text-base-content/80 transition-colors"
+          >
+            Sign out
+          </.link>
+        </div>
+      </div>
     </header>
 
-    <main id="main-content" class="flex-1 px-6 py-12 sm:px-8 sm:py-16">
+    <main id="main-content" class="flex-1 px-4 py-8 sm:px-8 sm:py-16">
       <div class="mx-auto max-w-2xl">
         <%= if assigns[:inner_content] do %>
           {@inner_content}
@@ -114,7 +165,7 @@ defmodule TeamrcWeb.Layouts do
     </main>
 
     <footer class="border-t border-base-300/40 py-6 mt-auto">
-      <div class="mx-auto max-w-2xl px-6 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="mx-auto max-w-2xl px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
         <p class="text-xs text-base-content/50">
           teamrc is pre-release software
         </p>

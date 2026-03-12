@@ -158,4 +158,31 @@ code, pre, .font-mono, kbd {
   }
 }
 
+/* Hide scrollbar for horizontal nav tabs */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Terminal block horizontal scroll on small screens */
+.terminal-block .p-4,
+.terminal-block [class*="p-"] {
+  overflow-x: auto;
+}
+
+/* Mobile menu animations */
+.fade-in {
+  animation: fadeIn 150ms ease-out;
+}
+.fade-out {
+  animation: fadeOut 150ms ease-in;
+}
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 /* This file is for your main application CSS */

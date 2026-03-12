@@ -232,13 +232,13 @@ defmodule TeamrcWeb.AuthVerifyLive do
           </p>
         </div>
 
-        <div class="rounded-lg border border-base-300 bg-base-200/30 p-5 mb-4 space-y-3">
-          <div class="flex items-center justify-between">
+        <div class="rounded-lg border border-base-300 bg-base-200/30 p-4 sm:p-5 mb-4 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
             <span class="text-xs font-medium text-base-content/60 uppercase tracking-wider">Account</span>
-            <span class="text-sm font-mono text-base-content/70"><%= @current_user.email %></span>
+            <span class="text-sm font-mono text-base-content/70 truncate"><%= @current_user.email %></span>
           </div>
           <div class="border-t border-base-300/60"></div>
-          <div class="flex items-center justify-between">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
             <span class="text-xs font-medium text-base-content/60 uppercase tracking-wider">Device code</span>
             <span class="text-lg font-mono tracking-[0.2em] text-primary font-semibold"><%= @user_code %></span>
           </div>

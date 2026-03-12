@@ -723,7 +723,7 @@ defmodule TeamrcWeb.TeamDetailLive do
 
         <%!-- Team header --%>
         <div>
-          <div :if={@editing_section != "name"} class="flex items-center gap-3">
+          <div :if={@editing_section != "name"} class="flex flex-wrap items-center gap-2 sm:gap-3">
             <h1 class="text-2xl font-bold tracking-tight font-mono">{@team.name}</h1>
             <span class={[
               "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
@@ -1028,8 +1028,8 @@ defmodule TeamrcWeb.TeamDetailLive do
               aria-modal="true"
               class="rounded-lg border border-base-300 bg-base-200/30 p-3 space-y-2 animate-[fadeIn_150ms_ease-out]"
             >
-              <div class="flex gap-2">
-                <div class="flex-1">
+              <div class="flex flex-col sm:flex-row gap-2">
+                <div class="sm:flex-1">
                   <label for="member-name" class="sr-only">Agent name</label>
                   <input
                     id="member-name"
@@ -1043,7 +1043,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                     class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm font-mono placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors"
                   />
                 </div>
-                <div class="flex-[2]">
+                <div class="sm:flex-[2]">
                   <label for="member-role" class="sr-only">Role description</label>
                   <input
                     id="member-role"
@@ -1349,7 +1349,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                 </button>
               </div>
 
-              <div class="grid grid-cols-2 gap-2">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label for="skill-id" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
                     ID
