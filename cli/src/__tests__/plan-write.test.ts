@@ -110,7 +110,7 @@ describe("planWrite", () => {
     assert.ok(actions.some((a) => a.description === "teamrc section"));
   });
 
-  it("openclaw: plans per-agent workspaces, shared skills, and openclaw.json", async () => {
+  it("openclaw: plans agent files, shared skills, and openclaw.json", async () => {
     const { OpenClawAdapter } = await import("../adapters/openclaw.js");
     const origHome = process.env.HOME;
     process.env.HOME = tmpDir;
@@ -118,9 +118,8 @@ describe("planWrite", () => {
       const adapter = new OpenClawAdapter();
       const actions = adapter.planWrite(team);
 
-      assert.ok(actions.some((a) => a.description === "agent workspace: dev"), "Should plan agent workspace");
-      assert.ok(actions.some((a) => a.description === "agent workspace: reviewer"), "Should plan reviewer workspace");
-      assert.ok(actions.some((a) => a.description === "agent soul: dev"), "Should plan SOUL.md");
+      assert.ok(actions.some((a) => a.description === "agent: dev"), "Should plan agent file");
+      assert.ok(actions.some((a) => a.description === "agent: reviewer"), "Should plan reviewer file");
       assert.ok(actions.some((a) => a.description?.startsWith("skill:")), "Should plan skills");
       assert.ok(actions.some((a) => a.description === "agent registration"), "Should plan openclaw.json update");
     } finally {

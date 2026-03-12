@@ -4,7 +4,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 
-describe("OpenClaw adapter (multi-agent workspaces)", () => {
+describe("OpenClaw adapter (file-based agents)", () => {
   let tmpDir: string;
   let origHome: string | undefined;
   let origCwd: string;
@@ -27,7 +27,7 @@ describe("OpenClaw adapter (multi-agent workspaces)", () => {
     fs.rmSync(tmpDir, { recursive: true });
   });
 
-  it("creates per-agent workspace directories", async () => {
+  it("creates agent .md files in ~/.openclaw/agents/", async () => {
     const { OpenClawAdapter } = await import("../adapters/openclaw.js");
     const adapter = new OpenClawAdapter();
 
@@ -41,13 +41,13 @@ describe("OpenClaw adapter (multi-agent workspaces)", () => {
 
     adapter.writeTeam(team);
 
-    const architectWs = path.join(tmpDir, ".openclaw", "workspace-trc-architect");
-    const devWs = path.join(tmpDir, ".openclaw", "workspace-trc-dev");
-    assert.ok(fs.existsSync(architectWs), "architect workspace should exist");
-    assert.ok(fs.existsSync(devWs), "dev workspace should exist");
+    const architectFile = path.join(tmpDir, ".openclaw", "agents", "trc-architect.md");
+    const devFile = path.join(tmpDir, ".openclaw", "agents", "trc-dev.md");
+    assert.ok(fs.existsSync(architectFile), "architect agent file should exist");
+    assert.ok(fs.existsSync(devFile), "dev agent file should exist");
   });
 
-  it("writes AGENTS.md into each agent workspace with team info", async () => {
+  it("writes agent files with YAML frontmatter and team info", async () => {
     const { OpenClawAdapter } = await import("../adapters/openclaw.js");
     const adapter = new OpenClawAdapter();
 
@@ -61,16 +61,18 @@ describe("OpenClaw adapter (multi-agent workspaces)", () => {
 
     adapter.writeTeam(team);
 
-    const agentsMd = path.join(tmpDir, ".openclaw", "workspace-trc-architect", "AGENTS.md");
-    assert.ok(fs.existsSync(agentsMd), "AGENTS.md should exist in workspace");
-
-    const content = fs.readFileSync(agentsMd, "utf-8");
-    assert.ok(content.includes("# Team: test-team"), "Should have team name");
-    assert.ok(content.includes("architect"), "Should mention agent name");
+    const content = fs.readFileSync(
+      path.join(tmpDir, ".openclaw", "agents", "trc-architect.md"),
+      "utf-8",
+    );
+    assert.ok(content.startsWith("---\n"), "Should start with YAML frontmatter");
+    assert.ok(content.includes("name: trc-architect"), "Should have agent name in frontmatter");
+    assert.ok(content.includes("description: System architect"), "Should have role as description");
+    assert.ok(content.includes("## Team: test-team"), "Should have team name");
     assert.ok(content.includes("**dev**"), "Should list teammate");
   });
 
-  it("writes SOUL.md into each agent workspace with persona", async () => {
+  it("includes custom soul in agent file", async () => {
     const { OpenClawAdapter } = await import("../adapters/openclaw.js");
     const adapter = new OpenClawAdapter();
 
@@ -84,27 +86,12 @@ describe("OpenClaw adapter (multi-agent workspaces)", () => {
 
     adapter.writeTeam(team);
 
-    const soulMd = path.join(tmpDir, ".openclaw", "workspace-trc-architect", "SOUL.md");
-    assert.ok(fs.existsSync(soulMd), "SOUL.md should exist");
-
-    const content = fs.readFileSync(soulMd, "utf-8");
+    const content = fs.readFileSync(
+      path.join(tmpDir, ".openclaw", "agents", "trc-architect.md"),
+      "utf-8",
+    );
     assert.ok(content.includes("teamrc-role: System architect"), "Should encode role");
     assert.ok(content.includes("You design distributed systems."), "Should have custom soul");
-  });
-
-  it("creates agent state directories", async () => {
-    const { OpenClawAdapter } = await import("../adapters/openclaw.js");
-    const adapter = new OpenClawAdapter();
-
-    const team = {
-      name: "test-team",
-      members: [{ name: "dev", role: "Developer" }],
-    };
-
-    adapter.writeTeam(team);
-
-    const agentDir = path.join(tmpDir, ".openclaw", "agents", "trc-dev", "agent");
-    assert.ok(fs.existsSync(agentDir), "Agent state dir should exist at ~/.openclaw/agents/<id>/agent/");
   });
 
   it("registers agents in openclaw.json", async () => {
@@ -130,8 +117,7 @@ describe("OpenClaw adapter (multi-agent workspaces)", () => {
 
     const architectEntry = config.agents.list.find((a: { id: string }) => a.id === "trc-architect");
     assert.ok(architectEntry, "Should have architect entry");
-    assert.ok(architectEntry.workspace.includes("workspace-trc-architect"), "Should have correct workspace path");
-    assert.ok(architectEntry.agentDir.includes("agents/trc-architect/agent"), "Should have correct agentDir");
+    assert.equal(architectEntry.name, "architect", "Should have agent name");
   });
 
   it("preserves non-trc agents in openclaw.json", async () => {
@@ -158,27 +144,7 @@ describe("OpenClaw adapter (multi-agent workspaces)", () => {
     assert.ok(config.agents.list.find((a: { id: string }) => a.id === "trc-dev"), "Should add new trc agent");
   });
 
-  it("writes per-agent skills to workspace/skills/", async () => {
-    const { OpenClawAdapter } = await import("../adapters/openclaw.js");
-    const adapter = new OpenClawAdapter();
-
-    const team = {
-      name: "test-team",
-      members: [
-        { name: "architect", role: "design", skills: ["skill-search"] },
-      ],
-      skills: [{ id: "skill-search", description: "Search code", body: "Use grep." }],
-    };
-
-    adapter.writeTeam(team);
-
-    const wsSkillPath = path.join(
-      tmpDir, ".openclaw", "workspace-trc-architect", "skills", "trc-skill-search", "SKILL.md",
-    );
-    assert.ok(fs.existsSync(wsSkillPath), "Per-agent skill should be in workspace/skills/");
-  });
-
-  it("writes shared skills to ~/.openclaw/skills/", async () => {
+  it("writes skills to ~/.openclaw/skills/", async () => {
     const { OpenClawAdapter } = await import("../adapters/openclaw.js");
     const adapter = new OpenClawAdapter();
 
@@ -200,7 +166,29 @@ describe("OpenClaw adapter (multi-agent workspaces)", () => {
     assert.ok(content.includes("Red green refactor."), "SKILL.md should have body");
   });
 
-  it("readTeam parses openclaw.json + workspace files", async () => {
+  it("lists per-agent skills in agent file", async () => {
+    const { OpenClawAdapter } = await import("../adapters/openclaw.js");
+    const adapter = new OpenClawAdapter();
+
+    const team = {
+      name: "test-team",
+      members: [
+        { name: "architect", role: "design", skills: ["skill-search"] },
+      ],
+      skills: [{ id: "skill-search", description: "Search code", body: "Use grep." }],
+    };
+
+    adapter.writeTeam(team);
+
+    const content = fs.readFileSync(
+      path.join(tmpDir, ".openclaw", "agents", "trc-architect.md"),
+      "utf-8",
+    );
+    assert.ok(content.includes("## Skills"), "Should have skills section");
+    assert.ok(content.includes("skill-search"), "Should list assigned skill");
+  });
+
+  it("readTeam parses agent files", async () => {
     const { OpenClawAdapter } = await import("../adapters/openclaw.js");
     const adapter = new OpenClawAdapter();
 
@@ -238,7 +226,58 @@ describe("OpenClaw adapter (multi-agent workspaces)", () => {
     assert.ok(fs.existsSync(knowledgePath), "Knowledge should be in ~/.openclaw/");
   });
 
-  it("uninstall removes workspaces, agent dirs, skills, config entries, and knowledge", async () => {
+  it("cleans up stale agent files on write", async () => {
+    const { OpenClawAdapter } = await import("../adapters/openclaw.js");
+    const adapter = new OpenClawAdapter();
+
+    // Write initial team
+    adapter.writeTeam({
+      name: "test-team",
+      members: [
+        { name: "architect", role: "Architect" },
+        { name: "dev", role: "Developer" },
+      ],
+    });
+
+    // Write updated team without architect
+    adapter.writeTeam({
+      name: "test-team",
+      members: [{ name: "dev", role: "Developer" }],
+    });
+
+    const agentsDir = path.join(tmpDir, ".openclaw", "agents");
+    assert.ok(
+      !fs.existsSync(path.join(agentsDir, "trc-architect.md")),
+      "Stale agent file should be removed",
+    );
+    assert.ok(
+      fs.existsSync(path.join(agentsDir, "trc-dev.md")),
+      "Active agent file should remain",
+    );
+  });
+
+  it("cleans up legacy workspace dirs on write", async () => {
+    const { OpenClawAdapter } = await import("../adapters/openclaw.js");
+    const adapter = new OpenClawAdapter();
+
+    // Create legacy workspace dir
+    const legacyWs = path.join(tmpDir, ".openclaw", "workspace-trc-dev");
+    fs.mkdirSync(legacyWs, { recursive: true });
+    fs.writeFileSync(path.join(legacyWs, "AGENTS.md"), "legacy");
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [{ name: "dev", role: "Developer" }],
+    });
+
+    assert.ok(!fs.existsSync(legacyWs), "Legacy workspace should be removed");
+    assert.ok(
+      fs.existsSync(path.join(tmpDir, ".openclaw", "agents", "trc-dev.md")),
+      "New agent file should exist",
+    );
+  });
+
+  it("uninstall removes agent files, skills, config entries, and knowledge", async () => {
     const { OpenClawAdapter } = await import("../adapters/openclaw.js");
     const adapter = new OpenClawAdapter();
 
@@ -254,16 +293,10 @@ describe("OpenClaw adapter (multi-agent workspaces)", () => {
     const actions = adapter.uninstall();
     assert.ok(actions.length > 0, "Should have uninstall actions");
 
-    // Workspace should be removed
+    // Agent file should be removed
     assert.ok(
-      !fs.existsSync(path.join(tmpDir, ".openclaw", "workspace-trc-dev")),
-      "Agent workspace should be removed",
-    );
-
-    // Agent state dir should be removed
-    assert.ok(
-      !fs.existsSync(path.join(tmpDir, ".openclaw", "agents", "trc-dev")),
-      "Agent state dir should be removed",
+      !fs.existsSync(path.join(tmpDir, ".openclaw", "agents", "trc-dev.md")),
+      "Agent file should be removed",
     );
 
     // Shared skills should be removed
@@ -285,7 +318,7 @@ describe("OpenClaw adapter (multi-agent workspaces)", () => {
     assert.ok(!fs.existsSync(path.join(tmpDir, ".openclaw", "teamrc-knowledge.md")), "Knowledge should be removed");
   });
 
-  it("does not create .agents/ directory", async () => {
+  it("does not create .agents/ directory in project", async () => {
     const { OpenClawAdapter } = await import("../adapters/openclaw.js");
     const adapter = new OpenClawAdapter();
 
