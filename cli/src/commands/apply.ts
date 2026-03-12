@@ -21,24 +21,26 @@ export function registerApply(program: Command): void {
 
       const scope = await selectScope(opts);
       const platforms = await requirePlatforms(opts.platform, scope);
+      let yamlPath = scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
       let team;
       try {
-        team = readTeamYaml(TEAM_YAML);
+        team = readTeamYaml(yamlPath);
       } catch (e) {
-        p.log.error(`Failed to parse .teamrc.yaml: ${e instanceof Error ? e.message : e}`);
+        p.log.error(`Failed to parse ${scope === "global" ? "global team.yaml" : ".teamrc.yaml"}: ${e instanceof Error ? e.message : e}`);
         process.exit(1);
       }
-      if (!team) {
-        // Fall back to global YAML
+      if (!team && scope === "project") {
+        // Fall back to global YAML when no project-level team exists
         try {
           team = readTeamYaml(GLOBAL_TEAM_YAML);
+          if (team) yamlPath = GLOBAL_TEAM_YAML;
         } catch (e) {
           p.log.error(`Failed to parse global team.yaml: ${e instanceof Error ? e.message : e}`);
           process.exit(1);
         }
       }
       if (!team) {
-        p.log.error(`No .teamrc.yaml found. Run \`${cliCmd("init")}\` or \`${cliCmd("import <platform>")}\` first.`);
+        p.log.error(`No team YAML found. Run \`${cliCmd("init")}\` or \`${cliCmd("import <platform>")}\` first.`);
         process.exit(1);
       }
 

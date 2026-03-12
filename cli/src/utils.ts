@@ -1,6 +1,7 @@
 import * as os from "node:os";
 import { Command } from "commander";
 import * as p from "@clack/prompts";
+import { createRequire } from "node:module";
 import {
   generateKeypair,
   saveKeypair,
@@ -14,7 +15,7 @@ import {
   detectPlatforms,
   getRelayUrl,
 } from "./config.js";
-import { getAdapter, VALID_PLATFORMS, GLOBAL_ONLY_PLATFORMS, PROJECT_ONLY_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
+import { getAdapter, VALID_PLATFORMS, SUPPORTED_PLATFORMS, UNIMPLEMENTED_PLATFORMS, GLOBAL_ONLY_PLATFORMS, PROJECT_ONLY_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
 import { resolveTeam, listTeams, type TeamTemplate } from "./catalog.js";
 import { readTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML } from "./team-yaml.js";
 import type { TeamrcConfig } from "./config.js";
@@ -42,12 +43,15 @@ export function cliCmd(subcommand: string): string {
 // ---------------------------------------------------------------------------
 // Program definition — single shared instance
 // ---------------------------------------------------------------------------
+const require = createRequire(import.meta.url);
+const { version: CLI_VERSION } = require("../package.json") as { version: string };
+
 export const program = new Command();
 
 program
   .name(CLI_NAME)
   .description("teamrc -- sync multi-agent teams across platforms")
-  .version("0.1.0")
+  .version(CLI_VERSION)
   .option("--json", "Output as JSON")
   .option("-y, --yes", "Skip all prompts, use defaults")
   .option("--no-color", "Disable colored output")
@@ -104,7 +108,11 @@ export async function requirePlatforms(override?: string, scope?: TeamScope): Pr
     const requested = override.split(",").map((s) => s.trim()).filter(Boolean);
     for (const pl of requested) {
       if (!VALID_PLATFORMS.includes(pl as typeof VALID_PLATFORMS[number])) {
-        p.log.error(`Unknown platform: ${pl}. Valid options: ${VALID_PLATFORMS.join(", ")}`);
+        p.log.error(`Unknown platform: ${pl}. Valid options: ${SUPPORTED_PLATFORMS.join(", ")}`);
+        process.exit(1);
+      }
+      if (UNIMPLEMENTED_PLATFORMS.includes(pl)) {
+        p.log.error(`Platform "${pl}" is not yet supported. Available: ${SUPPORTED_PLATFORMS.join(", ")}`);
         process.exit(1);
       }
     }
@@ -124,7 +132,6 @@ export async function requirePlatforms(override?: string, scope?: TeamScope): Pr
     return detected;
   }
 
-  const UNIMPLEMENTED_PLATFORMS = ["copilot", "amazon-q", "windsurf", "cline"];
   const selectablePlatforms = VALID_PLATFORMS.filter(
     (pl) => !UNIMPLEMENTED_PLATFORMS.includes(pl),
   );
@@ -150,7 +157,7 @@ export async function requirePlatforms(override?: string, scope?: TeamScope): Pr
       disabled: isDisabled(pl),
     })),
     initialValues: detected.filter(
-      (pl) => !UNIMPLEMENTED_PLATFORMS.includes(pl) && !isDisabled(pl),
+      (pl) => !(UNIMPLEMENTED_PLATFORMS as readonly string[]).includes(pl) && !isDisabled(pl),
     ),
     required: true,
   });

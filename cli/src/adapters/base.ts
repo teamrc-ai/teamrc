@@ -48,6 +48,23 @@ export const VALID_PLATFORMS = [
   "cline",
 ] as const;
 
+/** Platforms with implemented adapters (ready to use) */
+export const SUPPORTED_PLATFORMS: readonly string[] = [
+  "claude-code",
+  "cursor",
+  "codex",
+  "gemini",
+  "openclaw",
+] as const;
+
+/** Platforms recognized but not yet implemented */
+export const UNIMPLEMENTED_PLATFORMS: readonly string[] = [
+  "copilot",
+  "amazon-q",
+  "windsurf",
+  "cline",
+] as const;
+
 /** Platforms that only support global scope (no per-project config) */
 export const GLOBAL_ONLY_PLATFORMS: readonly string[] = ["openclaw"] as const;
 
@@ -74,8 +91,9 @@ export interface PlatformAdapter {
   planWrite(team: TeamDefinition, scope?: TeamScope): FileAction[];
   readKnowledge(): string;
   writeKnowledge(content: string): void;
-  /** Remove everything teamrc installed for this platform. Returns list of actions taken. */
-  uninstall(): string[];
+  /** Remove everything teamrc installed for this platform. Returns list of actions taken.
+   *  When scope is provided, only removes files for that scope. */
+  uninstall(scope?: TeamScope): string[];
 }
 
 /** Write a native SKILL.md file for a skill in the given base directory */

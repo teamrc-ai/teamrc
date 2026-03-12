@@ -111,7 +111,8 @@ if [ "$HAS_CONFIG" = true ] && [ "$HAS_YAML" = true ]; then
   done
 
   # Sync checks (only if relay is likely running)
-  if curl -sf "http://localhost:4000" >/dev/null 2>&1; then
+  RELAY_URL="${TEAMRC_RELAY:-http://localhost:4000}"
+  if curl -sf "$RELAY_URL" >/dev/null 2>&1; then
     run_section "section-04-sync.sh"
   else
     echo -e "\n${YELLOW}⊘ Skipping section-04 (relay not running)${RESET}"

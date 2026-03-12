@@ -24,6 +24,8 @@ defmodule Teamrc.Schema.DeviceAuthRequest do
     |> cast(attrs, [:user_code, :device_code, :token, :status, :expires_at, :account_id, :email, :failed_attempts])
     |> validate_required([:user_code, :device_code, :token, :status, :expires_at])
     |> validate_inclusion(:status, ["pending", "confirmed"])
+    |> check_constraint(:status, name: :status_check, message: "must be 'pending' or 'confirmed'")
+    |> check_constraint(:failed_attempts, name: :failed_attempts_non_negative, message: "must be non-negative")
     |> unique_constraint(:user_code)
     |> unique_constraint(:device_code)
   end

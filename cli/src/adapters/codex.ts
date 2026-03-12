@@ -15,6 +15,7 @@ import {
   type PlatformAdapter,
   type TeamDefinition,
   type TeamMember,
+  type TeamScope,
 } from "./base.js";
 
 export class CodexAdapter implements PlatformAdapter {
@@ -35,7 +36,28 @@ export class CodexAdapter implements PlatformAdapter {
   }
 
 
-  readTeam(): TeamDefinition | null { return null; }
+  readTeam(): TeamDefinition | null {
+    const dir = this.agentsConfigDir();
+    const files = listTrcFiles(dir, ".toml");
+    if (files.length === 0) return null;
+
+    let teamName = "my-team";
+    const members: TeamMember[] = [];
+
+    for (const file of files) {
+      const content = fs.readFileSync(path.join(dir, file), "utf-8");
+      const parsed = parseAgentToml(file, content);
+      if (!parsed) continue;
+      if (parsed.teamName) teamName = parsed.teamName;
+      members.push({
+        name: parsed.agentName,
+        role: parsed.role,
+        ...(parsed.soul ? { soul: parsed.soul } : {}),
+      });
+    }
+
+    return members.length > 0 ? { name: teamName, members } : null;
+  }
 
   planWrite(team: TeamDefinition): FileAction[] {
     const actions: FileAction[] = [];
@@ -108,9 +130,20 @@ export class CodexAdapter implements PlatformAdapter {
       }
     }
 
-    // Write individual subagent TOML configs
+    // Build set of desired agent filenames and delete orphans
+    const desiredFiles = new Set<string>();
     for (const member of team.members) {
       validateAgentName(member.name);
+      desiredFiles.add(`trc-${slugify(member.name)}.toml`);
+    }
+    for (const existing of listTrcFiles(this.agentsConfigDir(), ".toml")) {
+      if (!desiredFiles.has(existing)) {
+        fs.unlinkSync(path.join(this.agentsConfigDir(), existing));
+      }
+    }
+
+    // Write individual subagent TOML configs
+    for (const member of team.members) {
       this.writeAgentToml(team.name, member, team.members, team);
     }
 
@@ -282,7 +315,7 @@ export class CodexAdapter implements PlatformAdapter {
     fs.writeFileSync(path.join(process.cwd(), "teamrc-knowledge.md"), content);
   }
 
-  uninstall(): string[] {
+  uninstall(_scope?: TeamScope): string[] {
     const actions: string[] = [];
 
     // Clean up subagent TOML files
@@ -312,4 +345,53 @@ export class CodexAdapter implements PlatformAdapter {
 
     return actions;
   }
+}
+
+// --- Helpers ---
+
+interface ParsedCodexAgent {
+  agentName: string;
+  role: string;
+  soul?: string;
+  teamName?: string;
+}
+
+/** Parse a trc-*.toml agent file back into structured data */
+function parseAgentToml(fileName: string, content: string): ParsedCodexAgent | null {
+  // Extract agent name from filename: trc-<name>.toml
+  const nameMatch = fileName.match(/^trc-(.+)\.toml$/);
+  if (!nameMatch) return null;
+  const agentName = nameMatch[1];
+
+  // Extract role from comment: "# Role: <role>"
+  const roleMatch = content.match(/^# Role:\s*(.+)$/m);
+  const role = roleMatch ? roleMatch[1].trim() : "";
+
+  // Extract developer_instructions from triple-quoted TOML string
+  const instrMatch = content.match(/developer_instructions\s*=\s*"""([\s\S]*?)"""/);
+  if (!instrMatch) return null;
+  const instructions = instrMatch[1].trim();
+
+  // Extract team name from instructions: "on the <team> team"
+  const teamMatch = instructions.match(/on the\s+(.+?)\s+team/);
+  const teamName = teamMatch ? teamMatch[1] : undefined;
+
+  // Extract soul: text between first line ("You are...") and "## Skills" / "## Teammates" sections
+  const lines = instructions.split("\n");
+  const soulLines: string[] = [];
+  let pastIntro = false;
+  for (const line of lines) {
+    if (line.startsWith("## Skills") || line.startsWith("## Teammates")) break;
+    if (pastIntro) {
+      soulLines.push(line);
+    } else if (line.startsWith("You are ")) {
+      pastIntro = true; // skip the "You are X" intro line
+    }
+  }
+
+  const soulRaw = soulLines.join("\n").trim();
+  // Don't include default filler text as soul
+  const soul = soulRaw && !soulRaw.startsWith("Focus on your role") ? soulRaw : undefined;
+
+  return { agentName, role, soul, teamName };
 }

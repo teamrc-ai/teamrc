@@ -19,6 +19,7 @@ defmodule Teamrc.Schema.TokenTeam do
     |> cast(attrs, [:token, :team_id, :scope, :project_name, :last_seen_at])
     |> validate_required([:token, :team_id])
     |> validate_inclusion(:scope, ["project", "global"])
+    |> check_constraint(:scope, name: :scope_check, message: "must be 'project' or 'global'")
     |> unique_constraint([:token, :team_id])
   end
 end

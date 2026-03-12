@@ -44,6 +44,7 @@ defmodule Teamrc.Schema.Team do
     |> validate_length(:knowledge, max: 100_000)
     |> validate_format(:name, ~r/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/)
     |> validate_inclusion(:visibility, ["public", "private"])
+    |> check_constraint(:visibility, name: :visibility_check, message: "must be 'public' or 'private'")
     |> unique_constraint(:clone_token)
     |> validate_entry_ids(:skills)
   end

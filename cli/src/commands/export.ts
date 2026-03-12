@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import { remoteTeamToDefinition } from "../client.js";
-import { writeTeamYaml, validateTeamName, TEAM_YAML } from "../team-yaml.js";
+import { writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import {
   requireTeamContext,
 } from "../utils.js";
@@ -15,6 +15,7 @@ export function registerExport(program: Command): void {
 
       const ctx = requireTeamContext();
       const { client } = ctx;
+      const yamlPath = ctx.scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
 
       const s = p.spinner();
       try {
@@ -22,8 +23,8 @@ export function registerExport(program: Command): void {
         const remoteTeam = await client.getTeam();
         validateTeamName(remoteTeam.name);
         const team = remoteTeamToDefinition(remoteTeam);
-        writeTeamYaml(TEAM_YAML, team);
-        s.stop(`Exported "${team.name}" (${team.members.length} agents) to ${TEAM_YAML}.`);
+        writeTeamYaml(yamlPath, team);
+        s.stop(`Exported "${team.name}" (${team.members.length} agents) to ${yamlPath}.`);
         p.outro("Done.");
       } catch (err) {
         s.error("Failed to fetch team from relay.");

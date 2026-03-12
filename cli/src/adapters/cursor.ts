@@ -18,6 +18,7 @@ import {
   type TeamDefinition,
   type TeamMember,
   type Skill,
+  type TeamScope,
 } from "./base.js";
 
 export class CursorAdapter implements PlatformAdapter {
@@ -165,9 +166,21 @@ export class CursorAdapter implements PlatformAdapter {
         }
       }
     }
-    // Write individual subagent .md files
+
+    // Build set of desired agent filenames and delete orphans
+    const desiredFiles = new Set<string>();
     for (const member of team.members) {
       validateAgentName(member.name);
+      desiredFiles.add(`trc-${slugify(member.name)}.md`);
+    }
+    for (const existing of listTrcFiles(this.agentsDir())) {
+      if (!desiredFiles.has(existing)) {
+        fs.unlinkSync(path.join(this.agentsDir(), existing));
+      }
+    }
+
+    // Write individual subagent .md files
+    for (const member of team.members) {
       this.writeAgentMd(team.name, member, team.members, team);
     }
     // Write routing AGENTS.md
@@ -316,7 +329,7 @@ ${body}
     fs.writeFileSync(path.join(process.cwd(), "teamrc-knowledge.md"), content);
   }
 
-  uninstall(): string[] {
+  uninstall(_scope?: TeamScope): string[] {
     const actions: string[] = [];
 
     // Clean up subagent .md files

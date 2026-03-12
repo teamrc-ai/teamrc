@@ -141,4 +141,30 @@ describe("Cursor adapter", () => {
     assert.ok(!fs.existsSync(path.join(tmpDir, ".cursor", "agents", "trc-architect.md")));
     assert.ok(!fs.existsSync(path.join(tmpDir, ".cursor", "rules", "trc-skill_style.mdc")));
   });
+
+  it("removes orphaned agent files when members are removed", async () => {
+    const { CursorAdapter } = await import("../adapters/cursor.js");
+    const adapter = new CursorAdapter();
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [
+        { name: "alice", role: "frontend" },
+        { name: "bob", role: "backend" },
+      ],
+    });
+
+    const agentDir = path.join(tmpDir, ".cursor", "agents");
+    assert.ok(fs.existsSync(path.join(agentDir, "trc-alice.md")));
+    assert.ok(fs.existsSync(path.join(agentDir, "trc-bob.md")));
+
+    // Remove bob from team and re-apply
+    adapter.writeTeam({
+      name: "test-team",
+      members: [{ name: "alice", role: "frontend" }],
+    });
+
+    assert.ok(fs.existsSync(path.join(agentDir, "trc-alice.md")), "alice should remain");
+    assert.ok(!fs.existsSync(path.join(agentDir, "trc-bob.md")), "bob should be deleted");
+  });
 });

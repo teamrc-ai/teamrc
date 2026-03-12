@@ -55,25 +55,25 @@ export function registerStatus(program: Command): void {
       const platformStr = activeTeam?.platforms?.join(",") ?? detectPlatforms()[0] ?? "claude-code";
       const activePlatform = platformStr.split(",")[0];
       const adapter = getAdapter(activePlatform);
-      const localTeam = activeTeam;
       const statusRelayUrl = getRelayUrl(undefined, activeTeam?.relay);
 
       // Migrate legacy syncHash fields from YAML to state.json
-      migrateLegacyYamlHashes(TEAM_YAML);
+      const activeYamlPath = yamlTeam ? TEAM_YAML : (globalYaml ? GLOBAL_TEAM_YAML : TEAM_YAML);
+      migrateLegacyYamlHashes(activeYamlPath);
 
       // Check relay state and compute sync status
       let relayConnected = false;
       let syncStatus = "unknown";
       let serverHash: string | null = null;
       let localHash: string | null = null;
-      if (teamId && localTeam) {
+      if (teamId && activeTeam) {
         const kp = loadKeypair();
         if (kp) {
           const client = new TeamrcClient(statusRelayUrl, kp.privateKey, config.token, teamId);
 
           // Compute local hashes
           const knowledge = adapter.readKnowledge();
-          const localHashes = computeTeamHashes(localTeam, knowledge || undefined);
+          const localHashes = computeTeamHashes(activeTeam, knowledge || undefined);
           localHash = localHashes.hash;
 
           try {
@@ -108,7 +108,7 @@ export function registerStatus(program: Command): void {
           account: config.account?.email ?? null,
           platform: platformStr,
           teamId,
-          localTeam: localTeam ?? null,
+          localTeam: activeTeam ?? null,
           syncHash: localHash,
           serverHash,
           syncStatus,
@@ -130,8 +130,8 @@ export function registerStatus(program: Command): void {
       p.log.info(identityLines.join("\n"));
 
       // Local team info
-      if (localTeam) {
-        const memberLines = localTeam.members.map(
+      if (activeTeam) {
+        const memberLines = activeTeam.members.map(
           (m) => `  ${m.name.padEnd(14)} ${m.role}`,
         );
         const hashLine = localHash
@@ -142,10 +142,10 @@ export function registerStatus(program: Command): void {
             `Team ID    ${teamId ?? "none"}`,
             `Platforms  ${platformStr}`,
             hashLine,
-            `Members    ${localTeam.members.length} agents`,
+            `Members    ${activeTeam.members.length} agents`,
             ...memberLines,
           ].join("\n"),
-          `Local team: ${localTeam.name}`,
+          `Local team: ${activeTeam.name}`,
         );
       } else {
         p.log.warn("No local team agents found.");

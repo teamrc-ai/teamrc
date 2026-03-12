@@ -1,9 +1,10 @@
 import * as path from "node:path";
 import { watch } from "chokidar";
-import type { PlatformAdapter, TeamDefinition } from "./adapters/base.js";
+import type { PlatformAdapter, TeamDefinition, TeamScope } from "./adapters/base.js";
+import { effectiveScope } from "./utils.js";
 import type { TeamrcClient, TeamrcTeam } from "./client.js";
 import { remoteTeamToDefinition } from "./client.js";
-import { readTeamYaml, writeTeamYaml, TEAM_YAML, validateTeamName, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "./team-yaml.js";
+import { readTeamYaml, writeTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, validateTeamName, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "./team-yaml.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "./sync-state.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
@@ -12,23 +13,28 @@ export interface DaemonOptions {
   client: TeamrcClient;
   adapters: PlatformAdapter[];
   platforms: string[];
+  scope: TeamScope;
   pollInterval?: number;
   watchYaml?: boolean;
 }
 
 export function startDaemon(opts: DaemonOptions): { stop: () => void } {
-  const { client, adapters, platforms } = opts;
+  const { client, adapters, platforms, scope } = opts;
   const pollInterval = opts.pollInterval ?? DEFAULT_POLL_INTERVAL_MS;
   const watchYaml = opts.watchYaml ?? true;
 
+  // Resolve the correct YAML path based on scope
+  const yamlPath = scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
+
   // Migrate legacy syncHash fields from YAML to state.json before reading
-  migrateLegacyYamlHashes(TEAM_YAML);
+  migrateLegacyYamlHashes(yamlPath);
 
   // Initialize lastKnownHash from persisted state so daemon restarts
   // don't trigger unnecessary full pulls
   const initialState = readSyncState();
   let lastKnownHash: string | null = initialState.syncHash ?? null;
   let stopped = false;
+  let polling = false;
 
   function log(msg: string): void {
     const ts = new Date().toISOString().slice(11, 19);
@@ -40,11 +46,11 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
     console.warn(`[${ts}] WARN: ${msg}`);
   }
 
-  /** Apply a team definition to all platforms */
+  /** Apply a team definition to all platforms, respecting scope */
   function applyToAllPlatforms(team: TeamDefinition): void {
     for (let i = 0; i < adapters.length; i++) {
       try {
-        adapters[i].writeTeam(team);
+        adapters[i].writeTeam(team, effectiveScope(platforms[i], scope));
       } catch (err) {
         warn(`Failed to apply to ${platforms[i]}: ${(err as Error).message}`);
       }
@@ -54,9 +60,11 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   /** Poll relay for updates using hash-based change detection */
   async function pollRelay(): Promise<void> {
     if (stopped) return;
+    if (polling) return; // single-flight guard
+    polling = true;
 
     try {
-      const localYaml = readTeamYaml(TEAM_YAML);
+      const localYaml = readTeamYaml(yamlPath);
       if (!localYaml?.teamId) return;
 
       // Cheap check: fetch only the hash from the server
@@ -113,7 +121,7 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       }
 
       // Write YAML and sync state — only update hash after successful write
-      writeTeamYaml(TEAM_YAML, remoteDef);
+      writeTeamYaml(yamlPath, remoteDef);
       writeSyncState({
         syncHash: head.hash,
         syncHashMembers: head.members_hash,
@@ -127,6 +135,8 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       log(`Applied remote changes (${remoteDef.members.length} agents).`);
     } catch (err) {
       warn(`Poll failed: ${(err as Error).message}`);
+    } finally {
+      polling = false;
     }
   }
 
@@ -134,34 +144,41 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   let watcher: ReturnType<typeof watch> | null = null;
 
   if (watchYaml) {
-    const yamlPath = path.resolve(TEAM_YAML);
-    watcher = watch(yamlPath, {
+    const watchPath = path.resolve(yamlPath);
+    watcher = watch(watchPath, {
       ignoreInitial: true,
       awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
     });
 
     watcher.on("change", () => {
-      const team = readTeamYaml(TEAM_YAML);
+      const team = readTeamYaml(yamlPath);
       if (!team) return;
-      log(".teamrc.yaml changed. Applying to platforms...");
+      log(`${yamlPath} changed. Applying to platforms...`);
       applyToAllPlatforms(team);
     });
   }
 
-  // Poll interval
-  const pollTimer = setInterval(() => {
-    void pollRelay();
-  }, pollInterval);
+  // Recursive setTimeout instead of setInterval to prevent overlap
+  let pollTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  log(`Daemon started. Polling every ${pollInterval / 1000}s.${watchYaml ? " Watching .teamrc.yaml." : ""}`);
+  function schedulePoll(): void {
+    if (stopped) return;
+    pollTimeout = setTimeout(async () => {
+      await pollRelay();
+      schedulePoll();
+    }, pollInterval);
+  }
 
-  // Initial poll
-  void pollRelay();
+  const scopeLabel = scope === "global" ? "~/.teamrc/team.yaml" : ".teamrc.yaml";
+  log(`Daemon started (${scope} scope, ${scopeLabel}). Polling every ${pollInterval / 1000}s.${watchYaml ? ` Watching ${yamlPath}.` : ""}`);
+
+  // Initial poll, then schedule recurring
+  void pollRelay().then(() => schedulePoll());
 
   return {
     stop() {
       stopped = true;
-      clearInterval(pollTimer);
+      if (pollTimeout) clearTimeout(pollTimeout);
       if (watcher) void watcher.close();
       log("Daemon stopped.");
     },

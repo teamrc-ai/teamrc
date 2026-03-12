@@ -26,7 +26,9 @@ defmodule Teamrc.DeviceAuth do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     Repo.transaction(fn ->
-      # Check global cap
+      # Check global cap (advisory lock prevents concurrent global count races)
+      Repo.query!("SELECT pg_advisory_xact_lock($1)", [0x7465616D7263])
+
       global_count =
         Repo.one(
           from r in DeviceAuthRequest,
@@ -38,7 +40,16 @@ defmodule Teamrc.DeviceAuth do
         Repo.rollback(:global_limit_reached)
       end
 
-      # Check per-token rate limit
+      # Check per-token rate limit with row-level locking to prevent races.
+      # FOR UPDATE locks existing rows for this token so concurrent transactions
+      # must wait, making the count-then-insert pattern atomic.
+      _locked_rows =
+        Repo.all(
+          from r in DeviceAuthRequest,
+            where: r.token == ^token and r.expires_at > ^now,
+            lock: "FOR UPDATE"
+        )
+
       token_count =
         Repo.one(
           from r in DeviceAuthRequest,

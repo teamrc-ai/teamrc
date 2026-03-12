@@ -3,15 +3,15 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { randomBytes } from "node:crypto";
 import YAML from "yaml";
-import { validateAgentName, VALID_PLATFORMS, type TeamDefinition, type TeamMember, type Skill } from "./adapters/base.js";
+import { validateAgentName, slugify, VALID_PLATFORMS, type TeamDefinition, type TeamMember, type Skill } from "./adapters/base.js";
 import { validateRelayUrl } from "./config.js";
 
 export const TEAM_YAML = ".teamrc.yaml";
 export const GLOBAL_TEAM_YAML = path.join(os.homedir(), ".teamrc", "team.yaml");
 
 const MAX_YAML_SIZE = 256 * 1024; // 256 KB
-const MAX_MEMBERS = 100;
-const MAX_SKILLS = 200;
+const MAX_MEMBERS = 20;
+const MAX_SKILLS = 50;
 const TEAM_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9 _-]{0,63}$/;
 const SKILL_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 
@@ -61,6 +61,17 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
     if (Array.isArray(m.skills)) member.skills = m.skills.map((s: unknown) => String(s));
     return member;
   });
+
+  // Check for slug collisions (different names that map to the same filename)
+  const slugMap = new Map<string, string>();
+  for (const m of members) {
+    const slug = slugify(m.name);
+    const existing = slugMap.get(slug);
+    if (existing) {
+      throw new Error(`.teamrc.yaml members "${existing}" and "${m.name}" produce the same filename (trc-${slug}). Use more distinct names.`);
+    }
+    slugMap.set(slug, m.name);
+  }
 
   const rawSkills = data.skills || [];
   if (Array.isArray(rawSkills) && rawSkills.length > MAX_SKILLS) {

@@ -256,9 +256,11 @@ export class GeminiAdapter implements PlatformAdapter {
     fs.writeFileSync(filePath, content);
   }
 
-  uninstall(): string[] {
+  uninstall(requestedScope?: TeamScope): string[] {
     const actions: string[] = [];
-    const { dir, scope } = resolveAgentsDir(this.agentsDir("project"), this.agentsDir("global"));
+    const { dir, scope } = requestedScope
+      ? { dir: this.agentsDir(requestedScope), scope: requestedScope }
+      : resolveAgentsDir(this.agentsDir("project"), this.agentsDir("global"));
     const trcFiles = listTrcFiles(dir);
 
     // Delete agent files

@@ -75,9 +75,10 @@ export function registerPull(program: Command): void {
           ? opts.platform.split(",").map((s) => s.trim()).filter(Boolean)
           : ctx.platforms;
         const adapter = ctx.adapters[0];
+        const yamlPath = scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
 
         // Migrate legacy syncHash fields from YAML to state.json
-        migrateLegacyYamlHashes(TEAM_YAML);
+        migrateLegacyYamlHashes(yamlPath);
 
         const s = p.spinner();
         try {
@@ -111,7 +112,7 @@ export function registerPull(program: Command): void {
             }
           }
 
-          writeTeamYaml(TEAM_YAML, team);
+          writeTeamYaml(yamlPath, team);
           writeSyncState({
             syncHash: head.hash,
             syncHashMembers: head.members_hash,

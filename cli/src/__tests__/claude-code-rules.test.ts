@@ -116,4 +116,31 @@ describe("Claude Code agent file with skills", () => {
     assert.ok(!content.includes("## Rules"), "Should NOT have Rules section");
     assert.ok(!content.includes("## Skills"), "Should NOT have Skills section");
   });
+
+  it("removes orphaned agent files when members are removed", async () => {
+    const { ClaudeCodeAdapter } = await import("../adapters/claude-code.js");
+    const adapter = new ClaudeCodeAdapter();
+
+    // Write team with two members
+    adapter.writeTeam({
+      name: "test-team",
+      members: [
+        { name: "alice", role: "frontend" },
+        { name: "bob", role: "backend" },
+      ],
+    }, "global");
+
+    const agentDir = path.join(tmpDir, ".claude", "agents");
+    assert.ok(fs.existsSync(path.join(agentDir, "trc-alice.md")));
+    assert.ok(fs.existsSync(path.join(agentDir, "trc-bob.md")));
+
+    // Remove bob from team and re-apply
+    adapter.writeTeam({
+      name: "test-team",
+      members: [{ name: "alice", role: "frontend" }],
+    }, "global");
+
+    assert.ok(fs.existsSync(path.join(agentDir, "trc-alice.md")), "alice should remain");
+    assert.ok(!fs.existsSync(path.join(agentDir, "trc-bob.md")), "bob should be deleted");
+  });
 });

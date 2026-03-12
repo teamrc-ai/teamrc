@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import { SyncConflictError } from "../client.js";
-import { readTeamYaml, TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
+import { TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
 import {
   requireTeamContext,
@@ -18,20 +18,10 @@ export function registerPush(program: Command): void {
       const ctx = requireTeamContext();
       const { client } = ctx;
       const adapter = ctx.adapters[0];
-
-      let team;
-      try {
-        team = readTeamYaml(TEAM_YAML);
-      } catch (e) {
-        p.log.error(`Failed to parse .teamrc.yaml: ${e instanceof Error ? e.message : e}`);
-        process.exit(1);
-      }
-      if (!team) {
-        p.log.error(`No .teamrc.yaml found. Run \`${cliCmd("init")}\` first.`);
-        process.exit(1);
-      }
+      const team = ctx.team;
+      const yamlPath = ctx.scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
       // Migrate legacy syncHash fields from YAML to state.json
-      migrateLegacyYamlHashes(TEAM_YAML);
+      migrateLegacyYamlHashes(yamlPath);
 
       const s = p.spinner();
       try {
@@ -65,7 +55,7 @@ export function registerPush(program: Command): void {
         s.stop("Pushed team definition and knowledge.");
         p.outro("Done.");
       } catch (err) {
-        s.stop("Push failed.");
+        s.error("Push failed.");
         if (err instanceof SyncConflictError) {
           p.log.error(`Remote has changes. Run \`${cliCmd("pull")}\` first.`);
         } else {

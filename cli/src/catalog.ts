@@ -9,7 +9,11 @@ import YAML from "yaml";
 import type { Skill, TeamDefinition, TeamMember } from "./adapters/base.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEMPLATES_DIR = path.resolve(__dirname, "../../templates");
+// In dev: __dirname = cli/src/ → ../../templates = monorepo root templates/
+// In dist: __dirname = cli/dist/ → templates/ = cli/dist/templates/ (copied by build)
+const TEMPLATES_DIR = fs.existsSync(path.resolve(__dirname, "templates"))
+  ? path.resolve(__dirname, "templates")
+  : path.resolve(__dirname, "../../templates");
 
 // ---------------------------------------------------------------------------
 // Catalog file types

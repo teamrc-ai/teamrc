@@ -31,6 +31,7 @@ export function registerDaemon(program: Command): void {
         client,
         adapters: ctx.adapters,
         platforms: ctx.platforms,
+        scope: ctx.scope,
         pollInterval: pollMs,
       });
 

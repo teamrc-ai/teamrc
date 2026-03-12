@@ -653,4 +653,76 @@ defmodule Teamrc.TeamsTest do
       assert {:error, :invalid_visibility} = Teams.set_visibility_by_owner(Ecto.UUID.generate(), Ecto.UUID.generate(), "bogus")
     end
   end
+
+  describe "diff-based member updates" do
+    test "unchanged members keep stable IDs" do
+      token = "trc_ak_diff1_#{:erlang.unique_integer([:positive])}"
+
+      Teams.put_team(token, %{
+        "name" => "stable-team",
+        "members" => [
+          %{"name" => "alice", "role" => "frontend"},
+          %{"name" => "bob", "role" => "backend"}
+        ]
+      })
+
+      {:ok, first} = Teams.get_team(token)
+      first_ids = first["members"] |> Enum.map(& &1["name"]) |> Enum.sort()
+
+      # Update only bob's role — alice should keep stable ID
+      Teams.put_team(token, %{
+        "name" => "stable-team",
+        "members" => [
+          %{"name" => "alice", "role" => "frontend"},
+          %{"name" => "bob", "role" => "senior backend"}
+        ]
+      })
+
+      {:ok, second} = Teams.get_team(token)
+      second_ids = second["members"] |> Enum.map(& &1["name"]) |> Enum.sort()
+      assert first_ids == second_ids
+    end
+
+    test "adding a member does not delete existing ones" do
+      token = "trc_ak_diff2_#{:erlang.unique_integer([:positive])}"
+
+      Teams.put_team(token, %{
+        "name" => "grow-team",
+        "members" => [%{"name" => "alice", "role" => "frontend"}]
+      })
+
+      Teams.put_team(token, %{
+        "name" => "grow-team",
+        "members" => [
+          %{"name" => "alice", "role" => "frontend"},
+          %{"name" => "charlie", "role" => "devops"}
+        ]
+      })
+
+      {:ok, result} = Teams.get_team(token)
+      names = result["members"] |> Enum.map(& &1["name"]) |> Enum.sort()
+      assert names == ["alice", "charlie"]
+    end
+
+    test "removing a member only deletes that member" do
+      token = "trc_ak_diff3_#{:erlang.unique_integer([:positive])}"
+
+      Teams.put_team(token, %{
+        "name" => "shrink-team",
+        "members" => [
+          %{"name" => "alice", "role" => "frontend"},
+          %{"name" => "bob", "role" => "backend"}
+        ]
+      })
+
+      Teams.put_team(token, %{
+        "name" => "shrink-team",
+        "members" => [%{"name" => "alice", "role" => "frontend"}]
+      })
+
+      {:ok, result} = Teams.get_team(token)
+      assert length(result["members"]) == 1
+      assert hd(result["members"])["name"] == "alice"
+    end
+  end
 end

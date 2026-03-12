@@ -182,4 +182,31 @@ defmodule Teamrc.DeviceAuthTest do
       assert {:error, :not_found} = DeviceAuth.get_request_by_user_code("ZZZZ-ZZZZ")
     end
   end
+
+  describe "concurrent rate limiting" do
+    test "rate limit holds under concurrent requests" do
+      token = "trc_ak_concurrent_#{:erlang.unique_integer([:positive])}"
+
+      # Launch 6 concurrent requests — only 3 should succeed
+      tasks =
+        for _ <- 1..6 do
+          Task.async(fn -> DeviceAuth.create_request(token) end)
+        end
+
+      results = Enum.map(tasks, &Task.await/1)
+
+      ok_count = Enum.count(results, fn
+        {:ok, _} -> true
+        _ -> false
+      end)
+
+      rate_limited_count = Enum.count(results, fn
+        {:error, :rate_limited} -> true
+        _ -> false
+      end)
+
+      assert ok_count == 3, "Expected exactly 3 successful requests, got #{ok_count}"
+      assert rate_limited_count == 3, "Expected exactly 3 rate-limited, got #{rate_limited_count}"
+    end
+  end
 end

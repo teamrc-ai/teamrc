@@ -353,50 +353,71 @@ describe("readTeamYaml limit enforcement", () => {
     );
   });
 
-  it("throws when team has too many members (> 100)", () => {
+  it("throws when team has too many members (> 20)", () => {
     const filePath = path.join(tmpDir, ".teamrc.yaml");
-    const members = Array.from({ length: 101 }, (_, i) => `  - name: agent${i}\n    role: helper`);
+    const members = Array.from({ length: 21 }, (_, i) => `  - name: agent${i}\n    role: helper`);
     const yaml = `name: big-team\nmembers:\n${members.join("\n")}\n`;
     fs.writeFileSync(filePath, yaml);
 
     assert.throws(
       () => readTeamYaml(filePath),
-      /at most 100 entries/,
+      /at most 20 entries/,
     );
   });
 
-  it("throws when team has too many skills (> 200)", () => {
+  it("throws when team has too many skills (> 50)", () => {
     const filePath = path.join(tmpDir, ".teamrc.yaml");
-    const skills = Array.from({ length: 201 }, (_, i) => `  - id: skill${i}\n    body: "do stuff"`);
+    const skills = Array.from({ length: 51 }, (_, i) => `  - id: skill${i}\n    body: "do stuff"`);
     const yaml = `name: skill-team\nmembers:\n  - name: agent\n    role: helper\nskills:\n${skills.join("\n")}\n`;
     fs.writeFileSync(filePath, yaml);
 
     assert.throws(
       () => readTeamYaml(filePath),
-      /at most 200 entries/,
+      /at most 50 entries/,
     );
   });
 
-  it("accepts team at exactly MAX_MEMBERS (100)", () => {
+  it("accepts team at exactly MAX_MEMBERS (20)", () => {
     const filePath = path.join(tmpDir, ".teamrc.yaml");
-    const members = Array.from({ length: 100 }, (_, i) => `  - name: agent${i}\n    role: helper`);
+    const members = Array.from({ length: 20 }, (_, i) => `  - name: agent${i}\n    role: helper`);
     const yaml = `name: full-team\nmembers:\n${members.join("\n")}\n`;
     fs.writeFileSync(filePath, yaml);
 
     const result = readTeamYaml(filePath);
     assert.ok(result);
-    assert.equal(result.members.length, 100);
+    assert.equal(result.members.length, 20);
   });
 
-  it("accepts team at exactly MAX_SKILLS (200)", () => {
+  it("accepts team at exactly MAX_SKILLS (50)", () => {
     const filePath = path.join(tmpDir, ".teamrc.yaml");
-    const skills = Array.from({ length: 200 }, (_, i) => `  - id: skill${i}\n    body: "do stuff"`);
+    const skills = Array.from({ length: 50 }, (_, i) => `  - id: skill${i}\n    body: "do stuff"`);
     const yaml = `name: skill-team\nmembers:\n  - name: agent\n    role: helper\nskills:\n${skills.join("\n")}\n`;
     fs.writeFileSync(filePath, yaml);
 
     const result = readTeamYaml(filePath);
     assert.ok(result);
-    assert.equal(result.skills!.length, 200);
+    assert.equal(result.skills!.length, 50);
+  });
+
+  it("throws when member names produce slug collisions", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    const yaml = `name: collision-team\nmembers:\n  - name: my-agent\n    role: helper\n  - name: my_agent\n    role: reviewer\n`;
+    fs.writeFileSync(filePath, yaml);
+
+    assert.throws(
+      () => readTeamYaml(filePath),
+      /produce the same filename/,
+    );
+  });
+
+  it("allows members with distinct slugs", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    const yaml = `name: distinct-team\nmembers:\n  - name: frontend-dev\n    role: helper\n  - name: backend-dev\n    role: reviewer\n`;
+    fs.writeFileSync(filePath, yaml);
+
+    const result = readTeamYaml(filePath);
+    assert.ok(result);
+    assert.equal(result.members.length, 2);
   });
 });
 

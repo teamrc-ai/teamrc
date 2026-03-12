@@ -677,27 +677,49 @@ defmodule Teamrc.Teams do
          |> Team.changeset(attrs)
          |> Repo.update() do
       {:ok, team} ->
-        # Only replace members if the incoming set differs from what's in DB
-        existing = Enum.map(team.members, fn m ->
-          %{name: m.name, role: m.role, soul: m.soul, skills: m.skills || []}
-        end) |> Enum.sort_by(& &1.name)
+        # Diff-based member update: only insert/update/delete what changed
+        existing_by_name = Map.new(team.members, fn m -> {m.name, m} end)
+        incoming_by_name = Map.new(team_data.members, fn m -> {m.name || m[:name], m} end)
 
-        incoming = Enum.map(team_data.members, fn m ->
-          %{name: m.name, role: m[:role], soul: m[:soul], skills: m.skills || []}
-        end) |> Enum.sort_by(& &1.name)
+        incoming_names = MapSet.new(Map.keys(incoming_by_name))
+        existing_names = MapSet.new(Map.keys(existing_by_name))
 
-        if existing != incoming do
-          from(m in Member, where: m.team_id == ^team_id) |> Repo.delete_all()
-
-          Enum.each(team_data.members, fn m ->
-            case %Member{team_id: team_id}
-                 |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], skills: m.skills})
-                 |> Repo.insert() do
-              {:ok, _member} -> :ok
-              {:error, changeset} -> Repo.rollback(changeset)
-            end
-          end)
+        # Delete removed members
+        removed_names = MapSet.difference(existing_names, incoming_names)
+        unless MapSet.size(removed_names) == 0 do
+          from(m in Member, where: m.team_id == ^team_id and m.name in ^MapSet.to_list(removed_names))
+          |> Repo.delete_all()
         end
+
+        # Upsert new and changed members
+        Enum.each(team_data.members, fn m ->
+          name = m.name || m[:name]
+          attrs = %{name: name, role: m.role || m[:role], soul: m[:soul], skills: m.skills || []}
+
+          case Map.get(existing_by_name, name) do
+            nil ->
+              # New member — insert
+              case %Member{team_id: team_id} |> Member.changeset(attrs) |> Repo.insert() do
+                {:ok, _} -> :ok
+                {:error, changeset} -> Repo.rollback(changeset)
+              end
+
+            existing_member ->
+              # Existing — only update if changed
+              existing_attrs = %{
+                name: existing_member.name,
+                role: existing_member.role,
+                soul: existing_member.soul,
+                skills: existing_member.skills || []
+              }
+              if existing_attrs != attrs do
+                case existing_member |> Member.changeset(attrs) |> Repo.update() do
+                  {:ok, _} -> :ok
+                  {:error, changeset} -> Repo.rollback(changeset)
+                end
+              end
+          end
+        end)
 
         team = Repo.preload(team, :members, force: true)
 

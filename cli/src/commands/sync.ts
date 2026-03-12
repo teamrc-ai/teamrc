@@ -3,7 +3,7 @@ import * as p from "@clack/prompts";
 import { remoteTeamToDefinition, SyncConflictError } from "../client.js";
 import { computeTeamHashes } from "../sync-hash.js";
 import { getAdapter, type TeamScope } from "../adapters/base.js";
-import { readTeamYaml, writeTeamYaml, validateTeamName, TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
+import { writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
 import {
   requireTeamContext,
@@ -29,16 +29,13 @@ export function registerSync(program: Command): void {
         : ctx.platforms;
       const adapter = ctx.adapters[0];
 
+      const yamlPath = scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
       const s = p.spinner();
       try {
         // 1. Read local state
-        const team = readTeamYaml(TEAM_YAML);
-        if (!team) {
-          s.stop("No .teamrc.yaml found.");
-          process.exit(1);
-        }
+        const team = ctx.team;
         // Migrate legacy syncHash fields from YAML to state.json
-        migrateLegacyYamlHashes(TEAM_YAML);
+        migrateLegacyYamlHashes(yamlPath);
         const knowledge = adapter.readKnowledge();
         const localHashes = computeTeamHashes(team, knowledge || undefined);
         const syncState = readSyncState();
@@ -123,7 +120,7 @@ export function registerSync(program: Command): void {
             }
           }
 
-          writeTeamYaml(TEAM_YAML, remoteDef);
+          writeTeamYaml(yamlPath, remoteDef);
           writeSyncState({
             syncHash: serverHead.hash,
             syncHashMembers: serverHead.members_hash,
@@ -176,7 +173,7 @@ export function registerSync(program: Command): void {
             }
           }
 
-          writeTeamYaml(TEAM_YAML, remoteDef);
+          writeTeamYaml(yamlPath, remoteDef);
           writeSyncState({
             syncHash: newHead.hash,
             syncHashMembers: newHead.members_hash,
@@ -213,7 +210,7 @@ export function registerSync(program: Command): void {
           }
         }
 
-        writeTeamYaml(TEAM_YAML, remoteDef);
+        writeTeamYaml(yamlPath, remoteDef);
         writeSyncState({
           syncHash: serverHead.hash,
           syncHashMembers: serverHead.members_hash,
@@ -227,7 +224,7 @@ export function registerSync(program: Command): void {
         s.stop("Pulled remote changes.");
         p.outro(`Synced. Run \`${cliCmd("push")}\` to push local changes.`);
       } catch (err) {
-        s.stop("Sync failed.");
+        s.error("Sync failed.");
         p.log.error((err as Error).message);
         process.exit(1);
       }

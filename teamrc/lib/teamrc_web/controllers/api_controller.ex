@@ -181,7 +181,7 @@ defmodule TeamrcWeb.ApiController do
 
   # --- Input Validation ---
 
-  @valid_platforms ~w(claude-code cursor codex gemini openclaw claude-desktop)
+  @valid_platforms ~w(claude-code cursor codex gemini openclaw)
 
   defp validate_team(team) do
     with :ok <- validate_team_name(team["name"]),

@@ -156,4 +156,60 @@ describe("Codex adapter", () => {
     assert.ok(actions.length > 0);
     assert.ok(!fs.existsSync(path.join(tmpDir, ".codex", "agents", "trc-architect.toml")));
   });
+
+  it("readTeam() parses existing trc-*.toml agent files (roundtrip)", async () => {
+    const { CodexAdapter } = await import("../adapters/codex.js");
+    const adapter = new CodexAdapter();
+
+    const team = {
+      name: "roundtrip-team",
+      members: [
+        { name: "alice", role: "frontend developer" },
+        { name: "bob", role: "backend engineer" },
+      ],
+    };
+
+    adapter.writeTeam(team);
+
+    const imported = adapter.readTeam();
+    assert.ok(imported, "readTeam should return a team definition");
+    assert.equal(imported.members.length, 2);
+    assert.ok(imported.members.some((m) => m.name === "alice"), "Should have alice");
+    assert.ok(imported.members.some((m) => m.name === "bob"), "Should have bob");
+    assert.ok(imported.members.some((m) => m.role === "frontend developer"), "Should preserve role");
+  });
+
+  it("readTeam() returns null when no trc-*.toml files exist", async () => {
+    const { CodexAdapter } = await import("../adapters/codex.js");
+    const adapter = new CodexAdapter();
+
+    const result = adapter.readTeam();
+    assert.equal(result, null);
+  });
+
+  it("removes orphaned agent files when members are removed", async () => {
+    const { CodexAdapter } = await import("../adapters/codex.js");
+    const adapter = new CodexAdapter();
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [
+        { name: "alice", role: "frontend" },
+        { name: "bob", role: "backend" },
+      ],
+    });
+
+    const agentDir = path.join(tmpDir, ".codex", "agents");
+    assert.ok(fs.existsSync(path.join(agentDir, "trc-alice.toml")));
+    assert.ok(fs.existsSync(path.join(agentDir, "trc-bob.toml")));
+
+    // Remove bob from team and re-apply
+    adapter.writeTeam({
+      name: "test-team",
+      members: [{ name: "alice", role: "frontend" }],
+    });
+
+    assert.ok(fs.existsSync(path.join(agentDir, "trc-alice.toml")), "alice should remain");
+    assert.ok(!fs.existsSync(path.join(agentDir, "trc-bob.toml")), "bob should be deleted");
+  });
 });

@@ -253,7 +253,7 @@ export class OpenClawAdapter implements PlatformAdapter {
     fs.writeFileSync(filePath, content);
   }
 
-  uninstall(): string[] {
+  uninstall(_scope?: TeamScope): string[] {
     const actions: string[] = [];
     const agentsDir = this.agentsDir();
 

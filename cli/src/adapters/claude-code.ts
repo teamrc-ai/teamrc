@@ -157,8 +157,21 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       fs.mkdirSync(dir, { recursive: true });
     }
 
+    // Build set of desired agent filenames
+    const desiredFiles = new Set<string>();
     for (const member of team.members) {
       validateAgentName(member.name);
+      desiredFiles.add(`trc-${slugify(member.name)}.md`);
+    }
+
+    // Delete orphaned agent files (members removed from team)
+    for (const existing of listTrcFiles(dir)) {
+      if (!desiredFiles.has(existing)) {
+        fs.unlinkSync(path.join(dir, existing));
+      }
+    }
+
+    for (const member of team.members) {
       const fileName = `trc-${slugify(member.name)}.md`;
       const filePath = path.join(dir, fileName);
       const content = buildAgentFile(team.name, member, team.members, team);
@@ -268,9 +281,11 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     fs.writeFileSync(filePath, content);
   }
 
-  uninstall(): string[] {
+  uninstall(requestedScope?: TeamScope): string[] {
     const actions: string[] = [];
-    const { dir, scope } = resolveAgentsDir(this.agentsDir("project"), this.agentsDir("global"));
+    const { dir, scope } = requestedScope
+      ? { dir: this.agentsDir(requestedScope), scope: requestedScope }
+      : resolveAgentsDir(this.agentsDir("project"), this.agentsDir("global"));
     const trcFiles = listTrcFiles(dir);
 
     // Delete agent files
@@ -336,7 +351,7 @@ interface ParsedAgent {
   teamName: string;
 }
 
-/** Parse a tb-*.md agent file back into structured data */
+/** Parse a trc-*.md agent file back into structured data */
 function parseAgentFile(content: string): ParsedAgent | null {
   const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!match) return null;

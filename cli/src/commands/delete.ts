@@ -201,10 +201,11 @@ export function registerDelete(program: Command): void {
         }
       }
 
-      // Uninstall from each platform
+      // Uninstall from each platform, passing scope when scoped delete
+      const uninstallScope = deleteScope === "all" ? undefined : deleteScope;
       for (const pl of platforms) {
         const adapter = getAdapter(pl);
-        const actions = adapter.uninstall();
+        const actions = adapter.uninstall(uninstallScope);
         for (const action of actions) {
           actionLines.push(action);
         }
