@@ -61,7 +61,7 @@ defmodule TeamrcWeb.UserSessionController do
     end
   end
 
-  # Gate login on ToS acceptance — if not accepted, log in but redirect to accept-terms.
+  # Gate login on ToS acceptance. If not accepted, log in but redirect to accept-terms.
   # Extra session values are passed to log_in_user/4 to persist through session renewal,
   # since create_or_extend_session may call clear_session for new logins.
   defp log_in_with_tos_check(conn, user, user_params, info) do
@@ -96,7 +96,7 @@ defmodule TeamrcWeb.UserSessionController do
     |> create(params, "Password updated successfully!")
   end
 
-  @doc "Complete login after ToS acceptance — renews session for already-authenticated user."
+  @doc "Complete login after ToS acceptance. Renews session for already-authenticated user."
   def terms_accepted(conn, _params) do
     case conn.assigns[:current_scope] do
       %{user: %{accepted_terms_at: at} = user} when not is_nil(at) ->

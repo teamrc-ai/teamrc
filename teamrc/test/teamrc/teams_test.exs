@@ -189,7 +189,7 @@ defmodule Teamrc.TeamsTest do
       token = "tok_multi_new_#{:erlang.unique_integer([:positive])}"
       {:ok, team_a} = Teams.put_team(token, %{"name" => "Team A", "members" => []})
 
-      # Pass a team_id the token doesn't belong to — resolve_team_id returns nil, so it creates
+      # Pass a team_id the token doesn't belong to. resolve_team_id returns nil, so it creates
       {:ok, team_new} = Teams.put_team(token, %{
         "name" => "Team New",
         "members" => []
@@ -243,7 +243,7 @@ defmodule Teamrc.TeamsTest do
     test "update without base_hash succeeds unconditionally (backward compat)" do
       token = "tok_hash_nobase_#{:erlang.unique_integer([:positive])}"
       {:ok, _} = Teams.put_team(token, %{"name" => "team", "members" => []})
-      # Update without base_hash — should succeed even though hashes differ
+      # Update without base_hash. Should succeed even though hashes differ
       {:ok, result} = Teams.put_team(token, %{"name" => "updated", "members" => [%{"name" => "new", "role" => "dev"}]})
       assert result["name"] == "updated"
     end
@@ -252,7 +252,7 @@ defmodule Teamrc.TeamsTest do
       token = "tok_hash_ff_#{:erlang.unique_integer([:positive])}"
       {:ok, v1} = Teams.put_team(token, %{"name" => "team", "members" => [%{"name" => "alice", "role" => "dev"}]})
 
-      # Use the current hash as base_hash — should fast-forward
+      # Use the current hash as base_hash. Should fast-forward
       {:ok, v2} = Teams.put_team(token, %{
         "name" => "team",
         "members" => [%{"name" => "alice", "role" => "dev"}, %{"name" => "bob", "role" => "qa"}],

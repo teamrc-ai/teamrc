@@ -4,7 +4,7 @@ defmodule TeamrcWeb.AccountController do
 
   alias Teamrc.Accounts
 
-  @doc "GET /api/account — return account info and machines."
+  @doc "GET /api/account. Returns account info and machines."
   def show(conn, _params) do
     user = conn.assigns.current_scope.user
 
@@ -33,7 +33,7 @@ defmodule TeamrcWeb.AccountController do
     end
   end
 
-  @doc "GET /api/account/teams — return teams accessible through account's tokens with machine details."
+  @doc "GET /api/account/teams. Returns teams accessible through account's tokens with machine details."
   def teams(conn, _params) do
     user = conn.assigns.current_scope.user
 
@@ -81,7 +81,7 @@ defmodule TeamrcWeb.AccountController do
     end
   end
 
-  @doc "DELETE /api/account/machines/:token — revoke a machine token."
+  @doc "DELETE /api/account/machines/:token. Revokes a machine token."
   def revoke_machine(conn, %{"token" => token}) do
     user = conn.assigns.current_scope.user
 
@@ -96,7 +96,7 @@ defmodule TeamrcWeb.AccountController do
     end
   end
 
-  @doc "POST /api/account/reassociate — copy team associations to a new token."
+  @doc "POST /api/account/reassociate. Copies team associations to a new token."
   def reassociate(conn, %{"new_token" => new_token}) do
     user = conn.assigns.current_scope.user
 
@@ -116,7 +116,7 @@ defmodule TeamrcWeb.AccountController do
     end
   end
 
-  @doc "GET /api/account/export — export all account data as JSON."
+  @doc "GET /api/account/export. Exports all account data as JSON."
   def export(conn, _params) do
     user = conn.assigns.current_scope.user
 
@@ -133,7 +133,7 @@ defmodule TeamrcWeb.AccountController do
     end
   end
 
-  @doc "DELETE /api/account — permanently delete account and all associated data."
+  @doc "DELETE /api/account. Permanently deletes account and all associated data."
   def delete(conn, _params) do
     user = conn.assigns.current_scope.user
 

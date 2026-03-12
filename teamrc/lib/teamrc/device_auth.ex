@@ -90,7 +90,7 @@ defmodule Teamrc.DeviceAuth do
       %DeviceAuthRequest{} = req ->
         cond do
           DateTime.compare(req.expires_at, now) != :gt ->
-            # Expired — clean it up and return not_found
+            # Expired. Clean it up and return not_found
             Repo.delete(req)
             {:error, :not_found}
 

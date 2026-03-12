@@ -6,10 +6,10 @@ defmodule Teamrc.PII do
 
   ## Access Levels
 
-  - `:self` — user accessing their own data (full access: email, display_name)
-  - `:owner` — team owner accessing participant data (email visible)
-  - `:participant` — team member (display_name only)
-  - `:public` — anonymous (email_hash only, for Gravatar)
+  - `:self` - user accessing their own data (full access: email, display_name)
+  - `:owner` - team owner accessing participant data (email visible)
+  - `:participant` - team member (display_name only)
+  - `:public` - anonymous (email_hash only, for Gravatar)
   """
 
   @type access_level :: :self | :owner | :participant | :public
@@ -18,8 +18,8 @@ defmodule Teamrc.PII do
   Returns a sanitized view of participant data based on the caller's access level.
 
   The `participant_data` map may contain:
-  - `"email"` or `:email` — the participant's email address
-  - `"display_name"` or `:display_name` — a human-readable display name
+  - `"email"` or `:email` - the participant's email address
+  - `"display_name"` or `:display_name` - a human-readable display name
 
   Returns a map with only the fields appropriate for the access level.
   """

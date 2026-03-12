@@ -215,7 +215,7 @@ defmodule Teamrc.SecurityAuditTest do
       {:ok, team_data} = Teams.put_team(token, %{"name" => "vis-team2", "members" => []})
       team_id = team_data["id"]
 
-      # Token is a member but has no linked user — not the owner
+      # Token is a member but has no linked user, not the owner
       assert {:error, :not_owner} = Teams.set_visibility(token, team_id, "public")
     end
 
@@ -246,7 +246,7 @@ defmodule Teamrc.SecurityAuditTest do
       token = "trc_ak_own_imm_#{:erlang.unique_integer([:positive])}"
       {:ok, user} = create_user_with_token("own_imm@test.com", token)
 
-      # Create team — should get ownership immediately since token has a linked user
+      # Create team. Should get ownership immediately since token has a linked user
       {:ok, team_data} = Teams.put_team(token, %{"name" => "imm-owner-team", "members" => []})
       team_id = team_data["id"]
 
@@ -266,19 +266,19 @@ defmodule Teamrc.SecurityAuditTest do
       {:ok, _user} = create_user_with_token("clone@test.com", token)
       {:ok, :claimed} = Teams.claim_ownership(token, claim_secret)
 
-      # Set public — generates clone_token
+      # Set public: generates clone_token
       assert {:ok, updated} = Teams.set_visibility(token, team_id, "public")
       assert updated.visibility == "public"
       clone_token = updated.clone_token
       assert clone_token
 
-      # Set private — clone_token should be preserved (not cleared)
+      # Set private: clone_token should be preserved (not cleared)
       assert {:ok, updated} = Teams.set_visibility(token, team_id, "private")
       assert updated.visibility == "private"
       team = Repo.get(Team, team_id)
       assert team.clone_token == clone_token
 
-      # Set public again — should reuse the same clone_token
+      # Set public again: should reuse the same clone_token
       assert {:ok, updated} = Teams.set_visibility(token, team_id, "public")
       assert updated.visibility == "public"
       assert updated.clone_token == clone_token

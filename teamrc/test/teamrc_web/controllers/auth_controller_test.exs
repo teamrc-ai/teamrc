@@ -32,7 +32,11 @@ defmodule TeamrcWeb.AuthControllerTest do
       %{"device_code" => device_code} = json_response(create_conn, 200)
 
       # Poll it
-      conn = get(conn, "/api/auth/device/#{device_code}", %{"token" => token})
+      conn =
+        conn
+        |> put_req_header("x-trc-token", token)
+        |> get("/api/auth/device/#{device_code}")
+
       assert json_response(conn, 200) == %{"status" => "pending"}
     end
 
@@ -55,8 +59,11 @@ defmodule TeamrcWeb.AuthControllerTest do
       # Confirm via GenServer directly (simulating web UI confirmation)
       Teamrc.DeviceAuth.confirm_request(user_code, user.id, user.email)
 
-      # Poll — should be confirmed
-      conn = get(conn, "/api/auth/device/#{device_code}", %{"token" => token})
+      # Poll. Should be confirmed
+      conn =
+        conn
+        |> put_req_header("x-trc-token", token)
+        |> get("/api/auth/device/#{device_code}")
       resp = json_response(conn, 200)
 
       assert resp["status"] == "confirmed"
@@ -67,7 +74,12 @@ defmodule TeamrcWeb.AuthControllerTest do
 
     test "returns 404 for nonexistent device_code", %{conn: conn} do
       token = "trc_ak_test_#{:erlang.unique_integer([:positive])}"
-      conn = get(conn, "/api/auth/device/nonexistent", %{"token" => token})
+
+      conn =
+        conn
+        |> put_req_header("x-trc-token", token)
+        |> get("/api/auth/device/nonexistent")
+
       assert json_response(conn, 404) == %{"error" => "not_found"}
     end
 
@@ -81,8 +93,11 @@ defmodule TeamrcWeb.AuthControllerTest do
 
       %{"device_code" => device_code} = json_response(create_conn, 200)
 
-      # Poll with wrong token — returns 404 (not 403) to avoid leaking code existence
-      conn = get(conn, "/api/auth/device/#{device_code}", %{"token" => "trc_ak_wrong_token"})
+      # Poll with wrong token. Returns 404 (not 403) to avoid leaking code existence
+      conn =
+        conn
+        |> put_req_header("x-trc-token", "trc_ak_wrong_token")
+        |> get("/api/auth/device/#{device_code}")
       assert json_response(conn, 404) == %{"error" => "not_found"}
     end
   end

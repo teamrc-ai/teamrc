@@ -144,6 +144,7 @@ export class TeamrcClient {
         "X-Teamrc-Version": API_VERSION,
         "x-trc-signature": signature,
         "x-trc-timestamp": timestamp,
+        "x-trc-token": this.token,
       },
       signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
@@ -350,6 +351,7 @@ export class TeamrcClient {
         "X-Teamrc-Version": API_VERSION,
         "x-trc-signature": signature,
         "x-trc-timestamp": timestamp,
+        "x-trc-token": this.token,
       },
       signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });

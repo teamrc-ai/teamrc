@@ -1,6 +1,6 @@
 # teamrc relay
 
-Elixir/Phoenix backend for teamrc — handles cross-machine sync, team management, and the web UI.
+Elixir/Phoenix backend for teamrc. Handles cross-machine sync, team management, and the web UI.
 
 ## Setup
 
@@ -9,7 +9,7 @@ Elixir/Phoenix backend for teamrc — handles cross-machine sync, team managemen
 ```bash
 # From the repo root:
 cp .env.example .env
-# Edit .env — set SECRET_KEY_BASE, salts, etc.
+# Edit .env to set SECRET_KEY_BASE, salts, etc.
 docker compose up
 ```
 
@@ -25,11 +25,11 @@ mix phx.server  # http://localhost:4000
 
 ## Architecture
 
-- **GenServer** (`Teamrc.Teams`) — In-memory sync state: file hashes per platform, file content (24h TTL), token-to-team mapping
-- **PostgreSQL** (via Ecto) — Persistent storage: teams, members, invites, account tokens
-- **LiveView** — Web UI for team creation with template catalog
-- **Ed25519 signature verification** — All API endpoints authenticated via `VerifySignature` plug
-- **phx.gen.auth + UeberAuth** — Session-based auth with GitHub/Google OAuth for user accounts (dashboard, machine management, recovery)
+- **GenServer** (`Teamrc.Teams`): In-memory sync state. Stores file hashes per platform, file content (24h TTL), and token-to-team mapping.
+- **PostgreSQL** (via Ecto): Persistent storage for teams, members, invites, and account tokens.
+- **LiveView**: Web UI for team creation with template catalog.
+- **Ed25519 signature verification**: All API endpoints authenticated via the `VerifySignature` plug.
+- **phx.gen.auth + UeberAuth**: Session-based auth with GitHub/Google OAuth for user accounts (dashboard, machine management, recovery).
 
 ## API Pipelines
 
@@ -79,7 +79,7 @@ MIX_ENV=test mix ecto.reset  # Reset test DB
 
 ### Optional (OAuth account linking)
 
-Without these, teamrc works fully — team sync, CLI, invites all function. OAuth adds: user dashboard, machine management, account recovery.
+Without these, teamrc works fully. Team sync, CLI, and invites all function. OAuth adds the user dashboard, machine management, and account recovery.
 
 | Env var | Description |
 |---------|-------------|

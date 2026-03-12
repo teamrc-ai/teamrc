@@ -1,6 +1,6 @@
 # teamrc
 
-Sync multi-agent teams across platforms with a shared, version-controllable source of truth.
+Sync AI agent teams across platforms with a single, version-controlled source of truth.
 
 ## Quick Start
 
@@ -18,7 +18,7 @@ npx @teamrc/cli apply
 ## Architecture
 
 ```
-.teamrc.yaml     (source of truth, version-controllable)
+.teamrc.yaml     (source of truth, version-controlled)
        |
   CLI commands   (init, apply, export, sync)
        |
@@ -66,23 +66,23 @@ skills:
 ```
 
 Fields:
-- **name** — Team name (alphanumeric, spaces, hyphens, underscores; max 64 chars)
-- **teamId** — UUID assigned by the relay server
-- **relay** — Relay server URL for cross-machine sync
-- **platforms** — Target platforms (`claude-code`, `cursor`, `codex`, `gemini`, `openclaw`)
-- **members** — Array of agents (max 100)
-  - **name** — Agent name (alphanumeric, hyphens, underscores; max 64 chars)
-  - **role** — One-line role description
-  - **soul** — Optional custom persona/instructions
-  - **skills** — Optional list of skill IDs to assign to this agent
-- **skills** — Array of shared skills and conventions (max 200)
-  - **id** — Skill identifier (alphanumeric, hyphens, underscores; max 64 chars)
-  - **title** — Display name
-  - **description** — What the skill does
-  - **globs** — Optional file patterns for scoped activation (written as native rules)
-  - **alwaysApply** — Whether skill is always active (written as native rules; default: false)
-  - **userInvocable** — Whether the skill can be invoked on demand
-  - **body** — Skill content (inline string or `{ source: "./path" }`)
+- **name**: Team name (alphanumeric, spaces, hyphens, underscores; max 64 chars)
+- **teamId**: UUID assigned by the relay server
+- **relay**: Relay server URL for cross-machine sync
+- **platforms**: Target platforms (`claude-code`, `cursor`, `codex`, `gemini`, `openclaw`)
+- **members**: Array of agents (max 100)
+  - **name**: Agent name (alphanumeric, hyphens, underscores; max 64 chars)
+  - **role**: One-line role description
+  - **soul**: Optional custom persona or instructions
+  - **skills**: Optional list of skill IDs to assign to this agent
+- **skills**: Array of shared skills and conventions (max 200)
+  - **id**: Skill identifier (alphanumeric, hyphens, underscores; max 64 chars)
+  - **title**: Display name
+  - **description**: What the skill does
+  - **globs**: Optional file patterns for scoped activation (written as native rules)
+  - **alwaysApply**: Whether skill is always active (written as native rules; default: false)
+  - **userInvocable**: Whether the skill can be invoked on demand
+  - **body**: Skill content (inline string or `{ source: "./path" }`)
 
 ## CLI Commands
 
@@ -108,11 +108,11 @@ Fields:
 
 ## Platforms
 
-- **Claude Code** — Agents in `.claude/agents/trc-*.md` with YAML frontmatter. Skills with `alwaysApply`/`globs` as `.claude/rules/trc-*.md`. On-demand skills as `.claude/skills/trc-*/SKILL.md`. Updates `CLAUDE.md` with team section.
-- **Cursor** — Subagents in `.cursor/agents/trc-*.md`. Skills with `alwaysApply`/`globs` as `.cursor/rules/trc-*.mdc`. On-demand skills as `.cursor/skills/trc-*/SKILL.md`. Routing via `.cursor/AGENTS.md`.
-- **Codex** — Agent TOML configs in `.codex/agents/trc-*.toml`. Registered in `.codex/config.toml`. Routing via `AGENTS.md`.
-- **OpenClaw** — Agents in `.agents/agents/trc-*.md` with YAML frontmatter. Skills as `.agents/skills/trc-*/SKILL.md`. Routing via `AGENTS.md`.
-- **Gemini** — Agents in `.gemini/agents/trc-*.md` with YAML frontmatter. Skills as `.agents/skills/trc-*/SKILL.md` (Gemini CLI) and `.agent/skills/trc-*/SKILL.md` (Antigravity). Updates `GEMINI.md` with team section.
+- **Claude Code**: Agents in `.claude/agents/trc-*.md` with YAML frontmatter. Skills with `alwaysApply`/`globs` as `.claude/rules/trc-*.md`. On-demand skills as `.claude/skills/trc-*/SKILL.md`. Updates `CLAUDE.md` with team section.
+- **Cursor**: Subagents in `.cursor/agents/trc-*.md`. Skills with `alwaysApply`/`globs` as `.cursor/rules/trc-*.mdc`. On-demand skills as `.cursor/skills/trc-*/SKILL.md`. Routing via `.cursor/AGENTS.md`.
+- **Codex**: Agent TOML configs in `.codex/agents/trc-*.toml`. Registered in `.codex/config.toml`. Routing via `AGENTS.md`.
+- **OpenClaw**: Agents in `.agents/agents/trc-*.md` with YAML frontmatter. Skills as `.agents/skills/trc-*/SKILL.md`. Routing via `AGENTS.md`.
+- **Gemini**: Agents in `.gemini/agents/trc-*.md` with YAML frontmatter. Skills as `.agents/skills/trc-*/SKILL.md` (Gemini CLI) and `.agent/skills/trc-*/SKILL.md` (Antigravity). Updates `GEMINI.md` with team section.
 
 ## Self-Hosting
 
@@ -122,13 +122,13 @@ Fields:
 # Clone and start with Docker Compose
 git clone <repo-url> && cd teamrc
 cp .env.example .env
-# Edit .env — set SECRET_KEY_BASE, SESSION_SIGNING_SALT, LIVE_VIEW_SIGNING_SALT, SESSION_ENCRYPTION_SALT
+# Edit .env and set SECRET_KEY_BASE, SESSION_SIGNING_SALT, LIVE_VIEW_SIGNING_SALT, SESSION_ENCRYPTION_SALT
 docker compose up
 ```
 
 The relay server will be available at `http://localhost:4000`. Postgres is included.
 
-For production (Coolify, etc.), set the required env vars and point at the `Dockerfile`. See `.env.example` for the full list.
+For production deployments (Coolify, etc.), set the required environment variables and point at the `Dockerfile`. See `.env.example` for the full list.
 
 ### Without Docker
 
@@ -147,15 +147,13 @@ Point the CLI at your relay with `TEAMRC_RELAY=http://your-host:4000` or set `re
 - Agent names validated with strict regex before filesystem use
 - YAML file size limited to 256KB, max 100 members
 - Team names and roles sanitized in all template outputs
-- Daemon sync operations serialized with mutex
+- Daemon sync operations are serialized with a mutex
 - Invite codes are multi-use with 144-bit entropy and 24h TTL
-- Sync attribution: every content change tracks `pushed_by` token for accountability
+- Every content change tracks `pushed_by` token for attribution
 - Daemon defaults to knowledge-only sync mode (agent definitions require explicit `teamrc sync`)
-- Content cap: 50MB per team for sync state
-- Skills validated: max 200, max 10KB per skill body
+- Sync state capped at 50MB per team
+- Skills capped at 200 per team and 10KB per skill body
 - Clerk JWT validation for account endpoints (fail-closed when configured)
-- See `docs/security-audit.md` for full audit
+- See `docs/security-audit.md` for the full audit
 
-## Security Note
-
-Treat `.teamrc.yaml` as a trusted configuration file (like `.env`). The `soul` field controls agent behavior — review YAML changes in PRs just as you would review code changes.
+**Important:** Treat `.teamrc.yaml` as a trusted configuration file (like `.env`). The `soul` field controls agent behavior, so review YAML changes in PRs just as you would review code changes.

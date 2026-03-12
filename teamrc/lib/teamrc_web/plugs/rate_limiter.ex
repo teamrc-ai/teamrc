@@ -3,9 +3,9 @@ defmodule TeamrcWeb.Plugs.RateLimiter do
   In-memory rate limiter keyed by client IP (and optionally token).
 
   Applies two layers of rate limiting:
-  1. **Per-IP** — limits total requests from a single IP address.
+  1. **Per-IP**: limits total requests from a single IP address.
      Catches abuse from unauthenticated sources and distributed token use.
-  2. **Per-token** — limits requests from a single authenticated token.
+  2. **Per-token**: limits requests from a single authenticated token.
      Prevents a compromised token from exhausting resources.
 
   Unauthenticated requests (no token) get a stricter per-IP limit.
@@ -72,7 +72,7 @@ defmodule TeamrcWeb.Plugs.RateLimiter do
   end
 
   defp client_ip(conn) do
-    # Always use conn.remote_ip — X-Forwarded-For is attacker-controlled
+    # Always use conn.remote_ip. X-Forwarded-For is attacker-controlled
     # and can be spoofed to bypass rate limits. If deploying behind a proxy,
     # configure Plug.RemoteIp or Bandit/Cowboy to set conn.remote_ip correctly.
     conn.remote_ip |> :inet.ntoa() |> to_string()
@@ -82,8 +82,15 @@ defmodule TeamrcWeb.Plugs.RateLimiter do
     cond do
       token = conn.body_params["token"] -> token
       token = conn.path_params["token"] -> token
-      token = conn.query_params["token"] -> token
+      token = get_token_header(conn) -> token
       true -> nil
+    end
+  end
+
+  defp get_token_header(conn) do
+    case Plug.Conn.get_req_header(conn, "x-trc-token") do
+      [token | _] when token != "" -> token
+      _ -> nil
     end
   end
 

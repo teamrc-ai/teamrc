@@ -7,7 +7,8 @@ defmodule TeamrcWeb.Plugs.VerifySignature do
 
   The token (`trc_ak_<base64url(public_key)>`) is extracted from:
   - `body_params["token"]` for POST requests
-  - `path_params["token"]` for GET requests
+  - `path_params["token"]` for GET/DELETE requests with token in the URL
+  - `x-trc-token` header for GET/DELETE requests without token in the URL
 
   The signed message is:
   - For POST: the raw request body (exact bytes sent by the client)
@@ -109,8 +110,15 @@ defmodule TeamrcWeb.Plugs.VerifySignature do
     cond do
       token = conn.body_params["token"] -> {:ok, token}
       token = conn.path_params["token"] -> {:ok, token}
-      token = conn.query_params["token"] -> {:ok, token}
+      token = get_token_header(conn) -> {:ok, token}
       true -> :error
+    end
+  end
+
+  defp get_token_header(conn) do
+    case get_req_header(conn, "x-trc-token") do
+      [token | _] when token != "" -> token
+      _ -> nil
     end
   end
 

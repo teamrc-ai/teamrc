@@ -146,8 +146,8 @@ defmodule Teamrc.Accounts.User do
   Validates that terms of service have been accepted during registration.
   Designed to be piped after `email_changeset/2` in the registration flow.
 
-  Stamps `accepted_terms_at` and `terms_version_accepted` server-side only —
-  these values are never cast from user input to prevent bypass attacks.
+  Stamps `accepted_terms_at` and `terms_version_accepted` server-side only.
+  These values are never cast from user input to prevent bypass attacks.
   Expects `"terms_accepted" => "true"` in attrs.
   """
   def registration_terms_changeset(changeset, %{"terms_accepted" => "true"}) do

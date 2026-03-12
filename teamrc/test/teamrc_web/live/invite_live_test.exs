@@ -137,7 +137,7 @@ defmodule TeamrcWeb.InviteLiveTest do
     view |> element("button[phx-click='save']") |> render_click()
 
     html = render(view)
-    assert html =~ "This invite has expired."
+    assert html =~ "This invite has expired or been revoked."
 
     db_member = Repo.get!(Member, member.id)
     assert db_member.name == member.name

@@ -7,7 +7,7 @@ defmodule TeamrcWeb.AuthController do
   alias Teamrc.Schema.TokenTeam
   alias Teamrc.Accounts
 
-  @doc "POST /api/auth/device — initiate device authorization flow."
+  @doc "POST /api/auth/device. Initiates device authorization flow."
   def create_device(conn, _params) do
     token = conn.assigns[:verified_token]
 
@@ -35,7 +35,7 @@ defmodule TeamrcWeb.AuthController do
     end
   end
 
-  @doc "GET /api/auth/device/:device_code — poll for device authorization status."
+  @doc "GET /api/auth/device/:device_code. Polls for device authorization status."
   def poll_device(conn, %{"device_code" => device_code}) do
     token = conn.assigns[:verified_token]
 

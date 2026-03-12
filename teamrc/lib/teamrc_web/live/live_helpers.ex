@@ -15,13 +15,16 @@ defmodule TeamrcWeb.LiveHelpers do
           fun.()
 
         invite ->
-          if DateTime.compare(invite.expires_at, DateTime.utc_now()) == :gt do
-            fun.()
-          else
-            {:noreply,
-             socket
-             |> assign(invite_access: nil, can_edit: false, invite_code: nil)
-             |> put_flash(:error, "This invite has expired. Changes cannot be saved.")}
+          # Re-validate invite against the database to catch revocations
+          case Teamrc.Teams.get_valid_invite(invite.team_id, socket.assigns[:invite_code]) do
+            nil ->
+              {:noreply,
+               socket
+               |> assign(invite_access: nil, can_edit: false, invite_code: nil)
+               |> put_flash(:error, "This invite has expired or been revoked. Changes cannot be saved.")}
+
+            _valid_invite ->
+              fun.()
           end
       end
     else

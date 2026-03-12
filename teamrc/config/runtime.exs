@@ -22,6 +22,11 @@ end
 
 config :teamrc, env: config_env()
 
+# Analytics
+config :teamrc, :analytics,
+  host: System.get_env("ANALYTICS_HOST"),
+  website_id: System.get_env("ANALYTICS_WEBSITE_ID")
+
 # GitHub OAuth
 if github_client_id = System.get_env("GITHUB_CLIENT_ID") do
   config :ueberauth, Ueberauth.Strategy.Github.OAuth,
@@ -47,6 +52,7 @@ if otel_endpoint = System.get_env("OTEL_ENDPOINT") do
         %{endpoints: [otel_endpoint]}
       }
     }
+
 end
 
 if config_env() == :prod do

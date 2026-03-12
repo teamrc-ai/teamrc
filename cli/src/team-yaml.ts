@@ -147,7 +147,7 @@ export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const tmpPath = `${filePath}.${randomBytes(4).toString("hex")}.tmp`;
-  fs.writeFileSync(tmpPath, yaml);
+  fs.writeFileSync(tmpPath, yaml, { mode: 0o600 });
   fs.renameSync(tmpPath, filePath);
 }
 

@@ -814,7 +814,7 @@ defmodule TeamrcWeb.TeamDetailLive do
             Run this command to join the team. Expires in <span class="text-base-content/70 font-medium"><%= time_remaining(@invite_access.expires_at) %></span>.
           </p>
           <p class="text-xs text-amber-500/80 mb-3">
-            Invite codes grant full edit access — only share with people you trust.
+            Invite codes grant full edit access. Only share with people you trust.
           </p>
           <p :if={!@current_user} class="text-sm text-base-content/60 mb-4">
             For permanent access, <a
@@ -1533,7 +1533,7 @@ defmodule TeamrcWeb.TeamDetailLive do
             </button>
           </div>
           <p class="text-xs text-base-content/60 mb-3">
-            Invite codes grant <span class="text-amber-500/80 font-medium">full edit access</span> to this team — members, skills, knowledge, and settings. Only share with collaborators you trust.
+            Invite codes grant <span class="text-amber-500/80 font-medium">full edit access</span> to this team: members, skills, knowledge, and settings. Only share with collaborators you trust.
           </p>
 
           <%!-- Newly generated invite --%>
@@ -1602,7 +1602,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               Clone Token
             </p>
             <p class="text-xs text-base-content/60 mb-2">
-              Anyone with this token can copy the team config and pull updates (read-only — no edit access).
+              Anyone with this token can copy the team config and pull updates (read-only, no edit access).
             </p>
             <div class="terminal-block rounded-lg overflow-hidden">
               <div class="px-3 py-2">

@@ -41,7 +41,7 @@ defmodule TeamrcWeb.Plugs.ApiVersion do
         end
 
       [] ->
-        # No version header — allow for backwards compatibility
+        # No version header. Allow for backwards compatibility
         conn
     end
   end

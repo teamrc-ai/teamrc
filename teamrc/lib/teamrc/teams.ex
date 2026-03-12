@@ -1,5 +1,5 @@
 defmodule Teamrc.Teams do
-  @moduledoc "Context module for team operations. No GenServer — all queries run in the caller's process."
+  @moduledoc "Context module for team operations. No GenServer; all queries run in the caller's process."
 
   import Ecto.Query
   alias Teamrc.Repo
@@ -246,7 +246,7 @@ defmodule Teamrc.Teams do
 
       # Verify the claim secret against each candidate's bcrypt hash.
       # When candidates is empty, call no_user_verify() to maintain constant
-      # timing — otherwise an attacker can detect whether a token has any
+      # timing. Otherwise an attacker can detect whether a token has any
       # unclaimed teams by measuring response time.
       matching_team =
         case candidate_teams do
@@ -265,7 +265,7 @@ defmodule Teamrc.Teams do
           {:error, :invalid_secret}
 
         %Team{} = team ->
-          # Atomic claim — only succeeds if still unclaimed
+          # Atomic claim: only succeeds if still unclaimed
           {count, _} =
             from(t in Team, where: t.id == ^team.id and is_nil(t.owner_user_id))
             |> Repo.update_all(set: [owner_user_id: user_id, owner_claim_secret: nil])
@@ -541,7 +541,7 @@ defmodule Teamrc.Teams do
             current_hashes = ContentHash.compute_team_hashes(team)
 
             if current_hashes.hash != base_hash do
-              # Check if only knowledge differs — attempt server-side merge
+              # Check if only knowledge differs; attempt server-side merge
               incoming_members_hash = ContentHash.compute_members_hash(
                 Enum.map(team_data.members, fn m ->
                   %{"name" => m.name, "role" => m[:role], "soul" => m[:soul], "skills" => m.skills}
@@ -552,7 +552,7 @@ defmodule Teamrc.Teams do
               if incoming_members_hash == current_hashes.members_hash and
                  incoming_skills_hash == current_hashes.skills_hash and
                  team_data.knowledge do
-                # Only knowledge differs — merge server-side inside this transaction
+                # Only knowledge differs. Merge server-side inside this transaction
                 merged = ContentHash.merge_knowledge(team.knowledge, team_data.knowledge)
                 if is_binary(merged) and byte_size(merged) > 100_000 do
                   Repo.rollback({:conflict, current_hashes})
@@ -703,7 +703,7 @@ defmodule Teamrc.Teams do
   defp put_if_present(map, _key, []), do: map
   defp put_if_present(map, key, val), do: Map.put(map, key, val)
 
-  @doc "Get just the hashes for a team. Reads stored hash columns — no member preload needed."
+  @doc "Get just the hashes for a team. Reads stored hash columns, no member preload needed."
   def get_team_hashes(token, team_id \\ nil) do
     case resolve_team_id(token, team_id) do
       nil ->

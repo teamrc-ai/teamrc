@@ -8,10 +8,43 @@
     <.live_title default="teamrc" suffix=" | teamrc">
       {assigns[:page_title]}
     </.live_title>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
+    <%= if analytics = Application.get_env(:teamrc, :analytics) do %>
+      <%= if analytics[:host] && analytics[:website_id] do %>
+        <script defer src={"#{analytics[:host]}/script.js"} data-website-id={analytics[:website_id]} data-auto-track="false">
+        </script>
+        <script>
+          (function() {
+            var masks = [
+              [/^\/invite\/.*/, "/invite/[redacted]"],
+              [/^\/users\/log-in\/.*/, "/users/log-in/[redacted]"],
+              [/^\/users\/reset-password\/.*/, "/users/reset-password/[redacted]"],
+              [/^\/users\/settings\/confirm-email\/.*/, "/users/settings/confirm-email/[redacted]"]
+            ];
+            function sanitize(path) {
+              for (var i = 0; i < masks.length; i++) {
+                if (masks[i][0].test(path)) return masks[i][1];
+              }
+              return path;
+            }
+            function track() {
+              if (typeof umami !== "undefined") {
+                umami.track(function(props) {
+                  return Object.assign({}, props, { url: sanitize(props.url) });
+                });
+              }
+            }
+            // Track initial page load once script is ready
+            var s = document.querySelector("script[data-website-id]");
+            if (s) s.addEventListener("load", track);
+            // Track LiveView navigations
+            window.addEventListener("phx:page-loading-stop", track);
+          })();
+        </script>
+      <% end %>
+    <% end %>
   </head>
   <body class="bg-base-100 text-base-content min-h-screen bg-grid flex flex-col">
     {@inner_content}

@@ -218,8 +218,8 @@ defmodule TeamrcWeb.GuideLive do
         <.cmd_line cmd="npx @teamrc/cli dashboard" />
       </.terminal_block>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        This opens your team in the browser and prints the underlying invite-backed URL as a fallback.
-        Use that page to add members, assign skills, or edit instructions.
+        This opens your team in the browser. It also prints the URL as a fallback.
+        From there you can add members, assign skills, or edit instructions.
       </p>
     </section>
 
@@ -410,8 +410,8 @@ defmodule TeamrcWeb.GuideLive do
     <div>
       <h1 class="text-2xl font-bold tracking-tight mb-1">Core Concepts</h1>
       <p class="text-sm text-base-content/60">
-        teamrc has four building blocks. They're simple on their own, but understanding how they relate
-        to each other is the key to getting the most out of it.
+        teamrc has four building blocks. Each is simple on its own, but understanding how they
+        connect helps you get the most out of them.
       </p>
     </div>
 
@@ -527,8 +527,8 @@ defmodule TeamrcWeb.GuideLive do
         <.code_inline>*.tsx</.code_inline>
         or
         <.code_inline>src/api/**</.code_inline>
-        and the skill only kicks in when the agent
-        is working on matching files. Handy for language-specific or directory-specific rules.
+        and the skill only activates when the agent
+        is working on matching files. Useful for language-specific or directory-specific rules.
       </p>
 
       <.sub_heading id="skill-properties" title="Skill properties" />
@@ -611,7 +611,7 @@ defmodule TeamrcWeb.GuideLive do
       <.section_heading id="knowledge" title="Knowledge" />
       <p class="text-sm text-base-content/70 leading-relaxed">
         Knowledge is a shared document that every agent on the team can read and write to.
-        It's where agents dump things they learn while working:
+        It's where agents record things they learn while working:
         "the auth service requires header X," "don't touch the legacy module, it's being replaced,"
         "the CI takes 8 minutes, cache the build."
       </p>
@@ -685,8 +685,8 @@ defmodule TeamrcWeb.GuideLive do
     <div>
       <h1 class="text-2xl font-bold tracking-tight mb-1">CLI Reference</h1>
       <p class="text-sm text-base-content/60">
-        This page is reference, not the fastest onboarding path. Use it when you want exact commands,
-        flags, and common workflows.
+        This is a reference page, not a quickstart. Use it when you need exact commands,
+        flags, or common workflows.
       </p>
     </div>
 
@@ -757,7 +757,7 @@ defmodule TeamrcWeb.GuideLive do
           {"--name <name>", "Team name"},
           {"--team <id>", "Start from a catalog template (e.g. fullstack, backend)"}
         ]}
-        details="Generates an ed25519 keypair (stored in ~/.teamrc/key), creates a team on the relay, writes .teamrc.yaml to your project, and applies config to detected platforms. The interactive wizard lets you pick from catalog templates or start custom."
+        details="Generates an ed25519 keypair (stored in ~/.teamrc/key), creates a team on the relay, writes .teamrc.yaml to your project, and applies config to detected platforms. The interactive wizard lets you pick a catalog template or build a custom team."
       />
 
       <.cli_command
@@ -769,7 +769,7 @@ defmodule TeamrcWeb.GuideLive do
           {"--platform <platform>", "Target platform(s)"},
           {"--global", "Join as global team"}
         ]}
-        details="Connects this machine to an existing team using an invite code. Fetches the team definition from the relay, writes .teamrc.yaml, and applies config to all detected platforms. Each machine gets its own keypair — no shared credentials."
+        details="Connects this machine to an existing team using an invite code. Fetches the team definition from the relay, writes .teamrc.yaml, and applies config to all detected platforms. Each machine gets its own keypair. No shared credentials."
       />
 
       <.cli_command
@@ -831,7 +831,7 @@ defmodule TeamrcWeb.GuideLive do
           {"--scope <scope>", "project or global"},
           {"--global", "Shorthand for --scope global"}
         ]}
-        details="Offline operation — doesn't talk to the relay. Reads .teamrc.yaml and writes platform config files. Useful after editing the YAML directly, or to regenerate files for a newly installed platform."
+        details="Offline operation. Does not talk to the relay. Reads .teamrc.yaml and writes platform config files. Useful after editing the YAML directly, or to regenerate files for a newly installed platform."
       />
 
       <.cli_command
@@ -864,7 +864,7 @@ defmodule TeamrcWeb.GuideLive do
         flags={[
           {"--ttl <hours>", "Dashboard link expiry in hours (default: 24)"}
         ]}
-        details="Creates a short-lived invite-backed URL for the current team and opens it in your browser. Use this when you want to manage the team in the web UI yourself. Use invite when you want to share access with another machine or teammate."
+        details="Creates a short-lived URL for the current team and opens it in your browser. Use this to manage the team in the web UI. Use invite instead when you want to share access with another machine or teammate."
       />
 
       <.cli_command
@@ -907,7 +907,7 @@ defmodule TeamrcWeb.GuideLive do
         flags={[
           {"--name <name>", "Machine name (defaults to hostname)"}
         ]}
-        details="Optional. Opens a browser-based device authorization flow (similar to gh auth login). Once confirmed, this machine is linked to your account for recovery and management via the web dashboard. You can use teamrc without logging in — it's only needed for the dashboard."
+        details="Optional. Opens a browser-based device authorization flow (similar to gh auth login). Once confirmed, this machine is linked to your account for recovery and management via the web dashboard. You can use teamrc without logging in. It's only needed for the dashboard."
       />
 
       <.cli_command
@@ -935,7 +935,7 @@ defmodule TeamrcWeb.GuideLive do
         flags={[
           {"-y, --yes", "Skip confirmation"}
         ]}
-        details="Removes all teamrc-generated files from all platforms, deletes .teamrc.yaml, and cleans up config. This is destructive — it fully uninstalls teamrc from the current project."
+        details="Removes all teamrc-generated files from all platforms, deletes .teamrc.yaml, and cleans up config. This is destructive and fully uninstalls teamrc from the current project."
       />
     </section>
 
@@ -950,7 +950,7 @@ defmodule TeamrcWeb.GuideLive do
         flags={[
           {"--poll-interval <ms>", "Poll interval in milliseconds (default: 120000, min: 5000)"}
         ]}
-        details="Runs a background process that watches your .teamrc.yaml for local changes and periodically polls the relay for remote updates. When changes are detected, it automatically applies them to all platforms. Useful in long-running dev sessions — you never have to manually sync."
+        details="Runs a background process that watches your .teamrc.yaml for local changes and periodically polls the relay for remote updates. When changes are detected, it automatically applies them to all platforms. Useful in long dev sessions, so you never have to manually sync."
       />
     </section>
 
@@ -1230,8 +1230,8 @@ defmodule TeamrcWeb.GuideLive do
         <.code_inline>.agents/skills/</.code_inline>
         and
         <.code_inline>.agent/skills/</.code_inline>
-        (or the global Antigravity directory) for compatibility.
-        Always-on skills are inlined in <.code_inline>GEMINI.md</.code_inline>.
+        (or the global config directory) for compatibility.
+        Always-apply skills are inlined in <.code_inline>GEMINI.md</.code_inline>.
       </p>
     </section>
 
@@ -1283,7 +1283,7 @@ defmodule TeamrcWeb.GuideLive do
     <div>
       <h1 class="text-2xl font-bold tracking-tight mb-1">Syncing</h1>
       <p class="text-sm text-base-content/60">
-        This is the part that makes teamrc useful beyond a single machine. Here's how it all works.
+        Syncing is what makes teamrc useful across multiple machines. Here's how it works.
       </p>
     </div>
 
@@ -1453,7 +1453,7 @@ defmodule TeamrcWeb.GuideLive do
         The relay always stores the most recent version. No three-way merge, no conflict markers.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        In practice this works fine. Agent config is small, declarative, and doesn't change every five minutes.
+        This works well in practice. Agent config is small, declarative, and changes infrequently.
         If you're worried about stepping on someone's changes, run
         <.code_inline>teamrc diff</.code_inline>
         before pushing.
@@ -1501,10 +1501,10 @@ defmodule TeamrcWeb.GuideLive do
         same config. Change something, sync, and all projects pick it up.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        This works the other way too. Two people on the same project can use completely different teams.
-        Maybe you're working with a fullstack team while your colleague has a research team
-        running on OpenClaw. Same repo, different agent setups, no conflict.
-        Teams and repos are independent. That's a deliberate design choice.
+        The reverse is also true. Two people on the same project can use different teams.
+        You might work with a fullstack team while your colleague has a research team
+        on OpenClaw. Same repo, different agent setups, no conflict.
+        Teams and repos are independent by design.
       </p>
     </section>
 
@@ -1559,7 +1559,7 @@ defmodule TeamrcWeb.GuideLive do
 
       <.sub_heading id="accounts" title="Optional accounts" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        If you want, you can link your machine to an account with <.code_inline>teamrc login</.code_inline>.
+        You can optionally link your machine to an account with <.code_inline>teamrc login</.code_inline>.
         It works like <.code_inline>gh auth login</.code_inline>. Opens a browser, you confirm, done.
         This gives you:
       </p>
@@ -1569,7 +1569,7 @@ defmodule TeamrcWeb.GuideLive do
         <li>A single view of all your teams</li>
       </ul>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        But it's totally optional. Everything works without it.
+        But it's optional. Everything works without it.
       </p>
     </section>
     """
@@ -1615,8 +1615,8 @@ defmodule TeamrcWeb.GuideLive do
         Go to
         <.code_inline>/new</.code_inline>
         (or click "Create Team" in the nav).
-        You'll see a list of template cards. Each one sets up a pre-configured team with agents and skills
-        already wired together. Pick one and you're done.
+        You'll see a list of templates. Each one creates a team with agents and skills
+        already configured. Pick one and you're done.
       </p>
 
       <%!-- Mockup: template picker --%>
@@ -1658,14 +1658,14 @@ defmodule TeamrcWeb.GuideLive do
     <section class="space-y-4">
       <.section_heading id="visibility" title="2. Visibility" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        Teams are <span class="font-semibold">private by default</span>. Only authenticated participants
-        (machines that have joined via invite code) can view a private team's page. If someone who isn't
-        a participant visits the URL, they'll see a "This team is private" message.
+        Teams are <span class="font-semibold">private by default</span>. Only participants
+        (machines that joined with an invite code) can view a private team's page. If someone without
+        access visits the URL, they see a "This team is private" message.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
         You can toggle a team to <span class="font-semibold">public</span> if you want anyone with the
-        link to view and clone the config. Public teams show a read-only view of the team's members,
-        skills, and knowledge. They don't expose invites, participants, or edit controls to non-participants.
+        link to view and clone the config. Public teams show a read-only view of members,
+        skills, and knowledge. Invites, participants, and edit controls stay hidden from non-participants.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
         The visibility toggle lives on the team dashboard, right next to the team name.
@@ -1717,8 +1717,8 @@ defmodule TeamrcWeb.GuideLive do
     <section class="space-y-4">
       <.section_heading id="dashboard" title="3. Team dashboard" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        After creating a team (or opening one via invite link), you land on the dashboard.
-        This is where you manage everything: members, skills, invites.
+        After creating a team or opening one from an invite link, you land on the dashboard.
+        This is where you manage members, skills, and invites.
       </p>
 
       <%!-- Mockup: dashboard --%>
@@ -1799,7 +1799,7 @@ defmodule TeamrcWeb.GuideLive do
       <.section_heading id="add-member" title="4. Adding a member" />
       <p class="text-sm text-base-content/70 leading-relaxed">
         Click "Add team member" on the dashboard. You'll see the agent catalog,
-        organized by category. Pick a pre-built agent or create a custom one.
+        grouped by category. Pick a pre-built agent or create a custom one.
       </p>
 
       <%!-- Mockup: agent picker --%>
@@ -1846,7 +1846,7 @@ defmodule TeamrcWeb.GuideLive do
 
       <p class="text-sm text-base-content/70 leading-relaxed">
         After picking an agent, you see a confirmation with the name, role, and a preview
-        of what's included (instructions and skills). Click "Add" and they're on the team.
+        of what's included. Click "Add" and the agent joins your team.
       </p>
 
       <%!-- Mockup: member form with preview --%>
@@ -1923,7 +1923,7 @@ defmodule TeamrcWeb.GuideLive do
       <.section_heading id="member-detail" title="5. Editing a member" />
       <p class="text-sm text-base-content/70 leading-relaxed">
         Click a member card on the dashboard to open their detail page.
-        Here you can edit their name, role, instructions, and toggle which skills are assigned to them.
+        Here you can edit their name, role, and instructions. You can also toggle which skills are assigned to them.
       </p>
 
       <%!-- Mockup: member detail --%>
@@ -2021,7 +2021,7 @@ defmodule TeamrcWeb.GuideLive do
         <div class="px-5 py-3 border-t border-base-300/60 bg-base-200/20 space-y-1">
           <p class="text-xs text-base-content/60">
             Click a skill to toggle it on or off for this member.
-            Skills marked "all agents" are always active and can't be toggled.
+            Skills marked "all agents" are always active and cannot be toggled.
           </p>
         </div>
       </div>
@@ -2031,8 +2031,8 @@ defmodule TeamrcWeb.GuideLive do
     <section class="space-y-4">
       <.section_heading id="add-skill" title="6. Adding a skill" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        Click "Add skill" on the dashboard. Like members, you can pick from the catalog or write one from scratch.
-        Skills are defined at the team level, then assigned to individual members on their detail page.
+        Click "Add skill" on the dashboard. You can pick from the catalog or write one from scratch.
+        Skills are defined at the team level, then assigned to individual members on their detail pages.
       </p>
 
       <%!-- Mockup: skill form --%>
@@ -2092,14 +2092,14 @@ defmodule TeamrcWeb.GuideLive do
     <section class="space-y-4">
       <.section_heading id="invites" title="7. Sharing your team" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        There are two ways to share a team, and they work differently.
+        There are two ways to share a team. They work differently.
       </p>
 
       <.sub_heading id="invite-codes" title="Invite codes (sync access)" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        Invite codes create an <span class="font-semibold">ongoing sync relationship</span>. When someone
-        joins with an invite code, their machine becomes a participant. They'll receive updates when
-        the team changes, and they can push changes back. Invite codes expire after 24 hours.
+        Invite codes create an <span class="font-semibold">ongoing sync connection</span>. When someone
+        joins with an invite code, their machine becomes a participant. They receive updates when
+        the team changes and can push changes back. Invite codes expire after 24 hours.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
         Scroll down on the dashboard to find the Invites section. Click "Generate invite" to create a new code.
@@ -2136,13 +2136,13 @@ defmodule TeamrcWeb.GuideLive do
       <.sub_heading id="clone-tokens" title="Clone tokens (read-only copy)" />
       <p class="text-sm text-base-content/70 leading-relaxed">
         Clone tokens let someone
-        <span class="font-semibold">copy your team config as a snapshot</span>
-        without joining the sync loop. They're only available for public teams. Unlike invite codes,
-        clone tokens don't expire and don't grant write access or ongoing updates.
+        <span class="font-semibold">copy your team config as a snapshot</span>. They do not create a sync connection.
+        Clone tokens are only available for public teams. Unlike invite codes,
+        they do not expire and do not grant write access or ongoing updates.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        When your team is public, the clone token and command appear on the dashboard. Anyone who visits
-        your public team page also sees a "Clone this team" section with the CLI command.
+        When your team is public, the clone token and command appear on the dashboard. Visitors to
+        your public team page also see a "Clone this team" section with the CLI command.
       </p>
 
       <%!-- Mockup: clone token section --%>
@@ -2174,7 +2174,7 @@ defmodule TeamrcWeb.GuideLive do
         <p>
           <span class="font-semibold">Clone</span>
           (<.code_inline>trc_cl_...</.code_inline>): one-time
-          snapshot, no sync, no expiry. Good for sharing templates or letting people try your setup.
+          snapshot, no sync, no expiry. Good for sharing templates or letting others try your setup.
           <span class="font-semibold">Join</span>
           (<.code_inline>trc_inv_...</.code_inline>): ongoing
           sync, full participation, expires in 24 hours. Good for teammates.
@@ -2186,16 +2186,15 @@ defmodule TeamrcWeb.GuideLive do
     <section class="space-y-4">
       <.section_heading id="machines" title="8. Connected machines" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        Your connected machines are listed on the
+        Your connected machines are listed on your
         <span class="font-semibold">personal dashboard</span>
         at <.code_inline>/dashboard</.code_inline>, not on the team page. Only you can see your machines.
-        Other team participants can't see your machine names, hostnames, or tokens.
+        Other participants cannot see your machine names, hostnames, or tokens.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
         Each card shows the machine name (your computer's hostname), whether it's scoped to a specific
         project or global, and when it last synced. Machine names only appear for machines that have
-        run <.code_inline>teamrc login</.code_inline>. The hostname is shared during the login flow,
-        and the CLI will let you know before it happens.
+        run <.code_inline>teamrc login</.code_inline>. The CLI warns you before sharing your hostname.
       </p>
 
       <%!-- Mockup: machines section on /dashboard --%>
@@ -2305,11 +2304,11 @@ defmodule TeamrcWeb.GuideLive do
 
       <.callout title="Privacy note">
         <p>
-          Machine names come from your computer's hostname, and they're only shared when you
+          Machine names come from your computer's hostname. They are only shared when you
           run <.code_inline>teamrc login</.code_inline>. The CLI warns you before sending it.
-          If a machine hasn't logged in, it shows as "Unnamed." Machines are only visible to you
-          on your personal dashboard. They never appear on the team page, and other team participants
-          can't see them.
+          If a machine has not logged in, it shows as "Unnamed." Machines are only visible to you
+          on your personal dashboard. They never appear on the team page. Other participants
+          cannot see them.
         </p>
       </.callout>
     </section>
@@ -2318,14 +2317,14 @@ defmodule TeamrcWeb.GuideLive do
     <section class="space-y-4">
       <.section_heading id="knowledge" title="9. Team knowledge" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        The knowledge section shows shared context that your agents have written during their work.
+        The knowledge section shows shared notes that your agents have written during their work.
         When an agent discovers something important (an architecture decision, a debugging insight,
-        a gotcha), it can append to the team knowledge file. That knowledge gets synced to every
+        a gotcha), it appends to the team knowledge file. That knowledge syncs to every
         machine on the next pull.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        Knowledge is managed entirely through the CLI and your agents. You can't edit it in the web UI.
-        The dashboard just shows you what's there.
+        Knowledge is managed through the CLI and your agents. You cannot edit it in the web UI.
+        The dashboard shows you what's there.
       </p>
 
       <%!-- Mockup: knowledge section (populated) --%>
@@ -2364,13 +2363,13 @@ defmodule TeamrcWeb.GuideLive do
 
       <.callout title="How does knowledge get written?">
         <p>
-          Your agents write to the knowledge file during their work. In your team config, you can
-          include instructions telling agents to append findings to
+          Your agents write to the knowledge file during their work. In your team config,
+          tell agents to append findings to
           <.code_inline>.claude/teamrc-knowledge.md</.code_inline>
           (or wherever your platform stores it).
-          On the next <.code_inline>teamrc push</.code_inline>, that content gets uploaded.
+          On the next <.code_inline>teamrc push</.code_inline>, that content uploads to the relay.
           On <.code_inline>teamrc pull</.code_inline>, every machine gets the merged result.
-          Duplicates are automatically removed.
+          Duplicates are removed automatically.
         </p>
       </.callout>
     </section>
@@ -2636,9 +2635,9 @@ defmodule TeamrcWeb.GuideLive do
     <section class="space-y-3">
       <.section_heading id="teamrc-yaml" title="The .teamrc.yaml file" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        This is your team definition. It lives in your project root and describes everything about your team.
-        You can edit it directly or let the web UI and CLI manage it.
-        Here's what a complete one looks like:
+        This is your team definition. It lives in your project root and describes your entire team.
+        You can edit it directly, or let the web UI and CLI manage it.
+        Here's a complete example:
       </p>
 
       <.terminal_block title=".teamrc.yaml">
@@ -2745,7 +2744,7 @@ defmodule TeamrcWeb.GuideLive do
         <div class="flex items-start gap-3">
           <.code_inline>body</.code_inline>
           <span class="text-base-content/70">
-            Required. The actual instructions in markdown. Can also reference an external file with a source path.
+            Required. The instructions, written in markdown. You can also reference an external file with a source path.
           </span>
         </div>
         <div class="flex items-start gap-3">
@@ -2839,7 +2838,7 @@ defmodule TeamrcWeb.GuideLive do
     <section class="space-y-3">
       <.section_heading id="validation" title="Validation limits" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        These are the relay-enforced limits used by the web UI and sync endpoints:
+        The relay enforces these limits for the web UI and sync endpoints:
       </p>
       <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1.5 text-xs text-base-content/70">
         <div class="flex items-center gap-3">
@@ -2872,8 +2871,8 @@ defmodule TeamrcWeb.GuideLive do
         </div>
       </div>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        The local CLI parser can accept larger YAML files in some cases, but anything sent to the relay
-        must fit within the limits above.
+        The local CLI can accept larger YAML files in some cases. But anything sent to the relay
+        must fit within these limits.
       </p>
     </section>
     """
@@ -2888,34 +2887,34 @@ defmodule TeamrcWeb.GuideLive do
     <div>
       <h1 class="text-2xl font-bold tracking-tight mb-1">FAQ</h1>
       <p class="text-sm text-base-content/60">
-        Questions we get asked a lot. If yours isn't here, reach out.
+        Common questions. If yours is not listed here, reach out.
       </p>
     </div>
 
     <div class="space-y-4">
       <.faq_item question="Why not just use Git for this?">
         <p class="text-sm text-base-content/70 leading-relaxed">
-          Teams and repos are different things. Different people on the same project might work with
-          different teams. One developer uses a fullstack team while another pairs with a
-          research team. You might also want the same team across multiple repos, or have agents on
-          different platforms (say, an OpenClaw research team collaborating alongside Claude Code developers)
+          Teams and repos are different things. Different people on the same project might use
+          different teams. One developer uses a fullstack team while another uses a
+          research team. You might also want the same team across multiple repos. Or agents on
+          different platforms (for example, an OpenClaw research team alongside Claude Code developers)
           working in parallel on the same codebase.
         </p>
         <p class="text-sm text-base-content/70 leading-relaxed mt-2">
-          Git can't model any of this. It also means committing platform-specific config files
+          Git cannot model any of this. It also means committing platform-specific config files
           (<.code_inline>.claude/agents/*.md</.code_inline>, <.code_inline>.cursor/agents/*.mdc</.code_inline>, <.code_inline>codex.md</.code_inline>, etc.)
-          into your repo, which pollutes version history with files that aren't source code.
+          into your repo. That pollutes version history with files that are not source code.
           teamrc generates them locally from a single definition and keeps them out of version control.
         </p>
       </.faq_item>
 
-      <.faq_item question="How does syncing actually work?">
+      <.faq_item question="How does syncing work?">
         <p class="text-sm text-base-content/70 leading-relaxed">
-          Your team's canonical state lives on the teamrc relay (a hosted server).
+          Your team's source of truth lives on the teamrc relay (a hosted server).
           When you run <.code_inline>teamrc sync</.code_inline>,
           the CLI pushes your local state, pulls the latest from the relay, merges knowledge,
-          and regenerates platform-native config files.
-          There's no merge for the team definition. Last write wins, which keeps the model
+          and regenerates platform config files.
+          There is no merge for the team definition. Last write wins. This keeps things
           simple and predictable.
           See the <a href="/guide/sync" class="text-primary/80 hover:text-primary">Syncing page</a>
           for full details.
@@ -2936,9 +2935,9 @@ defmodule TeamrcWeb.GuideLive do
 
       <.faq_item question="What happens if two machines push conflicting changes?">
         <p class="text-sm text-base-content/70 leading-relaxed">
-          Last write wins. teamrc doesn't do three-way merges. The relay always stores the most recent
-          version. This is intentional: agent config is declarative and relatively small, so conflicts
-          are rare and easy to resolve. If you need to see what changed, use
+          Last write wins. teamrc does not do three-way merges. The relay always stores the most recent
+          version. Agent config is declarative and small, so conflicts
+          are rare and easy to resolve. To see what changed, use
           <.code_inline>teamrc diff</.code_inline>
           to compare your local state against the relay.
         </p>
@@ -2950,8 +2949,8 @@ defmodule TeamrcWeb.GuideLive do
 
       <.faq_item question="Which platforms are supported?">
         <p class="text-sm text-base-content/70 leading-relaxed">
-          Claude Code, Cursor, Codex, Gemini, and OpenClaw are fully supported. Each has a native adapter that
-          writes config in the platform's expected format. The CLI auto-detects which platforms are installed
+          Claude Code, Cursor, Codex, Gemini, and OpenClaw are fully supported. Each has an adapter that
+          writes config in the platform's native format. The CLI auto-detects installed platforms
           and generates files for all of them. GitHub Copilot, Amazon Q, Windsurf, and Cline are planned.
           See the
           <a href="/guide/platforms" class="text-primary/80 hover:text-primary">Platforms page</a>
@@ -2973,7 +2972,7 @@ defmodule TeamrcWeb.GuideLive do
         <p class="text-sm text-base-content/70 leading-relaxed">
           Yes. Teams are per-machine, not per-repo. One developer might use a fullstack team with
           frontend and backend agents, while another uses a research team with specialized analysis agents.
-          They're working in the same codebase but with different AI configurations. Each person runs
+          They work in the same codebase but with different AI configurations. Each person runs
           <.code_inline>teamrc init</.code_inline>
           or
           <.code_inline>teamrc join</.code_inline>
@@ -3016,7 +3015,7 @@ defmodule TeamrcWeb.GuideLive do
           with valid tokens (from
           <.code_inline>init</.code_inline>
           or <.code_inline>join</.code_inline>) can access your team's data.
-          The relay stores your team configuration. It doesn't store source code or anything
+          The relay stores your team configuration. It does not store source code or anything
           beyond what's in your <.code_inline>.teamrc.yaml</.code_inline>.
           See <a href="/guide/sync#auth" class="text-primary/80 hover:text-primary">Authentication</a>
           for details.
@@ -3029,7 +3028,7 @@ defmodule TeamrcWeb.GuideLive do
           authenticated participants. If someone visits the team page URL without access, they see
           a "This team is private" message. <span class="font-semibold">Public</span> teams can be
           viewed by anyone with the link. Visitors see a read-only view of the team config (members,
-          skills, knowledge) and can clone it. They still can't edit anything or see invites.
+          skills, knowledge) and can clone it. They still cannot edit anything or see invites.
         </p>
         <p class="text-sm text-base-content/70 leading-relaxed mt-2">
           You can toggle visibility on the team dashboard at any time. Making a team public also
@@ -3047,12 +3046,12 @@ defmodule TeamrcWeb.GuideLive do
           <span class="font-semibold">Cloning</span>
           (<.code_inline>teamrc clone trc_cl_...</.code_inline>)
           copies the current team config as a one-time snapshot. You get the YAML and generated files,
-          but there's no ongoing connection to the original team. Clone tokens don't expire.
+          but there is no ongoing connection to the original team. Clone tokens do not expire.
         </p>
         <p class="text-sm text-base-content/70 leading-relaxed mt-2">
           <span class="font-semibold">Joining</span>
           (<.code_inline>teamrc join trc_inv_...</.code_inline>)
-          creates an ongoing sync relationship. Your machine becomes a participant and receives updates
+          creates an ongoing sync connection. Your machine becomes a participant and receives updates
           whenever the team changes. You can also push changes back. Invite codes expire after 24 hours.
         </p>
         <p class="text-sm text-base-content/70 leading-relaxed mt-2">
@@ -3064,7 +3063,7 @@ defmodule TeamrcWeb.GuideLive do
       <.faq_item question="Can someone see my machine name?">
         <p class="text-sm text-base-content/70 leading-relaxed">
           No. Your machines are only visible to you, on your personal dashboard
-          (<.code_inline>/dashboard</.code_inline>). Other team participants can't see your machine names,
+          (<.code_inline>/dashboard</.code_inline>). Other participants cannot see your machine names,
           hostnames, or tokens. Machine names come from your computer's hostname and are only shared
           when you run <.code_inline>teamrc login</.code_inline>. The CLI warns you before sending it.
         </p>
@@ -3072,7 +3071,7 @@ defmodule TeamrcWeb.GuideLive do
 
       <.faq_item question="What if I lose my keypair?">
         <p class="text-sm text-base-content/70 leading-relaxed">
-          If you haven't linked an account, you'll need a new invite code from someone who still
+          Without a linked account, you need a new invite code from someone who still
           has access to the team. If you have linked an account (via <.code_inline>teamrc login</.code_inline>),
           you can manage your machines from the web dashboard and recover access.
         </p>
@@ -3094,11 +3093,10 @@ defmodule TeamrcWeb.GuideLive do
       <.faq_item question="What does the daemon do?">
         <p class="text-sm text-base-content/70 leading-relaxed">
           <.code_inline>teamrc daemon</.code_inline>
-          runs a background process that automatically
-          polls the relay for changes (default: every 2 minutes) and watches your
+          runs a background process that polls the relay for changes (every 2 minutes by default) and watches your
           <.code_inline>.teamrc.yaml</.code_inline>
           for local edits. When anything changes,
-          it regenerates platform config files. Saves you from running
+          it regenerates platform config files. This saves you from running
           <.code_inline>teamrc sync</.code_inline>
           manually.
           See <a href="/guide/sync#daemon" class="text-primary/80 hover:text-primary">Daemon mode</a>

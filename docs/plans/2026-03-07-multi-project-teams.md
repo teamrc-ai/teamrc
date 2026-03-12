@@ -9,8 +9,8 @@
 
 A developer needs two modes:
 
-1. **Global team** — "I have a personal crew of agents that follows me across all projects." Installed to `~/.<platform>/agents/`. One team, always available.
-2. **Project team** — "This repo has its own team." Installed to `<project>/.<platform>/agents/`. Isolated per project. Different projects can have different teams.
+1. **Global team**: "I have a personal crew of agents that follows me across all projects." Installed to `~/.<platform>/agents/`. One team, always available.
+2. **Project team**: "This repo has its own team." Installed to `<project>/.<platform>/agents/`. Isolated per project. Different projects can have different teams.
 
 These aren't mutually exclusive. A developer might have a global "personal assistants" team AND per-project teams that overlay.
 
@@ -227,10 +227,10 @@ Change `token_teams` mapping from `%{token => team_id}` to `%{token => MapSet.ne
 
 ### 2.2 API changes
 
-- `POST /api/join` — associates token with team (additive, don't replace existing teams)
-- `GET /api/teams/:token` — returns `%{teams: [team1, team2, ...]}` (list, not single)
-- `POST /api/sync`, `POST /api/push` — require `teamId` in body (already present), route to specific team
-- `POST /api/teams` — no change
+- `POST /api/join`: associates token with team (additive, don't replace existing teams)
+- `GET /api/teams/:token`: returns `%{teams: [team1, team2, ...]}` (list, not single)
+- `POST /api/sync`, `POST /api/push`: require `teamId` in body (already present), route to specific team
+- `POST /api/teams`: no change
 
 ### 2.3 Database
 
@@ -292,7 +292,7 @@ Update `allowAgents` in `openclaw.json` to include only the active team's agents
 
 ## Phase 5: New Platform Adapters
 
-### 5.1 Copilot Adapter — HIGH priority
+### 5.1 Copilot Adapter (HIGH priority)
 
 **Why:** Huge user base. Rich agent file format. Already reads `.claude/agents/`.
 
@@ -308,7 +308,7 @@ Update `allowAgents` in `openclaw.json` to include only the active team's agents
 - `readTeam()`: parse `trc-*.agent.md` files
 - `supportsSync = true`
 
-### 5.2 Amazon Q Adapter — HIGH priority
+### 5.2 Amazon Q Adapter (HIGH priority)
 
 **Why:** Only other platform with named custom agents. Direct TeamMember → agent mapping.
 
@@ -323,7 +323,7 @@ Update `allowAgents` in `openclaw.json` to include only the active team's agents
 - `readTeam()`: parse JSON agent files
 - `supportsSync = true`
 
-### 5.3 Windsurf Adapter — MEDIUM priority
+### 5.3 Windsurf Adapter (MEDIUM priority)
 
 **File:** `cli/src/adapters/windsurf.ts`
 
@@ -332,9 +332,9 @@ Update `allowAgents` in `openclaw.json` to include only the active team's agents
 | Agent rules | `.windsurf/rules/trc-{slug}.md` | Markdown with activation mode frontmatter |
 | Workflows | `.windsurf/workflows/trc-{slug}.md` | Markdown (skills → workflows) |
 
-- Project-scoped. No named agents — rules approximate agent personas via `description` activation.
+- Project-scoped. No named agents; rules approximate agent personas via `description` activation.
 
-### 5.4 Cline Adapter — MEDIUM priority
+### 5.4 Cline Adapter (MEDIUM priority)
 
 **File:** `cli/src/adapters/cline.ts`
 
@@ -344,20 +344,20 @@ Update `allowAgents` in `openclaw.json` to include only the active team's agents
 
 - Project-scoped. Simple format.
 
-### 5.5 Junie Adapter — LOW priority
+### 5.5 Junie Adapter (LOW priority)
 
 | Artifact | Path |
 |----------|------|
 | Guidelines | `.junie/AGENTS.md` (marker block) |
 | Skills | `.junie/skills/trc-{id}/SKILL.md` |
 
-### 5.6 Continue.dev Adapter — LOW priority
+### 5.6 Continue.dev Adapter (LOW priority)
 
 | Artifact | Path |
 |----------|------|
 | Rules | `.continue/rules/trc-{id}.md` (with YAML frontmatter) |
 
-### 5.7 Augment Adapter — LOW priority
+### 5.7 Augment Adapter (LOW priority)
 
 | Artifact | Path |
 |----------|------|
@@ -369,11 +369,11 @@ Update `allowAgents` in `openclaw.json` to include only the active team's agents
 
 ### Design Principles
 
-1. **Show, don't ask** — Auto-detect everything possible. Only prompt when there's a genuine choice.
-2. **Instant feedback** — Show a spinner within 100ms of any network call. Never leave users staring at nothing.
-3. **Suggest the next step** — After every command, tell the user what to do next.
-4. **Machine-friendly** — Every command that produces output supports `--json`. Non-TTY detection skips all prompts.
-5. **Consistent language** — Same terminology, same formatting, same symbols everywhere.
+1. **Show, don't ask**: Auto-detect everything possible. Only prompt when there's a genuine choice.
+2. **Instant feedback**: Show a spinner within 100ms of any network call. Never leave users staring at nothing.
+3. **Suggest the next step**: After every command, tell the user what to do next.
+4. **Machine-friendly**: Every command that produces output supports `--json`. Non-TTY detection skips all prompts.
+5. **Consistent language**: Same terminology, same formatting, same symbols everywhere.
 
 ### 6.0 Add `@clack/prompts`
 
@@ -386,16 +386,16 @@ npm install @clack/prompts
 ```
 
 Key components to use:
-- `intro()` / `outro()` — Session start/end
-- `text()` — Free-form input with validation
-- `select()` — Single selection (replaces numbered lists)
-- `multiselect()` — Checkbox multi-selection (for platforms)
-- `confirm()` — Yes/no (replaces manual y/N parsing)
-- `spinner()` — Loading state for network calls
-- `log.info()`, `log.success()`, `log.warn()`, `log.error()` — Structured output
-- `note()` — Boxed informational messages
-- `isCancel()` — Graceful Ctrl-C handling
-- `tasks()` — Sequential task runner with status
+- `intro()` / `outro()`: Session start/end
+- `text()`: Free-form input with validation
+- `select()`: Single selection (replaces numbered lists)
+- `multiselect()`: Checkbox multi-selection (for platforms)
+- `confirm()`: Yes/no (replaces manual y/N parsing)
+- `spinner()`: Loading state for network calls
+- `log.info()`, `log.success()`, `log.warn()`, `log.error()`: Structured output
+- `note()`: Boxed informational messages
+- `isCancel()`: Graceful Ctrl-C handling
+- `tasks()`: Sequential task runner with status
 
 ### 6.1 Global Flags
 
@@ -463,11 +463,11 @@ teamrc init --yes --name "frontend-crew" --platform claude-code,cursor
 ```
 
 **Flags:**
-- `--name <name>` — Team name (skip prompt)
-- `--platform <platforms>` — Comma-separated (skip prompt)
-- `--global` — Install globally
-- `--yes` / `-y` — Accept all defaults
-- `--relay <url>` — Override relay
+- `--name <name>`: Team name (skip prompt)
+- `--platform <platforms>`: Comma-separated (skip prompt)
+- `--global`: Install globally
+- `--yes` / `-y`: Accept all defaults
+- `--relay <url>`: Override relay
 
 ### 6.3 `teamrc join`
 
@@ -497,10 +497,10 @@ $ teamrc join trc_inv_a8f3c9e21b
 ```
 
 **Flags:**
-- `--global` — Join as global team
-- `--no-sync` — Register but disable auto-sync
-- `--platform <platforms>` — Override platform detection
-- `--yes` / `-y` — Skip prompts
+- `--global`: Join as global team
+- `--no-sync`: Register but disable auto-sync
+- `--platform <platforms>`: Override platform detection
+- `--yes` / `-y`: Skip prompts
 
 ### 6.4 `teamrc apply`
 
@@ -703,7 +703,7 @@ $ teamrc daemon
 ```
 $ teamrc log
 
-  teamrc log — frontend-crew
+  teamrc log - frontend-crew
 
   12:34:01  memory   trc_ak_abc...  claude-code   "Auth bug fixed via JWT rotation"
   12:33:45  agent    trc_ak_def...  cursor        architect role updated
@@ -790,12 +790,12 @@ const PLATFORM_SIGNALS: Record<string, (home: string, cwd: string) => boolean> =
 
 ### 6.17 Dead Code Removal
 
-- Remove `askQuestion()` — replaced by `@clack/prompts`
-- Remove `askScope()` — replaced by `--global` flag + `select()`
-- Remove `primaryPlatform()` — replaced by `platforms` array
-- Remove `requireClient()` — replaced by `requireTeamContext()`
+- Remove `askQuestion()`, replaced by `@clack/prompts`
+- Remove `askScope()`, replaced by `--global` flag + `select()`
+- Remove `primaryPlatform()`, replaced by `platforms` array
+- Remove `requireClient()`, replaced by `requireTeamContext()`
 - Remove top-level `teamId`/`platform`/`noSync` from `TeamrcConfig`
-- Remove all raw `console.log` calls — replace with `log.*()` from clack
+- Remove all raw `console.log` calls, replace with `log.*()` from clack
 
 ---
 
@@ -804,9 +804,9 @@ const PLATFORM_SIGNALS: Record<string, (home: string, cwd: string) => boolean> =
 ### Current State
 
 The web UI has 3 pages:
-- **`/new`** — Team creation wizard (3-step: template → configure → success)
-- **`/dashboard`** — Machine and team management (Clerk auth required)
-- **`/auth/verify`** — Device auth verification for `teamrc login`
+- **`/new`**: Team creation wizard (3-step: template, configure, success)
+- **`/dashboard`**: Machine and team management (Clerk auth required)
+- **`/auth/verify`**: Device auth verification for `teamrc login`
 
 Stack: Phoenix LiveView, Tailwind CSS, daisyUI, Clerk auth, light/dark themes.
 
@@ -827,7 +827,7 @@ Platforms (select all that apply)
 
 Store selected platforms in the team definition sent to the relay. The `join` command uses them as defaults (user can override with `--platform`).
 
-#### Success step — expanded join instructions
+#### Success step: expanded join instructions
 
 Show platform-specific instructions after team creation:
 
@@ -854,7 +854,7 @@ Add platform-awareness to templates. Some templates make more sense for certain 
 - "Security Testing" → defaults to claude-code, codex
 - Templates should suggest platforms, not enforce them
 
-### 7.2 Dashboard — Multi-Team, Multi-Machine View
+### 7.2 Dashboard: Multi-Team, Multi-Machine View
 
 The dashboard currently shows machines and teams as flat lists. With multi-project teams, restructure to show the relationship between machines, projects, and teams.
 
@@ -916,7 +916,7 @@ Clicking a team row expands to show:
 The relay needs to track:
 - Which teams a token belongs to (already in `token_teams`)
 - The scope per token-team association: `"global"` or `"project"`
-- Project identifier per token-team (optional — repo name from git remote, or just the directory basename)
+- Project identifier per token-team (optional, e.g. repo name from git remote, or just the directory basename)
 
 Add to `token_teams` table:
 ```elixir
@@ -947,7 +947,7 @@ Add a dedicated page for viewing/editing a team: `/teams/:id`
 
 This replaces the need to edit `.teamrc.yaml` manually for web-created teams. The CLI remains the primary interface, but the web provides a visual alternative.
 
-### 7.4 Auth Verify Page — No Changes
+### 7.4 Auth Verify Page (No Changes)
 
 The device auth flow (`/auth/verify`) works correctly for multi-team. A machine can be linked to an account regardless of how many teams it belongs to.
 
@@ -961,7 +961,7 @@ Currently `/` redirects to `/new` or `/dashboard`. Consider a proper landing pag
 - Feature highlights: multi-platform sync, team templates, live sync daemon
 - Link to docs
 
-This is low priority — the CLI is the primary entry point.
+This is low priority. The CLI is the primary entry point.
 
 ### 7.6 API Changes for Dashboard
 
@@ -1008,9 +1008,9 @@ Add optional fields to sync request body:
 
 - All new pages use LiveView (consistent with existing architecture)
 - Team detail page can reuse components from the wizard (member list, rule editor, skill editor)
-- Dashboard restructure is a LiveView template change — the data model (GenServer + Ecto) already has most of what's needed
+- Dashboard restructure is a LiveView template change. The data model (GenServer + Ecto) already has most of what's needed.
 - Platform selection uses the same checkbox pattern as the wizard's rule/skill assignment
-- No new JavaScript needed — LiveView handles all interactions
+- No new JavaScript needed. LiveView handles all interactions.
 
 ---
 
@@ -1020,7 +1020,7 @@ Add optional fields to sync request body:
 
 **Risk:** Cloned repo with malicious `.teamrc.yaml` containing attacker's teamId.
 
-**Mitigation:** `teamrc sync` requires the machine's token to be registered with the team on the relay. An unregistered token gets 401. The attacker cannot force the victim to sync to their team — the victim must explicitly `teamrc join` first.
+**Mitigation:** `teamrc sync` requires the machine's token to be registered with the team on the relay. An unregistered token gets 401. The attacker cannot force the victim to sync to their team; the victim must explicitly `teamrc join` first.
 
 **Additional:** On first sync with a YAML-provided teamId that wasn't set by `init`/`join` on this machine, warn and require confirmation.
 
@@ -1064,7 +1064,7 @@ Add optional fields to sync request body:
 
 **Risk:** Global team has `trc-architect.md` in `~/.claude/agents/`. Project team also has `trc-architect.md` in `.claude/agents/`. Project wins (platform precedence), but global file still exists.
 
-**Mitigation:** This is actually correct behavior — platforms resolve project > global naturally. But `teamrc status` should warn about name shadows: "Agent 'architect' in project team shadows global team's 'architect'."
+**Mitigation:** This is actually correct behavior. Platforms resolve project > global naturally. But `teamrc status` should warn about name shadows: "Agent 'architect' in project team shadows global team's 'architect'."
 
 ---
 
@@ -1072,11 +1072,11 @@ Add optional fields to sync request body:
 
 ### 9.1 Dead code removal
 
-- `askScope()` — gone
-- `primaryPlatform()` — gone
-- Top-level `teamId`/`platform`/`noSync` in config — gone
-- `requireClient()` — replaced by `requireTeamContext()`
-- Single-platform daemon assumption — gone
+- `askScope()`: gone
+- `primaryPlatform()`: gone
+- Top-level `teamId`/`platform`/`noSync` in config: gone
+- `requireClient()`: replaced by `requireTeamContext()`
+- Single-platform daemon assumption: gone
 
 ### 9.2 Test updates
 
@@ -1143,7 +1143,7 @@ The project config file should follow dotfile conventions (like `.prettierrc`, `
 ### 10.4 Migration path
 
 Users with existing `agent-team.yaml` files:
-1. CLI continues to work — reads fall back to legacy filename
+1. CLI continues to work. Reads fall back to legacy filename.
 2. Console prints deprecation warning each run
 3. User renames file manually: `mv agent-team.yaml .teamrc.yaml`
 4. Or `teamrc apply` / `teamrc init` / `teamrc join` writes `.teamrc.yaml` automatically

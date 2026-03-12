@@ -37,7 +37,7 @@ defmodule TeamrcWeb.MemberDetailLive do
 
           {:ok,
            assign(socket,
-             page_title: "#{member.name} — #{team.name}",
+             page_title: "#{member.name} - #{team.name}",
              team: team,
              member: member,
              can_edit: can_edit,
@@ -138,7 +138,7 @@ defmodule TeamrcWeb.MemberDetailLive do
                    member: updated_member,
                    team: updated_team,
                    dirty: false,
-                   page_title: "#{updated_member.name} — #{team.name}"
+                   page_title: "#{updated_member.name} - #{team.name}"
                  )
                  |> put_flash(:info, "Saved.")}
 

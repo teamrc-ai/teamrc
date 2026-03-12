@@ -13,7 +13,7 @@ defmodule TeamrcWeb.Router do
 
     plug :put_secure_browser_headers, %{
       "content-security-policy" =>
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss:; font-src 'self' data:; frame-ancestors 'none'"
+        "default-src 'self'; script-src 'self' 'unsafe-inline' https://analytics.teamrc.ai https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://analytics.teamrc.ai https://cloudflareinsights.com; font-src 'self'; base-uri 'self'; frame-ancestors 'none'"
     }
 
     plug :fetch_current_scope_for_user
@@ -69,7 +69,7 @@ defmodule TeamrcWeb.Router do
     plug :persist_redirect_to
   end
 
-  # Health check — no auth, no SSL redirect, no pipelines
+  # Health check: no auth, no SSL redirect, no pipelines
   scope "/", TeamrcWeb do
     get "/health", PageController, :health
   end
@@ -86,11 +86,10 @@ defmodule TeamrcWeb.Router do
   scope "/", TeamrcWeb do
     pipe_through :browser
 
-    get "/", PageController, :index
-
     live_session :public,
       layout: {TeamrcWeb.Layouts, :app},
       on_mount: [{TeamrcWeb.UserAuth, :mount_current_scope}] do
+      live "/", HomeLive
       live "/new", TeamLive, :index
       live "/invite/:code", InviteLive
       live "/teams/:id", TeamDetailLive
@@ -110,7 +109,7 @@ defmodule TeamrcWeb.Router do
     end
   end
 
-  # Authenticated LiveView routes — Plug handles initial HTTP redirect + return-to
+  # Authenticated LiveView routes. Plug handles initial HTTP redirect + return-to
   # storage, LiveView on_mount handles websocket reconnection
   scope "/", TeamrcWeb do
     pipe_through [:browser, :require_authenticated_user]
@@ -122,7 +121,7 @@ defmodule TeamrcWeb.Router do
     end
   end
 
-  # Live dashboard — open in dev, admin-only in prod
+  # Live dashboard: open in dev, admin-only in prod
   scope "/admin" do
     pipe_through :browser
 
