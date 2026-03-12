@@ -20,6 +20,10 @@ config :teambridge, TeambridgeWeb.Endpoint,
 # Security-specific tests override this to test the auth plug directly.
 config :teambridge, :skip_auth, true
 
+# Skip Clerk JWT verification in tests by default.
+# The VerifyClerkJWT test overrides this to test the plug directly.
+config :teambridge, :skip_clerk_auth, true
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

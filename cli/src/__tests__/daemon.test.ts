@@ -33,7 +33,6 @@ function createMockAdapter(tmpDir: string): PlatformAdapter {
       }
       return hashes;
     },
-    installHooks: () => {},
     watchPaths: () => [teamFile, knowledgeFile],
     writeFile: (key: string, content: string) => {
       if (key === "team-spec") fs.writeFileSync(teamFile, content);

@@ -19,13 +19,33 @@ describe("Gemini CLI adapter", () => {
     fs.rmSync(tmpDir, { recursive: true });
   });
 
-  it("writes team and rules to GEMINI.md", async () => {
+  it("writes native skill directories to .gemini/skills/", async () => {
     const { GeminiAdapter } = await import("../adapters/gemini.js");
     const adapter = new GeminiAdapter();
 
     const team = {
       name: "test-team",
       members: [{ name: "architect", role: "design" }],
+      skills: [{ id: "skill_search", description: "Search code", body: "Use grep." }],
+    };
+
+    adapter.writeTeam(team);
+
+    const skillFile = path.join(tmpDir, ".gemini", "skills", "tb-skill_search", "SKILL.md");
+    assert.ok(fs.existsSync(skillFile), "SKILL.md should exist");
+
+    const content = fs.readFileSync(skillFile, "utf-8");
+    assert.ok(content.includes("name: tb-skill_search"));
+    assert.ok(content.includes("Search code"));
+  });
+
+  it("writes team and rules to GEMINI.md", async () => {
+    const { GeminiAdapter } = await import("../adapters/gemini.js");
+    const adapter = new GeminiAdapter();
+
+    const team = {
+      name: "test-team",
+      members: [{ name: "architect", role: "design", rules: ["rule_style"] }],
       rules: [{ id: "rule_style", title: "Code Style", body: "Use prettier." }],
     };
 

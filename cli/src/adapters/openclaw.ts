@@ -128,6 +128,15 @@ export class OpenClawAdapter implements PlatformAdapter {
       }
     }
 
+    // Write team-wide skills to the default workspace
+    if (team.skills && team.skills.length > 0) {
+      const defaultWorkspace = path.join(this.openclawDir, "workspace");
+      if (!fs.existsSync(defaultWorkspace)) {
+        fs.mkdirSync(defaultWorkspace, { recursive: true });
+      }
+      this.writeNativeSkillFiles(defaultWorkspace, team.skills);
+    }
+
     // Wire up routing: allow main agent to spawn team agents + add dispatch rules
     this.wireRouting(team, agentIds);
   }
@@ -171,6 +180,9 @@ export class OpenClawAdapter implements PlatformAdapter {
         }).join("\n\n");
         extraSections += `## Skills\n\n${skillBlocks}\n\n`;
       }
+
+      // Write native skill directories for this agent's resolved skills
+      this.writeNativeSkillFiles(wsDir, resolvedSkills);
     }
 
     const agentsContent = [
@@ -189,6 +201,33 @@ export class OpenClawAdapter implements PlatformAdapter {
       "",
     ].join("\n");
     fs.writeFileSync(agentsPath, agentsContent);
+  }
+
+  /** Write native OpenClaw skill directories (skills/tb-{id}/SKILL.md) into a workspace */
+  private writeNativeSkillFiles(wsDir: string, skills: import("./base.js").Skill[]): void {
+    for (const skill of skills) {
+      const body = skill.body ? (typeof skill.body === "string" ? skill.body : null) : null;
+      const skillDir = path.join(wsDir, "skills", `tb-${skill.id}`);
+      if (!fs.existsSync(skillDir)) {
+        fs.mkdirSync(skillDir, { recursive: true });
+      }
+
+      const frontmatterLines = [`name: tb-${skill.id}`];
+      if (skill.description) {
+        frontmatterLines.push(`description: "${skill.description}"`);
+      }
+
+      const parts = [
+        "---",
+        frontmatterLines.join("\n"),
+        "---",
+      ];
+      if (body) {
+        parts.push("", body);
+      }
+
+      fs.writeFileSync(path.join(skillDir, "SKILL.md"), parts.join("\n") + "\n");
+    }
   }
 
   /** Configure the main agent to dispatch to TeamBridge sub-agents */
@@ -441,6 +480,20 @@ export class OpenClawAdapter implements PlatformAdapter {
       actions.push(`Deleted ${workspaces.length} agent workspace(s)`);
     }
 
+    // Delete tb-* skill directories from the default workspace
+    const defaultSkillsDir = path.join(this.openclawDir, "workspace", "skills");
+    if (fs.existsSync(defaultSkillsDir)) {
+      const tbSkills = fs.readdirSync(defaultSkillsDir).filter((d) =>
+        d.startsWith("tb-") && fs.statSync(path.join(defaultSkillsDir, d)).isDirectory(),
+      );
+      for (const sd of tbSkills) {
+        fs.rmSync(path.join(defaultSkillsDir, sd), { recursive: true });
+      }
+      if (tbSkills.length > 0) {
+        actions.push(`Deleted ${tbSkills.length} skill directory(ies) from default workspace`);
+      }
+    }
+
     // Delete team knowledge
     const kPath = this.knowledgePath();
     if (fs.existsSync(kPath)) {
@@ -489,42 +542,7 @@ export class OpenClawAdapter implements PlatformAdapter {
       }
     }
 
-    // Delete sync hook
-    const hookDir = path.join(this.openclawDir, "hooks", "teambridge-sync");
-    if (fs.existsSync(hookDir)) {
-      fs.rmSync(hookDir, { recursive: true });
-      actions.push(`Deleted sync hook`);
-    }
-
     return actions;
   }
 
-  installHooks(_relay: string, _token: string): void {
-    const hookDir = path.join(
-      this.openclawDir,
-      "hooks",
-      "teambridge-sync",
-    );
-    if (!fs.existsSync(hookDir)) {
-      fs.mkdirSync(hookDir, { recursive: true });
-    }
-
-    const hookPath = path.join(hookDir, "index.ts");
-    const hookContent = `// TeamBridge sync hook for OpenClaw
-// Runs on session start to sync team state
-
-import { execFileSync } from "node:child_process";
-
-export default function teambridgeSync() {
-  try {
-    execFileSync("npx", ["teambridge", "sync"], {
-      stdio: "ignore",
-    });
-  } catch {
-    // Sync failures are non-fatal
-  }
-}
-`;
-    fs.writeFileSync(hookPath, hookContent);
-  }
 }

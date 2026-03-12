@@ -2,10 +2,31 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import {
   sanitizeMarkerContent,
+  validateAgentName,
+  writeSkillDir,
+  cleanupSkillDirs,
   type PlatformAdapter,
   type TeamDefinition,
+  type TeamMember,
   type Rule,
 } from "./base.js";
+import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
+
+function sanitizeText(s: string): string {
+  return s.replace(/[\n\r]/g, " ").trim();
+}
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function escapeYamlString(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+}
 
 export class CursorAdapter implements PlatformAdapter {
   private cursorDir(): string {
@@ -16,10 +37,24 @@ export class CursorAdapter implements PlatformAdapter {
     return path.join(this.cursorDir(), "rules");
   }
 
+  private agentsDir(): string {
+    return path.join(this.cursorDir(), "agents");
+  }
+
+  private skillsDir(): string {
+    return path.join(this.cursorDir(), "skills");
+  }
+
   private listTbRules(): string[] {
     const dir = this.rulesDir();
     if (!fs.existsSync(dir)) return [];
     return fs.readdirSync(dir).filter((f) => f.startsWith("tb-") && f.endsWith(".mdc"));
+  }
+
+  private listTbAgentFiles(): string[] {
+    const dir = this.agentsDir();
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir).filter((f) => f.startsWith("tb-") && f.endsWith(".md"));
   }
 
   readTeam(): TeamDefinition | null {
@@ -27,12 +62,109 @@ export class CursorAdapter implements PlatformAdapter {
   }
 
   writeTeam(team: TeamDefinition): void {
+    // Write all rules as .mdc files (project-level, Cursor's native format)
     if (team.rules) {
       for (const rule of team.rules) {
         this.writeRuleMdc(rule);
       }
     }
+    // Write native skill directories
+    if (team.skills) {
+      const dir = this.skillsDir();
+      for (const skill of team.skills) {
+        writeSkillDir(dir, skill);
+      }
+    }
+    // Write individual subagent .md files
+    for (const member of team.members) {
+      validateAgentName(member.name);
+      this.writeAgentMd(team.name, member, team.members, team);
+    }
+    // Write routing AGENTS.md
     this.writeAgentsMd(team);
+  }
+
+  /** Write a subagent .md file with YAML frontmatter (Cursor native format) */
+  private writeAgentMd(teamName: string, member: TeamMember, allMembers: TeamMember[], team: TeamDefinition): void {
+    const dir = this.agentsDir();
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const slug = slugify(member.name);
+    const filePath = path.join(dir, `tb-${slug}.md`);
+
+    const safeName = sanitizeText(member.name);
+    const safeRole = sanitizeText(member.role);
+    const safeTeamName = sanitizeText(teamName);
+
+    // Build body content
+    const bodyParts: string[] = [];
+    bodyParts.push(`# Team: ${safeTeamName}`);
+    bodyParts.push("");
+
+    if (member.soul) {
+      bodyParts.push(member.soul);
+    } else {
+      bodyParts.push(`You are ${safeName}, a ${safeRole} on the ${safeTeamName} team.`);
+      bodyParts.push("");
+      bodyParts.push("Focus on your role and collaborate with your teammates.");
+    }
+    bodyParts.push("");
+
+    // Add resolved rules
+    const agentRules = resolveAgentRules(member, team);
+    if (agentRules.length > 0) {
+      bodyParts.push("## Rules");
+      bodyParts.push("");
+      for (const r of agentRules) {
+        const title = r.title || r.id;
+        const body = typeof r.body === "string" ? r.body : "";
+        bodyParts.push(`### ${title}`);
+        bodyParts.push("");
+        bodyParts.push(body);
+        bodyParts.push("");
+      }
+    }
+
+    // Add resolved skills
+    const agentSkills = resolveAgentSkills(member, team);
+    if (agentSkills.length > 0) {
+      bodyParts.push("## Skills");
+      bodyParts.push("");
+      for (const s of agentSkills) {
+        const title = s.title || s.id;
+        const desc = s.description ? `${s.description}\n\n` : "";
+        const body = s.body ? (typeof s.body === "string" ? s.body : "") : "";
+        bodyParts.push(`### ${title}`);
+        bodyParts.push("");
+        if (desc) bodyParts.push(desc);
+        if (body) bodyParts.push(body);
+        bodyParts.push("");
+      }
+    }
+
+    // Add teammates
+    const teammates = allMembers
+      .filter((m) => m.name !== member.name)
+      .map((m) => `- **${sanitizeText(m.name)}** — ${sanitizeText(m.role)}`)
+      .join("\n");
+    if (teammates) {
+      bodyParts.push("## Teammates");
+      bodyParts.push("");
+      bodyParts.push(teammates);
+      bodyParts.push("");
+    }
+
+    const body = bodyParts.join("\n").trim();
+
+    const content = `---
+name: tb-${slug}
+description: "${escapeYamlString(safeRole)} on the ${escapeYamlString(safeTeamName)} team. Use when tasks relate to ${escapeYamlString(safeRole.toLowerCase())}."
+---
+
+${body}
+`;
+
+    fs.writeFileSync(filePath, content);
   }
 
   private writeRuleMdc(rule: Rule): void {
@@ -66,11 +198,34 @@ export class CursorAdapter implements PlatformAdapter {
     const marker = "<!-- teambridge -->";
     const markerEnd = "<!-- /teambridge -->";
 
-    const memberLines = team.members
-      .map((m) => `- **${sanitizeMarkerContent(m.name)}** — ${sanitizeMarkerContent(m.role)}`)
-      .join("\n");
+    const sections = [`# Team: ${sanitizeMarkerContent(team.name)}`, ""];
+    sections.push("You have access to specialized subagents. Delegate tasks to the right specialist.", "");
 
-    const block = [marker, `# Team: ${sanitizeMarkerContent(team.name)}`, "", memberLines, markerEnd].join("\n");
+    for (const member of team.members) {
+      const slug = slugify(member.name);
+      sections.push(`## ${sanitizeMarkerContent(member.name)} (\`tb-${slug}\`)`, "");
+      sections.push(`**Role:** ${sanitizeMarkerContent(member.role)}`, "");
+
+      const agentRules = resolveAgentRules(member, team);
+      if (agentRules.length > 0) {
+        sections.push("**Rules:**");
+        for (const r of agentRules) {
+          sections.push(`- \`${sanitizeMarkerContent(r.id)}\``);
+        }
+        sections.push("");
+      }
+
+      const agentSkills = resolveAgentSkills(member, team);
+      if (agentSkills.length > 0) {
+        sections.push("**Skills:**");
+        for (const s of agentSkills) {
+          sections.push(`- \`${sanitizeMarkerContent(s.id)}\``);
+        }
+        sections.push("");
+      }
+    }
+
+    const block = [marker, ...sections, markerEnd].join("\n");
 
     if (fs.existsSync(agentsMdPath)) {
       let content = fs.readFileSync(agentsMdPath, "utf-8");
@@ -88,18 +243,34 @@ export class CursorAdapter implements PlatformAdapter {
   writeKnowledge(_content: string): void {}
   appendKnowledge(_entries: string[]): void {}
   getHashes(): Record<string, string> { return {}; }
-  installHooks(_relay: string, _token: string): void {}
   watchPaths(): string[] { return []; }
   writeFile(_key: string, _content: string): void {}
   readFile(_key: string): string | null { return null; }
   uninstall(): string[] {
     const actions: string[] = [];
+
+    // Clean up subagent .md files
+    const agentFiles = this.listTbAgentFiles();
+    for (const f of agentFiles) {
+      fs.unlinkSync(path.join(this.agentsDir(), f));
+    }
+    if (agentFiles.length > 0) {
+      actions.push(`Deleted ${agentFiles.length} Cursor subagent config(s)`);
+    }
+
+    // Clean up rule .mdc files
     const tbRules = this.listTbRules();
     for (const f of tbRules) {
       fs.unlinkSync(path.join(this.rulesDir(), f));
     }
     if (tbRules.length > 0) {
       actions.push(`Deleted ${tbRules.length} TeamBridge cursor rule(s)`);
+    }
+
+    // Clean up skill directories
+    const skillCount = cleanupSkillDirs(this.skillsDir());
+    if (skillCount > 0) {
+      actions.push(`Deleted ${skillCount} TeamBridge cursor skill(s)`);
     }
 
     // Clean up AGENTS.md marker block

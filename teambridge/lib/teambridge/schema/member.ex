@@ -8,6 +8,8 @@ defmodule Teambridge.Schema.Member do
     field :name, :string
     field :role, :string
     field :soul, :string
+    field :rules, {:array, :string}, default: []
+    field :skills, {:array, :string}, default: []
     belongs_to :team, Teambridge.Schema.Team, type: :binary_id
 
     timestamps(type: :utc_datetime)
@@ -15,7 +17,7 @@ defmodule Teambridge.Schema.Member do
 
   def changeset(member, attrs) do
     member
-    |> cast(attrs, [:name, :role, :soul])
+    |> cast(attrs, [:name, :role, :soul, :rules, :skills])
     |> validate_required([:name])
     |> validate_length(:name, max: 64)
   end

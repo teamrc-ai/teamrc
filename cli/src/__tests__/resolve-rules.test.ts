@@ -27,7 +27,7 @@ describe("resolveAgentRules", () => {
     assert.equal(rules[1].id, "rule_security");
   });
 
-  it("returns empty array when agent has no rules", () => {
+  it("returns empty when agent has no rules assigned", () => {
     const rules = resolveAgentRules(team.members[1], team);
     assert.deepEqual(rules, []);
   });
@@ -48,7 +48,7 @@ describe("resolveAgentSkills", () => {
     assert.equal(skills[0].body, "Use grep.");
   });
 
-  it("returns empty array when agent has no skills", () => {
+  it("returns empty when agent has no skills assigned", () => {
     const skills = resolveAgentSkills(team.members[1], team);
     assert.deepEqual(skills, []);
   });

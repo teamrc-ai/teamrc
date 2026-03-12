@@ -12,6 +12,9 @@ defmodule TeambridgeWeb.Plugs.VerifySignatureTest do
     {pub, priv} = :crypto.generate_key(:eddsa, :ed25519)
     token = Auth.to_token(pub)
 
+    # Register the token with a team so endpoints don't return 403
+    Teambridge.Teams.put_team(token, %{"name" => "sig-test", "members" => []})
+
     %{pub: pub, priv: priv, token: token}
   end
 

@@ -30,7 +30,7 @@ defmodule TeambridgeWeb.Plugs.VerifySignature do
   alias TeambridgeWeb.Plugs.CacheBodyReader
 
   # Compile-time check: skip_auth must never be configured in prod
-  @skip_auth_allowed Mix.env() in [:test, :dev]
+  @skip_auth_allowed Mix.env() == :test
 
   def init(opts), do: opts
 
@@ -38,7 +38,11 @@ defmodule TeambridgeWeb.Plugs.VerifySignature do
 
   def call(conn, _opts) do
     if @skip_auth_allowed and Application.get_env(:teambridge, :skip_auth, false) do
-      conn
+      # Still extract token for downstream use, just skip verification
+      case extract_token(conn) do
+        {:ok, token} -> assign(conn, :verified_token, token)
+        _ -> conn
+      end
     else
       with {:ok, token} <- extract_token(conn),
            {:ok, signature} <- extract_signature(conn),

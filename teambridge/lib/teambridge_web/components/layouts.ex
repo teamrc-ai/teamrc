@@ -35,35 +35,22 @@ defmodule TeambridgeWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
+    <header class="border-b border-base-300/60 bg-base-100/80 backdrop-blur-sm sticky top-0 z-40">
+      <nav class="mx-auto max-w-3xl flex items-center justify-between px-4 sm:px-6 h-14">
+        <a href="/" class="flex items-center gap-2.5 group">
+          <div class="text-primary">
+            <img src={~p"/images/logo.svg"} width="24" height="24" class="text-primary" />
+          </div>
+          <span class="text-sm font-semibold tracking-tight">TeamBridge</span>
         </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
-      </div>
+        <div class="flex items-center gap-3">
+          <.theme_toggle />
+        </div>
+      </nav>
     </header>
 
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
+    <main class="px-4 py-12 sm:px-6 sm:py-16">
+      <div class="mx-auto max-w-2xl">
         {render_slot(@inner_block)}
       </div>
     </main>

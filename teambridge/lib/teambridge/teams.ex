@@ -181,12 +181,7 @@ defmodule Teambridge.Teams do
   def handle_call({:sync, token, platform, incoming_hashes, incoming_files}, _from, state) do
     case Map.get(state.token_teams, token) do
       nil ->
-        # Unknown token — auto-register as a new "anonymous" team
-        # This allows sync to work even without a formal join
-        team_id = token
-        state = put_in(state, [:token_teams, token], team_id)
-        {result, state} = do_sync(state, team_id, platform, incoming_hashes, incoming_files)
-        {:reply, {:ok, result}, state}
+        {:reply, {:error, :not_joined}, state}
 
       team_id ->
         {result, state} = do_sync(state, team_id, platform, incoming_hashes, incoming_files)
@@ -196,7 +191,60 @@ defmodule Teambridge.Teams do
 
   # Legacy support for tests — push_buffer, pull_buffer, put_hashes, get_changes
   def handle_call({:push_buffer, token, entry}, _from, state) do
-    team_id = Map.get(state.token_teams, token, token)
+    case Map.get(state.token_teams, token) do
+      nil -> {:reply, {:error, :not_joined}, state}
+      team_id -> do_push_buffer(state, team_id, entry)
+    end
+  end
+
+  def handle_call({:pull_buffer, token, platform}, _from, state) do
+    case Map.get(state.token_teams, token) do
+      nil -> {:reply, {:error, :not_joined}, state}
+      team_id ->
+        team_content = Map.get(state.content, team_id, %{})
+
+        entries =
+          team_content
+          |> Enum.reject(fn {_file, meta} -> meta.source == platform end)
+          |> Enum.map(fn {file, meta} ->
+            %{"type" => file, "content" => meta.content, "source_platform" => meta.source, "timestamp" => meta.timestamp}
+          end)
+
+        {:reply, {:ok, entries}, state}
+    end
+  end
+
+  def handle_call({:put_hashes, token, platform, hashes}, _from, state) do
+    case Map.get(state.token_teams, token) do
+      nil -> {:reply, {:error, :not_joined}, state}
+      team_id ->
+        team_hashes = Map.get(state.hashes, team_id, %{})
+        team_hashes = Map.put(team_hashes, platform, hashes)
+        state = put_in(state, [:hashes, team_id], team_hashes)
+        {:reply, :ok, state}
+    end
+  end
+
+  def handle_call({:get_changes, token, requesting_platform}, _from, state) do
+    case Map.get(state.token_teams, token) do
+      nil -> {:reply, {:error, :not_joined}, state}
+      team_id ->
+        team_hashes = Map.get(state.hashes, team_id, %{})
+        changes = Map.drop(team_hashes, [requesting_platform])
+        {:reply, {:ok, changes}, state}
+    end
+  end
+
+  def handle_call({:check_changed, token, since}, _from, state) do
+    case Map.get(state.token_teams, token) do
+      nil -> {:reply, {:error, :not_joined}, state}
+      team_id ->
+        last = Map.get(state.last_updated_at, team_id, 0)
+        {:reply, {:ok, last > since}, state}
+    end
+  end
+
+  defp do_push_buffer(state, team_id, entry) do
     source = Map.get(entry, "source_platform") || Map.get(entry, :source_platform) || "unknown"
     file_key = Map.get(entry, "type") || Map.get(entry, :type) || "buffer"
     content_val = Map.get(entry, "content") || Map.get(entry, :content) || ""
@@ -213,39 +261,9 @@ defmodule Teambridge.Teams do
     {:reply, :ok, state}
   end
 
-  def handle_call({:pull_buffer, token, platform}, _from, state) do
-    team_id = Map.get(state.token_teams, token, token)
-    team_content = Map.get(state.content, team_id, %{})
-
-    entries =
-      team_content
-      |> Enum.reject(fn {_file, meta} -> meta.source == platform end)
-      |> Enum.map(fn {file, meta} ->
-        %{"type" => file, "content" => meta.content, "source_platform" => meta.source, "timestamp" => meta.timestamp}
-      end)
-
-    {:reply, {:ok, entries}, state}
-  end
-
-  def handle_call({:put_hashes, token, platform, hashes}, _from, state) do
-    team_id = Map.get(state.token_teams, token, token)
-    team_hashes = Map.get(state.hashes, team_id, %{})
-    team_hashes = Map.put(team_hashes, platform, hashes)
-    state = put_in(state, [:hashes, team_id], team_hashes)
-    {:reply, :ok, state}
-  end
-
-  def handle_call({:get_changes, token, requesting_platform}, _from, state) do
-    team_id = Map.get(state.token_teams, token, token)
-    team_hashes = Map.get(state.hashes, team_id, %{})
-    changes = Map.drop(team_hashes, [requesting_platform])
-    {:reply, {:ok, changes}, state}
-  end
-
-  def handle_call({:check_changed, token, since}, _from, state) do
-    team_id = Map.get(state.token_teams, token, token)
-    last = Map.get(state.last_updated_at, team_id, 0)
-    {:reply, {:ok, last > since}, state}
+  @impl true
+  def handle_cast({:token_revoked, token}, state) do
+    {:noreply, update_in(state.token_teams, &Map.delete(&1, token))}
   end
 
   @impl true
@@ -356,12 +374,12 @@ defmodule Teambridge.Teams do
     Repo.transaction(fn ->
       {:ok, team} =
         %Team{}
-        |> Team.changeset(%{name: team_data.name})
+        |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills})
         |> Repo.insert()
 
       for m <- team_data.members do
         %Member{team_id: team.id}
-        |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul]})
+        |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], rules: m.rules, skills: m.skills})
         |> Repo.insert!()
       end
 
@@ -372,20 +390,21 @@ defmodule Teambridge.Teams do
   defp update_team_in_db(team_id, team_data) do
     team = Repo.get!(Team, team_id)
 
-    team
-    |> Team.changeset(%{name: team_data.name})
-    |> Repo.update!()
+    team =
+      team
+      |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills})
+      |> Repo.update!()
 
     # Replace members
     from(m in Member, where: m.team_id == ^team_id) |> Repo.delete_all()
 
     for m <- team_data.members do
       %Member{team_id: team_id}
-      |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul]})
+      |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], rules: m.rules, skills: m.skills})
       |> Repo.insert!()
     end
 
-    Repo.get!(Team, team_id) |> Repo.preload(:members)
+    Repo.preload(team, :members, force: true)
   end
 
   defp normalize_team(attrs) when is_map(attrs) do
@@ -395,12 +414,43 @@ defmodule Teambridge.Teams do
         %{
           name: m["name"] || m[:name] || "",
           role: m["role"] || m[:role] || "",
-          soul: m["soul"] || m[:soul]
+          soul: m["soul"] || m[:soul],
+          rules: m["rules"] || m[:rules] || [],
+          skills: m["skills"] || m[:skills] || []
         }
       end)
 
-    %{name: attrs["name"] || attrs[:name] || "", members: members}
+    rules =
+      (attrs["rules"] || attrs[:rules] || [])
+      |> Enum.map(fn r ->
+        %{
+          "id" => r["id"] || r[:id] || "",
+          "title" => r["title"] || r[:title],
+          "body" => r["body"] || r[:body] || ""
+        }
+        |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+        |> Map.new()
+      end)
+
+    skills =
+      (attrs["skills"] || attrs[:skills] || [])
+      |> Enum.map(fn s ->
+        %{
+          "id" => s["id"] || s[:id] || "",
+          "title" => s["title"] || s[:title],
+          "description" => s["description"] || s[:description],
+          "body" => s["body"] || s[:body]
+        }
+        |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+        |> Map.new()
+      end)
+
+    %{name: attrs["name"] || attrs[:name] || "", members: members, rules: rules, skills: skills}
   end
+
+  defp put_if_present(map, _key, nil), do: map
+  defp put_if_present(map, _key, []), do: map
+  defp put_if_present(map, key, val), do: Map.put(map, key, val)
 
   defp team_to_map(%Team{} = team) do
     %{
@@ -408,9 +458,13 @@ defmodule Teambridge.Teams do
       "name" => team.name,
       "members" =>
         Enum.map(team.members, fn m ->
-          member = %{"name" => m.name, "role" => m.role}
-          if m.soul, do: Map.put(member, "soul", m.soul), else: member
+          %{"name" => m.name, "role" => m.role}
+          |> put_if_present("soul", m.soul)
+          |> put_if_present("rules", m.rules)
+          |> put_if_present("skills", m.skills)
         end)
     }
+    |> put_if_present("rules", team.rules)
+    |> put_if_present("skills", team.skills)
   end
 end

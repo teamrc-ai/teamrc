@@ -37,6 +37,7 @@ defmodule TeambridgeWeb.ApiControllerTest do
   describe "POST /api/sync" do
     test "returns changes from other platforms", %{conn: conn} do
       token = "tok_test_#{:erlang.unique_integer([:positive])}"
+      Teambridge.Teams.put_team(token, %{"name" => "test", "members" => []})
 
       # Platform A syncs with content
       build_conn()
@@ -68,6 +69,7 @@ defmodule TeambridgeWeb.ApiControllerTest do
   describe "POST /api/push" do
     test "pushes an entry to the buffer", %{conn: conn} do
       token = "tok_test_#{:erlang.unique_integer([:positive])}"
+      Teambridge.Teams.put_team(token, %{"name" => "test", "members" => []})
 
       conn =
         conn
@@ -93,6 +95,7 @@ defmodule TeambridgeWeb.ApiControllerTest do
   describe "GET /api/pull" do
     test "pulls buffer entries", %{conn: conn} do
       token = "tok_test_#{:erlang.unique_integer([:positive])}"
+      Teambridge.Teams.put_team(token, %{"name" => "test", "members" => []})
 
       Teambridge.Teams.push_buffer(token, %{
         "type" => "message",
@@ -111,7 +114,7 @@ defmodule TeambridgeWeb.ApiControllerTest do
   end
 
   describe "POST /api/sync edge cases" do
-    test "sync with new token still works", %{conn: conn} do
+    test "sync with unregistered token returns 403", %{conn: conn} do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
@@ -121,8 +124,8 @@ defmodule TeambridgeWeb.ApiControllerTest do
           "hashes" => %{"file.md" => "abc123"}
         })
 
-      resp = json_response(conn, 200)
-      assert is_map(resp["changes"])
+      resp = json_response(conn, 403)
+      assert resp["error"] =~ "not associated with any team"
     end
   end
 

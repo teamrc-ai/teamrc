@@ -1,10 +1,36 @@
 import { signMessage } from "./auth.js";
+import type { Rule, Skill, TeamDefinition } from "./adapters/base.js";
+import { validateRuleId } from "./team-yaml.js";
 
 export interface TeamBridgeTeam {
   id: string;
   name: string;
-  members: Array<{ name: string; role: string; platform: string }>;
+  members: Array<{ name: string; role: string; platform?: string; rules?: string[]; skills?: string[] }>;
+  rules?: Rule[];
+  skills?: Skill[];
   created_at?: string;
+}
+
+export function remoteTeamToDefinition(team: TeamBridgeTeam): TeamDefinition {
+  // Validate rule/skill IDs from the relay to prevent path traversal
+  const rules = team.rules?.filter((r) => {
+    try { validateRuleId(r.id); return true; } catch { return false; }
+  });
+  const skills = team.skills?.filter((s) => {
+    try { validateRuleId(s.id); return true; } catch { return false; }
+  });
+
+  return {
+    name: team.name,
+    members: team.members.map((m) => ({
+      name: m.name,
+      role: m.role,
+      ...(m.rules?.length ? { rules: m.rules } : {}),
+      ...(m.skills?.length ? { skills: m.skills } : {}),
+    })),
+    ...(rules?.length ? { rules } : {}),
+    ...(skills?.length ? { skills } : {}),
+  };
 }
 
 export interface SyncChange {
@@ -141,6 +167,46 @@ export class TeamBridgeClient {
     if (!res.ok) {
       throw new Error(`push failed: ${res.status} ${await res.text()}`);
     }
+  }
+
+  async createDeviceAuth(): Promise<{
+    device_code: string;
+    user_code: string;
+    verification_url: string;
+    expires_in: number;
+    interval: number;
+  }> {
+    const body = JSON.stringify({ token: this.token });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/auth/device`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (!res.ok) {
+      throw new Error(`createDeviceAuth failed: ${res.status} ${await res.text()}`);
+    }
+    return (await res.json()) as {
+      device_code: string;
+      user_code: string;
+      verification_url: string;
+      expires_in: number;
+      interval: number;
+    };
+  }
+
+  async pollDeviceAuth(deviceCode: string): Promise<{
+    status: "pending" | "confirmed";
+    email?: string;
+    machine_count?: number;
+    team_count?: number;
+  }> {
+    return this.signedGet<{
+      status: "pending" | "confirmed";
+      email?: string;
+      machine_count?: number;
+      team_count?: number;
+    }>(`/api/auth/device/${encodeURIComponent(deviceCode)}`);
   }
 
   async pull(

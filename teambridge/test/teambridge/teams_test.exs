@@ -57,12 +57,13 @@ defmodule Teambridge.TeamsTest do
       assert result.files == %{}
     end
 
-    test "works with unknown token (auto-registers)", %{pid: pid} do
-      {:ok, result} = Teams.sync(pid, "tok_new", "claude-code", %{"f.md" => "h1"}, %{})
-      assert result.files == %{}
+    test "returns error for unknown token", %{pid: pid} do
+      assert {:error, :not_joined} = Teams.sync(pid, "tok_new", "claude-code", %{"f.md" => "h1"}, %{})
     end
 
     test "multiple platforms can sync independently", %{pid: pid} do
+      Teams.put_team(pid, "tok_1", %{"name" => "test", "members" => []})
+
       # Platform A pushes file A
       {:ok, _} = Teams.sync(pid, "tok_1", "platform-a", %{"file-a" => "ha"}, %{"file-a" => "content-a"})
       # Platform B pushes file B
@@ -80,6 +81,8 @@ defmodule Teambridge.TeamsTest do
 
   describe "content TTL cleanup" do
     test "cleanup removes old content", %{pid: pid} do
+      Teams.put_team(pid, "tok_ttl", %{"name" => "test", "members" => []})
+
       # Set state with old content via sync then manually trigger cleanup
       {:ok, _} = Teams.sync(pid, "tok_ttl", "cursor", %{"old-file" => "h1"}, %{"old-file" => "old stuff"})
 
@@ -96,6 +99,7 @@ defmodule Teambridge.TeamsTest do
 
   describe "legacy push_buffer/pull_buffer" do
     test "push adds entry and pull retrieves it", %{pid: pid} do
+      Teams.put_team(pid, "tok_1", %{"name" => "test", "members" => []})
       entry = %{"type" => "message", "content" => "hello", "source_platform" => "cursor"}
       assert :ok = Teams.push_buffer(pid, "tok_1", entry)
 
@@ -105,6 +109,7 @@ defmodule Teambridge.TeamsTest do
     end
 
     test "pull filters out entries from the same source_platform", %{pid: pid} do
+      Teams.put_team(pid, "tok_1", %{"name" => "test", "members" => []})
       entry = %{"type" => "message", "content" => "hello", "source_platform" => "cursor"}
       :ok = Teams.push_buffer(pid, "tok_1", entry)
 
@@ -112,14 +117,19 @@ defmodule Teambridge.TeamsTest do
       assert entries == []
     end
 
-    test "pull returns empty list for unknown token", %{pid: pid} do
-      {:ok, entries} = Teams.pull_buffer(pid, "tok_unknown", "claude_code")
-      assert entries == []
+    test "push returns error for unknown token", %{pid: pid} do
+      entry = %{"type" => "message", "content" => "hello", "source_platform" => "cursor"}
+      assert {:error, :not_joined} = Teams.push_buffer(pid, "tok_unknown", entry)
+    end
+
+    test "pull returns error for unknown token", %{pid: pid} do
+      assert {:error, :not_joined} = Teams.pull_buffer(pid, "tok_unknown", "claude_code")
     end
   end
 
   describe "put_hashes/get_changes (legacy)" do
     test "get_changes returns hashes from other platforms", %{pid: pid} do
+      Teams.put_team(pid, "tok_1", %{"name" => "test", "members" => []})
       hashes_cursor = %{"file1.ex" => "abc123", "file2.ex" => "def456"}
       hashes_claude = %{"file1.ex" => "abc123", "file3.ex" => "ghi789"}
 
@@ -131,6 +141,7 @@ defmodule Teambridge.TeamsTest do
     end
 
     test "get_changes returns empty map when no other platforms", %{pid: pid} do
+      Teams.put_team(pid, "tok_1", %{"name" => "test", "members" => []})
       hashes = %{"file1.ex" => "abc123"}
       :ok = Teams.put_hashes(pid, "tok_1", "cursor", hashes)
 
@@ -138,9 +149,8 @@ defmodule Teambridge.TeamsTest do
       assert changes == %{}
     end
 
-    test "get_changes returns empty map for unknown token", %{pid: pid} do
-      {:ok, changes} = Teams.get_changes(pid, "tok_unknown", "cursor")
-      assert changes == %{}
+    test "returns error for unknown token", %{pid: pid} do
+      assert {:error, :not_joined} = Teams.get_changes(pid, "tok_unknown", "cursor")
     end
   end
 

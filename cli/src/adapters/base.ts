@@ -1,5 +1,7 @@
 import * as crypto from "node:crypto";
+import * as fs from "node:fs";
 import { createRequire } from "node:module";
+import * as path from "node:path";
 
 export function hashContent(content: string): string {
   return crypto.createHash("sha256").update(content).digest("hex").slice(0, 16);
@@ -64,12 +66,36 @@ export interface PlatformAdapter {
   writeKnowledge(content: string): void;
   appendKnowledge(entries: string[]): void;
   getHashes(): Record<string, string>;
-  installHooks(relay: string, token: string): void;
   watchPaths(): string[];
   writeFile(key: string, content: string): void;
   readFile(key: string): string | null;
   /** Remove everything TeamBridge installed for this platform. Returns list of actions taken. */
   uninstall(): string[];
+}
+
+/** Write a native SKILL.md file for a skill in the given base directory */
+export function writeSkillDir(baseDir: string, skill: Skill): void {
+  if (skill.body && typeof skill.body !== "string") return; // skip source-referenced skills
+  const skillDir = path.join(baseDir, `tb-${skill.id}`);
+  if (!fs.existsSync(skillDir)) fs.mkdirSync(skillDir, { recursive: true });
+
+  const lines: string[] = ["---"];
+  lines.push(`name: tb-${skill.id}`);
+  if (skill.description) lines.push(`description: ${JSON.stringify(skill.description)}`);
+  lines.push("---", "");
+  if (skill.body && typeof skill.body === "string") lines.push(skill.body);
+
+  fs.writeFileSync(path.join(skillDir, "SKILL.md"), lines.join("\n") + "\n");
+}
+
+/** Remove all tb-* skill directories under a base directory */
+export function cleanupSkillDirs(baseDir: string): number {
+  if (!fs.existsSync(baseDir)) return 0;
+  const dirs = fs.readdirSync(baseDir).filter((d) => d.startsWith("tb-"));
+  for (const d of dirs) {
+    fs.rmSync(path.join(baseDir, d), { recursive: true, force: true });
+  }
+  return dirs.length;
 }
 
 export function getAdapter(platform: string): PlatformAdapter {
