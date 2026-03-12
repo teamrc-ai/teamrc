@@ -343,7 +343,7 @@ defmodule TeamrcWeb.LegalLive do
         </p>
         <p>
           <strong>Privacy contact:</strong> For privacy inquiries, email
-          <a href="mailto:privacy@teamrc.dev" class="text-primary hover:underline">privacy@teamrc.dev</a>.
+          <a href="mailto:privacy@teamrc.ai" class="text-primary hover:underline">privacy@teamrc.ai</a>.
           Do not use public issue trackers for privacy requests.
         </p>
       </.legal_section>
@@ -362,7 +362,7 @@ defmodule TeamrcWeb.LegalLive do
             target="_blank"
             rel="noopener"
           >teamrc GitHub repository</a>. For personal data requests, email
-          <a href="mailto:privacy@teamrc.dev" class="text-primary hover:underline">privacy@teamrc.dev</a>.
+          <a href="mailto:privacy@teamrc.ai" class="text-primary hover:underline">privacy@teamrc.ai</a>.
         </p>
       </.legal_section>
     </div>
