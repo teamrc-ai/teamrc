@@ -362,10 +362,10 @@ export class TeamrcClient {
     return (await res.json()) as T;
   }
 
-  async eraseToken(): Promise<{ status: string; teams_removed: number }> {
-    return this.signedDelete<{ status: string; teams_removed: number }>(
-      `/api/token/${encodeURIComponent(this.token)}/erase`,
-    );
+  async disconnect(teamId?: string): Promise<{ status: string; teams_removed: number }> {
+    const base = `/api/token/${encodeURIComponent(this.token)}/erase`;
+    const path = teamId ? `${base}?team_id=${encodeURIComponent(teamId)}` : base;
+    return this.signedDelete<{ status: string; teams_removed: number }>(path);
   }
 
   async claimOwnership(claimSecret: string): Promise<{ status: string }> {

@@ -170,12 +170,13 @@ defmodule TeamrcWeb.ApiController do
     end
   end
 
-  def erase_token(conn, _params) do
+  def erase_token(conn, params) do
     token = conn.assigns[:verified_token]
+    team_id = params["team_id"]
 
-    {:ok, count} = Teams.erase_token(token)
+    {:ok, count} = Teams.erase_token(token, team_id)
 
-    json(conn, %{status: "erased", teams_removed: count})
+    json(conn, %{status: "disconnected", teams_removed: count})
   end
 
   # --- Input Validation ---

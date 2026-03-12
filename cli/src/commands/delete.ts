@@ -3,7 +3,9 @@ import * as path from "node:path";
 import * as os from "node:os";
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
-import { loadConfig, detectPlatforms } from "../config.js";
+import { loadKeypair, toToken } from "../auth.js";
+import { TeamrcClient } from "../client.js";
+import { loadConfig, detectPlatforms, getRelayUrl } from "../config.js";
 import { getAdapter } from "../adapters/base.js";
 import { readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import {
@@ -152,10 +154,48 @@ export function registerDelete(program: Command): void {
         }
       }
 
+      // Load keypair BEFORE deleting config (needed for relay disconnect)
+      let client: TeamrcClient | null = null;
+      try {
+        const kp = loadKeypair();
+        if (kp) {
+          const token = toToken(kp.publicKey);
+          const relay = projectTeam?.relay ?? globalTeam?.relay;
+          const relayUrl = getRelayUrl(undefined, relay);
+          client = new TeamrcClient(relayUrl, kp.privateKey, token);
+        }
+      } catch {
+        // Can't load keypair — skip relay disconnect
+      }
+
       const s = p.spinner();
       s.start("Removing...");
 
       const actionLines: string[] = [];
+
+      // Disconnect from relay (scoped to match deletion scope)
+      if (client) {
+        try {
+          if (deleteScope === "project") {
+            const teamId = projectTeam?.teamId;
+            if (teamId) {
+              await client.disconnect(teamId);
+              actionLines.push("Disconnected project team from relay");
+            }
+          } else if (deleteScope === "global") {
+            const teamId = globalTeam?.teamId;
+            if (teamId) {
+              await client.disconnect(teamId);
+              actionLines.push("Disconnected global team from relay");
+            }
+          } else {
+            await client.disconnect();
+            actionLines.push("Disconnected all teams from relay");
+          }
+        } catch {
+          actionLines.push("Could not reach relay (local files still removed)");
+        }
+      }
 
       // Uninstall from each platform
       for (const pl of platforms) {

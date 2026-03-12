@@ -279,12 +279,18 @@ defmodule Teamrc.Teams do
     end
   end
 
-  @doc "Erase all token_teams rows for a given token. Returns {:ok, count} with the number of rows deleted."
-  def erase_token(token) do
-    {count, _} =
-      from(tt in TokenTeam, where: tt.token == ^token)
-      |> Repo.delete_all()
+  @doc "Remove token_teams rows for a given token. If team_id is provided, only remove that association. Returns {:ok, count}."
+  def erase_token(token, team_id \\ nil) do
+    query = from(tt in TokenTeam, where: tt.token == ^token)
 
+    query =
+      if team_id do
+        from(tt in query, where: tt.team_id == ^team_id)
+      else
+        query
+      end
+
+    {count, _} = Repo.delete_all(query)
     {:ok, count}
   end
 

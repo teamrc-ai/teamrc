@@ -396,26 +396,41 @@ defmodule Teamrc.Accounts do
 
     token_strings = Enum.map(active_tokens, & &1.token)
 
-    if token_strings == [] do
-      []
-    else
-      token_teams =
+    # Teams linked via machine tokens
+    token_teams =
+      if token_strings == [] do
+        []
+      else
         from(tt in TokenTeam,
           where: tt.token in ^token_strings,
           preload: [team: :members]
         )
         |> Repo.all()
+      end
 
-      token_to_machine =
-        Map.new(active_tokens, fn mt ->
-          {mt.token,
-           %{
-             token: mt.token,
-             machine_name: mt.machine_name,
-             last_seen_at: mt.last_seen_at
-           }}
-        end)
+    # Teams owned by this user (e.g. created via web UI with no machine token).
+    # Exclude teams already found via active machine tokens to avoid duplicates.
+    token_team_ids = MapSet.new(token_teams, & &1.team_id)
 
+    owned_teams =
+      from(t in Team,
+        where: t.owner_user_id == ^user_id,
+        preload: [:members]
+      )
+      |> Repo.all()
+      |> Enum.reject(fn t -> MapSet.member?(token_team_ids, t.id) end)
+
+    token_to_machine =
+      Map.new(active_tokens, fn mt ->
+        {mt.token,
+         %{
+           token: mt.token,
+           machine_name: mt.machine_name,
+           last_seen_at: mt.last_seen_at
+         }}
+      end)
+
+    machine_linked =
       token_teams
       |> Enum.group_by(& &1.team_id)
       |> Enum.map(fn {_team_id, tts} ->
@@ -440,21 +455,33 @@ defmodule Teamrc.Accounts do
 
         {team, machines}
       end)
-    end
+
+    # Owned teams with no machine tokens show with empty machines list
+    owned_only = Enum.map(owned_teams, fn team -> {team, []} end)
+
+    machine_linked ++ owned_only
   end
 
   @doc "Check if a user has a machine token associated with a team."
   def is_team_participant?(nil, _team_id), do: false
 
   def is_team_participant?(user_id, team_id) do
-    from(tt in TokenTeam,
-      join: mt in MachineToken, on: mt.token == tt.token,
-      where: mt.user_id == ^user_id and tt.team_id == ^team_id and is_nil(mt.revoked_at),
-      select: true,
-      limit: 1
-    )
-    |> Repo.one()
-    |> is_not_nil()
+    # Check active machine token link
+    via_token =
+      from(tt in TokenTeam,
+        join: mt in MachineToken, on: mt.token == tt.token,
+        where: mt.user_id == ^user_id and tt.team_id == ^team_id and is_nil(mt.revoked_at),
+        select: true,
+        limit: 1
+      )
+      |> Repo.one()
+      |> is_not_nil()
+
+    # Also check direct ownership (owner always has access)
+    via_token or
+      (from(t in Team, where: t.id == ^team_id and t.owner_user_id == ^user_id, select: true, limit: 1)
+       |> Repo.one()
+       |> is_not_nil())
   end
 
   defp is_not_nil(nil), do: false
