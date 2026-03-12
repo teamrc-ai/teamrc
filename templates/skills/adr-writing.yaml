@@ -1,0 +1,12 @@
+id: adr-writing
+title: Architecture Decision Records
+category: documentation
+description: "Document architectural decisions with context and consequences"
+userInvocable: true
+alwaysApply: false
+body: |
+  Document every significant architectural decision as an ADR. Include the
+  context (what problem prompted the decision), the decision itself, and its
+  consequences (tradeoffs, risks, follow-up work). Record alternatives that
+  were considered and the rationale for rejecting them. ADRs are immutable
+  once accepted — supersede rather than edit.

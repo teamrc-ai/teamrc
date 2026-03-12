@@ -1,0 +1,10 @@
+id: rollback-plan
+title: Rollback Plan
+category: workflow
+description: "Require explicit rollback plans for every deployment"
+alwaysApply: true
+body: |
+  Every deployment must have an explicit rollback plan documented before it
+  proceeds. The plan should include the rollback trigger criteria, the exact
+  steps to execute, and an estimated time to recover. Test rollback procedures
+  regularly.

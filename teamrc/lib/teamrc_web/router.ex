@@ -61,10 +61,6 @@ defmodule TeamrcWeb.Router do
     post "/teams/invite", ApiController, :create_invite
     get "/teams/all/:token", ApiController, :get_teams
     get "/teams/:token", ApiController, :get_team
-    post "/sync", ApiController, :sync
-    get "/sync/check", ApiController, :sync_check
-    get "/log", ApiController, :get_log
-    post "/push", ApiController, :push
   end
 
   scope "/api", TeamrcWeb do

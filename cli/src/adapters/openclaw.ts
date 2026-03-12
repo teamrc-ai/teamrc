@@ -1,81 +1,75 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { execFileSync } from "node:child_process";
+import { parse as parseYaml } from "yaml";
 import {
-  hashContent,
   validateAgentName,
+  sanitizeMarkerContent,
   sanitizeText,
   slugify,
+  escapeYamlString,
+  writeSkillDir,
+  cleanupSkillDirs,
   type PlatformAdapter,
-  type PortableAgent,
   type TeamDefinition,
   type TeamMember,
   type TeamScope,
 } from "./base.js";
-import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
+import { resolveAgentSkills } from "../resolve-skills.js";
 
 export class OpenClawAdapter implements PlatformAdapter {
-  readonly supportsSync = true;
-  private openclawDir: string;
-
-  constructor() {
-    this.openclawDir = path.join(os.homedir(), ".openclaw");
-  }
-
-  /** Parse JSON with comments and trailing commas (openclaw.json format) */
-  private readOpenClawConfig(configPath: string): Record<string, unknown> | null {
-    if (!fs.existsSync(configPath)) return null;
-    try {
-      const raw = fs.readFileSync(configPath, "utf-8");
-      const cleaned = raw
-        .replace(/\/\/.*$/gm, "")
-        .replace(/,\s*([\]}])/g, "$1");
-      return JSON.parse(cleaned) as Record<string, unknown>;
-    } catch {
-      return null;
+  private baseDir(scope: TeamScope): string {
+    if (scope === "global") {
+      return path.join(os.homedir(), ".agents");
     }
+    return path.join(process.cwd(), ".agents");
   }
 
-  /** Directory for a teamrc agent's workspace, namespaced by team for project scope */
-  private agentWorkspace(agentName: string, teamSlug?: string): string {
-    const prefix = teamSlug ? `trc-${teamSlug}-${agentName}` : `trc-${agentName}`;
-    return path.join(this.openclawDir, "workspaces", prefix);
+  private agentsDir(scope: TeamScope): string {
+    return path.join(this.baseDir(scope), "agents");
   }
 
-  /** List trc-* workspace directories, optionally filtered by team slug */
-  private listTbWorkspaces(teamSlug?: string): string[] {
-    const dir = path.join(this.openclawDir, "workspaces");
+  private skillsDir(scope: TeamScope): string {
+    return path.join(this.baseDir(scope), "skills");
+  }
+
+  private agentsMdPath(): string {
+    return path.join(process.cwd(), "AGENTS.md");
+  }
+
+  /** Find the agents directory — check project first, fall back to global */
+  private resolveAgentsDir(): { dir: string; scope: TeamScope } {
+    const projectDir = this.agentsDir("project");
+    if (fs.existsSync(projectDir)) {
+      const tbFiles = this.listTbFiles(projectDir);
+      if (tbFiles.length > 0) {
+        return { dir: projectDir, scope: "project" };
+      }
+    }
+    const globalDir = this.agentsDir("global");
+    return { dir: globalDir, scope: "global" };
+  }
+
+  private listTbFiles(dir: string): string[] {
     if (!fs.existsSync(dir)) return [];
-    const prefix = teamSlug ? `trc-${teamSlug}-` : "trc-";
-    return fs.readdirSync(dir).filter((d) =>
-      d.startsWith(prefix) && fs.statSync(path.join(dir, d)).isDirectory(),
-    );
+    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".md"));
   }
 
-  /** Extract agent name from workspace directory name */
-  private agentNameFromWorkspace(ws: string, teamSlug?: string): string {
-    if (teamSlug) {
-      return ws.replace(`trc-${teamSlug}-`, "");
-    }
-    return ws.replace("trc-", "");
-  }
-
-  readTeam(teamSlug?: string): TeamDefinition | null {
-    const workspaces = this.listTbWorkspaces(teamSlug);
-    if (workspaces.length === 0) return null;
+  readTeam(): TeamDefinition | null {
+    const { dir } = this.resolveAgentsDir();
+    const files = this.listTbFiles(dir);
+    if (files.length === 0) return null;
 
     let teamName = "my-team";
     const members: TeamMember[] = [];
 
-    for (const ws of workspaces) {
-      const agentName = this.agentNameFromWorkspace(ws, teamSlug);
-      const wsDir = path.join(this.openclawDir, "workspaces", ws);
-      const parsed = this.parseWorkspace(agentName, wsDir);
+    for (const file of files) {
+      const content = fs.readFileSync(path.join(dir, file), "utf-8");
+      const parsed = parseAgentFile(content);
       if (!parsed) continue;
       if (parsed.teamName) teamName = parsed.teamName;
       members.push({
-        name: parsed.name,
+        name: parsed.agentName,
         role: parsed.role,
         ...(parsed.soul ? { soul: parsed.soul } : {}),
       });
@@ -84,291 +78,114 @@ export class OpenClawAdapter implements PlatformAdapter {
     return members.length > 0 ? { name: teamName, members } : null;
   }
 
-  private parseWorkspace(agentName: string, wsDir: string): PortableAgent | null {
-    const soulPath = path.join(wsDir, "SOUL.md");
-    const agentsPath = path.join(wsDir, "AGENTS.md");
-    if (!fs.existsSync(soulPath)) return null;
-
-    const soulContent = fs.readFileSync(soulPath, "utf-8");
-    const agentsContent = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, "utf-8") : "";
-
-    // Extract role from SOUL.md first line: "# Role description"
-    const roleMatch = soulContent.match(/^#\s+(.+)$/m);
-    const role = roleMatch ? roleMatch[1].trim() : "Agent";
-
-    // Extract team name from AGENTS.md: "# Team: teamName"
-    const teamMatch = agentsContent.match(/^#\s+Team:\s*(.+)$/m);
-    const teamName = teamMatch ? teamMatch[1].trim() : "my-team";
-
-    // Extract soul: everything after the first heading in SOUL.md
-    const soulBody = soulContent.replace(/^#.*\n+/, "").trim();
-    // Check if it's the default generated text
-    const isDefault = soulBody.startsWith(`You are ${agentName} on the`);
-    const soul = isDefault ? undefined : soulBody || undefined;
-
-    return { name: agentName, role, soul, teamName };
-  }
-
-  writeTeam(team: TeamDefinition, scope?: TeamScope): void {
-    const teamSlug = scope === "project" && team.name ? slugify(team.name) : undefined;
-    const agentIds: string[] = [];
-
-    // Clean old workspaces for this team before writing new ones
-    const oldWorkspaces = this.listTbWorkspaces(teamSlug);
-    const wsBase = path.join(this.openclawDir, "workspaces");
-    for (const ws of oldWorkspaces) {
-      fs.rmSync(path.join(wsBase, ws), { recursive: true, force: true });
+  writeTeam(team: TeamDefinition, scope: TeamScope = "global"): void {
+    const agentDir = this.agentsDir(scope);
+    if (!fs.existsSync(agentDir)) {
+      fs.mkdirSync(agentDir, { recursive: true });
     }
 
+    // Clean old trc-*.md agent files
+    this.cleanTbAgentFiles(agentDir);
+
+    // Write individual agent files
     for (const member of team.members) {
       validateAgentName(member.name);
-      const agentName = teamSlug ? `trc-${teamSlug}-${member.name}` : `trc-${member.name}`;
-      agentIds.push(agentName);
-      const workspaceDir = this.agentWorkspace(member.name, teamSlug);
-      if (!fs.existsSync(workspaceDir)) {
-        fs.mkdirSync(workspaceDir, { recursive: true });
-      }
-
-      this.writeNativeAgentFiles(workspaceDir, team.name, member, team.members, team);
-
-      // Register agent with OpenClaw via CLI
-      try {
-        execFileSync("openclaw", [
-          "agents", "add", agentName,
-          "--workspace", workspaceDir,
-          "--non-interactive",
-        ], {
-          stdio: "ignore",
-        });
-      } catch {
-        // CLI not available — register directly in openclaw.json
-        this.registerAgentInConfig(agentName, workspaceDir);
-      }
+      const fileName = `trc-${slugify(member.name)}.md`;
+      const filePath = path.join(agentDir, fileName);
+      const content = buildAgentFile(team.name, member, team);
+      fs.writeFileSync(filePath, content);
     }
 
-    // Write team-wide skills to the default workspace
-    if (team.skills && team.skills.length > 0) {
-      const defaultWorkspace = path.join(this.openclawDir, "workspace");
-      if (!fs.existsSync(defaultWorkspace)) {
-        fs.mkdirSync(defaultWorkspace, { recursive: true });
-      }
-      this.writeNativeSkillFiles(defaultWorkspace, team.skills);
-    }
-
-    // Wire up routing: allow main agent to spawn team agents + add dispatch rules
-    this.wireRouting(team, agentIds, teamSlug);
-  }
-
-  private writeNativeAgentFiles(wsDir: string, teamName: string, member: TeamMember, allMembers: TeamMember[], team?: TeamDefinition): void {
-    const safeName = sanitizeText(member.name);
-    const safeRole = sanitizeText(member.role);
-
-    // SOUL.md — persona definition (required by OpenClaw)
-    const soulPath = path.join(wsDir, "SOUL.md");
-    const soulContent = member.soul
-      ? `# ${safeRole}\n\n${member.soul}`
-      : `# ${safeRole}\n\nYou are ${safeName} on the ${teamName} team.\nRole: ${safeRole}\n`;
-    fs.writeFileSync(soulPath, soulContent);
-
-    // AGENTS.md — operating instructions
-    const agentsPath = path.join(wsDir, "AGENTS.md");
-    const teammatesList = allMembers
-      .map((m) => `- **${sanitizeText(m.name)}** — ${sanitizeText(m.role)}`)
-      .join("\n");
-
-    let extraSections = "";
-    if (team) {
-      const resolvedRules = resolveAgentRules(member, team);
-      if (resolvedRules.length > 0) {
-        const ruleBlocks = resolvedRules.map((r) => {
-          const title = r.title || r.id;
-          const body = typeof r.body === "string" ? r.body : "";
-          return `### ${title}\n\n${body}`;
-        }).join("\n\n");
-        extraSections += `## Rules\n\n${ruleBlocks}\n\n`;
-      }
-
-      const resolvedSkills = resolveAgentSkills(member, team);
-      if (resolvedSkills.length > 0) {
-        const skillBlocks = resolvedSkills.map((s) => {
-          const title = s.title || s.id;
-          const desc = s.description ? `${s.description}\n\n` : "";
-          const body = s.body ? (typeof s.body === "string" ? s.body : "") : "";
-          return `### ${title}\n\n${desc}${body}`;
-        }).join("\n\n");
-        extraSections += `## Skills\n\n${skillBlocks}\n\n`;
-      }
-
-      // Write native skill directories for this agent's resolved skills
-      this.writeNativeSkillFiles(wsDir, resolvedSkills);
-    }
-
-    const agentsContent = [
-      `# Team: ${teamName}`,
-      "",
-      `You are **${safeName}** — ${safeRole}.`,
-      "",
-      "## Teammates",
-      "",
-      teammatesList,
-      "",
-      ...(extraSections ? [extraSections] : []),
-      "## Team Knowledge",
-      "",
-      "Shared findings and decisions are stored in `TEAM-KNOWLEDGE.md` in the default workspace. Read it at the start of every session for context from other agents and machines. When you discover something important, append it to that file.",
-      "",
-    ].join("\n");
-    fs.writeFileSync(agentsPath, agentsContent);
-  }
-
-  /** Write native OpenClaw skill directories (skills/trc-{id}/SKILL.md) into a workspace */
-  private writeNativeSkillFiles(wsDir: string, skills: import("./base.js").Skill[]): void {
-    for (const skill of skills) {
-      const body = skill.body ? (typeof skill.body === "string" ? skill.body : null) : null;
-      const skillDir = path.join(wsDir, "skills", `trc-${skill.id}`);
+    // Write native skill directories
+    const skillDir = this.skillsDir(scope);
+    cleanupSkillDirs(skillDir);
+    if (team.skills) {
       if (!fs.existsSync(skillDir)) {
         fs.mkdirSync(skillDir, { recursive: true });
       }
-
-      const frontmatterLines = [`name: trc-${skill.id}`];
-      if (skill.description) {
-        frontmatterLines.push(`description: "${skill.description}"`);
+      for (const skill of team.skills) {
+        writeSkillDir(skillDir, skill);
       }
+    }
 
-      const parts = [
-        "---",
-        frontmatterLines.join("\n"),
-        "---",
-      ];
-      if (body) {
-        parts.push("", body);
+    // Write AGENTS.md routing block (team-level knowledge only)
+    this.updateAgentsMd(team);
+  }
+
+  private cleanTbAgentFiles(dir: string): void {
+    if (!fs.existsSync(dir)) return;
+    for (const f of fs.readdirSync(dir)) {
+      if (f.startsWith("trc-") && f.endsWith(".md")) {
+        fs.unlinkSync(path.join(dir, f));
       }
-
-      fs.writeFileSync(path.join(skillDir, "SKILL.md"), parts.join("\n") + "\n");
     }
   }
 
-  /** Configure the main agent to dispatch to teamrc sub-agents */
-  private wireRouting(team: TeamDefinition, agentIds: string[], teamSlug?: string): void {
-    this.updateAllowAgents(agentIds);
-    this.writeRoutingInstructions(team, agentIds, teamSlug);
-  }
+  private updateAgentsMd(team: TeamDefinition): void {
+    const marker = "<!-- teamrc -->";
+    const markerEnd = "<!-- /teamrc -->";
 
-  private updateAllowAgents(agentIds: string[]): void {
-    const configPath = path.join(this.openclawDir, "openclaw.json");
-    const config = this.readOpenClawConfig(configPath);
-    if (!config) return;
+    const safeName = sanitizeMarkerContent(team.name);
+    const memberLines = team.members
+      .map((m) => `- **${sanitizeMarkerContent(m.name)}** — ${sanitizeMarkerContent(m.role)}`)
+      .join("\n");
 
-    const agents = (config["agents"] ?? {}) as Record<string, unknown>;
-    const list = (agents["list"] ?? []) as Array<Record<string, unknown>>;
-
-    let mainAgent = list.find((a) => a["default"] === true);
-    if (!mainAgent && list.length > 0) {
-      mainAgent = list.find((a) => !String(a["id"] ?? "").startsWith("trc-")) ?? list[0];
-    }
-    if (!mainAgent) return;
-
-    const subagents = (mainAgent["subagents"] ?? {}) as Record<string, unknown>;
-    const existing = (subagents["allowAgents"] ?? []) as string[];
-    const merged = [...new Set([...existing, ...agentIds])];
-    subagents["allowAgents"] = merged;
-    mainAgent["subagents"] = subagents;
-
-    config["agents"] = agents;
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  }
-
-  private writeRoutingInstructions(team: TeamDefinition, agentIds: string[], teamSlug?: string): void {
-    const defaultWorkspace = path.join(this.openclawDir, "workspace");
-    const agentsMdPath = path.join(defaultWorkspace, "AGENTS.md");
-
-    const markerTag = teamSlug ? `teamrc:${teamSlug}:routing` : "teamrc:routing";
-    const marker = `<!-- ${markerTag} -->`;
-    const markerEnd = `<!-- /${markerTag} -->`;
-
-    const routingBlock = [
+    const block = [
       marker,
-      `## teamrc: ${team.name}`,
+      `## teamrc Team: ${safeName}`,
       "",
-      "You have access to specialized team agents. Dispatch tasks to the right specialist using `sessions_spawn`.",
+      "This project has a synced agent team managed by teamrc.",
       "",
-      "| Agent ID | Role |",
-      "|----------|------|",
-      ...team.members.map((m, i) => `| \`${agentIds[i]}\` | ${m.role} |`),
+      "Members:",
+      memberLines,
       "",
-      "**Dispatch rules:**",
-      ...team.members.map((m, i) => `- For ${m.role.toLowerCase()} tasks, spawn \`${agentIds[i]}\``),
-      "",
-      "**Usage:** `sessions_spawn` with `agentId` set to the agent ID above.",
-      "",
-      `**Team knowledge:** Shared findings are in \`TEAM-KNOWLEDGE.md\`. Read it for cross-agent context.`,
+      "Each member is defined as an agent in `.agents/agents/`. Delegate tasks to them based on their roles.",
       markerEnd,
     ].join("\n");
 
-    if (!fs.existsSync(defaultWorkspace)) {
-      fs.mkdirSync(defaultWorkspace, { recursive: true });
-    }
+    const filePath = this.agentsMdPath();
 
-    if (fs.existsSync(agentsMdPath)) {
-      let content = fs.readFileSync(agentsMdPath, "utf-8");
-      const markerRegex = new RegExp(
+    if (fs.existsSync(filePath)) {
+      let content = fs.readFileSync(filePath, "utf-8");
+      const regex = new RegExp(
         `${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
       );
-      if (markerRegex.test(content)) {
-        content = content.replace(markerRegex, routingBlock);
-      } else {
-        content = content.trimEnd() + "\n\n" + routingBlock + "\n";
-      }
-      fs.writeFileSync(agentsMdPath, content);
+      content = regex.test(content)
+        ? content.replace(regex, block)
+        : content.trimEnd() + "\n\n" + block + "\n";
+      fs.writeFileSync(filePath, content);
     } else {
-      fs.writeFileSync(agentsMdPath, routingBlock + "\n");
+      fs.writeFileSync(filePath, block + "\n");
     }
   }
 
-  private registerAgentInConfig(agentId: string, workspace: string): void {
-    const configPath = path.join(this.openclawDir, "openclaw.json");
-    const config = this.readOpenClawConfig(configPath) ?? {};
-
-    const agents = (config["agents"] ?? {}) as Record<string, unknown>;
-    const list = (agents["list"] ?? []) as Array<{ id: string; workspace?: string }>;
-
-    if (list.some((a) => a.id === agentId)) return;
-
-    list.push({ id: agentId, workspace });
-    agents["list"] = list;
-    config["agents"] = agents;
-
-    const dir = path.dirname(configPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    }
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  }
-
-  private knowledgePath(): string {
-    return path.join(this.openclawDir, "workspace", "TEAM-KNOWLEDGE.md");
+  private knowledgePath(scope: TeamScope = "project"): string {
+    return path.join(this.baseDir(scope), "team-knowledge.md");
   }
 
   readKnowledge(): string {
-    const filePath = this.knowledgePath();
-    if (!fs.existsSync(filePath)) {
-      return "";
+    for (const scope of ["project", "global"] as TeamScope[]) {
+      const filePath = this.knowledgePath(scope);
+      if (fs.existsSync(filePath)) {
+        return fs.readFileSync(filePath, "utf-8");
+      }
     }
-    return fs.readFileSync(filePath, "utf-8");
+    return "";
   }
 
   writeKnowledge(content: string): void {
-    const dir = path.dirname(this.knowledgePath());
+    const filePath = this.knowledgePath("project");
+    const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(this.knowledgePath(), content);
+    fs.writeFileSync(filePath, content);
   }
 
   appendKnowledge(entries: string[]): void {
     if (entries.length === 0) return;
 
-    const filePath = this.knowledgePath();
+    const filePath = this.knowledgePath("project");
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -388,201 +205,142 @@ export class OpenClawAdapter implements PlatformAdapter {
     }
   }
 
-  getHashes(teamSlug?: string): Record<string, string> {
-    const hashes: Record<string, string> = {};
-
-    // Hash each agent workspace as portable JSON
-    for (const ws of this.listTbWorkspaces(teamSlug)) {
-      const agentName = this.agentNameFromWorkspace(ws, teamSlug);
-      const wsDir = path.join(this.openclawDir, "workspaces", ws);
-      const parsed = this.parseWorkspace(agentName, wsDir);
-      if (!parsed) continue;
-      const portable = JSON.stringify(parsed);
-      hashes[`agent:${agentName}`] = hashContent(portable);
-    }
-
-    // Hash team knowledge file
-    const knowledgePath = this.knowledgePath();
-    if (fs.existsSync(knowledgePath)) {
-      const content = fs.readFileSync(knowledgePath, "utf-8");
-      hashes["knowledge:team"] = hashContent(content);
-    }
-
-    return hashes;
-  }
-
-  watchPaths(teamSlug?: string): string[] {
-    const paths = [this.knowledgePath()];
-    // Watch all trc-* workspace directories for this team
-    const wsBase = path.join(this.openclawDir, "workspaces");
-    if (fs.existsSync(wsBase)) {
-      for (const ws of this.listTbWorkspaces(teamSlug)) {
-        paths.push(path.join(wsBase, ws));
-      }
-    }
-    return paths;
-  }
-
-  writeFile(key: string, content: string): void {
-    if (key.startsWith("agent:")) {
-      this.writeAgentFromPortable(key, content);
-      return;
-    }
-    if (key === "knowledge:team") {
-      this.writeKnowledge(content);
-      return;
-    }
-  }
-
-  readFile(key: string): string | null {
-    if (key.startsWith("agent:")) {
-      return this.readAgentAsPortable(key);
-    }
-    if (key === "knowledge:team") {
-      const p = this.knowledgePath();
-      return fs.existsSync(p) ? fs.readFileSync(p, "utf-8") : null;
-    }
-    return null;
-  }
-
-  private readAgentAsPortable(key: string): string | null {
-    const agentName = key.replace("agent:", "");
-    const wsDir = this.agentWorkspace(agentName);
-    const parsed = this.parseWorkspace(agentName, wsDir);
-    return parsed ? JSON.stringify(parsed) : null;
-  }
-
-  private writeAgentFromPortable(key: string, json: string): void {
-    let portable: PortableAgent;
-    try {
-      portable = JSON.parse(json) as PortableAgent;
-    } catch {
-      console.warn(`Skipping malformed JSON for ${key}`);
-      return;
-    }
-    validateAgentName(portable.name);
-    const wsDir = this.agentWorkspace(portable.name);
-    if (!fs.existsSync(wsDir)) {
-      fs.mkdirSync(wsDir, { recursive: true });
-    }
-
-    const team = this.readTeam();
-    const allMembers: TeamMember[] = team?.members ?? [];
-
-    const idx = allMembers.findIndex((m) => m.name === portable.name);
-    const member: TeamMember = { name: portable.name, role: portable.role, soul: portable.soul };
-    if (idx >= 0) {
-      allMembers[idx] = member;
-    } else {
-      allMembers.push(member);
-    }
-
-    this.writeNativeAgentFiles(wsDir, portable.teamName, member, allMembers);
-
-    // Register if not already
-    const agentId = `trc-${portable.name}`;
-    try {
-      execFileSync("openclaw", [
-        "agents", "add", agentId,
-        "--workspace", wsDir,
-        "--non-interactive",
-      ], { stdio: "ignore" });
-    } catch {
-      this.registerAgentInConfig(agentId, wsDir);
-    }
-  }
-
-  getFileMtime(key: string): number {
-    if (key.startsWith("agent:")) {
-      const name = key.replace("agent:", "");
-      const soulPath = path.join(this.agentWorkspace(name), "SOUL.md");
-      return this.statMtime(soulPath);
-    }
-    if (key === "knowledge:team") return this.statMtime(this.knowledgePath());
-    return 0;
-  }
-
-  private statMtime(filePath: string): number {
-    try {
-      return Math.floor(fs.statSync(filePath).mtimeMs / 1000);
-    } catch {
-      return 0;
-    }
-  }
-
   uninstall(): string[] {
     const actions: string[] = [];
+    const { dir, scope } = this.resolveAgentsDir();
+    const tbFiles = this.listTbFiles(dir);
 
-    // Delete ALL trc-* workspace directories (both global and team-scoped)
-    const workspaces = this.listTbWorkspaces();
-    if (workspaces.length > 0) {
-      const wsBase = path.join(this.openclawDir, "workspaces");
-      for (const ws of workspaces) {
-        fs.rmSync(path.join(wsBase, ws), { recursive: true });
-      }
-      actions.push(`Deleted ${workspaces.length} agent workspace(s)`);
+    // Delete agent files
+    for (const f of tbFiles) {
+      fs.unlinkSync(path.join(dir, f));
+    }
+    if (tbFiles.length > 0) {
+      actions.push(`Deleted ${tbFiles.length} agent file(s) from ${dir}`);
     }
 
-    // Delete trc-* skill directories from the default workspace
-    const defaultSkillsDir = path.join(this.openclawDir, "workspace", "skills");
-    if (fs.existsSync(defaultSkillsDir)) {
-      const tbSkills = fs.readdirSync(defaultSkillsDir).filter((d) =>
-        d.startsWith("trc-") && fs.statSync(path.join(defaultSkillsDir, d)).isDirectory(),
-      );
-      for (const sd of tbSkills) {
-        fs.rmSync(path.join(defaultSkillsDir, sd), { recursive: true });
-      }
-      if (tbSkills.length > 0) {
-        actions.push(`Deleted ${tbSkills.length} skill directory(ies) from default workspace`);
-      }
+    // Delete native skill directories
+    const skillsDir = this.skillsDir(scope);
+    const skillCount = cleanupSkillDirs(skillsDir);
+    if (skillCount > 0) {
+      actions.push(`Deleted ${skillCount} skill directory(ies) from ${skillsDir}`);
     }
 
     // Delete team knowledge
-    const kPath = this.knowledgePath();
-    if (fs.existsSync(kPath)) {
-      fs.unlinkSync(kPath);
-      actions.push(`Deleted ${kPath}`);
-    }
-
-    // Remove ALL teamrc routing sections from AGENTS.md (both global and team-scoped markers)
-    const agentsMdPath = path.join(this.openclawDir, "workspace", "AGENTS.md");
-    if (fs.existsSync(agentsMdPath)) {
-      const content = fs.readFileSync(agentsMdPath, "utf-8");
-      // Match both `<!-- teamrc:routing -->` and `<!-- teamrc:{slug}:routing -->`
-      const routingRegex = /\n?<!-- teamrc(?::[a-z0-9-]+)?:routing -->[\s\S]*?<!-- \/teamrc(?::[a-z0-9-]+)?:routing -->\n?/g;
-      const cleaned = content.replace(routingRegex, "\n");
-      if (cleaned !== content) {
-        fs.writeFileSync(agentsMdPath, cleaned.trimEnd() + "\n");
-        actions.push(`Removed teamrc routing from ${agentsMdPath}`);
+    for (const s of ["project", "global"] as TeamScope[]) {
+      const kPath = this.knowledgePath(s);
+      if (fs.existsSync(kPath)) {
+        fs.unlinkSync(kPath);
+        actions.push(`Deleted ${kPath}`);
       }
     }
 
-    // Remove trc-* agents from openclaw.json
-    const configPath = path.join(this.openclawDir, "openclaw.json");
-    const config = this.readOpenClawConfig(configPath);
-    if (config) {
-      const agents = (config["agents"] ?? {}) as Record<string, unknown>;
-      const list = (agents["list"] ?? []) as Array<Record<string, unknown>>;
-      const filtered = list.filter((a) => !String(a["id"] ?? "").startsWith("trc-"));
-      if (filtered.length !== list.length) {
-        agents["list"] = filtered;
-        // Also clean allowAgents on remaining agents
-        for (const agent of filtered) {
-          const subagents = (agent["subagents"] ?? {}) as Record<string, unknown>;
-          const allow = (subagents["allowAgents"] ?? []) as string[];
-          const cleanedAllow = allow.filter((id) => !id.startsWith("trc-"));
-          if (cleanedAllow.length !== allow.length) {
-            subagents["allowAgents"] = cleanedAllow;
-            agent["subagents"] = subagents;
-          }
-        }
-        config["agents"] = agents;
-        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-        actions.push(`Removed trc-* agents from ${configPath}`);
+    // Remove teamrc section from AGENTS.md
+    const filePath = this.agentsMdPath();
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const marker = "<!-- teamrc -->";
+      const markerEnd = "<!-- /teamrc -->";
+      const regex = new RegExp(
+        `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
+      );
+      const cleaned = content.replace(regex, "\n");
+      if (cleaned !== content) {
+        fs.writeFileSync(filePath, cleaned.trimEnd() + "\n");
+        actions.push("Removed teamrc section from AGENTS.md");
       }
     }
 
     return actions;
   }
+}
 
+// --- Helpers ---
+
+interface ParsedAgent {
+  agentName: string;
+  role: string;
+  soul?: string;
+  teamName: string;
+}
+
+/** Parse a trc-*.md agent file back into structured data */
+function parseAgentFile(content: string): ParsedAgent | null {
+  const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  if (!match) return null;
+
+  let frontmatter: Record<string, unknown>;
+  try {
+    frontmatter = parseYaml(match[1]) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const name = String(frontmatter.name ?? "");
+  const description = String(frontmatter.description ?? "");
+  const body = match[2].trim();
+
+  // Extract agent name: strip trc- prefix
+  const agentName = name.startsWith("trc-") ? name.slice(4) : name;
+
+  // Role comes from description field
+  const role = description || "Agent";
+
+  // Extract team name from body: "# Team: teamName"
+  const teamMatch = body.match(/^# Team:\s*(.+)$/m);
+  const teamName = teamMatch ? teamMatch[1].trim() : "my-team";
+
+  // Extract soul: everything between team header and ## Skills / ## Teammates (or end)
+  const bodyAfterHeader = body.replace(/^# Team:.*\n+/, "");
+  const sectionIdx = bodyAfterHeader.search(/^## (Skills|Teammates)/m);
+  const soulRaw = sectionIdx >= 0
+    ? bodyAfterHeader.slice(0, sectionIdx).trim()
+    : bodyAfterHeader.trim();
+
+  // Only set soul if it's not the default generated text
+  const isDefault = soulRaw.startsWith(`You are ${agentName},`);
+  const soul = isDefault ? undefined : soulRaw || undefined;
+
+  return { agentName, role, soul, teamName };
+}
+
+function buildAgentFile(teamName: string, member: TeamMember, team?: TeamDefinition): string {
+  const name = `trc-${slugify(member.name)}`;
+  const safeRole = escapeYamlString(member.role);
+  const safeTeamNameText = sanitizeText(teamName);
+  const safeRoleText = sanitizeText(member.role);
+
+  const soulContent = member.soul
+    ? member.soul
+    : `You are ${member.name}, a ${safeRoleText} on the ${safeTeamNameText} team.\n\nFocus on your role and collaborate with your teammates.`;
+
+  // Build frontmatter with native skills list for per-agent skills
+  let skillsFrontmatter = "";
+  let skillsSection = "";
+  if (team) {
+    const resolvedSkills = resolveAgentSkills(member, team);
+    if (resolvedSkills.length > 0) {
+      // Add skills to frontmatter (OpenHands native per-agent skills)
+      const skillNames = resolvedSkills.map((s) => `  - trc-${s.id}`).join("\n");
+      skillsFrontmatter = `\nskills:\n${skillNames}`;
+
+      // Also inline skill content in body for context
+      const skillBlocks = resolvedSkills.map((s) => {
+        const title = s.title || s.id;
+        const desc = s.description ? `${s.description}\n\n` : "";
+        const body = typeof s.body === "string" ? s.body : "";
+        return `### ${title}\n\n${desc}${body}`;
+      }).join("\n\n");
+      skillsSection = `\n## Skills\n\n${skillBlocks}\n`;
+    }
+  }
+
+  return `---
+name: "${name}"
+description: "${safeRole}"${skillsFrontmatter}
+---
+
+# Team: ${safeTeamNameText}
+
+${soulContent}
+${skillsSection}`;
 }

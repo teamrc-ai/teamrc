@@ -1,0 +1,11 @@
+id: conventional-commits
+title: Conventional Commits
+category: workflow
+description: "Use conventional commit format for all commit messages"
+alwaysApply: true
+body: |
+  Format every commit message as: type(scope): description. Allowed types are
+  feat, fix, docs, style, refactor, test, and chore. Use the ! suffix for
+  breaking changes (e.g., feat!: remove legacy endpoint). The scope is optional
+  but encouraged for multi-package repos. The description must be lowercase,
+  imperative mood, and under 72 characters.

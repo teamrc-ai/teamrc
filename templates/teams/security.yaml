@@ -1,0 +1,36 @@
+label: Security Testing
+description: "Assess, test, and harden your application security"
+defaultPlatforms:
+  - claude-code
+  - codex
+
+name: security-team
+
+agents:
+  - pentest-lead
+  - vuln-analyst
+  - code-auditor
+  - report-writer
+
+skills:
+  - document-findings
+  - verify-fixes
+  - secrets-management
+  - input-validation-boundary
+  - structured-error-handling
+
+agentSkills:
+  pentest-lead:
+    - document-findings
+    - secrets-management
+  vuln-analyst:
+    - document-findings
+    - verify-fixes
+    - secrets-management
+  code-auditor:
+    - document-findings
+    - secrets-management
+    - input-validation-boundary
+    - structured-error-handling
+  report-writer:
+    - document-findings

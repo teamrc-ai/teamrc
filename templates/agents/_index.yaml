@@ -1,0 +1,108 @@
+categories:
+  - id: core-dev
+    label: Core Development
+    agents:
+      - team-lead
+      - frontend-dev
+      - backend-dev
+      - fullstack-dev
+      - mobile-dev
+      - api-designer
+      - architect
+      - implementer
+      - dba
+      - systems-programmer
+
+  - id: language
+    label: Language Specialists
+    agents:
+      - rust-dev
+      - go-dev
+      - python-dev
+      - java-dev
+      - elixir-dev
+      - swift-dev
+
+  - id: infrastructure
+    label: Infrastructure
+    agents:
+      - devops-engineer
+      - cloud-architect
+      - sre
+      - kubernetes-specialist
+      - ci-cd-engineer
+      - platform-engineer
+
+  - id: quality
+    label: Quality & Security
+    agents:
+      - qa-engineer
+      - security-engineer
+      - pentest-lead
+      - vuln-analyst
+      - code-auditor
+      - reviewer
+      - accessibility-specialist
+      - performance-engineer
+      - report-writer
+
+  - id: data-ai
+    label: Data & AI
+    agents:
+      - data-engineer
+      - ml-engineer
+      - data-analyst
+      - ai-researcher
+      - prompt-engineer
+      - llm-ops
+
+  - id: dx
+    label: Developer Experience
+    agents:
+      - dx-engineer
+      - technical-writer
+      - api-docs-writer
+      - sdk-developer
+      - onboarding-specialist
+
+  - id: specialized
+    label: Specialized Domains
+    agents:
+      - game-dev
+      - embedded-dev
+      - blockchain-dev
+      - compiler-engineer
+      - graphics-programmer
+      - audio-engineer
+
+  - id: business
+    label: Business & Product
+    agents:
+      - product-manager
+      - ux-designer
+      - ux-researcher
+      - marketing-lead
+      - copywriter
+      - seo-specialist
+      - analytics-lead
+      - growth-engineer
+      - technical-pm
+
+  - id: orchestration
+    label: Meta & Orchestration
+    agents:
+      - release-manager
+      - incident-commander
+      - migration-specialist
+      - monorepo-engineer
+
+  - id: research
+    label: Research & Analysis
+    agents:
+      - lead-researcher
+      - analyst
+      - fact-checker
+      - writer
+      - competitive-analyst
+      - market-researcher
+      - content-strategist

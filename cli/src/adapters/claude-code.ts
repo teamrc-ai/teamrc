@@ -3,22 +3,19 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { parse as parseYaml } from "yaml";
 import {
-  hashContent,
   validateAgentName,
   sanitizeMarkerContent,
   sanitizeText,
   slugify,
   escapeYamlString,
   type PlatformAdapter,
-  type PortableAgent,
   type TeamDefinition,
   type TeamMember,
   type TeamScope,
 } from "./base.js";
-import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
+import { resolveAgentSkills } from "../resolve-skills.js";
 
 export class ClaudeCodeAdapter implements PlatformAdapter {
-  readonly supportsSync = true;
   private claudeDir: string;
 
   constructor() {
@@ -101,76 +98,71 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       fs.writeFileSync(filePath, content);
     }
 
-    // Write native rule files
-    this.writeNativeRules(team, scope);
-
-    // Write native skill directories
-    this.writeNativeSkills(team, scope);
+    // Route skills: alwaysApply/globs → native rules, otherwise → skill dirs
+    this.writeSkillsAsNativeFiles(team, scope);
 
     this.updateClaudeMd(team, scope);
   }
 
-  private writeNativeRules(team: TeamDefinition, scope: TeamScope): void {
-    if (!team.rules || team.rules.length === 0) return;
-
-    const dir = this.rulesDir(scope);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+  private writeSkillsAsNativeFiles(team: TeamDefinition, scope: TeamScope): void {
+    if (!team.skills || team.skills.length === 0) {
+      // Still clean up old files even if no skills
+      this.cleanTbRuleFiles(this.rulesDir(scope));
+      this.cleanTbSkillDirs(this.skillsDir(scope));
+      return;
     }
 
-    // Clean up old trc- rule files before writing new ones
-    this.cleanTbRuleFiles(dir);
+    const rulesDir = this.rulesDir(scope);
+    const skillsBaseDir = this.skillsDir(scope);
 
-    for (const rule of team.rules) {
-      if (typeof rule.body !== "string") continue;
-
-      const fileName = `trc-${rule.id}.md`;
-      const filePath = path.join(dir, fileName);
-
-      let content: string;
-      if (rule.globs && rule.globs.length > 0) {
-        const pathsYaml = rule.globs.map((g) => `  - "${g}"`).join("\n");
-        content = `---\npaths:\n${pathsYaml}\n---\n\n${rule.body}\n`;
-      } else {
-        content = `${rule.body}\n`;
-      }
-
-      fs.writeFileSync(filePath, content);
-    }
-  }
-
-  private writeNativeSkills(team: TeamDefinition, scope: TeamScope): void {
-    if (!team.skills || team.skills.length === 0) return;
-
-    const dir = this.skillsDir(scope);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
-    // Clean up old trc- skill directories before writing new ones
-    this.cleanTbSkillDirs(dir);
+    // Clean up old files before writing new ones
+    this.cleanTbRuleFiles(rulesDir);
+    this.cleanTbSkillDirs(skillsBaseDir);
 
     for (const skill of team.skills) {
-      if (skill.body && typeof skill.body !== "string") continue;
+      if (typeof skill.body !== "string") continue;
 
-      const skillDir = path.join(dir, `trc-${skill.id}`);
-      if (!fs.existsSync(skillDir)) {
-        fs.mkdirSync(skillDir, { recursive: true });
+      if (skill.alwaysApply || (skill.globs && skill.globs.length > 0)) {
+        // Write as native rule file
+        if (!fs.existsSync(rulesDir)) {
+          fs.mkdirSync(rulesDir, { recursive: true });
+        }
+
+        const fileName = `trc-${skill.id}.md`;
+        const filePath = path.join(rulesDir, fileName);
+
+        let content: string;
+        if (skill.globs && skill.globs.length > 0) {
+          const pathsYaml = skill.globs.map((g) => `  - "${escapeYamlString(g)}"`).join("\n");
+          content = `---\npaths:\n${pathsYaml}\n---\n\n${skill.body}\n`;
+        } else {
+          content = `${skill.body}\n`;
+        }
+
+        fs.writeFileSync(filePath, content);
+      } else {
+        // Write as SKILL.md directory
+        if (!fs.existsSync(skillsBaseDir)) {
+          fs.mkdirSync(skillsBaseDir, { recursive: true });
+        }
+
+        const skillDir = path.join(skillsBaseDir, `trc-${skill.id}`);
+        if (!fs.existsSync(skillDir)) {
+          fs.mkdirSync(skillDir, { recursive: true });
+        }
+
+        const frontmatterLines: string[] = [];
+        frontmatterLines.push(`name: trc-${skill.id}`);
+        if (skill.title) {
+          frontmatterLines.push(`title: "${escapeYamlString(skill.title)}"`);
+        }
+        if (skill.description) {
+          frontmatterLines.push(`description: "${escapeYamlString(skill.description)}"`);
+        }
+
+        const content = `---\n${frontmatterLines.join("\n")}\n---\n\n${skill.body}\n`;
+        fs.writeFileSync(path.join(skillDir, "SKILL.md"), content);
       }
-
-      const frontmatterLines: string[] = [];
-      frontmatterLines.push(`name: trc-${skill.id}`);
-      if (skill.title) {
-        frontmatterLines.push(`title: "${escapeYamlString(skill.title)}"`);
-      }
-      if (skill.description) {
-        frontmatterLines.push(`description: "${escapeYamlString(skill.description)}"`);
-      }
-
-      const body = typeof skill.body === "string" ? skill.body : "";
-      const content = `---\n${frontmatterLines.join("\n")}\n---\n\n${body}\n`;
-
-      fs.writeFileSync(path.join(skillDir, "SKILL.md"), content);
     }
   }
 
@@ -215,7 +207,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
 
   private knowledgePath(scope: TeamScope = "project"): string {
     if (scope === "project") {
-      return path.join(process.cwd(), ".claude", "team-knowledge.md");
+      return path.join(process.cwd(), "teamrc-knowledge.md");
     }
     return path.join(this.claudeDir, "team-knowledge.md");
   }
@@ -262,185 +254,6 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     }
   }
 
-  getHashes(): Record<string, string> {
-    const hashes: Record<string, string> = {};
-
-    // Hash each agent file as portable JSON
-    const { dir, scope } = this.resolveAgentsDir();
-    for (const file of this.listTbFiles(dir)) {
-      const content = fs.readFileSync(path.join(dir, file), "utf-8");
-      const parsed = parseAgentFile(content);
-      if (!parsed) continue;
-      const portable = toPortableJson(parsed);
-      hashes[`agent:${parsed.agentName}`] = hashContent(portable);
-    }
-
-    // Hash native rule files
-    const rulesDir = this.rulesDir(scope);
-    if (fs.existsSync(rulesDir)) {
-      for (const f of fs.readdirSync(rulesDir)) {
-        if (f.startsWith("trc-") && f.endsWith(".md")) {
-          const content = fs.readFileSync(path.join(rulesDir, f), "utf-8");
-          const ruleId = f.replace(/^trc-/, "").replace(/\.md$/, "");
-          hashes[`rule:${ruleId}`] = hashContent(content);
-        }
-      }
-    }
-
-    // Hash native skill files
-    const skillsDir = this.skillsDir(scope);
-    if (fs.existsSync(skillsDir)) {
-      for (const f of fs.readdirSync(skillsDir)) {
-        if (f.startsWith("trc-")) {
-          const skillFile = path.join(skillsDir, f, "SKILL.md");
-          if (fs.existsSync(skillFile)) {
-            const content = fs.readFileSync(skillFile, "utf-8");
-            const skillId = f.replace(/^trc-/, "");
-            hashes[`skill:${skillId}`] = hashContent(content);
-          }
-        }
-      }
-    }
-
-    // Hash team knowledge file
-    for (const scope of ["project", "global"] as TeamScope[]) {
-      const kPath = this.knowledgePath(scope);
-      if (fs.existsSync(kPath)) {
-        const content = fs.readFileSync(kPath, "utf-8");
-        hashes[`knowledge:${scope}`] = hashContent(content);
-      }
-    }
-
-    return hashes;
-  }
-
-  watchPaths(): string[] {
-    const paths = [
-      this.knowledgePath("project"),
-      this.knowledgePath("global"),
-    ];
-    // Watch both possible agent directories
-    const projectAgents = this.agentsDir("project");
-    const globalAgents = this.agentsDir("global");
-    if (fs.existsSync(projectAgents)) paths.push(projectAgents);
-    if (fs.existsSync(globalAgents)) paths.push(globalAgents);
-
-    // Watch rules and skills directories
-    for (const scope of ["project", "global"] as TeamScope[]) {
-      const rDir = this.rulesDir(scope);
-      const sDir = this.skillsDir(scope);
-      if (fs.existsSync(rDir)) paths.push(rDir);
-      if (fs.existsSync(sDir)) paths.push(sDir);
-    }
-
-    return paths;
-  }
-
-  writeFile(key: string, content: string): void {
-    if (key.startsWith("agent:")) {
-      this.writeAgentFromPortable(key, content);
-      return;
-    }
-    if (key === "knowledge:project") {
-      this.writeKnowledge(content);
-      return;
-    }
-    if (key === "knowledge:global") {
-      const dir = path.dirname(this.knowledgePath("global"));
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(this.knowledgePath("global"), content);
-      return;
-    }
-  }
-
-  readFile(key: string): string | null {
-    if (key.startsWith("agent:")) {
-      return this.readAgentAsPortable(key);
-    }
-    if (key === "knowledge:project") {
-      const p = this.knowledgePath("project");
-      return fs.existsSync(p) ? fs.readFileSync(p, "utf-8") : null;
-    }
-    if (key === "knowledge:global") {
-      const p = this.knowledgePath("global");
-      return fs.existsSync(p) ? fs.readFileSync(p, "utf-8") : null;
-    }
-    return null;
-  }
-
-  /** Read a native agent file and return portable JSON */
-  private readAgentAsPortable(key: string): string | null {
-    const agentName = key.replace("agent:", "");
-    const { dir } = this.resolveAgentsDir();
-    const filePath = path.join(dir, `trc-${slugify(agentName)}.md`);
-    if (!fs.existsSync(filePath)) return null;
-
-    const content = fs.readFileSync(filePath, "utf-8");
-    const parsed = parseAgentFile(content);
-    if (!parsed) return null;
-    return toPortableJson(parsed);
-  }
-
-  /** Write a native agent file from portable JSON */
-  private writeAgentFromPortable(key: string, json: string): void {
-    let portable: PortableAgent;
-    try {
-      portable = JSON.parse(json) as PortableAgent;
-    } catch {
-      console.warn(`Skipping malformed JSON for ${key}`);
-      return;
-    }
-    validateAgentName(portable.name);
-    const { dir } = this.resolveAgentsDir();
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-    // Read existing team to get full member list for teammates section
-    const team = this.readTeam();
-    const allMembers: TeamMember[] = team?.members ?? [];
-
-    // Update or add this member
-    const idx = allMembers.findIndex((m) => m.name === portable.name);
-    const member: TeamMember = { name: portable.name, role: portable.role, soul: portable.soul };
-    if (idx >= 0) {
-      allMembers[idx] = member;
-    } else {
-      allMembers.push(member);
-    }
-
-    const filePath = path.join(dir, `trc-${slugify(portable.name)}.md`);
-    const content = buildAgentFile(portable.teamName, member, allMembers);
-    fs.writeFileSync(filePath, content);
-  }
-
-  getFileMtime(key: string): number {
-    if (key.startsWith("agent:")) {
-      const name = key.replace("agent:", "");
-      const { dir } = this.resolveAgentsDir();
-      return this.statMtime(path.join(dir, `trc-${slugify(name)}.md`));
-    }
-    if (key === "knowledge:project") return this.statMtime(this.knowledgePath("project"));
-    if (key === "knowledge:global") return this.statMtime(this.knowledgePath("global"));
-    if (key.startsWith("rule:")) {
-      const { scope } = this.resolveAgentsDir();
-      const ruleId = key.replace("rule:", "");
-      return this.statMtime(path.join(this.rulesDir(scope), `trc-${ruleId}.md`));
-    }
-    if (key.startsWith("skill:")) {
-      const { scope } = this.resolveAgentsDir();
-      const skillId = key.replace("skill:", "");
-      return this.statMtime(path.join(this.skillsDir(scope), `trc-${skillId}`, "SKILL.md"));
-    }
-    return 0;
-  }
-
-  private statMtime(filePath: string): number {
-    try {
-      return Math.floor(fs.statSync(filePath).mtimeMs / 1000);
-    } catch {
-      return 0;
-    }
-  }
-
   uninstall(): string[] {
     const actions: string[] = [];
     const { dir, scope } = this.resolveAgentsDir();
@@ -454,7 +267,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       actions.push(`Deleted ${tbFiles.length} agent file(s) from ${dir}`);
     }
 
-    // Delete native rule files
+    // Delete native rule files (skills written as rules)
     const rulesDir = this.rulesDir(scope);
     if (fs.existsSync(rulesDir)) {
       const tbRuleFiles = fs.readdirSync(rulesDir).filter((f) => f.startsWith("trc-") && f.endsWith(".md"));
@@ -462,7 +275,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
         fs.unlinkSync(path.join(rulesDir, f));
       }
       if (tbRuleFiles.length > 0) {
-        actions.push(`Deleted ${tbRuleFiles.length} native rule file(s) from ${rulesDir}`);
+        actions.push(`Deleted ${tbRuleFiles.length} native skill rule(s) from ${rulesDir}`);
       }
     }
 
@@ -560,17 +373,6 @@ function parseAgentFile(content: string): ParsedAgent | null {
   return { agentName, role, soul, teamName };
 }
 
-/** Convert parsed agent to portable JSON string (wire format) */
-function toPortableJson(parsed: ParsedAgent): string {
-  const obj: PortableAgent = {
-    name: parsed.agentName,
-    role: parsed.role,
-    teamName: parsed.teamName,
-    ...(parsed.soul ? { soul: parsed.soul } : {}),
-  };
-  return JSON.stringify(obj);
-}
-
 function buildAgentFile(teamName: string, member: TeamMember, allMembers: TeamMember[], team?: TeamDefinition): string {
   const name = `trc-${slugify(member.name)}`;
   const safeRole = escapeYamlString(member.role);
@@ -581,27 +383,24 @@ function buildAgentFile(teamName: string, member: TeamMember, allMembers: TeamMe
     ? member.soul
     : `You are ${member.name}, a ${safeRoleText} on the ${safeTeamNameText} team.\n\nFocus on your role and collaborate with your teammates.`;
 
-  let rulesSection = "";
+  // Build frontmatter with native skills list for per-agent skills
+  let skillsFrontmatter = "";
+  let skillsSection = "";
   if (team) {
-    const resolvedRules = resolveAgentRules(member, team);
-    if (resolvedRules.length > 0) {
-      const ruleBlocks = resolvedRules.map((r) => {
-        const title = r.title || r.id;
-        const body = typeof r.body === "string" ? r.body : "";
-        return `### ${title}\n\n${body}`;
-      }).join("\n\n");
-      rulesSection += `\n## Rules\n\n${ruleBlocks}\n`;
-    }
-
     const resolvedSkills = resolveAgentSkills(member, team);
     if (resolvedSkills.length > 0) {
+      // Add skills to frontmatter (Claude Code native per-agent skills)
+      const skillNames = resolvedSkills.map((s) => `  - trc-${s.id}`).join("\n");
+      skillsFrontmatter = `\nskills:\n${skillNames}`;
+
+      // Also inline skill content in body
       const skillBlocks = resolvedSkills.map((s) => {
         const title = s.title || s.id;
         const desc = s.description ? `${s.description}\n\n` : "";
-        const body = s.body ? (typeof s.body === "string" ? s.body : "") : "";
-        return `### ${title}\n\n${desc}${body}`;
+        const skillBody = typeof s.body === "string" ? s.body : "";
+        return `### ${title}\n\n${desc}${skillBody}`;
       }).join("\n\n");
-      rulesSection += `\n## Skills\n\n${skillBlocks}\n`;
+      skillsSection = `\n## Skills\n\n${skillBlocks}\n`;
     }
   }
 
@@ -613,13 +412,13 @@ function buildAgentFile(teamName: string, member: TeamMember, allMembers: TeamMe
   return `---
 name: ${name}
 description: "${safeRole} on the ${safeTeamName} team. Use when tasks relate to ${safeRole.toLowerCase()}."
-model: inherit
+model: inherit${skillsFrontmatter}
 ---
 
 # Team: ${safeTeamNameText}
 
 ${body}
-${rulesSection}
+${skillsSection}
 ## Teammates
 
 ${teammates}

@@ -1,0 +1,36 @@
+label: DevOps & Infrastructure
+description: "Manage deployments, monitoring, and reliability"
+defaultPlatforms:
+  - claude-code
+  - cursor
+
+name: devops-team
+
+agents:
+  - platform-engineer
+  - sre
+  - security-engineer
+
+skills:
+  - infra-as-code
+  - rollback-plan
+  - secrets-management
+  - graceful-degradation
+  - deterministic-builds
+  - structured-error-handling
+
+agentSkills:
+  platform-engineer:
+    - infra-as-code
+    - rollback-plan
+    - secrets-management
+    - graceful-degradation
+    - deterministic-builds
+    - structured-error-handling
+  sre:
+    - rollback-plan
+    - graceful-degradation
+    - structured-error-handling
+  security-engineer:
+    - infra-as-code
+    - secrets-management

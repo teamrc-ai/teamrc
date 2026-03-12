@@ -1,0 +1,12 @@
+id: security-audit
+title: Security Audit
+category: quality
+description: "Review code for OWASP Top 10 and common vulnerabilities"
+userInvocable: true
+alwaysApply: false
+body: |
+  Review code against the OWASP Top 10 vulnerability categories. Check that
+  authentication and authorization are enforced on every endpoint. Validate
+  all inputs and encode all outputs. Verify secrets are not hardcoded or logged.
+  Ensure SQL queries are parameterized and file paths are sanitized. Flag any
+  use of deprecated or insecure cryptographic functions.

@@ -1,0 +1,12 @@
+id: refactoring
+title: Systematic Refactoring
+category: process
+description: "Make behavior-preserving changes with tests green throughout"
+userInvocable: true
+alwaysApply: false
+body: |
+  Make behavior-preserving changes only — extract, inline, rename, move. Run
+  tests before starting to confirm a green baseline. Make one refactoring move
+  at a time and verify tests still pass after each step. Never refactor and
+  change behavior in the same commit. If tests are missing, add them before
+  refactoring the code they cover.

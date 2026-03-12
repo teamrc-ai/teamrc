@@ -1,0 +1,14 @@
+id: no-any-types
+title: No Any Types
+category: quality
+description: "Never use any in TypeScript — use unknown and type guards"
+alwaysApply: false
+globs:
+  - "**/*.ts"
+  - "**/*.tsx"
+body: |
+  Never use `any` as a type annotation. Use `unknown` for values whose type is
+  truly not known at compile time and narrow with type guards before accessing
+  properties. All function parameters and return types must be explicitly typed.
+  Prefer generics over `any` for reusable code. If a third-party library returns
+  `any`, wrap it with a typed interface at the boundary.

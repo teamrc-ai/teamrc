@@ -1,0 +1,10 @@
+id: infra-as-code
+title: Infrastructure as Code
+category: constraints
+description: "All infrastructure changes must be expressed as code"
+alwaysApply: true
+body: |
+  All infrastructure changes must be expressed as code (Terraform, Pulumi,
+  CloudFormation, or equivalent). Manual console changes are prohibited in
+  production. Every infrastructure change should be reviewable in a pull
+  request before it is applied.

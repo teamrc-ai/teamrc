@@ -1,0 +1,9 @@
+id: brand-voice
+title: Brand Voice
+category: constraints
+description: "Maintain consistent brand voice across all outward-facing content"
+alwaysApply: true
+body: |
+  All outward-facing content must be consistent with the brand voice guide.
+  Tone should be confident but not arrogant, specific but not jargon-heavy.
+  Every piece of copy should have a clear audience and a single call to action.

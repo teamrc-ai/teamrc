@@ -1,0 +1,11 @@
+id: trunk-based-dev
+title: Trunk-Based Development
+category: workflow
+description: "Work on short-lived branches merged to main frequently"
+alwaysApply: true
+body: |
+  Work on short-lived branches that merge to main within one to two days. No
+  long-lived feature branches. If a feature takes longer, use feature flags to
+  merge incomplete work safely. Keep main always deployable. Run CI on every
+  push and require a green build before merging. Rebase on main frequently to
+  avoid painful merge conflicts.

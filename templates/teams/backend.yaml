@@ -1,0 +1,42 @@
+label: Backend / API
+description: "Build APIs, services, and data pipelines"
+defaultPlatforms:
+  - claude-code
+  - cursor
+
+name: backend-team
+
+agents:
+  - architect
+  - implementer
+  - reviewer
+  - dba
+
+skills:
+  - api-first
+  - write-tests
+  - secrets-management
+  - database-constraints
+  - safe-migrations
+  - idempotent-operations
+  - input-validation-boundary
+  - structured-error-handling
+
+agentSkills:
+  architect:
+    - api-first
+    - secrets-management
+  implementer:
+    - api-first
+    - write-tests
+    - secrets-management
+    - database-constraints
+    - idempotent-operations
+    - input-validation-boundary
+    - structured-error-handling
+  reviewer:
+    - write-tests
+    - structured-error-handling
+  dba:
+    - database-constraints
+    - safe-migrations

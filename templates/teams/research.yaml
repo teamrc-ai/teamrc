@@ -1,0 +1,26 @@
+label: Research & Analysis
+description: "Deep research with verification and synthesis"
+defaultPlatforms:
+  - claude-code
+  - cursor
+
+name: research-team
+
+agents:
+  - lead-researcher
+  - analyst
+  - fact-checker
+  - writer
+
+skills:
+  - cite-sources
+
+agentSkills:
+  lead-researcher:
+    - cite-sources
+  analyst:
+    - cite-sources
+  fact-checker:
+    - cite-sources
+  writer:
+    - cite-sources

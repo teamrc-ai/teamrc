@@ -1,0 +1,12 @@
+id: dependency-audit
+title: Dependency Audit
+category: analysis
+description: "Audit dependencies for vulnerabilities, staleness, and license issues"
+userInvocable: true
+body: |
+  Check all project dependencies for known vulnerabilities using advisory
+  databases. Identify outdated packages and unmaintained libraries with no
+  recent commits or releases. Verify license compliance across the dependency
+  tree, flagging copyleft or restricted licenses. Prioritize updates by
+  severity and exploitability. Document any pinned versions and the reason
+  they are held back.

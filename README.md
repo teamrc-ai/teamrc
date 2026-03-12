@@ -101,8 +101,8 @@ Fields:
 - **Claude Code** — Agents in `.claude/agents/trc-*.md` with YAML frontmatter. Rules as `.claude/rules/trc-*.md`. Skills as `.claude/skills/trc-*/SKILL.md`. Updates `CLAUDE.md` with team section.
 - **Cursor** — Subagents in `.cursor/agents/trc-*.md`. Rules as `.cursor/rules/trc-*.mdc`. Skills as `.cursor/skills/trc-*/SKILL.md`. Routing via `.cursor/AGENTS.md`.
 - **Codex** — Agent TOML configs in `.codex/agents/trc-*.toml`. Registered in `.codex/config.toml`. Routing via `AGENTS.md`.
-- **OpenClaw** — Agents in `~/.openclaw/workspaces/trc-*/` with `SOUL.md` and `AGENTS.md`. Registered in `openclaw.json`.
-- **Gemini** — All agents flattened into `GEMINI.md` with team context, rules, and skills.
+- **OpenClaw** — Agents in `.agents/agents/trc-*.md` with YAML frontmatter. Skills as `.agents/skills/trc-*/SKILL.md`. Routing via `AGENTS.md`.
+- **Gemini** — Agents in `.gemini/agents/trc-*.md` with YAML frontmatter. Skills as `.gemini/skills/trc-*/SKILL.md`. Updates `GEMINI.md` with team section.
 
 ## Relay
 

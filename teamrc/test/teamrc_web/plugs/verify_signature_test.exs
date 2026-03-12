@@ -19,20 +19,6 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
   end
 
   describe "POST with valid signature" do
-    test "passes through for /api/push", %{conn: conn, priv: priv, token: token} do
-      body = %{"token" => token, "platform" => "test", "entry" => %{"type" => "msg", "content" => "hi"}}
-      {signature, timestamp} = sign_body_with_timestamp(priv, body)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-trc-timestamp", timestamp)
-        |> post("/api/push", body)
-
-      assert json_response(conn, 200) == %{"status" => "ok"}
-    end
-
     test "passes through for /api/teams (create)", %{conn: conn, priv: priv, token: token} do
       body = %{"token" => token, "team" => %{"name" => "test-team"}}
       {signature, timestamp} = sign_body_with_timestamp(priv, body)
@@ -70,12 +56,12 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
 
   describe "missing signature" do
     test "returns 401 for POST without signature header", %{conn: conn, token: token} do
-      body = %{"token" => token, "platform" => "test", "entry" => %{"type" => "msg"}}
+      body = %{"token" => token, "team" => %{"name" => "no-sig-team"}}
 
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post("/api/push", body)
+        |> post("/api/teams", body)
 
       resp = json_response(conn, 401)
       assert resp["error"] == "unauthorized"
@@ -92,7 +78,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
 
   describe "invalid signature" do
     test "returns 401 for POST with wrong signature", %{conn: conn, token: token} do
-      body = %{"token" => token, "platform" => "test", "entry" => %{"type" => "msg"}}
+      body = %{"token" => token, "team" => %{"name" => "bad-sig-team"}}
       bad_sig = :crypto.strong_rand_bytes(64)
       timestamp = Integer.to_string(System.system_time(:second))
 
@@ -101,7 +87,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-trc-signature", Base.url_encode64(bad_sig, padding: false))
         |> put_req_header("x-trc-timestamp", timestamp)
-        |> post("/api/push", body)
+        |> post("/api/teams", body)
 
       resp = json_response(conn, 401)
       assert resp["error"] == "unauthorized"
@@ -109,17 +95,17 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
     end
 
     test "returns 401 for tampered body", %{conn: conn, priv: priv, token: token} do
-      original_body = %{"token" => token, "platform" => "test", "entry" => %{"type" => "msg"}}
+      original_body = %{"token" => token, "team" => %{"name" => "original-team"}}
       {signature, timestamp} = sign_body_with_timestamp(priv, original_body)
 
-      tampered_body = %{"token" => token, "platform" => "test", "entry" => %{"type" => "evil"}}
+      tampered_body = %{"token" => token, "team" => %{"name" => "tampered-team"}}
 
       conn =
         conn
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
         |> put_req_header("x-trc-timestamp", timestamp)
-        |> post("/api/push", tampered_body)
+        |> post("/api/teams", tampered_body)
 
       resp = json_response(conn, 401)
       assert resp["error"] == "unauthorized"
@@ -129,7 +115,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
 
   describe "replay attack prevention" do
     test "returns 401 for expired timestamp", %{conn: conn, priv: priv, token: token} do
-      body = %{"token" => token, "platform" => "test", "entry" => %{"type" => "msg", "content" => "hi"}}
+      body = %{"token" => token, "team" => %{"name" => "replay-team"}}
       # Timestamp 10 minutes ago
       timestamp = Integer.to_string(System.system_time(:second) - 600)
       message = "#{timestamp}.#{Jason.encode!(body)}"
@@ -140,7 +126,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
         |> put_req_header("x-trc-timestamp", timestamp)
-        |> post("/api/push", body)
+        |> post("/api/teams", body)
 
       resp = json_response(conn, 401)
       assert resp["error"] == "unauthorized"
@@ -148,7 +134,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
     end
 
     test "returns 401 for missing timestamp", %{conn: conn, priv: priv, token: token} do
-      body = %{"token" => token, "platform" => "test", "entry" => %{"type" => "msg"}}
+      body = %{"token" => token, "team" => %{"name" => "no-ts-team"}}
       message = Jason.encode!(body)
       signature = :crypto.sign(:eddsa, :none, message, [priv, :ed25519])
 
@@ -156,7 +142,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
-        |> post("/api/push", body)
+        |> post("/api/teams", body)
 
       resp = json_response(conn, 401)
       assert resp["error"] == "unauthorized"
@@ -168,7 +154,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
     test "returns 401 when signing with a different keypair", %{conn: conn, token: token} do
       {_attacker_pub, attacker_priv} = :crypto.generate_key(:eddsa, :ed25519)
 
-      body = %{"token" => token, "platform" => "test", "entry" => %{"type" => "msg"}}
+      body = %{"token" => token, "team" => %{"name" => "bola-team"}}
       {signature, timestamp} = sign_body_with_timestamp(attacker_priv, body)
 
       conn =
@@ -176,7 +162,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
         |> put_req_header("x-trc-timestamp", timestamp)
-        |> post("/api/push", body)
+        |> post("/api/teams", body)
 
       resp = json_response(conn, 401)
       assert resp["error"] == "unauthorized"
@@ -186,7 +172,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
 
   describe "malformed token" do
     test "returns 401 for non-trc_ak_ token", %{conn: conn} do
-      body = %{"token" => "bad_token_123", "platform" => "test", "entry" => %{"type" => "msg"}}
+      body = %{"token" => "bad_token_123", "team" => %{"name" => "bad-tok-team"}}
       bad_sig = :crypto.strong_rand_bytes(64)
       timestamp = Integer.to_string(System.system_time(:second))
 
@@ -195,7 +181,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-trc-signature", Base.url_encode64(bad_sig, padding: false))
         |> put_req_header("x-trc-timestamp", timestamp)
-        |> post("/api/push", body)
+        |> post("/api/teams", body)
 
       resp = json_response(conn, 401)
       assert resp["error"] == "unauthorized"
@@ -203,7 +189,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
     end
 
     test "returns 401 for malformed base64 in token", %{conn: conn} do
-      body = %{"token" => "trc_ak_!!!invalid!!!", "platform" => "test", "entry" => %{"type" => "msg"}}
+      body = %{"token" => "trc_ak_!!!invalid!!!", "team" => %{"name" => "bad-b64-team"}}
       bad_sig = :crypto.strong_rand_bytes(64)
       timestamp = Integer.to_string(System.system_time(:second))
 
@@ -212,7 +198,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-trc-signature", Base.url_encode64(bad_sig, padding: false))
         |> put_req_header("x-trc-timestamp", timestamp)
-        |> post("/api/push", body)
+        |> post("/api/teams", body)
 
       resp = json_response(conn, 401)
       assert resp["error"] == "unauthorized"
@@ -266,110 +252,19 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
     end
   end
 
-  describe "sync input validation" do
-    test "rejects path traversal in file paths", %{conn: conn, priv: priv, token: token} do
-      body = %{
-        "token" => token,
-        "platform" => "test",
-        "hashes" => %{"../../../etc/passwd" => "abc123"}
-      }
-      {signature, timestamp} = sign_body_with_timestamp(priv, body)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-trc-timestamp", timestamp)
-        |> post("/api/sync", body)
-
-      assert json_response(conn, 400)["error"] =~ "invalid file path"
-    end
-
-    test "rejects absolute file paths", %{conn: conn, priv: priv, token: token} do
-      body = %{
-        "token" => token,
-        "platform" => "test",
-        "hashes" => %{"/etc/passwd" => "abc123"}
-      }
-      {signature, timestamp} = sign_body_with_timestamp(priv, body)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-trc-timestamp", timestamp)
-        |> post("/api/sync", body)
-
-      assert json_response(conn, 400)["error"] =~ "invalid file path"
-    end
-
-    test "rejects invalid platform name", %{conn: conn, priv: priv, token: token} do
-      body = %{
-        "token" => token,
-        "platform" => "bad platform!@#",
-        "hashes" => %{}
-      }
-      {signature, timestamp} = sign_body_with_timestamp(priv, body)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-trc-timestamp", timestamp)
-        |> post("/api/sync", body)
-
-      assert json_response(conn, 400)["error"] =~ "platform"
-    end
-
-    test "rejects missing platform", %{conn: conn, priv: priv, token: token} do
-      body = %{
-        "token" => token,
-        "hashes" => %{"file.txt" => "abc"}
-      }
-      {signature, timestamp} = sign_body_with_timestamp(priv, body)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-trc-timestamp", timestamp)
-        |> post("/api/sync", body)
-
-      assert json_response(conn, 400)["error"] =~ "platform"
-    end
-
-    test "accepts valid sync request", %{conn: conn, priv: priv, token: token} do
-      body = %{
-        "token" => token,
-        "platform" => "claude-code",
-        "hashes" => %{".teamrc.yaml" => "sha256abc"}
-      }
-      {signature, timestamp} = sign_body_with_timestamp(priv, body)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
-        |> put_req_header("x-trc-timestamp", timestamp)
-        |> post("/api/sync", body)
-
-      assert json_response(conn, 200)["changes"]
-    end
-  end
-
   describe "rate limiting" do
     test "returns 429 after exceeding rate limit", %{conn: _conn, priv: priv, token: token} do
       # Send 61 requests (limit is 60)
       results =
         for _i <- 1..61 do
-          body = %{"token" => token, "platform" => "test", "entry" => %{"type" => "msg", "content" => "hi"}}
+          body = %{"token" => token, "team" => %{"name" => "rate-limit-team"}}
           {signature, timestamp} = sign_body_with_timestamp(priv, body)
 
           build_conn()
           |> put_req_header("content-type", "application/json")
           |> put_req_header("x-trc-signature", Base.url_encode64(signature, padding: false))
           |> put_req_header("x-trc-timestamp", timestamp)
-          |> post("/api/push", body)
+          |> post("/api/teams", body)
         end
 
       statuses = Enum.map(results, & &1.status)

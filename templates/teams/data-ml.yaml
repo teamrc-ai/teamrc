@@ -1,0 +1,33 @@
+label: Data & ML
+description: "Build data pipelines, train models, and deploy ML systems"
+defaultPlatforms:
+  - claude-code
+  - cursor
+
+name: data-team
+
+agents:
+  - data-engineer
+  - ml-engineer
+  - data-analyst
+
+skills:
+  - write-tests
+  - schema-design
+  - database-constraints
+  - safe-migrations
+  - idempotent-operations
+  - structured-error-handling
+
+agentSkills:
+  data-engineer:
+    - write-tests
+    - schema-design
+    - database-constraints
+    - safe-migrations
+    - idempotent-operations
+    - structured-error-handling
+  ml-engineer:
+    - write-tests
+    - structured-error-handling
+  data-analyst: []

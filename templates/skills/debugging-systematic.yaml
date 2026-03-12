@@ -1,0 +1,12 @@
+id: debugging-systematic
+title: Systematic Debugging
+category: process
+description: "Reproduce, hypothesize, verify, and confirm no regressions"
+userInvocable: true
+alwaysApply: false
+body: |
+  Reproduce the bug reliably before attempting a fix. Form a specific hypothesis
+  about the root cause and gather evidence to confirm or reject it. Apply the
+  minimal change needed to fix the issue. Write a regression test that fails
+  without the fix and passes with it. Verify the fix does not introduce new
+  failures in related areas.

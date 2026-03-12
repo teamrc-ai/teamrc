@@ -1,0 +1,47 @@
+id: deterministic-builds
+title: Deterministic Builds
+category: constraints
+description: "Ensure builds are reproducible, pinned, and produce identical artifacts"
+alwaysApply: false
+body: |
+  ## Reproducibility
+  - Builds must be deterministic — the same source code, dependencies, and
+    build environment must produce byte-identical artifacts regardless of
+    when or where the build runs.
+  - Pin all dependency versions in lock files for applications — use exact
+    versions in lock files (package-lock.json, Cargo.lock, mix.lock,
+    poetry.lock), compatible release ranges in library manifests.
+  - Pin build tool versions — use .tool-versions, mise, or Nix to ensure
+    compiler, runtime, and toolchain versions are consistent across
+    developer machines and CI.
+  - Pin base images in Dockerfiles by digest, not just tag — tags are
+    mutable and can change between builds. Use FROM image@sha256:... for
+    reproducibility.
+
+  ## Build Integrity
+  - Immutable artifacts — once built and tested, artifacts are never
+    modified. The artifact that passed CI is the artifact that gets deployed.
+    Rebuilding for deployment risks producing a different binary.
+  - Every deployed artifact must be traceable to a specific commit —
+    include build metadata (git SHA, build timestamp, CI run ID) in the
+    artifact or its metadata. Provenance answers "what code is running?"
+  - Audit dependencies for security vulnerabilities on every build — use
+    cargo-deny, npm audit, pip-audit, mix_audit, or equivalent. Block
+    builds that introduce known vulnerabilities.
+  - Scan for CVEs in container images before deployment — unpatched base
+    images are the most common source of production vulnerabilities.
+
+  ## CI/CD Safety
+  - Cache correctly — cache keys must include every input that affects the
+    output. A missing input in the cache key means a cache hit on stale
+    data. Verify cache correctness by comparing cached builds against
+    fresh builds periodically.
+  - Inject runtime secrets at deployment time, never at build time — build
+    artifacts should not contain secrets, credentials, or environment-
+    specific configuration.
+  - Use minimal, least-privilege service accounts for CI — the build system
+    should have only the permissions it needs and no more. Audit CI
+    permissions quarterly.
+  - Maintain 30-day minimum log retention for build artifacts and CI runs —
+    post-incident investigation frequently requires build provenance from
+    weeks prior.

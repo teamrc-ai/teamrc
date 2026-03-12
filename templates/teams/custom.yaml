@@ -1,0 +1,12 @@
+label: Custom
+description: "Start from scratch and define your own team"
+defaultPlatforms:
+  - claude-code
+
+name: my-team
+
+agents: []
+
+skills: []
+
+agentSkills: {}

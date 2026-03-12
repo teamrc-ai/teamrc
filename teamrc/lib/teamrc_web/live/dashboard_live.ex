@@ -26,7 +26,6 @@ defmodule TeamrcWeb.DashboardLive do
           id: team.id,
           name: team.name,
           members: team.members,
-          rules: team.rules || [],
           skills: team.skills || [],
           platforms: team.platforms || [],
           machines: machines,
@@ -254,12 +253,9 @@ defmodule TeamrcWeb.DashboardLive do
                 </div>
               </div>
 
-              <%!-- Rules & Skills counts --%>
-              <div :if={length(team.rules) > 0 || length(team.skills) > 0} class="flex items-center gap-4">
-                <span :if={length(team.rules) > 0} class="text-xs text-base-content/40 font-mono">
-                  <%= length(team.rules) %> rule<%= if length(team.rules) != 1, do: "s" %>
-                </span>
-                <span :if={length(team.skills) > 0} class="text-xs text-base-content/40 font-mono">
+              <%!-- Skills count --%>
+              <div :if={length(team.skills) > 0} class="flex items-center gap-4">
+                <span class="text-xs text-base-content/40 font-mono">
                   <%= length(team.skills) %> skill<%= if length(team.skills) != 1, do: "s" %>
                 </span>
               </div>

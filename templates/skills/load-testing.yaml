@@ -1,0 +1,12 @@
+id: load-testing
+title: Load Testing
+category: quality
+description: "Define load profiles and identify system breaking points"
+userInvocable: true
+alwaysApply: false
+body: |
+  Define load profiles based on expected and peak traffic patterns. Use realistic
+  data volumes and access patterns, not synthetic best-case scenarios. Ramp load
+  gradually to identify the point where latency or error rates degrade. Document
+  capacity limits, resource utilization at each tier, and the first bottleneck
+  to hit. Run load tests in an environment that mirrors production.

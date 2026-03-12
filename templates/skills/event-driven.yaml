@@ -1,0 +1,11 @@
+id: event-driven
+title: Event-Driven Architecture
+category: architecture
+description: "Use immutable events for cross-boundary communication"
+alwaysApply: true
+body: |
+  Use events for communication across service or module boundaries. Events are
+  immutable facts — they record what happened, not what should happen. All event
+  consumers must be idempotent. Design for eventual consistency and handle
+  out-of-order delivery gracefully. Name events in past tense (OrderPlaced,
+  not PlaceOrder).

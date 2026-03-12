@@ -1,11 +1,6 @@
-import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import * as path from "node:path";
-
-export function hashContent(content: string): string {
-  return crypto.createHash("sha256").update(content).digest("hex").slice(0, 16);
-}
 
 /** Validate that an agent name is safe for use in file paths */
 export function validateAgentName(name: string): void {
@@ -14,46 +9,30 @@ export function validateAgentName(name: string): void {
   }
 }
 
-/** Portable agent representation — the wire format sent to/from relay */
-export interface PortableAgent {
-  name: string;
-  role: string;
-  soul?: string;
-  teamName: string;
-}
-
-export interface Rule {
-  id: string;
-  title?: string;
-  globs?: string[];
-  alwaysApply?: boolean;
-  body: string | { source: string };
-}
-
 export interface Skill {
   id: string;
   title?: string;
   description?: string;
-  body?: string | { source: string };
+  alwaysApply?: boolean;
+  globs?: string[];
+  userInvocable?: boolean;
+  body: string | { source: string };
 }
 
 export interface TeamMember {
   name: string;
   role: string;
   soul?: string;
-  rules?: string[];   // references Rule.id
   skills?: string[];  // references Skill.id
 }
 
 export interface TeamDefinition {
   name: string;
   members: TeamMember[];
-  rules?: Rule[];
   skills?: Skill[];
   teamId?: string;
   relay?: string;
   platforms?: string[];
-  noSync?: boolean;
 }
 
 export const VALID_PLATFORMS = [
@@ -83,21 +62,13 @@ export interface PlatformAdapter {
   readKnowledge(): string;
   writeKnowledge(content: string): void;
   appendKnowledge(entries: string[]): void;
-  getHashes(): Record<string, string>;
-  watchPaths(): string[];
-  writeFile(key: string, content: string): void;
-  readFile(key: string): string | null;
   /** Remove everything teamrc installed for this platform. Returns list of actions taken. */
   uninstall(): string[];
-  /** Whether this adapter supports real-time sync (daemon, sync command). */
-  readonly supportsSync: boolean;
-  /** Get the modification time (Unix seconds) of the file backing a sync key. */
-  getFileMtime(key: string): number;
 }
 
 /** Write a native SKILL.md file for a skill in the given base directory */
 export function writeSkillDir(baseDir: string, skill: Skill): void {
-  if (skill.body && typeof skill.body !== "string") return; // skip source-referenced skills
+  if (typeof skill.body !== "string") return; // skip source-referenced skills
   const skillDir = path.join(baseDir, `trc-${skill.id}`);
   if (!fs.existsSync(skillDir)) fs.mkdirSync(skillDir, { recursive: true });
 
@@ -105,7 +76,7 @@ export function writeSkillDir(baseDir: string, skill: Skill): void {
   lines.push(`name: trc-${skill.id}`);
   if (skill.description) lines.push(`description: ${JSON.stringify(skill.description)}`);
   lines.push("---", "");
-  if (skill.body && typeof skill.body === "string") lines.push(skill.body);
+  lines.push(skill.body);
 
   fs.writeFileSync(path.join(skillDir, "SKILL.md"), lines.join("\n") + "\n");
 }

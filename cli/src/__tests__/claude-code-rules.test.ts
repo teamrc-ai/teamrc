@@ -4,7 +4,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 
-describe("Claude Code agent file with rules and skills", () => {
+describe("Claude Code agent file with skills", () => {
   let tmpDir: string;
   let origHome: string | undefined;
 
@@ -23,16 +23,15 @@ describe("Claude Code agent file with rules and skills", () => {
     fs.rmSync(tmpDir, { recursive: true });
   });
 
-  it("includes resolved rules in agent file body", async () => {
+  it("includes resolved skills in agent file body", async () => {
     const { ClaudeCodeAdapter } = await import("../adapters/claude-code.js");
     const adapter = new ClaudeCodeAdapter();
 
     const team = {
       name: "test-team",
       members: [
-        { name: "architect", role: "design", rules: ["rule_style"], skills: ["skill_search"] },
+        { name: "architect", role: "design", skills: ["skill_search"] },
       ],
-      rules: [{ id: "rule_style", title: "Code Style", body: "Use prettier." }],
       skills: [{ id: "skill_search", description: "Search code", body: "Use grep." }],
     };
 
@@ -43,24 +42,22 @@ describe("Claude Code agent file with rules and skills", () => {
     assert.equal(files.length, 1);
 
     const content = fs.readFileSync(path.join(agentDir, files[0]), "utf-8");
-    assert.ok(content.includes("## Rules"), "Should have Rules section");
-    assert.ok(content.includes("Code Style"), "Should include rule title");
-    assert.ok(content.includes("Use prettier."), "Should include rule body");
     assert.ok(content.includes("## Skills"), "Should have Skills section");
     assert.ok(content.includes("Search code"), "Should include skill description");
     assert.ok(content.includes("Use grep."), "Should include skill body");
+    assert.ok(!content.includes("## Rules"), "Should NOT have Rules section");
   });
 
-  it("writes native rule files to .claude/rules/", async () => {
+  it("writes alwaysApply skills as native rule files to .claude/rules/", async () => {
     const { ClaudeCodeAdapter } = await import("../adapters/claude-code.js");
     const adapter = new ClaudeCodeAdapter();
 
     const team = {
       name: "test-team",
       members: [{ name: "architect", role: "design" }],
-      rules: [
-        { id: "rule_style", title: "Code Style", body: "Use prettier." },
-        { id: "rule_scoped", globs: ["src/**/*.ts"], body: "TS only rule." },
+      skills: [
+        { id: "skill_style", title: "Code Style", alwaysApply: true, body: "Use prettier." },
+        { id: "skill_scoped", globs: ["src/**/*.ts"], body: "TS only skill." },
       ],
     };
 
@@ -69,19 +66,19 @@ describe("Claude Code agent file with rules and skills", () => {
     const rulesDir = path.join(tmpDir, ".claude", "rules");
     assert.ok(fs.existsSync(rulesDir), "rules dir should exist");
 
-    const styleFile = path.join(rulesDir, "trc-rule_style.md");
+    const styleFile = path.join(rulesDir, "trc-skill_style.md");
     const styleContent = fs.readFileSync(styleFile, "utf-8");
-    assert.ok(!styleContent.includes("---"), "No frontmatter for unscoped rule");
+    assert.ok(!styleContent.includes("---"), "No frontmatter for alwaysApply without globs");
     assert.ok(styleContent.includes("Use prettier."));
 
-    const scopedFile = path.join(rulesDir, "trc-rule_scoped.md");
+    const scopedFile = path.join(rulesDir, "trc-skill_scoped.md");
     const scopedContent = fs.readFileSync(scopedFile, "utf-8");
     assert.ok(scopedContent.includes("paths:"), "Should have paths frontmatter");
     assert.ok(scopedContent.includes("src/**/*.ts"));
-    assert.ok(scopedContent.includes("TS only rule."));
+    assert.ok(scopedContent.includes("TS only skill."));
   });
 
-  it("writes native skill directories to .claude/skills/", async () => {
+  it("writes on-demand skills to .claude/skills/", async () => {
     const { ClaudeCodeAdapter } = await import("../adapters/claude-code.js");
     const adapter = new ClaudeCodeAdapter();
 
@@ -102,7 +99,7 @@ describe("Claude Code agent file with rules and skills", () => {
     assert.ok(content.includes("Use grep."));
   });
 
-  it("works without rules or skills", async () => {
+  it("works without skills", async () => {
     const { ClaudeCodeAdapter } = await import("../adapters/claude-code.js");
     const adapter = new ClaudeCodeAdapter();
 

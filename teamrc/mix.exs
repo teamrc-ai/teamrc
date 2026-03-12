@@ -62,7 +62,8 @@ defmodule Teamrc.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
-      {:jose, "~> 1.11"}
+      {:jose, "~> 1.11"},
+      {:yaml_elixir, "~> 2.11"}
     ]
   end
 

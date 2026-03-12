@@ -1,0 +1,12 @@
+id: tdd
+title: Test-Driven Development
+category: process
+description: "Write failing tests first, then minimal code to pass"
+userInvocable: true
+alwaysApply: false
+body: |
+  Follow the red-green-refactor cycle for every change. Write a failing test
+  that describes the desired behavior before writing any implementation code.
+  Write the minimal code needed to make the test pass. Then refactor to improve
+  clarity and remove duplication while keeping tests green. Each cycle should
+  be small — one behavior at a time.

@@ -1,0 +1,11 @@
+id: root-cause-analysis
+title: Root Cause Analysis
+category: analysis
+description: "Systematically find the underlying cause of problems"
+userInvocable: true
+body: |
+  Apply the 5 Whys technique, asking "why" iteratively until you reach the
+  fundamental cause. Distinguish between symptoms, contributing factors, and
+  root causes. Map the causal chain from the observed symptom back to the root
+  cause using fishbone diagrams or fault tree analysis as appropriate.
+  Document each link in the causal chain with supporting evidence.

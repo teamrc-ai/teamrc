@@ -19,16 +19,16 @@ describe("Cursor adapter", () => {
     fs.rmSync(tmpDir, { recursive: true });
   });
 
-  it("writes rules as .mdc files in .cursor/rules/", async () => {
+  it("writes alwaysApply/globs skills as .mdc files in .cursor/rules/", async () => {
     const { CursorAdapter } = await import("../adapters/cursor.js");
     const adapter = new CursorAdapter();
 
     const team = {
       name: "test-team",
       members: [{ name: "architect", role: "design" }],
-      rules: [
-        { id: "rule_style", title: "Code Style", globs: ["*.ts"], alwaysApply: false, body: "Use prettier." },
-        { id: "rule_security", title: "Security", alwaysApply: true, body: "Validate all inputs." },
+      skills: [
+        { id: "skill_style", title: "Code Style", description: "Enforce code style", globs: ["*.ts"], alwaysApply: false, body: "Use prettier." },
+        { id: "skill_security", title: "Security", description: "Security validation", alwaysApply: true, body: "Validate all inputs." },
       ],
     };
 
@@ -37,21 +37,21 @@ describe("Cursor adapter", () => {
     const rulesDir = path.join(tmpDir, ".cursor", "rules");
     assert.ok(fs.existsSync(rulesDir));
 
-    const styleFile = path.join(rulesDir, "trc-rule_style.mdc");
+    const styleFile = path.join(rulesDir, "trc-skill_style.mdc");
     assert.ok(fs.existsSync(styleFile));
 
     const content = fs.readFileSync(styleFile, "utf-8");
-    assert.ok(content.includes("Code Style"));
+    assert.ok(content.includes("Enforce code style"));
     assert.ok(content.includes('globs: ["*.ts"]'));
     assert.ok(content.includes("alwaysApply: false"));
     assert.ok(content.includes("Use prettier."));
 
-    const secFile = path.join(rulesDir, "trc-rule_security.mdc");
+    const secFile = path.join(rulesDir, "trc-skill_security.mdc");
     const secContent = fs.readFileSync(secFile, "utf-8");
     assert.ok(secContent.includes("alwaysApply: true"));
   });
 
-  it("writes native skill directories to .cursor/skills/", async () => {
+  it("writes on-demand skills to .cursor/skills/", async () => {
     const { CursorAdapter } = await import("../adapters/cursor.js");
     const adapter = new CursorAdapter();
 
@@ -79,10 +79,10 @@ describe("Cursor adapter", () => {
     const team = {
       name: "test-team",
       members: [
-        { name: "architect", role: "design architecture", rules: ["rule_style"] },
+        { name: "architect", role: "design architecture", skills: ["skill_style"] },
         { name: "coder", role: "write code" },
       ],
-      rules: [{ id: "rule_style", title: "Code Style", body: "Use prettier." }],
+      skills: [{ id: "skill_style", title: "Code Style", alwaysApply: true, body: "Use prettier." }],
     };
 
     adapter.writeTeam(team);
@@ -127,18 +127,18 @@ describe("Cursor adapter", () => {
     const team = {
       name: "test-team",
       members: [{ name: "architect", role: "design" }],
-      rules: [{ id: "rule_style", title: "Code Style", body: "Use prettier." }],
+      skills: [{ id: "skill_style", title: "Code Style", alwaysApply: true, body: "Use prettier." }],
     };
 
     adapter.writeTeam(team);
 
     // Verify files exist
     assert.ok(fs.existsSync(path.join(tmpDir, ".cursor", "agents", "trc-architect.md")));
-    assert.ok(fs.existsSync(path.join(tmpDir, ".cursor", "rules", "trc-rule_style.mdc")));
+    assert.ok(fs.existsSync(path.join(tmpDir, ".cursor", "rules", "trc-skill_style.mdc")));
 
     const actions = adapter.uninstall();
     assert.ok(actions.length > 0);
     assert.ok(!fs.existsSync(path.join(tmpDir, ".cursor", "agents", "trc-architect.md")));
-    assert.ok(!fs.existsSync(path.join(tmpDir, ".cursor", "rules", "trc-rule_style.mdc")));
+    assert.ok(!fs.existsSync(path.join(tmpDir, ".cursor", "rules", "trc-skill_style.mdc")));
   });
 });

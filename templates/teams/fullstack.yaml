@@ -1,0 +1,45 @@
+label: Full-Stack Product
+description: "Ship features end-to-end with PM, design, and engineering"
+defaultPlatforms:
+  - claude-code
+  - cursor
+  - copilot
+
+name: product-team
+
+agents:
+  - product-manager
+  - team-lead
+  - ux-designer
+  - frontend-dev
+  - backend-dev
+  - qa-engineer
+
+skills:
+  - write-tests
+  - small-commits
+  - secrets-management
+  - database-constraints
+  - idempotent-operations
+  - input-validation-boundary
+  - structured-error-handling
+  - main-thread-discipline
+
+agentSkills:
+  team-lead:
+    - small-commits
+  frontend-dev:
+    - write-tests
+    - input-validation-boundary
+    - structured-error-handling
+    - main-thread-discipline
+  backend-dev:
+    - write-tests
+    - small-commits
+    - secrets-management
+    - database-constraints
+    - idempotent-operations
+    - input-validation-boundary
+    - structured-error-handling
+  qa-engineer:
+    - write-tests

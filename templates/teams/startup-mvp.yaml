@@ -1,0 +1,34 @@
+label: Startup MVP
+description: "Small team to ship an MVP fast with full-stack coverage"
+defaultPlatforms:
+  - claude-code
+  - cursor
+  - codex
+
+name: mvp-team
+
+agents:
+  - product-manager
+  - fullstack-dev
+  - qa-engineer
+
+skills:
+  - write-tests
+  - small-commits
+  - secrets-management
+  - database-constraints
+  - idempotent-operations
+  - input-validation-boundary
+  - structured-error-handling
+
+agentSkills:
+  fullstack-dev:
+    - write-tests
+    - small-commits
+    - secrets-management
+    - database-constraints
+    - idempotent-operations
+    - input-validation-boundary
+    - structured-error-handling
+  qa-engineer:
+    - write-tests

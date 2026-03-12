@@ -1,0 +1,22 @@
+label: Marketing & Growth
+description: "Plan campaigns, create content, and drive growth"
+defaultPlatforms:
+  - claude-code
+  - cursor
+
+name: marketing-team
+
+agents:
+  - marketing-lead
+  - copywriter
+  - seo-specialist
+  - analytics-lead
+
+skills:
+  - brand-voice
+
+agentSkills:
+  marketing-lead:
+    - brand-voice
+  copywriter:
+    - brand-voice

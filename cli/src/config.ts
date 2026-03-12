@@ -2,27 +2,13 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 
-export interface GlobalTeam {
-  teamId: string;
-  platforms: string[];
-  noSync?: boolean;
-}
-
 export interface TeamrcConfig {
   token: string;
   relay: string;
-  trustedRelays?: string[];
   account?: {
     email: string;
   };
   machineName?: string;
-  globalTeam?: GlobalTeam;
-  /** @deprecated Use globalTeam.platforms or .teamrc.yaml platforms instead */
-  platform?: string;
-  /** @deprecated Use globalTeam.teamId or .teamrc.yaml teamId instead */
-  teamId?: string;
-  /** @deprecated Use globalTeam.noSync or .teamrc.yaml noSync instead */
-  noSync?: boolean;
 }
 
 function getConfigDir(): string {
@@ -64,7 +50,7 @@ export function detectPlatforms(): string[] {
     "cursor": () => fs.existsSync(path.join(cwd, ".cursor")),
     "codex": () => fs.existsSync(path.join(home, ".codex")) || fs.existsSync(path.join(cwd, ".codex")),
     "gemini": () => fs.existsSync(path.join(cwd, ".gemini")) || fs.existsSync(path.join(home, ".gemini")),
-    "openclaw": () => fs.existsSync(path.join(home, ".openclaw")),
+    "openclaw": () => fs.existsSync(path.join(home, ".agents")) || fs.existsSync(path.join(cwd, ".agents")),
     "copilot": () => fs.existsSync(path.join(cwd, ".github")),
     "amazon-q": () => fs.existsSync(path.join(home, ".amazonq")) || fs.existsSync(path.join(cwd, ".amazonq")),
     "windsurf": () => fs.existsSync(path.join(cwd, ".windsurf")),

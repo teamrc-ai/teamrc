@@ -1,0 +1,23 @@
+label: Documentation
+description: "Write and maintain technical documentation, API docs, and guides"
+defaultPlatforms:
+  - claude-code
+  - cursor
+
+name: docs-team
+
+agents:
+  - technical-writer
+  - api-docs-writer
+  - onboarding-specialist
+
+skills:
+  - adr-writing
+  - api-documentation
+
+agentSkills:
+  technical-writer:
+    - adr-writing
+  api-docs-writer:
+    - api-documentation
+  onboarding-specialist: []
