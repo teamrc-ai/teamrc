@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Elixir build artifacts
+teamrc/_build
+teamrc/deps
+teamrc/.elixir_ls
+
+# Node/CLI
+cli/node_modules
+cli/dist
+cli/*.tgz
+
+# Test & dev
+teamrc/test
+teamrc/cover
+docs
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config (don't bake secrets into image)
+.env
+.env.*
+!.env.example

@@ -4,7 +4,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { readTeamYaml, writeTeamYaml } from "../team-yaml.js";
-import { resolveAgentSkills } from "../resolve-skills.js";
+import { resolveAgentSkills } from "../adapters/base.js";
 import { resolveBody } from "../team-yaml.js";
 
 describe("integration: full skills flow", () => {

@@ -3,8 +3,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-
-import { execFileSync } from "node:child_process";
 import { Command } from "commander";
 import * as p from "@clack/prompts";
 import {
@@ -13,22 +11,19 @@ import {
   loadKeypair,
   toToken,
 } from "./auth.js";
-import { TeamrcClient, remoteTeamToDefinition } from "./client.js";
+import { TeamrcClient, remoteTeamToDefinition, SyncConflictError } from "./client.js";
+import { computeTeamHashes } from "./sync-hash.js";
 import {
   loadConfig,
   saveConfig,
   detectPlatforms,
   getRelayUrl,
 } from "./config.js";
-import { getAdapter, VALID_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
-import { resolveTeam, listTeams, templateToTeamDefinition, type TeamTemplate } from "./catalog.js";
-import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge } from "./team-yaml.js";
+import { getAdapter, VALID_PLATFORMS, GLOBAL_ONLY_PLATFORMS, PROJECT_ONLY_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
+import { resolveTeam, listTeams, templateToTeamDefinition, listAgentCategories, loadAgent, loadSkill, agentRecommendedSkills, type TeamTemplate } from "./catalog.js";
+import { writeTeamYaml, validateTeamName, readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "./team-yaml.js";
 import type { TeamrcConfig } from "./config.js";
-
-// ---------------------------------------------------------------------------
-// Knowledge size limit
-// ---------------------------------------------------------------------------
-const MAX_KNOWLEDGE_SIZE = 512 * 1024; // 512 KB
+import { buildInviteUrl, openBrowser, openBrowserIfSameOrigin } from "./browser.js";
 
 // ---------------------------------------------------------------------------
 // Global options — parsed from root program, threaded through all commands
@@ -76,7 +71,7 @@ function handleCancel(value: unknown): void {
 // ---------------------------------------------------------------------------
 // Platform resolution with clack multiselect
 // ---------------------------------------------------------------------------
-async function requirePlatforms(override?: string): Promise<string[]> {
+async function requirePlatforms(override?: string, scope?: TeamScope): Promise<string[]> {
   if (override) {
     const requested = override.split(",").map((s) => s.trim()).filter(Boolean);
     for (const pl of requested) {
@@ -101,15 +96,34 @@ async function requirePlatforms(override?: string): Promise<string[]> {
     return detected;
   }
 
-  // Interactive multi-select with detected platforms pre-selected
+  const UNIMPLEMENTED_PLATFORMS = ["copilot", "amazon-q", "windsurf", "cline"];
+  const selectablePlatforms = VALID_PLATFORMS.filter(
+    (pl) => !UNIMPLEMENTED_PLATFORMS.includes(pl),
+  );
+
+  const isDisabled = (pl: string): boolean => {
+    if (scope === "project" && GLOBAL_ONLY_PLATFORMS.includes(pl)) return true;
+    if (scope === "global" && PROJECT_ONLY_PLATFORMS.includes(pl)) return true;
+    return false;
+  };
+
+  const scopeHint = (pl: string): string | undefined => {
+    if (scope === "project" && GLOBAL_ONLY_PLATFORMS.includes(pl)) return "global only";
+    if (scope === "global" && PROJECT_ONLY_PLATFORMS.includes(pl)) return "project only";
+    return detected.includes(pl) ? "detected" : undefined;
+  };
+
   const selected = await p.multiselect({
     message: "Which platforms?",
-    options: VALID_PLATFORMS.map((pl) => ({
+    options: selectablePlatforms.map((pl) => ({
       value: pl,
       label: pl,
-      hint: detected.includes(pl) ? "detected" : undefined,
+      hint: scopeHint(pl),
+      disabled: isDisabled(pl),
     })),
-    initialValues: detected,
+    initialValues: detected.filter(
+      (pl) => !UNIMPLEMENTED_PLATFORMS.includes(pl) && !isDisabled(pl),
+    ),
     required: true,
   });
   handleCancel(selected);
@@ -156,7 +170,13 @@ function requireTeamContext(): TeamContext {
   }
 
   // 1. Try project-level .teamrc.yaml
-  const yamlTeam = readTeamYaml(TEAM_YAML);
+  let yamlTeam;
+  try {
+    yamlTeam = readTeamYaml(TEAM_YAML);
+  } catch (e) {
+    p.log.error(`Failed to parse .teamrc.yaml: ${e instanceof Error ? e.message : e}`);
+    process.exit(1);
+  }
   if (yamlTeam?.teamId) {
     const relay = yamlTeam.relay ?? config.relay;
     const platforms = yamlTeam.platforms ?? detectPlatforms();
@@ -172,7 +192,13 @@ function requireTeamContext(): TeamContext {
   }
 
   // 2. Fall back to global YAML (~/.teamrc/team.yaml)
-  const globalTeam = readTeamYaml(GLOBAL_TEAM_YAML);
+  let globalTeam;
+  try {
+    globalTeam = readTeamYaml(GLOBAL_TEAM_YAML);
+  } catch (e) {
+    p.log.error(`Failed to parse global team.yaml: ${e instanceof Error ? e.message : e}`);
+    process.exit(1);
+  }
   if (globalTeam?.teamId) {
     const relay = globalTeam.relay ?? config.relay;
     const platforms = globalTeam.platforms ?? detectPlatforms();
@@ -194,7 +220,9 @@ function requireTeamContext(): TeamContext {
 // ---------------------------------------------------------------------------
 // Device auth flow with spinner
 // ---------------------------------------------------------------------------
-async function deviceAuthFlow(client: TeamrcClient, machineName: string): Promise<boolean> {
+async function deviceAuthFlow(client: TeamrcClient, machineName: string, relayUrl: string): Promise<boolean> {
+  p.log.info(`Your machine name ("${machineName}") will be visible to the team owner.`);
+
   const s = p.spinner();
 
   let deviceAuth;
@@ -215,21 +243,17 @@ async function deviceAuthFlow(client: TeamrcClient, machineName: string): Promis
     "Authenticate",
   );
 
-  // Try to open browser automatically
-  try {
-    if (deviceAuth.verification_url.startsWith("https://")) {
-      const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
-      execFileSync(openCmd, [deviceAuth.verification_url], { stdio: "ignore" });
-    }
-  } catch {
-    // Ignore - user can open manually
-  }
+  // Only auto-open URLs that point back to the configured relay.
+  openBrowserIfSameOrigin(deviceAuth.verification_url, relayUrl);
 
   s.start("Waiting for confirmation... (press Ctrl-C to cancel)");
 
+  const MAX_EXPIRES_SEC = 600;
+  const MIN_INTERVAL_SEC = 1;
+  const MAX_INTERVAL_SEC = 30;
   const startTime = Date.now();
-  const timeoutMs = deviceAuth.expires_in * 1000;
-  const intervalMs = deviceAuth.interval * 1000;
+  const timeoutMs = Math.min(deviceAuth.expires_in, MAX_EXPIRES_SEC) * 1000;
+  const intervalMs = Math.max(MIN_INTERVAL_SEC, Math.min(deviceAuth.interval, MAX_INTERVAL_SEC)) * 1000;
 
   while (Date.now() - startTime < timeoutMs) {
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
@@ -286,6 +310,13 @@ async function selectScope(opts: { scope?: string; global?: boolean }): Promise<
   });
   handleCancel(scope);
   return scope as TeamScope;
+}
+
+/** Resolve effective scope for a platform (respects global-only and project-only constraints) */
+function effectiveScope(platform: string, scope: TeamScope): TeamScope {
+  if (GLOBAL_ONLY_PLATFORMS.includes(platform)) return "global";
+  if (PROJECT_ONLY_PLATFORMS.includes(platform)) return "project";
+  return scope;
 }
 
 // ---------------------------------------------------------------------------
@@ -367,124 +398,130 @@ program
   .option("--global", "Install as global team (all projects)")
   .option("--name <name>", "Team name")
   .option("--team <id>", "Team template (fullstack, backend, frontend, security, devops, custom, ...)")
-  .action(async (opts: { relay?: string; platform?: string; global?: boolean; name?: string; team?: string }) => {
+  .option("--no-knowledge", "Skip creating the team knowledge file")
+  .action(async (opts: { relay?: string; platform?: string; global?: boolean; name?: string; team?: string; knowledge?: boolean }) => {
     p.intro("teamrc");
 
-    const platforms = await requirePlatforms(opts.platform);
     const scope = await selectScope(opts);
+    const platforms = await requirePlatforms(opts.platform, scope);
+
+    // Guard: refuse to re-init if a team already exists in this scope
+    const yamlPath = scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
+    let existingYaml;
+    try {
+      existingYaml = readTeamYaml(yamlPath);
+    } catch {
+      // Corrupt YAML is treated as not existing — init will overwrite it
+    }
+    if (existingYaml?.teamId) {
+      p.log.error(`Already initialized: "${existingYaml.name}" (${yamlPath}).`);
+      p.log.info(`To add platforms, run: teamrc apply --platform <platforms>`);
+      p.log.info(`To start over, run: teamrc delete`);
+      process.exit(1);
+    }
 
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
     const relayUrl = getRelayUrl(opts.relay);
 
+    // Select a team template
+    const template = await selectTemplate(opts.team);
+    const teamName = opts.name ?? await promptTeamName(template.id === "custom" ? "my-team" : template.teamName);
+    const team = templateToTeamDefinition(template, teamName);
+
+    if (template.id !== "custom") {
+      const memberNames = template.members.map((m) => m.name).join(", ");
+      p.log.info(`${template.members.length} agents: ${memberNames}`);
+    }
+
+    // Create team on relay first — don't write local files until relay succeeds
     const firstAdapter = getAdapter(platforms[0]);
-
-    // Check for existing .teamrc.yaml first (highest precedence)
-    const existingYaml = readTeamYaml(TEAM_YAML);
-
-    let team: TeamDefinition;
-
-    if (existingYaml) {
-      p.log.info(`Found existing .teamrc.yaml: "${existingYaml.name}" with ${existingYaml.members.length} agent(s).`);
-      team = existingYaml;
-      if (opts.name) team.name = opts.name;
-    } else {
-      // Scan ALL platforms for existing teams
-      const platformTeams: Array<{ platform: string; team: TeamDefinition }> = [];
-      for (const pl of platforms) {
-        const adapter = getAdapter(pl);
-        const t = adapter.readTeam();
-        if (t) platformTeams.push({ platform: pl, team: t });
-      }
-
-      if (platformTeams.length > 0) {
-        let selectedTeam: TeamDefinition;
-        if (platformTeams.length === 1 || isNonInteractive()) {
-          selectedTeam = platformTeams[0].team;
-          p.log.info(`Found existing team "${selectedTeam.name}" in ${platformTeams[0].platform}.`);
-        } else {
-          const choice = await p.select({
-            message: "Found existing teams. Which one?",
-            options: platformTeams.map((pt) => ({
-              value: pt.platform,
-              label: `${pt.team.name} (${pt.platform})`,
-              hint: `${pt.team.members.length} agents`,
-            })),
-          });
-          handleCancel(choice);
-          selectedTeam = platformTeams.find((pt) => pt.platform === choice)!.team;
-        }
-        team = selectedTeam;
-        if (opts.name) team.name = opts.name;
-      } else {
-        // No existing team — select a template
-        const template = await selectTemplate(opts.team);
-        const teamName = opts.name ?? await promptTeamName(template.id === "custom" ? "my-team" : template.teamName);
-        team = templateToTeamDefinition(template, teamName);
-
-        if (template.id !== "custom") {
-          const memberNames = template.members.map((m) => m.name).join(", ");
-          p.log.info(`${template.members.length} agents: ${memberNames}`);
-        }
-      }
-    }
-
-    // Apply to each platform's native format
-    const platformSummary: string[] = [];
-    for (const pl of platforms) {
-      const adapter = getAdapter(pl);
-      adapter.writeTeam(team, scope);
-      platformSummary.push(pl);
-    }
-    p.log.step(`Applied to: ${platformSummary.join(", ")}`);
-
-    // Create team knowledge file if it doesn't exist
-    if (!firstAdapter.readKnowledge()) {
-      firstAdapter.writeKnowledge(`# Team Knowledge\n\nShared findings and decisions across team members.\n`);
-    }
-
-    // Create team on relay
     const s = p.spinner();
     const client = new TeamrcClient(relayUrl, kp.privateKey, token);
     try {
       s.start("Creating team on relay...");
-      const knowledge = firstAdapter.readKnowledge();
       const relayTeam = await client.createTeam(
         team.name,
         team.members.map((m) => ({ name: m.name, role: m.role, platform: platforms.join(","), ...(m.skills?.length ? { skills: m.skills } : {}) })),
         team.skills,
-        knowledge || undefined,
       );
       s.stop("Team created.");
 
-      // Write YAML with teamId (project mode) or write to global YAML
+      // Relay succeeded — now write local files
       team.teamId = relayTeam.id;
       team.platforms = platforms;
+      team.relay = relayUrl;
 
-      if (scope === "global") {
-        team.relay = relayUrl;
-        writeTeamYaml(GLOBAL_TEAM_YAML, team);
-        p.log.step(`Wrote ${GLOBAL_TEAM_YAML}`);
-        saveConfig({ relay: relayUrl, token });
-      } else {
-        team.relay = relayUrl;
-        writeTeamYaml(TEAM_YAML, team);
-        p.log.step(`Wrote ${TEAM_YAML}`);
-        saveConfig({ relay: relayUrl, token });
+      // Apply to each platform's native format
+      const platformSummary: string[] = [];
+      for (const pl of platforms) {
+        const adapter = getAdapter(pl);
+        adapter.writeTeam(team, effectiveScope(pl, scope));
+        platformSummary.push(pl);
+      }
+      p.log.step(`Applied to: ${platformSummary.join(", ")}`);
+
+      // Create team knowledge file (unless --no-knowledge)
+      if (opts.knowledge !== false) {
+        if (!firstAdapter.readKnowledge()) {
+          firstAdapter.writeKnowledge(`# Team Knowledge\n\nShared findings and decisions across team members.\n`);
+        }
+
+        // Push knowledge to relay so other machines can pull it
+        const initKnowledge = firstAdapter.readKnowledge();
+        if (initKnowledge) {
+          await client.pushTeam(team, initKnowledge);
+        }
       }
 
-      // Offer account linking
-      if (!isNonInteractive()) {
-        const shouldLink = await p.confirm({
-          message: "Link your account? (optional, for recovery & dashboard)",
-          initialValue: false,
-        });
-        handleCancel(shouldLink);
-        if (shouldLink) {
-          const machineName = os.hostname();
-          await deviceAuthFlow(client, machineName);
-        } else {
-          p.log.info("Tip: Run `teamrc login` anytime to link your account.");
+      // Write YAML
+      const yamlPath = scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
+      writeTeamYaml(yamlPath, team);
+      p.log.step(`Wrote ${yamlPath}`);
+      saveConfig({ relay: relayUrl, token });
+
+      // Show ownership token and offer to claim now
+      if (relayTeam.owner_claim_secret) {
+        p.note(
+          `${relayTeam.owner_claim_secret}\n\nThe owner can make this team publicly cloneable\nwith \`teamrc share\`.`,
+          "Ownership token — save this somewhere safe",
+        );
+
+        if (!isNonInteractive()) {
+          const shouldClaim = await p.confirm({
+            message: "Claim ownership now? (links your account)",
+            initialValue: false,
+          });
+          handleCancel(shouldClaim);
+          if (shouldClaim) {
+            const machineName = os.hostname();
+            const success = await deviceAuthFlow(client, machineName, relayUrl);
+            if (success) {
+              try {
+                await client.claimOwnership(relayTeam.owner_claim_secret);
+                p.log.step("Ownership claimed.");
+              } catch {
+                p.log.warn("Account linked, but ownership claim failed. Run `teamrc claim <token>` later.");
+              }
+            }
+          } else {
+            p.log.info("Run `teamrc claim <token>` anytime to claim ownership.");
+          }
+        }
+      } else {
+        // Fallback: offer account linking without ownership
+        if (!isNonInteractive()) {
+          const shouldLink = await p.confirm({
+            message: "Link your account? (optional, for recovery & dashboard)",
+            initialValue: false,
+          });
+          handleCancel(shouldLink);
+          if (shouldLink) {
+            const machineName = os.hostname();
+            await deviceAuthFlow(client, machineName, relayUrl);
+          } else {
+            p.log.info("Tip: Run `teamrc login` anytime to link your account.");
+          }
         }
       }
 
@@ -503,13 +540,13 @@ program
         );
       }
 
+      p.log.info("Tip: Run `teamrc dashboard` to open this team in your browser.");
       p.outro("Customize agents and skills in .teamrc.yaml, then run teamrc apply");
     } catch (err) {
       s.error("Failed to create team on relay.");
       p.log.warn(`Relay error: ${(err as Error).message}`);
-      saveConfig({ relay: relayUrl, token });
-      p.log.info("Configuration saved (relay unreachable).");
-      p.outro("Team created locally. Relay sync will resume when available.");
+      p.log.info("No local files were created.");
+      p.outro("Check your relay connection and re-run `teamrc init`.");
     }
   });
 
@@ -517,15 +554,16 @@ program
 program
   .command("join")
   .description("Join an existing team and create local agents")
-  .argument("<token>", "Team invitation token")
+  .argument("<invite-code>", "Team invitation code")
   .option("--relay <url>", "Relay server URL")
   .option("--platform <platform>", "Override platform detection")
   .option("--global", "Join as global team")
-  .action(async (joinToken: string, opts: { relay?: string; platform?: string; global?: boolean }) => {
+  .option("--no-knowledge", "Skip creating the team knowledge file")
+  .action(async (inviteCode: string, opts: { relay?: string; platform?: string; global?: boolean; knowledge?: boolean }) => {
     p.intro("teamrc");
 
-    const platforms = await requirePlatforms(opts.platform);
     const scope = await selectScope(opts);
+    const platforms = await requirePlatforms(opts.platform, scope);
 
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
@@ -535,7 +573,7 @@ program
     const s = p.spinner();
     try {
       s.start("Joining team...");
-      const joinedTeam = await client.joinByInvite(joinToken);
+      const joinedTeam = await client.joinByInvite(inviteCode);
       s.stop(`Joined "${joinedTeam.name}" (${joinedTeam.members.length} members)`);
 
       const teamDef = remoteTeamToDefinition(joinedTeam);
@@ -554,7 +592,7 @@ program
       const appliedLines: string[] = [];
       for (const pl of platforms) {
         const adapter = getAdapter(pl);
-        adapter.writeTeam(teamDef, scope);
+        adapter.writeTeam(teamDef, effectiveScope(pl, scope));
         const skillCount = teamDef.skills?.length ?? 0;
         const detail = skillCount > 0
           ? `${teamDef.members.length} agents, ${skillCount} skills`
@@ -564,20 +602,21 @@ program
       s2.stop("Applied.");
       p.log.info(appliedLines.join("\n"));
 
-      // Create team knowledge file if it doesn't exist
-      const joinAdapter = getAdapter(platforms[0]);
-      if (!joinAdapter.readKnowledge()) {
-        joinAdapter.writeKnowledge(`# Team Knowledge\n\nShared findings and decisions across team members.\n`);
-      }
+      // Create team knowledge file and merge from relay (unless --no-knowledge)
+      if (opts.knowledge !== false) {
+        const joinAdapter = getAdapter(platforms[0]);
+        if (!joinAdapter.readKnowledge()) {
+          joinAdapter.writeKnowledge(`# Team Knowledge\n\nShared findings and decisions across team members.\n`);
+        }
 
-      // Merge knowledge from relay
-      if (joinedTeam.knowledge) {
-        const localKnowledge = joinAdapter.readKnowledge();
-        const merged = mergeKnowledge(localKnowledge, joinedTeam.knowledge);
-        if (merged.length <= MAX_KNOWLEDGE_SIZE) {
-          joinAdapter.writeKnowledge(merged);
-        } else {
-          p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
+        if (joinedTeam.knowledge) {
+          const localKnowledge = joinAdapter.readKnowledge();
+          const merged = mergeKnowledge(joinedTeam.knowledge, localKnowledge);
+          if (merged.length <= MAX_KNOWLEDGE_SIZE) {
+            joinAdapter.writeKnowledge(merged);
+          } else {
+            p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
+          }
         }
       }
 
@@ -605,12 +644,13 @@ program
         handleCancel(shouldLink);
         if (shouldLink) {
           const machineName = os.hostname();
-          await deviceAuthFlow(client, machineName);
+          await deviceAuthFlow(client, machineName, relayUrl);
         } else {
           p.log.info("Tip: Run `teamrc login` anytime to link your account.");
         }
       }
 
+      p.log.info("Tip: Run `teamrc dashboard` to manage this team in your browser.");
       p.outro("Next: Run teamrc daemon to start live sync");
     } catch (err) {
       s.error("Failed to join team.");
@@ -629,14 +669,28 @@ program
   .action(async (opts: { platform?: string; scope?: string; global?: boolean }) => {
     p.intro("teamrc");
 
-    const platforms = await requirePlatforms(opts.platform);
-    const team = readTeamYaml(TEAM_YAML);
+    const scope = await selectScope(opts);
+    const platforms = await requirePlatforms(opts.platform, scope);
+    let team;
+    try {
+      team = readTeamYaml(TEAM_YAML);
+    } catch (e) {
+      p.log.error(`Failed to parse .teamrc.yaml: ${e instanceof Error ? e.message : e}`);
+      process.exit(1);
+    }
+    if (!team) {
+      // Fall back to global YAML
+      try {
+        team = readTeamYaml(GLOBAL_TEAM_YAML);
+      } catch (e) {
+        p.log.error(`Failed to parse global team.yaml: ${e instanceof Error ? e.message : e}`);
+        process.exit(1);
+      }
+    }
     if (!team) {
       p.log.error("No .teamrc.yaml found. Run `teamrc init` or `teamrc import <platform>` first.");
       process.exit(1);
     }
-
-    const scope = await selectScope(opts);
 
     const s = p.spinner();
     s.start(`Applying "${team.name}" to ${platforms.length} platform(s)...`);
@@ -644,7 +698,7 @@ program
     const appliedLines: string[] = [];
     for (const pl of platforms) {
       const adapter = getAdapter(pl);
-      adapter.writeTeam(team, scope);
+      adapter.writeTeam(team, effectiveScope(pl, scope));
       const skillCount = team.skills?.length ?? 0;
       const parts = [`${team.members.length} agents`];
       if (skillCount > 0) parts.push(`${skillCount} skills`);
@@ -690,18 +744,8 @@ program
   .action(async (opts: { json?: boolean }) => {
     const useJson = opts.json ?? globals().json;
     const ctx = requireTeamContext();
-    const { config, client } = ctx;
+    const { client } = ctx;
     const adapter = ctx.adapters[0];
-
-    const localTeam = adapter.readTeam();
-    if (!localTeam) {
-      if (useJson) {
-        jsonOutput({ error: "no local team agents found" });
-      } else {
-        p.log.error("No local team agents found.");
-      }
-      process.exit(1);
-    }
 
     const s = p.spinner();
     try {
@@ -710,47 +754,99 @@ program
         s.start("Comparing local and relay...");
       }
 
-      const remoteTeam = await client.getTeam(config.token);
+      // Compute local hashes from current state
+      const localKnowledge = adapter.readKnowledge();
+      const localHashes = computeTeamHashes(ctx.team, localKnowledge);
 
-      const localAgents = new Map(localTeam.members.map((m) => [m.name, m.role]));
+      // Fetch remote hashes (lightweight HEAD request)
+      const remoteHead = await client.getTeamHead();
+
+      // Fast path: hashes match, everything in sync
+      if (localHashes.hash === remoteHead.hash) {
+        if (useJson) {
+          jsonOutput({ added: [], removed: [], changed: [], knowledgeDiff: false, skillsAdded: [], skillsRemoved: [] });
+          return;
+        }
+        s.stop(`Comparing local <-> relay for "${ctx.team.name}"`);
+        p.log.success("No differences between local and relay.");
+        p.outro("Everything in sync.");
+        return;
+      }
+
+      // Hashes differ — identify which sections changed
+      const membersDiffer = localHashes.membersHash !== remoteHead.members_hash;
+      const skillsDiffer = localHashes.skillsHash !== remoteHead.skills_hash;
+      const knowledgeDiffers = localHashes.knowledgeHash !== remoteHead.knowledge_hash;
+
+      // Fetch full remote team for detailed diff
+      const remoteTeam = await client.getTeam();
+
+      // --- Members diff ---
+      const localAgents = new Map(ctx.team.members.map((m) => [m.name, m.role]));
       const remoteAgents = new Map(remoteTeam.members.map((m) => [m.name, m.role]));
-
       const added: string[] = [];
       const removed: string[] = [];
       const changed: string[] = [];
-      const teamNameDiff = localTeam.name !== remoteTeam.name
-        ? { local: localTeam.name, remote: remoteTeam.name }
+
+      if (membersDiffer) {
+        for (const [name, role] of localAgents) {
+          if (!remoteAgents.has(name)) {
+            added.push(name);
+          } else if (remoteAgents.get(name) !== role) {
+            changed.push(name);
+          }
+        }
+        for (const [name] of remoteAgents) {
+          if (!localAgents.has(name)) {
+            removed.push(name);
+          }
+        }
+      }
+
+      // --- Skills diff ---
+      const localSkills = new Map((ctx.team.skills || []).map((sk) => [sk.id, sk]));
+      const remoteSkills = new Map((remoteTeam.skills || []).map((sk) => [sk.id, sk]));
+      const skillsAdded: string[] = [];
+      const skillsRemoved: string[] = [];
+
+      if (skillsDiffer) {
+        for (const [id] of localSkills) {
+          if (!remoteSkills.has(id)) skillsAdded.push(id);
+        }
+        for (const [id] of remoteSkills) {
+          if (!localSkills.has(id)) skillsRemoved.push(id);
+        }
+      }
+
+      // --- Team name diff ---
+      const teamNameDiff = ctx.team.name !== remoteTeam.name
+        ? { local: ctx.team.name, remote: remoteTeam.name }
         : null;
 
-      for (const [name, role] of localAgents) {
-        if (!remoteAgents.has(name)) {
-          added.push(name);
-        } else if (remoteAgents.get(name) !== role) {
-          changed.push(name);
-        }
-      }
-
-      for (const [name] of remoteAgents) {
-        if (!localAgents.has(name)) {
-          removed.push(name);
-        }
-      }
-
       if (useJson) {
-        const result: Record<string, unknown> = { added, removed, changed };
+        const result: Record<string, unknown> = {
+          added, removed, changed,
+          knowledgeDiff: knowledgeDiffers,
+          skillsAdded, skillsRemoved,
+        };
         if (teamNameDiff) result.teamName = teamNameDiff;
         jsonOutput(result);
         return;
       }
 
-      s.stop(`Comparing local <-> relay for "${localTeam.name}"`);
+      s.stop(`Comparing local <-> relay for "${ctx.team.name}"`);
 
-      const totalDiffs = added.length + removed.length + changed.length + (teamNameDiff ? 1 : 0);
+      const totalDiffs = added.length + removed.length + changed.length + (teamNameDiff ? 1 : 0) +
+        (knowledgeDiffers ? 1 : 0) + skillsAdded.length + skillsRemoved.length;
 
-      if (totalDiffs === 0) {
-        p.log.success("No differences between local and relay.");
-        p.outro("Everything in sync.");
-        return;
+      // Members changed but no individual field diffs found (e.g. soul/skills changed)
+      if (membersDiffer && added.length === 0 && removed.length === 0 && changed.length === 0) {
+        p.log.info("Members\n  ~ members hash differs (soul or skill assignments changed)");
+      }
+
+      // Skills changed but same set of IDs (e.g. body/description changed)
+      if (skillsDiffer && skillsAdded.length === 0 && skillsRemoved.length === 0) {
+        p.log.info("Skills\n  ~ skills hash differs (content changed)");
       }
 
       const diffLines: string[] = [];
@@ -767,8 +863,30 @@ program
         diffLines.push(`  - ${name} (${remoteAgents.get(name)})  relay only`);
       }
 
-      p.log.info("Members\n" + diffLines.join("\n"));
-      p.outro(`${totalDiffs} difference(s). Run teamrc sync to resolve.`);
+      if (diffLines.length > 0) p.log.info("Members\n" + diffLines.join("\n"));
+
+      if (skillsAdded.length || skillsRemoved.length) {
+        const skillLines: string[] = [];
+        for (const id of skillsAdded) skillLines.push(`  + ${id}  local only`);
+        for (const id of skillsRemoved) skillLines.push(`  - ${id}  relay only`);
+        p.log.info("Skills\n" + skillLines.join("\n"));
+      }
+
+      if (knowledgeDiffers) {
+        const localLen = localKnowledge.trim().length;
+        const remoteLen = (remoteTeam.knowledge || "").trim().length;
+        if (!localKnowledge.trim()) {
+          p.log.info(`Knowledge\n  + relay has knowledge (${remoteLen} chars), local is empty`);
+        } else if (!(remoteTeam.knowledge || "").trim()) {
+          p.log.info(`Knowledge\n  + local has knowledge (${localLen} chars), relay is empty`);
+        } else {
+          p.log.info(`Knowledge\n  ~ local (${localLen} chars) differs from relay (${remoteLen} chars)`);
+        }
+      }
+
+      const effectiveDiffs = (membersDiffer ? 1 : 0) + (skillsDiffer ? 1 : 0) +
+        (knowledgeDiffers ? 1 : 0) + (teamNameDiff ? 1 : 0);
+      p.outro(`${effectiveDiffs} section(s) differ. Run teamrc sync to resolve.`);
     } catch (err) {
       if (!useJson) s.error("Failed to fetch relay state.");
       if (useJson) {
@@ -791,39 +909,188 @@ program
     p.intro("teamrc");
 
     const ctx = requireTeamContext();
-    const { client, config } = ctx;
-    const platforms = await requirePlatforms(opts.platform);
-    const scope = await selectScope(opts);
+    const { client } = ctx;
+    const scope = opts.global ? "global" : (opts.scope as TeamScope) ?? ctx.scope;
+    const platforms = opts.platform
+      ? opts.platform.split(",").map((s) => s.trim()).filter(Boolean)
+      : ctx.platforms;
     const adapter = ctx.adapters[0];
 
     const s = p.spinner();
     try {
-      // Push: send local definition + knowledge to relay
-      s.start("Pushing to relay...");
+      // 1. Read local state
       const team = readTeamYaml(TEAM_YAML);
       if (!team) {
         s.stop("No .teamrc.yaml found.");
         process.exit(1);
       }
       const knowledge = adapter.readKnowledge();
-      await client.pushTeam(team, knowledge || undefined);
-      s.stop("Pushed.");
+      const localHashes = computeTeamHashes(team, knowledge || undefined);
+      const lastSyncHash = team.syncHash;
 
-      // Pull: get latest from relay
-      s.start("Pulling from relay...");
-      const remoteTeam = await client.getTeam(config.token);
+      // 2. Get server hashes
+      s.start("Checking sync state...");
+      const serverHead = await client.getTeamHead();
+
+      if (localHashes.hash === serverHead.hash) {
+        // a. Already in sync
+        s.stop("Already in sync.");
+        p.outro("Done.");
+        return;
+      }
+
+      if (!lastSyncHash) {
+        // b. Never synced — push unconditionally (no base_hash)
+        s.start("First sync: pushing to relay...");
+        const pushResult = await client.pushTeam(team, knowledge || undefined);
+        const newHead = await client.getTeamHead();
+        team.syncHash = newHead.hash;
+        team.syncHashMembers = newHead.members_hash;
+        team.syncHashSkills = newHead.skills_hash;
+        team.syncHashKnowledge = newHead.knowledge_hash;
+        writeTeamYaml(TEAM_YAML, team);
+        s.stop("Pushed (first sync).");
+        p.outro("Synced.");
+        return;
+      }
+
+      const localChanged = localHashes.hash !== lastSyncHash;
+      const serverChanged = serverHead.hash !== lastSyncHash;
+
+      if (!serverChanged && localChanged) {
+        // c. Server unchanged, local changed — push with base_hash
+        // Merge knowledge (append-only) so local edits don't overwrite remote knowledge
+        s.start("Pushing local changes...");
+        let pushKnowledge = knowledge || undefined;
+        if (localHashes.knowledgeHash !== serverHead.knowledge_hash) {
+          const remoteTeam = await client.getTeam();
+          if (remoteTeam.knowledge) {
+            const merged = mergeKnowledge(remoteTeam.knowledge, knowledge);
+            if (merged.length <= MAX_KNOWLEDGE_SIZE) {
+              pushKnowledge = merged;
+              adapter.writeKnowledge(merged);
+            }
+          }
+        }
+        await client.pushTeam(team, pushKnowledge, undefined, lastSyncHash);
+        const newHead = await client.getTeamHead();
+        team.syncHash = newHead.hash;
+        team.syncHashMembers = newHead.members_hash;
+        team.syncHashSkills = newHead.skills_hash;
+        team.syncHashKnowledge = newHead.knowledge_hash;
+        writeTeamYaml(TEAM_YAML, team);
+        s.stop("Pushed local changes.");
+        p.outro("Synced.");
+        return;
+      }
+
+      if (serverChanged && !localChanged) {
+        // d. Local unchanged, server changed — pull
+        s.start("Pulling remote changes...");
+        const remoteTeam = await client.getTeam();
+        validateTeamName(remoteTeam.name);
+        const remoteDef = remoteTeamToDefinition(remoteTeam);
+
+        remoteDef.teamId = ctx.team.teamId;
+        remoteDef.relay = ctx.team.relay;
+        remoteDef.platforms = ctx.team.platforms;
+
+        // Store sync hashes
+        remoteDef.syncHash = serverHead.hash;
+        remoteDef.syncHashMembers = serverHead.members_hash;
+        remoteDef.syncHashSkills = serverHead.skills_hash;
+        remoteDef.syncHashKnowledge = serverHead.knowledge_hash;
+
+        if (remoteTeam.knowledge) {
+          const localKnowledge = adapter.readKnowledge();
+          const merged = mergeKnowledge(remoteTeam.knowledge, localKnowledge);
+          if (merged.length <= MAX_KNOWLEDGE_SIZE) {
+            adapter.writeKnowledge(merged);
+          } else {
+            p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
+          }
+        }
+
+        writeTeamYaml(TEAM_YAML, remoteDef);
+        for (const pl of platforms) {
+          const a = getAdapter(pl);
+          a.writeTeam(remoteDef, effectiveScope(pl, scope));
+        }
+        s.stop("Pulled and applied remote changes.");
+        p.outro("Synced.");
+        return;
+      }
+
+      // e. Both changed — diverged
+      const onlyKnowledgeDiffers =
+        localHashes.membersHash === serverHead.members_hash &&
+        localHashes.skillsHash === serverHead.skills_hash &&
+        localHashes.knowledgeHash !== serverHead.knowledge_hash;
+
+      if (onlyKnowledgeDiffers) {
+        // Push knowledge, then pull
+        s.start("Syncing knowledge...");
+        try {
+          await client.pushTeam(team, knowledge || undefined, undefined, lastSyncHash);
+        } catch (err) {
+          if (err instanceof SyncConflictError) {
+            // Fall through to pull
+          } else {
+            throw err;
+          }
+        }
+        const remoteTeam = await client.getTeam();
+        validateTeamName(remoteTeam.name);
+        const remoteDef = remoteTeamToDefinition(remoteTeam);
+        remoteDef.teamId = ctx.team.teamId;
+        remoteDef.relay = ctx.team.relay;
+        remoteDef.platforms = ctx.team.platforms;
+
+        const newHead = await client.getTeamHead();
+        remoteDef.syncHash = newHead.hash;
+        remoteDef.syncHashMembers = newHead.members_hash;
+        remoteDef.syncHashSkills = newHead.skills_hash;
+        remoteDef.syncHashKnowledge = newHead.knowledge_hash;
+
+        if (remoteTeam.knowledge) {
+          const localKnowledge = adapter.readKnowledge();
+          const merged = mergeKnowledge(remoteTeam.knowledge, localKnowledge);
+          if (merged.length <= MAX_KNOWLEDGE_SIZE) {
+            adapter.writeKnowledge(merged);
+          } else {
+            p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
+          }
+        }
+
+        writeTeamYaml(TEAM_YAML, remoteDef);
+        for (const pl of platforms) {
+          const a = getAdapter(pl);
+          a.writeTeam(remoteDef, effectiveScope(pl, scope));
+        }
+        s.stop("Synced knowledge and pulled.");
+        p.outro("Synced.");
+        return;
+      }
+
+      // Members/skills differ on both sides — pull first, warn user
+      s.start("Both sides changed. Pulling remote first...");
+      p.log.warn("Both local and remote have changes. Pulling remote changes first. Run `teamrc push` to push local changes.");
+      const remoteTeam = await client.getTeam();
       validateTeamName(remoteTeam.name);
       const remoteDef = remoteTeamToDefinition(remoteTeam);
 
-      // Preserve local YAML metadata
       remoteDef.teamId = ctx.team.teamId;
       remoteDef.relay = ctx.team.relay;
       remoteDef.platforms = ctx.team.platforms;
 
-      // Merge knowledge (append-only dedup)
+      remoteDef.syncHash = serverHead.hash;
+      remoteDef.syncHashMembers = serverHead.members_hash;
+      remoteDef.syncHashSkills = serverHead.skills_hash;
+      remoteDef.syncHashKnowledge = serverHead.knowledge_hash;
+
       if (remoteTeam.knowledge) {
         const localKnowledge = adapter.readKnowledge();
-        const merged = mergeKnowledge(localKnowledge, remoteTeam.knowledge);
+        const merged = mergeKnowledge(remoteTeam.knowledge, localKnowledge);
         if (merged.length <= MAX_KNOWLEDGE_SIZE) {
           adapter.writeKnowledge(merged);
         } else {
@@ -832,15 +1099,12 @@ program
       }
 
       writeTeamYaml(TEAM_YAML, remoteDef);
-
-      // Apply to platforms
       for (const pl of platforms) {
         const a = getAdapter(pl);
-        a.writeTeam(remoteDef, scope);
+        a.writeTeam(remoteDef, effectiveScope(pl, scope));
       }
-      s.stop("Pulled and applied.");
-
-      p.outro("Synced.");
+      s.stop("Pulled remote changes.");
+      p.outro("Synced. Run `teamrc push` to push local changes.");
     } catch (err) {
       s.stop("Sync failed.");
       p.log.error((err as Error).message);
@@ -859,7 +1123,13 @@ program
     const { client } = ctx;
     const adapter = ctx.adapters[0];
 
-    const team = readTeamYaml(TEAM_YAML);
+    let team;
+    try {
+      team = readTeamYaml(TEAM_YAML);
+    } catch (e) {
+      p.log.error(`Failed to parse .teamrc.yaml: ${e instanceof Error ? e.message : e}`);
+      process.exit(1);
+    }
     if (!team) {
       p.log.error("No .teamrc.yaml found. Run `teamrc init` first.");
       process.exit(1);
@@ -869,12 +1139,38 @@ program
     try {
       s.start("Pushing to relay...");
       const knowledge = adapter.readKnowledge();
-      await client.pushTeam(team, knowledge || undefined);
+      const baseHash = team.syncHash;
+
+      // Merge knowledge (append-only) so local edits don't overwrite remote knowledge
+      let pushKnowledge = knowledge || undefined;
+      const remoteTeam = await client.getTeam();
+      if (remoteTeam.knowledge) {
+        const merged = mergeKnowledge(remoteTeam.knowledge, knowledge);
+        if (merged.length <= MAX_KNOWLEDGE_SIZE) {
+          pushKnowledge = merged;
+          adapter.writeKnowledge(merged);
+        }
+      }
+
+      await client.pushTeam(team, pushKnowledge, undefined, baseHash);
+
+      // Update sync hashes after successful push
+      const newHead = await client.getTeamHead();
+      team.syncHash = newHead.hash;
+      team.syncHashMembers = newHead.members_hash;
+      team.syncHashSkills = newHead.skills_hash;
+      team.syncHashKnowledge = newHead.knowledge_hash;
+      writeTeamYaml(TEAM_YAML, team);
+
       s.stop("Pushed team definition and knowledge.");
       p.outro("Done.");
     } catch (err) {
       s.stop("Push failed.");
-      p.log.error((err as Error).message);
+      if (err instanceof SyncConflictError) {
+        p.log.error("Remote has changes. Run `teamrc pull` first.");
+      } else {
+        p.log.error((err as Error).message);
+      }
       process.exit(1);
     }
   });
@@ -899,8 +1195,22 @@ program
       return;
     }
 
-    const yamlTeam = readTeamYaml(TEAM_YAML);
-    const globalYaml = !yamlTeam ? readTeamYaml(GLOBAL_TEAM_YAML) : null;
+    let yamlTeam;
+    try {
+      yamlTeam = readTeamYaml(TEAM_YAML);
+    } catch (e) {
+      p.log.error(`Failed to parse .teamrc.yaml: ${e instanceof Error ? e.message : e}`);
+      process.exit(1);
+    }
+    let globalYaml = null;
+    if (!yamlTeam) {
+      try {
+        globalYaml = readTeamYaml(GLOBAL_TEAM_YAML);
+      } catch (e) {
+        p.log.error(`Failed to parse global team.yaml: ${e instanceof Error ? e.message : e}`);
+        process.exit(1);
+      }
+    }
     const activeTeam = yamlTeam ?? globalYaml;
     const teamId = activeTeam?.teamId ?? null;
     const platformStr = activeTeam?.platforms?.join(",") ?? detectPlatforms()[0] ?? "claude-code";
@@ -908,16 +1218,38 @@ program
     const adapter = getAdapter(activePlatform);
     const localTeam = activeTeam;
 
-    // Check relay state
-    let remoteTeam = null;
+    // Check relay state and compute sync status
     let relayConnected = false;
-    if (teamId) {
+    let syncStatus = "unknown";
+    let serverHash: string | null = null;
+    let localHash: string | null = null;
+    if (teamId && localTeam) {
       const kp = loadKeypair();
       if (kp) {
-        const client = new TeamrcClient(config.relay, kp.privateKey, config.token);
+        const client = new TeamrcClient(config.relay, kp.privateKey, config.token, teamId);
+
+        // Compute local hashes
+        const knowledge = adapter.readKnowledge();
+        const localHashes = computeTeamHashes(localTeam, knowledge || undefined);
+        localHash = localHashes.hash;
+
         try {
-          remoteTeam = await client.getTeam(config.token);
+          const head = await client.getTeamHead();
           relayConnected = true;
+          serverHash = head.hash;
+
+          const lastSyncHash = localTeam.syncHash;
+          if (localHashes.hash === head.hash) {
+            syncStatus = "in sync";
+          } else if (!lastSyncHash) {
+            syncStatus = "never synced";
+          } else if (head.hash === lastSyncHash && localHashes.hash !== lastSyncHash) {
+            syncStatus = "local changes";
+          } else if (localHashes.hash === lastSyncHash && head.hash !== lastSyncHash) {
+            syncStatus = "remote changes";
+          } else {
+            syncStatus = "diverged";
+          }
         } catch {
           // relay unreachable
         }
@@ -933,7 +1265,9 @@ program
         platform: platformStr,
         teamId,
         localTeam: localTeam ?? null,
-        remoteTeam: remoteTeam ?? null,
+        syncHash: localHash,
+        serverHash,
+        syncStatus,
       });
       return;
     }
@@ -956,10 +1290,14 @@ program
       const memberLines = localTeam.members.map(
         (m) => `  ${m.name.padEnd(14)} ${m.role}`,
       );
+      const hashLine = localHash
+        ? `Hash       ${localHash.slice(0, 12)}... (${syncStatus})`
+        : `Hash       none`;
       p.note(
         [
           `Team ID    ${teamId ?? "none"}`,
           `Platforms  ${platformStr}`,
+          hashLine,
           `Members    ${localTeam.members.length} agents`,
           ...memberLines,
         ].join("\n"),
@@ -969,20 +1307,7 @@ program
       p.log.warn("No local team agents found.");
     }
 
-    // Remote team info
-    if (remoteTeam) {
-      const memberLines = remoteTeam.members.map(
-        (m) => `  ${m.name.padEnd(14)} ${m.role} (${m.platform ?? "all"})`,
-      );
-      p.note(
-        memberLines.join("\n"),
-        `Relay team: ${remoteTeam.name}`,
-      );
-    } else if (teamId) {
-      p.log.warn("Relay unreachable.");
-    }
-
-    p.outro("");
+    p.outro("Done.");
   });
 
 // --- daemon ---
@@ -1036,7 +1361,7 @@ program
     const s = p.spinner();
     try {
       s.start("Fetching team from relay...");
-      const remoteTeam = await client.getTeam(config.token);
+      const remoteTeam = await client.getTeam();
       validateTeamName(remoteTeam.name);
       const team = remoteTeamToDefinition(remoteTeam);
       writeTeamYaml(TEAM_YAML, team);
@@ -1059,50 +1384,111 @@ program
   .action(async (opts: { platform?: string; scope?: string; global?: boolean }) => {
     p.intro("teamrc");
 
-    const ctx = requireTeamContext();
-    const { config, client } = ctx;
-    const platforms = await requirePlatforms(opts.platform);
-    const scope = await selectScope(opts);
-    const adapter = ctx.adapters[0];
+    // Check for clone-only teams (no teamId, but has cloneToken)
+    const projectYaml = readTeamYaml(TEAM_YAML);
+    const globalYaml = readTeamYaml(GLOBAL_TEAM_YAML);
+    const localYaml = projectYaml ?? globalYaml;
+    const isClone = !localYaml?.teamId && !!localYaml?.cloneToken;
 
-    const s = p.spinner();
-    try {
-      s.start("Pulling from relay...");
-      const remoteTeam = await client.getTeam(config.token);
-      validateTeamName(remoteTeam.name);
-      const team = remoteTeamToDefinition(remoteTeam);
+    if (isClone) {
+      // Clone pull: read-only fetch via clone token, no knowledge
+      const scope = await selectScope(opts);
+      const platforms = await requirePlatforms(opts.platform, scope);
+      const relayUrl = localYaml!.relay ?? getRelayUrl();
+      const kp = await requireKeypair();
+      const client = new TeamrcClient(relayUrl, kp.privateKey, toToken(kp.publicKey));
 
-      // Preserve local YAML metadata
-      team.teamId = ctx.team.teamId;
-      team.relay = ctx.team.relay;
-      team.platforms = ctx.team.platforms;
+      const s = p.spinner();
+      try {
+        s.start("Pulling from relay (read-only)...");
+        const remoteTeam = await client.cloneByToken(localYaml!.cloneToken!);
+        validateTeamName(remoteTeam.name);
+        const team = remoteTeamToDefinition(remoteTeam);
 
-      // Merge knowledge
-      if (remoteTeam.knowledge) {
-        const localKnowledge = adapter.readKnowledge();
-        const merged = mergeKnowledge(localKnowledge, remoteTeam.knowledge);
-        if (merged.length <= MAX_KNOWLEDGE_SIZE) {
-          adapter.writeKnowledge(merged);
-        } else {
-          p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
+        // Preserve local metadata
+        team.cloneToken = localYaml!.cloneToken;
+        team.relay = localYaml!.relay;
+        team.platforms = localYaml!.platforms;
+
+        const yamlPath = projectYaml ? TEAM_YAML : GLOBAL_TEAM_YAML;
+        writeTeamYaml(yamlPath, team);
+        s.stop(`Pulled "${team.name}" (${team.members.length} agents, read-only).`);
+
+        for (const pl of platforms) {
+          const a = getAdapter(pl);
+          a.writeTeam(team, effectiveScope(pl, scope));
+          p.log.step(`Applied to ${pl} (${effectiveScope(pl, scope)} scope).`);
         }
+
+        p.outro("Done. Knowledge is not synced for cloned teams.");
+      } catch (err) {
+        s.error("Pull failed.");
+        p.log.error((err as Error).message);
+        process.exit(1);
       }
+    } else {
+      // Full member pull
+      const ctx = requireTeamContext();
+      const { client } = ctx;
+      const scope = opts.global ? "global" : (opts.scope as TeamScope) ?? ctx.scope;
+      const platforms = opts.platform
+        ? opts.platform.split(",").map((s) => s.trim()).filter(Boolean)
+        : ctx.platforms;
+      const adapter = ctx.adapters[0];
 
-      writeTeamYaml(TEAM_YAML, team);
-      s.stop(`Pulled "${team.name}" (${team.members.length} agents).`);
+      const s = p.spinner();
+      try {
+        // Check if already up to date via hash comparison
+        const head = await client.getTeamHead();
+        if (head.hash === ctx.team.syncHash) {
+          p.log.info("Already up to date.");
+          p.outro("Done.");
+          return;
+        }
 
-      // Apply to platforms
-      for (const pl of platforms) {
-        const a = getAdapter(pl);
-        a.writeTeam(team, scope);
-        p.log.step(`Applied to ${pl} (${scope} scope).`);
+        s.start("Pulling from relay...");
+        const remoteTeam = await client.getTeam();
+        validateTeamName(remoteTeam.name);
+        const team = remoteTeamToDefinition(remoteTeam);
+
+        // Preserve local YAML metadata
+        team.teamId = ctx.team.teamId;
+        team.relay = ctx.team.relay;
+        team.platforms = ctx.team.platforms;
+
+        // Store sync hashes
+        team.syncHash = head.hash;
+        team.syncHashMembers = head.members_hash;
+        team.syncHashSkills = head.skills_hash;
+        team.syncHashKnowledge = head.knowledge_hash;
+
+        // Merge knowledge (members only)
+        if (remoteTeam.knowledge) {
+          const localKnowledge = adapter.readKnowledge();
+          const merged = mergeKnowledge(remoteTeam.knowledge, localKnowledge);
+          if (merged.length <= MAX_KNOWLEDGE_SIZE) {
+            adapter.writeKnowledge(merged);
+          } else {
+            p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
+          }
+        }
+
+        writeTeamYaml(TEAM_YAML, team);
+        s.stop(`Pulled "${team.name}" (${team.members.length} agents).`);
+
+        // Apply to platforms
+        for (const pl of platforms) {
+          const a = getAdapter(pl);
+          a.writeTeam(team, effectiveScope(pl, scope));
+          p.log.step(`Applied to ${pl} (${effectiveScope(pl, scope)} scope).`);
+        }
+
+        p.outro("Done.");
+      } catch (err) {
+        s.error("Pull failed.");
+        p.log.error((err as Error).message);
+        process.exit(1);
       }
-
-      p.outro("Done.");
-    } catch (err) {
-      s.error("Pull failed.");
-      p.log.error((err as Error).message);
-      process.exit(1);
     }
   });
 
@@ -1121,7 +1507,7 @@ program
     const client = new TeamrcClient(relayUrl, kp.privateKey, token);
     const machineName = opts.name ?? os.hostname();
 
-    const success = await deviceAuthFlow(client, machineName);
+    const success = await deviceAuthFlow(client, machineName, relayUrl);
     if (success) {
       p.outro("Account linked.");
     } else {
@@ -1133,18 +1519,18 @@ program
 // --- clone ---
 program
   .command("clone")
-  .description("Clone a team locally from an invite code without joining")
-  .argument("<invite-code>", "Team invitation code")
+  .description("Clone a team locally from an invite code or clone token without joining")
+  .argument("<code>", "Invite code (trc_inv_...) or clone token (trc_cl_...)")
   .option("--relay <url>", "Relay server URL")
   .option("--platform <platform>", "Override platform detection")
   .option("--scope <scope>", "Team scope: project or global")
   .option("--global", "Clone as global team")
   .option("--name <name>", "Override team name")
-  .action(async (inviteCode: string, opts: { relay?: string; platform?: string; scope?: string; global?: boolean; name?: string }) => {
+  .action(async (code: string, opts: { relay?: string; platform?: string; scope?: string; global?: boolean; name?: string }) => {
     p.intro("teamrc");
 
-    const platforms = await requirePlatforms(opts.platform);
     const scope = await selectScope(opts);
+    const platforms = await requirePlatforms(opts.platform, scope);
 
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
@@ -1153,8 +1539,13 @@ program
 
     const s = p.spinner();
     try {
-      s.start("Fetching team preview...");
-      const previewTeam = await client.previewByInvite(inviteCode);
+      s.start("Fetching team...");
+      let previewTeam;
+      if (code.startsWith("trc_cl_")) {
+        previewTeam = await client.cloneByToken(code);
+      } else {
+        previewTeam = await client.previewByInvite(code);
+      }
       const teamDef = remoteTeamToDefinition(previewTeam);
       s.stop(`Found "${teamDef.name}" (${teamDef.members.length} agents).`);
 
@@ -1163,21 +1554,73 @@ program
         teamDef.name = opts.name;
       }
 
+      // Save clone token + relay for future pulls
+      if (code.startsWith("trc_cl_")) {
+        teamDef.cloneToken = code;
+        teamDef.relay = relayUrl;
+      }
+
       // Write canonical YAML
-      writeTeamYaml(TEAM_YAML, teamDef);
-      p.log.step(`Wrote ${TEAM_YAML}`);
+      writeTeamYaml(scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML, teamDef);
+      p.log.step(`Wrote ${scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML}`);
 
       // Apply to each platform
       for (const pl of platforms) {
         const adapter = getAdapter(pl);
-        adapter.writeTeam(teamDef, scope);
+        adapter.writeTeam(teamDef, effectiveScope(pl, scope));
         p.log.step(`${pl} configured.`);
       }
 
       p.log.success(`Cloned "${teamDef.name}" (${teamDef.members.length} agents) locally.`);
-      p.outro("This is a local copy. Run `teamrc init` to create your own synced team.");
+      if (code.startsWith("trc_cl_")) {
+        p.outro("Cloned. Run `teamrc pull` to fetch updates.");
+      } else {
+        p.outro("Cloned locally. To join and sync with the original team, use `teamrc join <invite-code>`.");
+      }
     } catch (err) {
       s.error("Failed to clone team.");
+      p.log.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+// --- dashboard ---
+program
+  .command("dashboard")
+  .description("Open the current team in your browser")
+  .option("--ttl <hours>", "Dashboard link expiry in hours", "24")
+  .action(async (opts: { ttl: string }) => {
+    p.intro("teamrc");
+
+    const ctx = requireTeamContext();
+    const ttlHours = parseInt(opts.ttl, 10);
+
+    if (isNaN(ttlHours) || ttlHours < 1) {
+      p.log.error("TTL must be a positive number of hours.");
+      process.exit(1);
+    }
+
+    const s = p.spinner();
+    try {
+      s.start("Creating dashboard link...");
+      const result = await ctx.client.createInvite(ttlHours);
+      const relayUrl = ctx.team.relay ?? ctx.config.relay;
+      const dashboardUrl = buildInviteUrl(relayUrl, result.invite_code);
+      const opened = openBrowser(dashboardUrl);
+      s.stop("Dashboard link ready.");
+
+      p.note(
+        `${dashboardUrl}\n\nTeam:    ${ctx.team.name || "your team"}\nExpires: ${ttlHours} hours`,
+        "Dashboard",
+      );
+
+      if (opened) {
+        p.outro("Opened the team dashboard in your browser.");
+      } else {
+        p.outro("Open the dashboard URL above in your browser.");
+      }
+    } catch (err) {
+      s.error("Failed to open dashboard.");
       p.log.error((err as Error).message);
       process.exit(1);
     }
@@ -1212,9 +1655,85 @@ program
         "Invite",
       );
 
-      p.outro("Share this command with your teammates.");
+      p.outro("Share this command with your teammates. For your own browser session, use `teamrc dashboard`.");
     } catch (err) {
       s.error("Failed to create invite.");
+      p.log.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+// --- share ---
+program
+  .command("share")
+  .description("Make your team publicly cloneable (requires linked account)")
+  .option("--off", "Make team private (disable cloning)")
+  .action(async (opts: { off?: boolean }) => {
+    p.intro("teamrc");
+
+    const config = loadConfig();
+    if (!config?.account?.email) {
+      p.log.error("teamrc share requires a linked account. Run `teamrc login` first.");
+      process.exit(1);
+    }
+
+    const ctx = requireTeamContext();
+    const { client } = ctx;
+    const visibility = opts.off ? "private" : "public";
+
+    const s = p.spinner();
+    try {
+      s.start(opts.off ? "Making team private..." : "Making team public...");
+      const result = await client.setVisibility(visibility);
+      s.stop(opts.off ? "Team is now private." : "Team is now public.");
+
+      if (result.clone_token) {
+        p.note(
+          `npx teamrc clone ${result.clone_token}\n\nAnyone with this command can clone your team definition.\nNo invite needed — read-only, no sync.`,
+          "Clone command",
+        );
+      }
+
+      p.outro(opts.off ? "Cloning disabled." : "Share the clone command above. Use `teamrc share --off` to disable.");
+    } catch (err) {
+      s.error("Failed to update visibility.");
+      p.log.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+// --- claim ---
+program
+  .command("claim")
+  .description("Claim ownership of a team using its ownership token")
+  .argument("<secret>", "Ownership token (trc_ocs_...)")
+  .action(async (secret: string) => {
+    p.intro("teamrc");
+
+    if (!secret.startsWith("trc_ocs_")) {
+      p.log.error("Invalid ownership token. Expected format: trc_ocs_...");
+      process.exit(1);
+    }
+
+    const config = loadConfig();
+    if (!config?.account?.email) {
+      p.log.error("You must link your account first. Run `teamrc login`.");
+      process.exit(1);
+    }
+
+    const ctx = requireTeamContext();
+    const { client } = ctx;
+
+    const s = p.spinner();
+    try {
+      s.start("Claiming ownership...");
+      await client.claimOwnership(secret);
+      s.stop("Ownership claimed.");
+
+      p.log.info(`You are now the owner of "${ctx.team.name}".`);
+      p.outro("Use `teamrc share` to make this team publicly cloneable.");
+    } catch (err) {
+      s.error("Failed to claim ownership.");
       p.log.error((err as Error).message);
       process.exit(1);
     }
@@ -1238,7 +1757,13 @@ program
       return;
     }
 
-    const whoamiYaml = readTeamYaml(TEAM_YAML) ?? readTeamYaml(GLOBAL_TEAM_YAML);
+    let whoamiYaml;
+    try {
+      whoamiYaml = readTeamYaml(TEAM_YAML) ?? readTeamYaml(GLOBAL_TEAM_YAML);
+    } catch (e) {
+      p.log.error(`Failed to parse team YAML: ${e instanceof Error ? e.message : e}`);
+      process.exit(1);
+    }
     const whoamiTeamId = whoamiYaml?.teamId ?? "none";
     const whoamiPlatform = whoamiYaml?.platforms?.join(",") ?? "none";
 
@@ -1310,18 +1835,31 @@ program
     }
 
     // 4. .teamrc.yaml check
-    const yamlTeam = readTeamYaml(TEAM_YAML);
+    let yamlTeam;
+    let yamlParseError = false;
+    try {
+      yamlTeam = readTeamYaml(TEAM_YAML);
+    } catch (e) {
+      p.log.error(`${TEAM_YAML} has parse errors: ${e instanceof Error ? e.message : e}`);
+      failures++;
+      yamlParseError = true;
+    }
     if (yamlTeam) {
       p.log.success(`${TEAM_YAML} found (${yamlTeam.members.length} members)`);
       passed++;
-    } else {
+    } else if (!yamlParseError) {
       p.log.warn(`No ${TEAM_YAML}`);
       warnings++;
     }
 
     // 5. Platform agents match
     if (config && yamlTeam) {
-      const doctorGlobal = readTeamYaml(GLOBAL_TEAM_YAML);
+      let doctorGlobal;
+      try {
+        doctorGlobal = readTeamYaml(GLOBAL_TEAM_YAML);
+      } catch {
+        // ignore parse errors for global yaml in doctor
+      }
       const doctorPlatform = yamlTeam?.platforms?.[0] ?? doctorGlobal?.platforms?.[0] ?? detectPlatforms()[0] ?? "claude-code";
       const adapter = getAdapter(doctorPlatform);
       const platformTeam = adapter.readTeam();
@@ -1368,16 +1906,26 @@ program
     const config = loadConfig();
     if (!config) {
       p.log.info("teamrc is not initialized. Nothing to remove.");
-      p.outro("");
+      p.outro("Done.");
       return;
     }
 
-    const deleteGlobalTeam = readTeamYaml(GLOBAL_TEAM_YAML);
+    let deleteGlobalTeam;
+    try {
+      deleteGlobalTeam = readTeamYaml(GLOBAL_TEAM_YAML);
+    } catch {
+      // Ignore parse errors during delete — proceed with detected platforms
+    }
     const platforms = deleteGlobalTeam?.platforms ?? detectPlatforms();
 
     // Determine team name for confirmation
     let teamName: string | null = null;
-    const yamlTeam = readTeamYaml(TEAM_YAML);
+    let yamlTeam;
+    try {
+      yamlTeam = readTeamYaml(TEAM_YAML);
+    } catch {
+      // Ignore parse errors during delete
+    }
     if (yamlTeam?.name) {
       teamName = yamlTeam.name;
     }
@@ -1386,6 +1934,22 @@ program
       "This will remove all teamrc agents, skills, and knowledge\n" +
       "from this machine. Other team members keep their setup.",
     );
+
+    // Build deletion plan to show before confirmation
+    const planLines: string[] = [];
+    for (const pl of platforms) {
+      planLines.push(`Remove ${pl} agents and skills`);
+    }
+    const configDir = path.join(os.homedir(), ".teamrc");
+    if (fs.existsSync(configDir)) {
+      planLines.push(`Delete ${configDir}`);
+    }
+    if (fs.existsSync(TEAM_YAML)) {
+      planLines.push(`Delete ${TEAM_YAML}`);
+    }
+    if (planLines.length > 0) {
+      p.log.info("Will delete:\n" + planLines.map((a) => `  ${a}`).join("\n"));
+    }
 
     const skipConfirm = opts.yes ?? globals().yes;
     if (!skipConfirm) {
@@ -1428,7 +1992,6 @@ program
     }
 
     // Delete ~/.teamrc/ config
-    const configDir = path.join(os.homedir(), ".teamrc");
     if (fs.existsSync(configDir)) {
       fs.rmSync(configDir, { recursive: true });
       actionLines.push(`Deleted ${configDir}`);
@@ -1449,4 +2012,323 @@ program
     p.outro("Done. Run `teamrc init` or `teamrc join` to set up again.");
   });
 
-program.parse();
+// --- add-member ---
+program
+  .command("add-member")
+  .description("Add a catalog agent (or custom agent) to the current team")
+  .argument("[agent-name]", "Agent name from catalog (e.g. backend-dev)")
+  .action(async (agentName?: string) => {
+    p.intro("teamrc");
+
+    const ctx = requireTeamContext();
+    const { team, scope, client, platforms } = ctx;
+    const yamlPath = scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
+
+    // Resolve agent name — from argument or interactive picker
+    let name = agentName;
+    if (!name) {
+      if (isNonInteractive()) {
+        p.log.error("Agent name is required in non-interactive mode.\n  Usage: teamrc add-member <agent-name>");
+        process.exit(1);
+      }
+
+      const categories = listAgentCategories();
+      const existingNames = new Set(team.members.map((m) => m.name));
+
+      // Build flat option list grouped by category
+      const options: Array<{ value: string; label: string; hint?: string }> = [];
+      for (const cat of categories) {
+        const available = cat.agents.filter((a) => !existingNames.has(a));
+        if (available.length === 0) continue;
+        for (const a of available) {
+          try {
+            const agent = loadAgent(a);
+            options.push({ value: a, label: a, hint: `${agent.role} [${cat.label}]` });
+          } catch {
+            options.push({ value: a, label: a, hint: cat.label });
+          }
+        }
+      }
+
+      if (options.length === 0) {
+        p.log.warn("All catalog agents are already on this team.");
+        p.outro("Nothing to add.");
+        return;
+      }
+
+      const selected = await p.select({
+        message: "Select an agent to add",
+        options,
+      });
+      handleCancel(selected);
+      name = selected as string;
+    }
+
+    // Duplicate check
+    if (team.members.find((m) => m.name === name)) {
+      p.log.warn(`Agent "${name}" is already on this team.`);
+      p.outro("Nothing to add.");
+      return;
+    }
+
+    // Load agent from catalog
+    let agent;
+    try {
+      agent = loadAgent(name);
+    } catch {
+      p.log.error(`Agent "${name}" not found in catalog.`);
+      process.exit(1);
+    }
+
+    // Get recommended skills for this agent
+    const recommendedSkillIds = agentRecommendedSkills(name);
+
+    // Ensure referenced skills exist in team.skills
+    const existingSkillIds = new Set((team.skills ?? []).map((s) => s.id));
+    const newSkills = [];
+    for (const skillId of recommendedSkillIds) {
+      if (!existingSkillIds.has(skillId)) {
+        try {
+          const skill = loadSkill(skillId);
+          newSkills.push({
+            id: skill.id,
+            title: skill.title,
+            ...(skill.description ? { description: skill.description } : {}),
+            ...(skill.alwaysApply !== undefined ? { alwaysApply: skill.alwaysApply } : {}),
+            ...(skill.globs ? { globs: skill.globs } : {}),
+            ...(skill.userInvocable !== undefined ? { userInvocable: skill.userInvocable } : {}),
+            body: skill.body,
+          });
+        } catch {
+          // Skill not in catalog — skip
+        }
+      }
+    }
+
+    // Build new member
+    const newMember = {
+      name: agent.name,
+      role: agent.role,
+      soul: agent.soul,
+      ...(recommendedSkillIds.length > 0 ? { skills: recommendedSkillIds } : {}),
+    };
+
+    // Mutate team (in memory only — write after push succeeds)
+    team.members.push(newMember);
+    if (newSkills.length > 0) {
+      if (!team.skills) team.skills = [];
+      team.skills.push(...newSkills);
+    }
+
+    // Push to relay first — don't persist locally until relay accepts
+    const s = p.spinner();
+    try {
+      s.start("Pushing to relay...");
+      const knowledge = ctx.adapters[0]?.readKnowledge();
+      await client.pushTeam(team, knowledge || undefined);
+      s.stop("Pushed.");
+    } catch (err) {
+      s.error("Push failed.");
+      p.log.error((err as Error).message);
+      process.exit(1);
+    }
+
+    // Write YAML and apply to platforms only after successful push
+    writeTeamYaml(yamlPath, team);
+    for (const pl of platforms) {
+      const adapter = getAdapter(pl);
+      adapter.writeTeam(team, effectiveScope(pl, scope));
+    }
+
+    // Summary
+    const parts = [`Added ${agent.name} (${agent.role})`];
+    if (recommendedSkillIds.length > 0) {
+      parts.push(`Includes ${recommendedSkillIds.length} skill(s): ${recommendedSkillIds.join(", ")}`);
+    }
+    p.log.success(parts.join("\n  "));
+    p.outro(`Applied to ${platforms.length} platform(s).`);
+  });
+
+// --- list-templates ---
+program
+  .command("list-templates")
+  .description("List available team templates from the catalog")
+  .option("--json", "Output as JSON")
+  .action(async (opts: { json?: boolean }) => {
+    const useJson = opts.json ?? globals().json;
+    const teamIds = listTeams();
+
+    const teams = teamIds.map((id) => {
+      const t = resolveTeam(id);
+      return {
+        id,
+        label: t.label,
+        description: t.description,
+        agents: t.members.length,
+        skills: t.skills.length,
+        members: t.members.map((m) => m.name),
+      };
+    });
+
+    if (useJson) {
+      jsonOutput(teams);
+      return;
+    }
+
+    p.intro("teamrc");
+    p.log.info("Available team templates:\n");
+
+    for (const t of teams) {
+      const memberList = t.members.join(", ");
+      p.log.message(
+        `  ${t.id.padEnd(16)} ${t.label}\n` +
+        `  ${"".padEnd(16)} ${t.description}\n` +
+        `  ${"".padEnd(16)} ${t.agents} agents, ${t.skills} skills: ${memberList}\n`,
+      );
+    }
+
+    p.outro(`${teams.length} templates. Use \`teamrc init --team <name>\` to create a team.`);
+  });
+
+// --- list-agents ---
+program
+  .command("list-agents")
+  .description("List available agents from the catalog")
+  .option("--json", "Output as JSON")
+  .action(async (opts: { json?: boolean }) => {
+    const useJson = opts.json ?? globals().json;
+    const categories = listAgentCategories();
+
+    if (useJson) {
+      const data = categories.map((cat) => ({
+        category: cat.id,
+        label: cat.label,
+        agents: cat.agents.map((name) => {
+          try {
+            const a = loadAgent(name);
+            return { name: a.name, role: a.role };
+          } catch {
+            return { name, role: "" };
+          }
+        }),
+      }));
+      jsonOutput(data);
+      return;
+    }
+
+    p.intro("teamrc");
+
+    let totalAgents = 0;
+    for (const cat of categories) {
+      const lines: string[] = [];
+      for (const name of cat.agents) {
+        try {
+          const a = loadAgent(name);
+          lines.push(`  ${a.name.padEnd(28)} ${a.role}`);
+        } catch {
+          lines.push(`  ${name}`);
+        }
+        totalAgents++;
+      }
+      p.log.message(`${cat.label}\n${lines.join("\n")}\n`);
+    }
+
+    p.outro(`${totalAgents} agents. Use \`teamrc add-member <name>\` to add one to your team.`);
+  });
+
+// --- erase ---
+program
+  .command("erase")
+  .description("Permanently erase this machine's token and all associated team data from the relay")
+  .option("-y, --yes", "Skip confirmation prompt")
+  .action(async (opts: { yes?: boolean }) => {
+    p.intro("teamrc");
+
+    const kp = loadKeypair();
+    if (!kp) {
+      p.log.error("No keypair found. Nothing to erase.");
+      process.exit(1);
+    }
+    const token = toToken(kp.publicKey);
+    const config = loadConfig();
+    if (!config) {
+      p.log.error("Not initialized. Nothing to erase.");
+      process.exit(1);
+    }
+
+    const relayUrl = config.relay;
+    const client = new TeamrcClient(relayUrl, kp.privateKey, token);
+
+    // Fetch current status to show what will be erased
+    let teamCount = 0;
+    let teamName: string | null = null;
+    try {
+      const remoteTeam = await client.getTeam();
+      teamName = remoteTeam.name;
+      teamCount = 1;
+    } catch {
+      // May have multiple teams or none
+    }
+
+    // Also try YAML for team name
+    if (!teamName) {
+      try {
+        const yamlTeam = readTeamYaml(TEAM_YAML) ?? readTeamYaml(GLOBAL_TEAM_YAML);
+        teamName = yamlTeam?.name ?? null;
+      } catch {
+        // ignore parse errors
+      }
+    }
+
+    p.log.warn(
+      "This will permanently erase this machine's token and all\n" +
+      "associated team data from the relay. This cannot be undone.",
+    );
+    if (teamName) {
+      p.log.info(`Team: ${teamName}`);
+    }
+    p.log.info(`Token: ${token.slice(0, 16)}...`);
+
+    const skipConfirm = opts.yes ?? globals().yes;
+    if (!skipConfirm) {
+      if (teamName) {
+        requireTTY("--yes");
+        const confirmation = await p.text({
+          message: `Type "${teamName}" to confirm erasure:`,
+          validate: (value) => {
+            if (value !== teamName) return `Please type "${teamName}" to confirm.`;
+          },
+        });
+        handleCancel(confirmation);
+      } else {
+        requireTTY("--yes");
+        const shouldErase = await p.confirm({
+          message: "Erase all data for this token from the relay?",
+          initialValue: false,
+        });
+        handleCancel(shouldErase);
+        if (!shouldErase) {
+          p.cancel("Cancelled.");
+          return;
+        }
+      }
+    }
+
+    const s = p.spinner();
+    try {
+      s.start("Erasing from relay...");
+      const result = await client.eraseToken();
+      s.stop("Erased.");
+
+      p.log.success(`Removed ${result.teams_removed} team(s) from relay.`);
+      p.outro("Local files are unchanged. Run `teamrc delete` to also remove local config.");
+    } catch (err) {
+      s.error("Erase failed.");
+      p.log.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+// Use parseAsync so the process exits cleanly after async commands complete
+// (Node's fetch keep-alive connections would otherwise hold the event loop open)
+program.parseAsync().then(() => process.exit(0));

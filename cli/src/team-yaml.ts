@@ -1,8 +1,10 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { randomBytes } from "node:crypto";
 import YAML from "yaml";
 import { validateAgentName, VALID_PLATFORMS, type TeamDefinition, type TeamMember, type Skill } from "./adapters/base.js";
+import { validateRelayUrl } from "./config.js";
 
 export const TEAM_YAML = ".teamrc.yaml";
 export const GLOBAL_TEAM_YAML = path.join(os.homedir(), ".teamrc", "team.yaml");
@@ -80,14 +82,14 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
       })
     : [];
 
-  const skills: Skill[] = parsedSkills;
-
   const teamName = data.name || "";
   if (teamName) validateTeamName(teamName);
 
   // Parse new multi-project fields
   const teamId = data.teamId ? String(data.teamId) : undefined;
+  const cloneToken = data.cloneToken ? String(data.cloneToken) : undefined;
   const relay = data.relay ? String(data.relay) : undefined;
+  if (relay) validateRelayUrl(relay);
   let platforms: string[] | undefined;
   if (Array.isArray(data.platforms)) {
     const validSet = new Set<string>(VALID_PLATFORMS);
@@ -101,13 +103,24 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
       });
   }
 
+  // Parse sync hash metadata
+  const syncHash = data.syncHash ? String(data.syncHash) : undefined;
+  const syncHashMembers = data.syncHashMembers ? String(data.syncHashMembers) : undefined;
+  const syncHashSkills = data.syncHashSkills ? String(data.syncHashSkills) : undefined;
+  const syncHashKnowledge = data.syncHashKnowledge ? String(data.syncHashKnowledge) : undefined;
+
   return {
     name: teamName,
     members,
-    skills,
+    skills: parsedSkills,
     ...(teamId ? { teamId } : {}),
+    ...(cloneToken ? { cloneToken } : {}),
     ...(relay ? { relay } : {}),
     ...(platforms ? { platforms } : {}),
+    ...(syncHash ? { syncHash } : {}),
+    ...(syncHashMembers ? { syncHashMembers } : {}),
+    ...(syncHashSkills ? { syncHashSkills } : {}),
+    ...(syncHashKnowledge ? { syncHashKnowledge } : {}),
   };
 }
 
@@ -115,8 +128,13 @@ export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
   const data: Record<string, unknown> = {
     name: team.name,
     ...(team.teamId ? { teamId: team.teamId } : {}),
+    ...(team.cloneToken ? { cloneToken: team.cloneToken } : {}),
     ...(team.relay ? { relay: team.relay } : {}),
     ...(team.platforms ? { platforms: team.platforms } : {}),
+    ...(team.syncHash ? { syncHash: team.syncHash } : {}),
+    ...(team.syncHashMembers ? { syncHashMembers: team.syncHashMembers } : {}),
+    ...(team.syncHashSkills ? { syncHashSkills: team.syncHashSkills } : {}),
+    ...(team.syncHashKnowledge ? { syncHashKnowledge: team.syncHashKnowledge } : {}),
     members: team.members.map((m) => {
       const entry: Record<string, unknown> = { name: m.name, role: m.role };
       if (m.soul) entry.soul = m.soul;
@@ -139,24 +157,32 @@ export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
   }
 
   const yaml = YAML.stringify(data);
-  fs.writeFileSync(filePath, yaml);
+  // Atomic write: write to temp file, then rename (atomic on POSIX)
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const tmpPath = `${filePath}.${randomBytes(4).toString("hex")}.tmp`;
+  fs.writeFileSync(tmpPath, yaml);
+  fs.renameSync(tmpPath, filePath);
 }
 
-/** Merge knowledge strings using append-only dedup by line content */
-export function mergeKnowledge(local: string, remote: string): string {
-  if (!local) return remote;
+/** Merge knowledge strings using append-only dedup. Remote (relay) is the
+ *  source of truth for line order; new local lines are appended at the bottom. */
+export function mergeKnowledge(remote: string, local: string): string {
   if (!remote) return local;
+  if (!local) return remote;
 
-  const localLines = new Set(
-    local.split("\n").map((l) => l.trim()).filter(Boolean),
+  const remoteLines = new Set(
+    remote.split("\n").map((l) => l.trim()).filter(Boolean),
   );
-  const newLines = remote
+  const newLines = local
     .split("\n")
-    .filter((l) => l.trim() && !localLines.has(l.trim()));
+    .filter((l) => l.trim() && !remoteLines.has(l.trim()));
 
-  if (newLines.length === 0) return local;
-  return local.trimEnd() + "\n" + newLines.join("\n") + "\n";
+  if (newLines.length === 0) return remote;
+  return remote.trimEnd() + "\n" + newLines.join("\n") + "\n";
 }
+
+export const MAX_KNOWLEDGE_SIZE = 512 * 1024; // 512 KB
 
 const MAX_SOURCE_SIZE = 1024 * 1024; // 1 MB
 
@@ -173,17 +199,22 @@ export function resolveBody(
     if (!resolved.startsWith(realBase + path.sep) && resolved !== realBase) {
       throw new Error(`Path traversal blocked: source "${body.source}" resolves outside project directory`);
     }
-    if (!fs.existsSync(resolved)) return "";
-    const realResolved = fs.realpathSync(resolved);
+    // Eliminate TOCTOU race: skip existsSync pre-check, use try/catch on realpathSync
+    let realResolved: string;
+    try {
+      realResolved = fs.realpathSync(resolved);
+    } catch {
+      return ""; // file doesn't exist
+    }
     const realBaseResolved = fs.realpathSync(realBase);
     if (!realResolved.startsWith(realBaseResolved + path.sep) && realResolved !== realBaseResolved) {
       throw new Error(`Path traversal blocked: source "${body.source}" resolves outside project directory via symlink`);
     }
-    const stat = fs.statSync(resolved);
+    const stat = fs.statSync(realResolved);
     if (stat.size > MAX_SOURCE_SIZE) {
       throw new Error(`Source file "${body.source}" exceeds maximum size of ${MAX_SOURCE_SIZE} bytes`);
     }
-    return fs.readFileSync(resolved, "utf-8");
+    return fs.readFileSync(realResolved, "utf-8");
   }
   return "";
 }

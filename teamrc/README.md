@@ -4,21 +4,32 @@ Elixir/Phoenix backend for teamrc — handles cross-machine sync, team managemen
 
 ## Setup
 
+### Docker
+
+```bash
+# From the repo root:
+cp .env.example .env
+# Edit .env — set SECRET_KEY_BASE, salts, etc.
+docker compose up
+```
+
+### Without Docker
+
+Requires Elixir 1.18+, PostgreSQL.
+
 ```bash
 mix deps.get
 mix ecto.setup
 mix phx.server  # http://localhost:4000
 ```
 
-Requires Elixir 1.18+, PostgreSQL.
-
 ## Architecture
 
 - **GenServer** (`Teamrc.Teams`) — In-memory sync state: file hashes per platform, file content (24h TTL), token-to-team mapping
 - **PostgreSQL** (via Ecto) — Persistent storage: teams, members, invites, account tokens
-- **LiveView** — Web UI for team creation with templates
+- **LiveView** — Web UI for team creation with template catalog
 - **Ed25519 signature verification** — All API endpoints authenticated via `VerifySignature` plug
-- **Clerk JWT** — Optional account layer for linking machines to user accounts
+- **Clerk JWT** — Optional account layer for linking machines to user accounts (dashboard, machine management, recovery)
 
 ## API Pipelines
 
@@ -54,5 +65,35 @@ MIX_ENV=test mix ecto.reset  # Reset test DB
 
 ## Configuration
 
-- `config/dev.exs` — Dev settings (localhost binding, CORS origins)
-- `config/runtime.exs` — Production env vars: `DATABASE_URL`, `SECRET_KEY_BASE`, `PHX_HOST`, `SESSION_SIGNING_SALT`, `LIVE_VIEW_SIGNING_SALT`, `CLERK_ISSUER`, `CLERK_JWKS_URL`
+### Required (production)
+
+| Env var | Description |
+|---------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string (`ecto://USER:PASS@HOST/DATABASE`) |
+| `DATABASE_SSL` | Enable SSL for database connections (default: `true`) |
+| `SECRET_KEY_BASE` | Cookie signing key (generate with `mix phx.gen.secret`) |
+| `PHX_HOST` | Public hostname for URL generation |
+| `SESSION_SIGNING_SALT` | Session cookie signing salt |
+| `LIVE_VIEW_SIGNING_SALT` | LiveView signing salt |
+| `SESSION_ENCRYPTION_SALT` | Session cookie encryption salt |
+
+### Optional (Clerk account linking)
+
+Without these, teamrc works fully — team sync, CLI, invites all function. Clerk adds: user dashboard, machine management, account recovery.
+
+| Env var | Description |
+|---------|-------------|
+| `CLERK_PUBLISHABLE_KEY` | Clerk frontend key (enables Sign In button) |
+| `CLERK_JWKS_URL` | Clerk JWKS endpoint for JWT verification |
+| `CLERK_ISSUER` | Clerk JWT issuer |
+| `CLERK_AUDIENCE` | Clerk JWT audience (optional) |
+
+### Other
+
+| Env var | Description |
+|---------|-------------|
+| `PORT` | HTTP port (default: `4000`) |
+| `POOL_SIZE` | Database connection pool size (default: `10`) |
+| `DNS_CLUSTER_QUERY` | DNS discovery query for clustering |
+
+Dev config: `config/dev.exs`. Production runtime config: `config/runtime.exs`.

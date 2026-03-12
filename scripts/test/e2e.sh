@@ -125,7 +125,7 @@ phase_1() {
   # Claude Code
   rm -f .claude/agents/trc-*.md .claude/agents/tb-*.md
   rm -f .claude/rules/trc-*.md
-  rm -f .claude/team-knowledge.md
+  rm -f teamrc-knowledge.md
   rm -rf .claude/skills/trc-*
   # Remove teamrc section from CLAUDE.md (keep the rest)
   if [ -f CLAUDE.md ]; then
@@ -187,29 +187,30 @@ phase_2() {
 }
 
 phase_2_init() {
-  section "Phase 2: Init"
+  section "Phase 2: Init (backend team template)"
 
-  $CLI init --platform "$PLATFORMS" --relay "$RELAY" -y 2>&1 | head -20
+  $CLI init --team backend --platform "$PLATFORMS" --relay "$RELAY" -y 2>&1 | head -20
   echo ""
 
   check_file ".teamrc.yaml" ".teamrc.yaml created"
   check_file "$HOME/.teamrc/config.json" "config.json created"
   check_file "$HOME/.teamrc/key" "keypair created"
   check_contains ".teamrc.yaml" "teamId:" "YAML has teamId"
+  check_contains ".teamrc.yaml" "architect" "YAML has architect member"
 
-  # Verify per-platform files
+  # Verify per-platform files (backend template has: architect, implementer, reviewer, dba)
   for pl in "${PLATFORM_ARR[@]}"; do
     case "$pl" in
-      claude-code) check_file ".claude/agents/trc-agent.md" "Claude Code agent created" ;;
-      cursor)      check_file ".cursor/agents/trc-agent.md" "Cursor agent created" ;;
-      codex)       check_file ".codex/agents/trc-agent.toml" "Codex agent created (.toml)" ;;
-      gemini)      check_file ".gemini/agents/trc-agent.md" "Gemini agent created" ;;
-      openclaw)    check_dir "$HOME/.openclaw/workspaces/trc-agent" "OpenClaw workspace created" ;;
+      claude-code) check_file ".claude/agents/trc-architect.md" "Claude Code: architect agent" ;;
+      cursor)      check_file ".cursor/agents/trc-architect.md" "Cursor: architect agent" ;;
+      codex)       check_file ".codex/agents/trc-architect.toml" "Codex: architect agent (.toml)" ;;
+      gemini)      check_file ".gemini/agents/trc-architect.md" "Gemini: architect agent" ;;
+      openclaw)    check_dir "$HOME/.openclaw/workspaces/trc-architect" "OpenClaw: architect workspace" ;;
     esac
   done
 
   # Knowledge file
-  check_file ".claude/team-knowledge.md" "team-knowledge.md created"
+  check_file "teamrc-knowledge.md" "teamrc-knowledge.md created"
 
   # Status
   check_cmd "status exits cleanly" $CLI status
@@ -256,16 +257,19 @@ phase_2_join() {
   check_file "$HOME/.teamrc/config.json" "config.json created"
   check_contains ".teamrc.yaml" "teamId:" "YAML has teamId"
 
-  # Verify per-platform files
-  for pl in "${PLATFORM_ARR[@]}"; do
-    case "$pl" in
-      claude-code) check_file ".claude/agents/trc-agent.md" "Claude Code agent created" ;;
-      cursor)      check_file ".cursor/agents/trc-agent.md" "Cursor agent created" ;;
-      codex)       check_file ".codex/agents/trc-agent.toml" "Codex agent created (.toml)" ;;
-      gemini)      check_file ".gemini/agents/trc-agent.md" "Gemini agent created" ;;
-      openclaw)    check_dir "$HOME/.openclaw/workspaces/trc-agent" "OpenClaw workspace created" ;;
-    esac
-  done
+  # Verify per-platform files (should have agents from the team we joined)
+  AGENT_COUNT=$(grep -c "name:" .teamrc.yaml 2>/dev/null | head -1 || echo "0")
+  if [ "$AGENT_COUNT" -gt 0 ]; then
+    for pl in "${PLATFORM_ARR[@]}"; do
+      case "$pl" in
+        claude-code) check_glob ".claude/agents/trc-*.md" "Claude Code agents created" ;;
+        cursor)      check_glob ".cursor/agents/trc-*.md" "Cursor agents created" ;;
+        codex)       check_glob ".codex/agents/trc-*.toml" "Codex agents created (.toml)" ;;
+        gemini)      check_glob ".gemini/agents/trc-*.md" "Gemini agents created" ;;
+        openclaw)    check_glob "$HOME/.openclaw/workspaces/trc-*" "OpenClaw workspaces created" ;;
+      esac
+    done
+  fi
 
   check_cmd "status exits cleanly" $CLI status
 }
@@ -291,11 +295,10 @@ phase_4() {
   check_cmd "sync exits cleanly" $CLI sync
 
   subsection "Push knowledge"
-  mkdir -p .claude
-  echo "# Team Knowledge" > .claude/team-knowledge.md
-  echo "" >> .claude/team-knowledge.md
-  echo "## Test Entry" >> .claude/team-knowledge.md
-  echo "E2E test from $(hostname) at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .claude/team-knowledge.md
+  echo "# Team Knowledge" > teamrc-knowledge.md
+  echo "" >> teamrc-knowledge.md
+  echo "## Test Entry" >> teamrc-knowledge.md
+  echo "E2E test from $(hostname) at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> teamrc-knowledge.md
 
   PUSH_OUT=$($CLI push 2>&1 || true)
   if echo "$PUSH_OUT" | grep -qi "push\|success\|knowledge"; then
@@ -318,20 +321,19 @@ phase_5() {
   section "Phase 5: Cross-Machine Sync"
 
   subsection "Push unique knowledge from this machine"
-  mkdir -p .claude
-  echo "## $(hostname) Finding" >> .claude/team-knowledge.md
-  echo "Cross-machine test at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .claude/team-knowledge.md
+  echo "## $(hostname) Finding" >> teamrc-knowledge.md
+  echo "Cross-machine test at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> teamrc-knowledge.md
   $CLI push 2>&1 | head -5
 
   subsection "Sync to pull other machine's changes"
   $CLI sync 2>&1 | head -10
 
   # Verify knowledge file has content
-  check_file ".claude/team-knowledge.md" "team-knowledge.md exists"
-  if [ -s ".claude/team-knowledge.md" ]; then
-    check "team-knowledge.md has content" 0
+  check_file "teamrc-knowledge.md" "teamrc-knowledge.md exists"
+  if [ -s "teamrc-knowledge.md" ]; then
+    check "teamrc-knowledge.md has content" 0
   else
-    check "team-knowledge.md has content" 1
+    check "teamrc-knowledge.md has content" 1
   fi
 
   subsection "Status confirms relay connection"
@@ -378,7 +380,7 @@ phase_7() {
   done
 
   subsection "Re-init"
-  $CLI init --platform "$PLATFORMS" --relay "$RELAY" -y 2>&1 | head -15
+  $CLI init --team backend --platform "$PLATFORMS" --relay "$RELAY" -y 2>&1 | head -15
   echo ""
 
   check_file ".teamrc.yaml" ".teamrc.yaml recreated"

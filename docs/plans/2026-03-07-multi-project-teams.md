@@ -651,7 +651,7 @@ $ teamrc delete
   Removed 5 agents from .claude/agents/
   Removed 5 agents from .cursor/agents/
   Removed 5 agents from .github/agents/
-  Removed .claude/team-knowledge.md
+  Removed .claude/teamrc-knowledge.md
   Removed .teamrc.yaml
   Cleaned CLAUDE.md
 
@@ -690,8 +690,8 @@ $ teamrc daemon
   Sync mode: knowledge
   Poll interval: 5s
 
-  12:34:01  ↓  Applied: team-knowledge.md updated
-  12:34:15  ↑  Pushed: team-knowledge.md (local edit)
+  12:34:01  ↓  Applied: teamrc-knowledge.md updated
+  12:34:15  ↑  Pushed: teamrc-knowledge.md (local edit)
   12:35:02  ·  No changes
   ^C
 
@@ -1153,21 +1153,21 @@ Users with existing `agent-team.yaml` files:
 ## Implementation Order
 
 ```
-Phase 1: Config split + dual mode        ← CRITICAL PATH
-  ├── Phase 2: Relay multi-team          ← depends on 1
-  └── Phase 6: CLI UX updates           ← depends on 1
-Phase 3: Gemini rewrite                  ← independent
-Phase 4: OpenClaw multi-team             ← independent
-Phase 5.1: Copilot adapter              ← depends on 1
-Phase 5.2: Amazon Q adapter             ← depends on 1
-Phase 5.3-5.7: Other adapters           ← depends on 1
-Phase 7: Web UI                          ← depends on 2
-Phase 8: Security hardening              ← throughout
-Phase 9: Cleanup                         ← last
-Phase 10: Rename agent-team.yaml         ← DONE
+Phase 1: Config split + dual mode        ← DONE (config split, TeamContext, --global flag)
+  ├── Phase 2: Relay multi-team          ← DONE (MapSet, team_id routing, BOLA)
+  └── Phase 6: CLI UX overhaul          ← DONE (@clack/prompts, 17 commands, global flags)
+Phase 3: Gemini rewrite                  ← DONE (native .gemini/agents/*.md with frontmatter)
+Phase 4: OpenClaw rewrite               ← DONE (native .agents/agents/*.md, removed SOUL.md/workspaces)
+Phase 5.1: Copilot adapter              ← NOT STARTED (stub only)
+Phase 5.2: Amazon Q adapter             ← NOT STARTED (stub only)
+Phase 5.3-5.7: Other adapters           ← NOT STARTED (stubs only)
+Phase 7: Web UI                          ← DONE (team dashboard, member detail, guide, invites, catalog pickers)
+Phase 8: Security hardening              ← DONE (33 audit items, input validation, IDOR protection)
+Phase 9: Cleanup                         ← DONE (dead code, Rule→Skill unification, resolve-rules.ts removed)
+Phase 10: Rename agent-team.yaml         ← DONE (.teamrc.yaml, backward compat removed)
 ```
 
-Phases 3 and 4 can run in parallel with everything else.
+Remaining work: Phase 5 new platform adapters (copilot, amazon-q, windsurf, cline, junie, continue, augment).
 
 ---
 

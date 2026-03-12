@@ -125,6 +125,40 @@ defmodule TeamrcWeb.AccountController do
     end
   end
 
+  @doc "GET /api/account/export — export all account data as JSON."
+  def export(conn, _params) do
+    clerk_user_id = conn.assigns[:clerk_user_id]
+
+    case Accounts.export_account_data(clerk_user_id) do
+      {:ok, data} ->
+        conn
+        |> put_resp_header("content-disposition", "attachment; filename=\"teamrc-export.json\"")
+        |> json(data)
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "account_not_found"})
+    end
+  end
+
+  @doc "DELETE /api/account — permanently delete account and all associated data."
+  def delete(conn, _params) do
+    clerk_user_id = conn.assigns[:clerk_user_id]
+
+    case Accounts.delete_account(clerk_user_id) do
+      :ok ->
+        conn
+        |> put_status(:ok)
+        |> json(%{status: "deleted"})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "account_not_found"})
+    end
+  end
+
   defp truncate_token(token) when is_binary(token) do
     String.slice(token, 0, 12) <> "..."
   end

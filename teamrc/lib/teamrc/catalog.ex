@@ -22,17 +22,28 @@ defmodule Teamrc.Catalog do
 
   @doc "Load a team template's raw metadata (without resolving agent/skill refs)."
   def load_team_raw(id) do
+    validate_id!(id)
     read_yaml!(Path.join(@templates_dir, "teams/#{id}.yaml"))
   end
 
   @doc "Load an agent definition from the catalog."
   def load_agent(name) do
+    validate_id!(name)
     read_yaml!(Path.join(@templates_dir, "agents/#{name}.yaml"))
   end
 
   @doc "Load a skill definition from the catalog."
   def load_skill(id) do
+    validate_id!(id)
     read_yaml!(Path.join(@templates_dir, "skills/#{id}.yaml"))
+  end
+
+  defp validate_id!(id) do
+    unless Regex.match?(~r/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/, id) do
+      raise ArgumentError, "invalid template id: #{inspect(id)}"
+    end
+
+    id
   end
 
   @doc "List agent categories with their agent lists. Auto-discovers new agents."
@@ -84,6 +95,19 @@ defmodule Teamrc.Catalog do
           end)
       end
     end)
+  end
+
+  @doc "Returns the union of skill IDs recommended for an agent across all team templates."
+  def agent_recommended_skills(agent_name) do
+    list_teams()
+    |> Enum.reduce(MapSet.new(), fn team_id, acc ->
+      team = load_team_raw(team_id)
+      agent_skills = team["agentSkills"] || %{}
+      skills = Map.get(agent_skills, agent_name, [])
+      MapSet.union(acc, MapSet.new(skills))
+    end)
+    |> MapSet.to_list()
+    |> Enum.sort()
   end
 
   @doc "List skill categories with their skill lists. Auto-discovers new skills."
@@ -183,12 +207,6 @@ defmodule Teamrc.Catalog do
       members: members,
       skills: skills
     }
-  end
-
-  @doc "List all team templates with resolved metadata."
-  def list_team_templates do
-    list_teams()
-    |> Enum.map(fn id -> {id, resolve_team(id)} end)
   end
 
   # Map team IDs to icons for the web UI

@@ -41,7 +41,7 @@ if config_env() == :prod do
   config :teamrc, Teamrc.Repo,
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    ssl: System.get_env("DATABASE_SSL") == "true"
+    ssl: System.get_env("DATABASE_SSL", "true") != "false"
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
@@ -55,7 +55,7 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  host = System.get_env("PHX_HOST") || "teamrc.ai"
 
   config :teamrc, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
@@ -67,6 +67,10 @@ if config_env() == :prod do
     System.get_env("LIVE_VIEW_SIGNING_SALT") ||
       raise "environment variable LIVE_VIEW_SIGNING_SALT is missing."
 
+  session_encryption_salt =
+    System.get_env("SESSION_ENCRYPTION_SALT") ||
+      raise "environment variable SESSION_ENCRYPTION_SALT is missing."
+
   config :teamrc, TeamrcWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
@@ -77,8 +81,21 @@ if config_env() == :prod do
       ip: {0, 0, 0, 0, 0, 0, 0, 0}
     ],
     secret_key_base: secret_key_base,
-    session_options: [signing_salt: session_signing_salt],
-    live_view: [signing_salt: live_view_signing_salt]
+    session_options: [signing_salt: session_signing_salt, encryption_salt: session_encryption_salt],
+    live_view: [signing_salt: live_view_signing_salt],
+    force_ssl: [hsts: true, rewrite_on: [:x_forwarded_proto]]
+
+  # Clerk JWT verification (optional — enables account linking + dashboard)
+  clerk_jwks_url = System.get_env("CLERK_JWKS_URL")
+  clerk_issuer = System.get_env("CLERK_ISSUER")
+  clerk_audience = System.get_env("CLERK_AUDIENCE")
+
+  if clerk_jwks_url && clerk_issuer do
+    config :teamrc, Teamrc.ClerkJWT,
+      jwks_url: clerk_jwks_url,
+      issuer: clerk_issuer,
+      audience: clerk_audience
+  end
 
   # ## SSL Support
   #

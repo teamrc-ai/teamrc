@@ -8,14 +8,20 @@ import {
   sanitizeText,
   slugify,
   escapeYamlString,
+  listTrcFiles,
+  deleteTrcFiles,
+  resolveAgentsDir,
+  upsertMarkerBlock,
+  removeMarkerBlock,
   writeSkillDir,
   cleanupSkillDirs,
+  resolveAgentSkills,
+  type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
   type TeamMember,
   type TeamScope,
 } from "./base.js";
-import { resolveAgentSkills } from "../resolve-skills.js";
 
 export class GeminiAdapter implements PlatformAdapter {
   private baseDir(scope: TeamScope): string {
@@ -36,31 +42,21 @@ export class GeminiAdapter implements PlatformAdapter {
     return path.join(process.cwd(), ".agents", "skills");
   }
 
+  /** Antigravity uses .agent/skills/ (singular) — mirror skills there for compatibility */
+  private antigravitySkillsDir(scope: TeamScope): string {
+    if (scope === "global") {
+      return path.join(os.homedir(), ".gemini", "antigravity", "skills");
+    }
+    return path.join(process.cwd(), ".agent", "skills");
+  }
+
   private geminiMdPath(): string {
     return path.join(process.cwd(), "GEMINI.md");
   }
 
-  /** Find the agents directory — check project first, fall back to global */
-  private resolveAgentsDir(): { dir: string; scope: TeamScope } {
-    const projectDir = this.agentsDir("project");
-    if (fs.existsSync(projectDir)) {
-      const tbFiles = this.listTbFiles(projectDir);
-      if (tbFiles.length > 0) {
-        return { dir: projectDir, scope: "project" };
-      }
-    }
-    const globalDir = this.agentsDir("global");
-    return { dir: globalDir, scope: "global" };
-  }
-
-  private listTbFiles(dir: string): string[] {
-    if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".md"));
-  }
-
   readTeam(): TeamDefinition | null {
-    const { dir } = this.resolveAgentsDir();
-    const files = this.listTbFiles(dir);
+    const { dir } = resolveAgentsDir(this.agentsDir("project"), this.agentsDir("global"));
+    const files = listTrcFiles(dir);
     if (files.length === 0) return null;
 
     let teamName = "my-team";
@@ -81,6 +77,67 @@ export class GeminiAdapter implements PlatformAdapter {
     return members.length > 0 ? { name: teamName, members } : null;
   }
 
+  planWrite(team: TeamDefinition, scope: TeamScope = "global"): FileAction[] {
+    const actions: FileAction[] = [];
+    const agentDir = this.agentsDir(scope);
+
+    // Agent files
+    const existingSlugs = new Set(
+      listTrcFiles(agentDir).map((f) => f.replace(/\.md$/, "")),
+    );
+    const newSlugs = new Set<string>();
+    for (const member of team.members) {
+      validateAgentName(member.name);
+      const slug = `trc-${slugify(member.name)}`;
+      newSlugs.add(slug);
+      actions.push({
+        type: existingSlugs.has(slug) ? "update" : "create",
+        path: path.join(agentDir, `${slug}.md`),
+        description: `agent: ${member.name}`,
+      });
+    }
+    for (const slug of existingSlugs) {
+      if (!newSlugs.has(slug)) actions.push({ type: "delete", path: path.join(agentDir, `${slug}.md`) });
+    }
+
+    // Skill directories (Gemini CLI + Antigravity)
+    const skillDir = this.skillsDir(scope);
+    const antigravityDir = this.antigravitySkillsDir(scope);
+    const existingSkillDirs = new Set(
+      fs.existsSync(skillDir) ? fs.readdirSync(skillDir).filter((f) => f.startsWith("trc-")) : [],
+    );
+    const newSkillDirs = new Set<string>();
+    if (team.skills) {
+      for (const skill of team.skills) {
+        if (!skill.alwaysApply && !(skill.globs && skill.globs.length > 0)) {
+          const dirName = `trc-${skill.id}`;
+          newSkillDirs.add(dirName);
+          actions.push({
+            type: existingSkillDirs.has(dirName) ? "update" : "create",
+            path: path.join(skillDir, dirName, "SKILL.md"),
+            description: `skill: ${skill.id}`,
+          });
+          actions.push({
+            type: "create",
+            path: path.join(antigravityDir, dirName, "SKILL.md"),
+            description: `skill (antigravity): ${skill.id}`,
+          });
+        }
+      }
+    }
+    for (const d of existingSkillDirs) { if (!newSkillDirs.has(d)) actions.push({ type: "delete", path: path.join(skillDir, d) }); }
+
+    // GEMINI.md
+    const geminiMdPath = this.geminiMdPath();
+    actions.push({
+      type: fs.existsSync(geminiMdPath) ? "update" : "create",
+      path: geminiMdPath,
+      description: "teamrc section",
+    });
+
+    return actions;
+  }
+
   writeTeam(team: TeamDefinition, scope: TeamScope = "global"): void {
     const agentDir = this.agentsDir(scope);
     if (!fs.existsSync(agentDir)) {
@@ -88,7 +145,7 @@ export class GeminiAdapter implements PlatformAdapter {
     }
 
     // Clean old trc-*.md agent files
-    this.cleanTbAgentFiles(agentDir);
+    deleteTrcFiles(agentDir);
 
     // Write individual agent files
     for (const member of team.members) {
@@ -99,31 +156,25 @@ export class GeminiAdapter implements PlatformAdapter {
       fs.writeFileSync(filePath, content);
     }
 
-    // Route skills: alwaysApply/globs → inline in GEMINI.md, on-demand → .agents/skills/
+    // Route skills: alwaysApply/globs → inline in GEMINI.md, on-demand → skill dirs
+    // Write to both .agents/skills/ (Gemini CLI) and .agent/skills/ (Antigravity)
     const skillDir = this.skillsDir(scope);
+    const antigravityDir = this.antigravitySkillsDir(scope);
     cleanupSkillDirs(skillDir);
+    cleanupSkillDirs(antigravityDir);
     if (team.skills) {
       for (const skill of team.skills) {
         if (!skill.alwaysApply && !(skill.globs && skill.globs.length > 0)) {
-          if (!fs.existsSync(skillDir)) {
-            fs.mkdirSync(skillDir, { recursive: true });
-          }
+          if (!fs.existsSync(skillDir)) fs.mkdirSync(skillDir, { recursive: true });
+          if (!fs.existsSync(antigravityDir)) fs.mkdirSync(antigravityDir, { recursive: true });
           writeSkillDir(skillDir, skill);
+          writeSkillDir(antigravityDir, skill);
         }
       }
     }
 
     // Write GEMINI.md with team context and always-on skills
     this.updateGeminiMd(team);
-  }
-
-  private cleanTbAgentFiles(dir: string): void {
-    if (!fs.existsSync(dir)) return;
-    for (const f of fs.readdirSync(dir)) {
-      if (f.startsWith("trc-") && f.endsWith(".md")) {
-        fs.unlinkSync(path.join(dir, f));
-      }
-    }
   }
 
   private updateGeminiMd(team: TeamDefinition): void {
@@ -145,6 +196,9 @@ export class GeminiAdapter implements PlatformAdapter {
       memberLines,
       "",
       "Each member is defined as an agent in `.gemini/agents/`. Delegate tasks to them based on their roles.",
+      "",
+      "### Team Knowledge",
+      "Shared findings and decisions are stored in `teamrc-knowledge.md`. Read this file at the start of every session for context from other agents and machines. When you discover something important (architecture decisions, gotchas, debugging insights), append it to this file so other team members can benefit.",
     ];
 
     // Inline alwaysApply/globs skills (Gemini has no native rules)
@@ -173,28 +227,14 @@ export class GeminiAdapter implements PlatformAdapter {
 
     sections.push(markerEnd);
     const block = sections.join("\n");
-
-    const filePath = this.geminiMdPath();
-
-    if (fs.existsSync(filePath)) {
-      let content = fs.readFileSync(filePath, "utf-8");
-      const regex = new RegExp(
-        `${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
-      );
-      content = regex.test(content)
-        ? content.replace(regex, block)
-        : content.trimEnd() + "\n\n" + block + "\n";
-      fs.writeFileSync(filePath, content);
-    } else {
-      fs.writeFileSync(filePath, block + "\n");
-    }
+    upsertMarkerBlock(this.geminiMdPath(), marker, markerEnd, block);
   }
 
   private knowledgePath(scope: TeamScope = "project"): string {
     if (scope === "project") {
       return path.join(process.cwd(), "teamrc-knowledge.md");
     }
-    return path.join(this.baseDir("global"), "team-knowledge.md");
+    return path.join(this.baseDir("global"), "teamrc-knowledge.md");
   }
 
   readKnowledge(): string {
@@ -216,47 +256,29 @@ export class GeminiAdapter implements PlatformAdapter {
     fs.writeFileSync(filePath, content);
   }
 
-  appendKnowledge(entries: string[]): void {
-    if (entries.length === 0) return;
-
-    const filePath = this.knowledgePath("project");
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
-    const newContent = entries
-      .map((e) => `- ${new Date().toISOString().slice(0, 10)}: ${e}`)
-      .join("\n");
-
-    if (fs.existsSync(filePath)) {
-      fs.appendFileSync(filePath, "\n" + newContent + "\n");
-    } else {
-      fs.writeFileSync(
-        filePath,
-        `# Team Knowledge\n\nShared findings and decisions synced by teamrc.\n\n${newContent}\n`,
-      );
-    }
-  }
-
   uninstall(): string[] {
     const actions: string[] = [];
-    const { dir, scope } = this.resolveAgentsDir();
-    const tbFiles = this.listTbFiles(dir);
+    const { dir, scope } = resolveAgentsDir(this.agentsDir("project"), this.agentsDir("global"));
+    const trcFiles = listTrcFiles(dir);
 
     // Delete agent files
-    for (const f of tbFiles) {
+    for (const f of trcFiles) {
       fs.unlinkSync(path.join(dir, f));
     }
-    if (tbFiles.length > 0) {
-      actions.push(`Deleted ${tbFiles.length} agent file(s) from ${dir}`);
+    if (trcFiles.length > 0) {
+      actions.push(`Deleted ${trcFiles.length} agent file(s) from ${dir}`);
     }
 
-    // Delete native skill directories
+    // Delete native skill directories (Gemini CLI + Antigravity)
     const skillsDir = this.skillsDir(scope);
+    const antigravityDir = this.antigravitySkillsDir(scope);
     const skillCount = cleanupSkillDirs(skillsDir);
+    const antigravityCount = cleanupSkillDirs(antigravityDir);
     if (skillCount > 0) {
       actions.push(`Deleted ${skillCount} skill directory(ies) from ${skillsDir}`);
+    }
+    if (antigravityCount > 0) {
+      actions.push(`Deleted ${antigravityCount} skill directory(ies) from ${antigravityDir}`);
     }
 
     // Delete team knowledge
@@ -269,19 +291,8 @@ export class GeminiAdapter implements PlatformAdapter {
     }
 
     // Remove teamrc section from GEMINI.md
-    const filePath = this.geminiMdPath();
-    if (fs.existsSync(filePath)) {
-      const content = fs.readFileSync(filePath, "utf-8");
-      const marker = "<!-- teamrc -->";
-      const markerEnd = "<!-- /teamrc -->";
-      const regex = new RegExp(
-        `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
-      );
-      const cleaned = content.replace(regex, "\n");
-      if (cleaned !== content) {
-        fs.writeFileSync(filePath, cleaned.trimEnd() + "\n");
-        actions.push("Removed teamrc section from GEMINI.md");
-      }
+    if (removeMarkerBlock(this.geminiMdPath(), "<!-- teamrc -->", "<!-- /teamrc -->")) {
+      actions.push("Removed teamrc section from GEMINI.md");
     }
 
     return actions;
@@ -369,5 +380,9 @@ description: "${safeRole}"
 # Team: ${safeTeamNameText}
 
 ${soulContent}
-${skillsSection}`;
+${skillsSection}
+## Team Knowledge
+
+Shared findings and decisions are stored in \`teamrc-knowledge.md\`. Read this file at the start of every session for context from other agents and machines. When you discover something important, append it to that file.
+`;
 }

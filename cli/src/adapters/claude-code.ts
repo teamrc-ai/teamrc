@@ -8,12 +8,19 @@ import {
   sanitizeText,
   slugify,
   escapeYamlString,
+  listTrcFiles,
+  deleteTrcFiles,
+  resolveAgentsDir,
+  upsertMarkerBlock,
+  removeMarkerBlock,
+  cleanupSkillDirs,
+  resolveAgentSkills,
+  type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
   type TeamMember,
   type TeamScope,
 } from "./base.js";
-import { resolveAgentSkills } from "../resolve-skills.js";
 
 export class ClaudeCodeAdapter implements PlatformAdapter {
   private claudeDir: string;
@@ -43,27 +50,9 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     return path.join(this.claudeDir, "skills");
   }
 
-  /** Find the agents directory — check project first, fall back to global */
-  private resolveAgentsDir(): { dir: string; scope: TeamScope } {
-    const projectDir = this.agentsDir("project");
-    if (fs.existsSync(projectDir)) {
-      const tbFiles = this.listTbFiles(projectDir);
-      if (tbFiles.length > 0) {
-        return { dir: projectDir, scope: "project" };
-      }
-    }
-    const globalDir = this.agentsDir("global");
-    return { dir: globalDir, scope: "global" };
-  }
-
-  private listTbFiles(dir: string): string[] {
-    if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".md"));
-  }
-
   readTeam(): TeamDefinition | null {
-    const { dir } = this.resolveAgentsDir();
-    const files = this.listTbFiles(dir);
+    const { dir } = resolveAgentsDir(this.agentsDir("project"), this.agentsDir("global"));
+    const files = listTrcFiles(dir);
     if (files.length === 0) return null;
 
     let teamName = "my-team";
@@ -82,6 +71,84 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     }
 
     return members.length > 0 ? { name: teamName, members } : null;
+  }
+
+  planWrite(team: TeamDefinition, scope: TeamScope = "global"): FileAction[] {
+    const actions: FileAction[] = [];
+    const dir = this.agentsDir(scope);
+
+    // Existing agent files that will be deleted
+    const existingSlugs = new Set(
+      listTrcFiles(dir).map((f) => f.replace(/\.md$/, "")),
+    );
+    const newSlugs = new Set<string>();
+
+    for (const member of team.members) {
+      validateAgentName(member.name);
+      const slug = `trc-${slugify(member.name)}`;
+      newSlugs.add(slug);
+      const filePath = path.join(dir, `${slug}.md`);
+      actions.push({
+        type: existingSlugs.has(slug) ? "update" : "create",
+        path: filePath,
+        description: `agent: ${member.name}`,
+      });
+    }
+
+    for (const slug of existingSlugs) {
+      if (!newSlugs.has(slug)) {
+        actions.push({ type: "delete", path: path.join(dir, `${slug}.md`), description: "orphaned agent" });
+      }
+    }
+
+    // Skills: rules and skill dirs
+    const rulesDir = this.rulesDir(scope);
+    const skillsDir = this.skillsDir(scope);
+    const existingRules = new Set(
+      fs.existsSync(rulesDir) ? fs.readdirSync(rulesDir).filter((f) => f.startsWith("trc-") && f.endsWith(".md")) : [],
+    );
+    const existingSkillDirs = new Set(
+      fs.existsSync(skillsDir) ? fs.readdirSync(skillsDir).filter((f) => f.startsWith("trc-")) : [],
+    );
+    const newRules = new Set<string>();
+    const newSkillDirs = new Set<string>();
+
+    if (team.skills) {
+      for (const skill of team.skills) {
+        if (typeof skill.body !== "string") continue;
+        if (skill.alwaysApply || (skill.globs && skill.globs.length > 0)) {
+          const fileName = `trc-${skill.id}.md`;
+          newRules.add(fileName);
+          actions.push({
+            type: existingRules.has(fileName) ? "update" : "create",
+            path: path.join(rulesDir, fileName),
+            description: `rule: ${skill.id}`,
+          });
+        } else {
+          const dirName = `trc-${skill.id}`;
+          newSkillDirs.add(dirName);
+          actions.push({
+            type: existingSkillDirs.has(dirName) ? "update" : "create",
+            path: path.join(skillsDir, dirName, "SKILL.md"),
+            description: `skill: ${skill.id}`,
+          });
+        }
+      }
+    }
+
+    for (const f of existingRules) { if (!newRules.has(f)) actions.push({ type: "delete", path: path.join(rulesDir, f) }); }
+    for (const d of existingSkillDirs) { if (!newSkillDirs.has(d)) actions.push({ type: "delete", path: path.join(skillsDir, d) }); }
+
+    if (scope === "project") {
+      const claudeMdPath = path.join(process.cwd(), "CLAUDE.md");
+      actions.push({
+        type: fs.existsSync(claudeMdPath) ? "update" : "create",
+        path: claudeMdPath,
+        description: "teamrc section",
+      });
+    }
+
+    return actions;
   }
 
   writeTeam(team: TeamDefinition, scope: TeamScope = "global"): void {
@@ -107,8 +174,8 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
   private writeSkillsAsNativeFiles(team: TeamDefinition, scope: TeamScope): void {
     if (!team.skills || team.skills.length === 0) {
       // Still clean up old files even if no skills
-      this.cleanTbRuleFiles(this.rulesDir(scope));
-      this.cleanTbSkillDirs(this.skillsDir(scope));
+      deleteTrcFiles(this.rulesDir(scope));
+      cleanupSkillDirs(this.skillsDir(scope));
       return;
     }
 
@@ -116,8 +183,8 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     const skillsBaseDir = this.skillsDir(scope);
 
     // Clean up old files before writing new ones
-    this.cleanTbRuleFiles(rulesDir);
-    this.cleanTbSkillDirs(skillsBaseDir);
+    deleteTrcFiles(rulesDir);
+    cleanupSkillDirs(skillsBaseDir);
 
     for (const skill of team.skills) {
       if (typeof skill.body !== "string") continue;
@@ -133,7 +200,8 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
 
         let content: string;
         if (skill.globs && skill.globs.length > 0) {
-          const pathsYaml = skill.globs.map((g) => `  - "${escapeYamlString(g)}"`).join("\n");
+          const sanitizedGlobs = skill.globs.map((g) => g.replace(/[\n\r]/g, ""));
+          const pathsYaml = sanitizedGlobs.map((g) => `  - "${escapeYamlString(g)}"`).join("\n");
           content = `---\npaths:\n${pathsYaml}\n---\n\n${skill.body}\n`;
         } else {
           content = `${skill.body}\n`;
@@ -166,42 +234,11 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     }
   }
 
-  private cleanTbRuleFiles(dir: string): void {
-    if (!fs.existsSync(dir)) return;
-    for (const f of fs.readdirSync(dir)) {
-      if (f.startsWith("trc-") && f.endsWith(".md")) {
-        fs.unlinkSync(path.join(dir, f));
-      }
-    }
-  }
-
-  private cleanTbSkillDirs(dir: string): void {
-    if (!fs.existsSync(dir)) return;
-    for (const f of fs.readdirSync(dir)) {
-      if (f.startsWith("trc-")) {
-        const fullPath = path.join(dir, f);
-        if (fs.statSync(fullPath).isDirectory()) {
-          fs.rmSync(fullPath, { recursive: true, force: true });
-        }
-      }
-    }
-  }
-
   private updateClaudeMd(team: TeamDefinition, scope: TeamScope): void {
-    const teamSection = buildClaudeMdSection(team);
-
     if (scope === "project") {
       const claudeMdPath = path.join(process.cwd(), "CLAUDE.md");
-      if (!fs.existsSync(claudeMdPath)) {
-        fs.writeFileSync(claudeMdPath, `# Project Configuration\n${teamSection}`);
-      } else {
-        const existing = fs.readFileSync(claudeMdPath, "utf-8");
-        const cleaned = existing.replace(
-          /\n<!-- teamrc -->[\s\S]*?<!-- \/teamrc -->/,
-          "",
-        );
-        fs.writeFileSync(claudeMdPath, cleaned.trimEnd() + "\n" + teamSection);
-      }
+      const block = buildClaudeMdSection(team);
+      upsertMarkerBlock(claudeMdPath, "<!-- teamrc -->", "<!-- /teamrc -->", block, "# Project Configuration\n\n");
     }
   }
 
@@ -209,7 +246,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     if (scope === "project") {
       return path.join(process.cwd(), "teamrc-knowledge.md");
     }
-    return path.join(this.claudeDir, "team-knowledge.md");
+    return path.join(this.claudeDir, "teamrc-knowledge.md");
   }
 
   readKnowledge(): string {
@@ -231,65 +268,40 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     fs.writeFileSync(filePath, content);
   }
 
-  appendKnowledge(entries: string[]): void {
-    if (entries.length === 0) return;
-
-    const filePath = this.knowledgePath("project");
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
-    const newContent = entries
-      .map((e) => `- ${new Date().toISOString().slice(0, 10)}: ${e}`)
-      .join("\n");
-
-    if (fs.existsSync(filePath)) {
-      fs.appendFileSync(filePath, "\n" + newContent + "\n");
-    } else {
-      fs.writeFileSync(
-        filePath,
-        `# Team Knowledge\n\nShared findings and decisions synced by teamrc.\n\n${newContent}\n`,
-      );
-    }
-  }
-
   uninstall(): string[] {
     const actions: string[] = [];
-    const { dir, scope } = this.resolveAgentsDir();
-    const tbFiles = this.listTbFiles(dir);
+    const { dir, scope } = resolveAgentsDir(this.agentsDir("project"), this.agentsDir("global"));
+    const trcFiles = listTrcFiles(dir);
 
     // Delete agent files
-    for (const f of tbFiles) {
+    for (const f of trcFiles) {
       fs.unlinkSync(path.join(dir, f));
     }
-    if (tbFiles.length > 0) {
-      actions.push(`Deleted ${tbFiles.length} agent file(s) from ${dir}`);
+    if (trcFiles.length > 0) {
+      actions.push(`Deleted ${trcFiles.length} agent file(s) from ${dir}`);
     }
 
     // Delete native rule files (skills written as rules)
     const rulesDir = this.rulesDir(scope);
-    if (fs.existsSync(rulesDir)) {
-      const tbRuleFiles = fs.readdirSync(rulesDir).filter((f) => f.startsWith("trc-") && f.endsWith(".md"));
-      for (const f of tbRuleFiles) {
-        fs.unlinkSync(path.join(rulesDir, f));
-      }
-      if (tbRuleFiles.length > 0) {
-        actions.push(`Deleted ${tbRuleFiles.length} native skill rule(s) from ${rulesDir}`);
-      }
+    const ruleFiles = listTrcFiles(rulesDir);
+    for (const f of ruleFiles) {
+      fs.unlinkSync(path.join(rulesDir, f));
+    }
+    if (ruleFiles.length > 0) {
+      actions.push(`Deleted ${ruleFiles.length} native skill rule(s) from ${rulesDir}`);
     }
 
     // Delete native skill directories
     const skillsDir = this.skillsDir(scope);
     if (fs.existsSync(skillsDir)) {
-      const tbSkillDirs = fs.readdirSync(skillsDir).filter((f) => {
+      const trcSkillDirs = fs.readdirSync(skillsDir).filter((f) => {
         return f.startsWith("trc-") && fs.statSync(path.join(skillsDir, f)).isDirectory();
       });
-      for (const f of tbSkillDirs) {
+      for (const f of trcSkillDirs) {
         fs.rmSync(path.join(skillsDir, f), { recursive: true, force: true });
       }
-      if (tbSkillDirs.length > 0) {
-        actions.push(`Deleted ${tbSkillDirs.length} native skill directory(ies) from ${skillsDir}`);
+      if (trcSkillDirs.length > 0) {
+        actions.push(`Deleted ${trcSkillDirs.length} native skill directory(ies) from ${skillsDir}`);
       }
     }
 
@@ -305,16 +317,8 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     // Remove teamrc section from CLAUDE.md
     if (scope === "project") {
       const claudeMdPath = path.join(process.cwd(), "CLAUDE.md");
-      if (fs.existsSync(claudeMdPath)) {
-        const content = fs.readFileSync(claudeMdPath, "utf-8");
-        const cleaned = content.replace(
-          /\n<!-- teamrc -->[\s\S]*?<!-- \/teamrc -->/,
-          "",
-        );
-        if (cleaned !== content) {
-          fs.writeFileSync(claudeMdPath, cleaned.trimEnd() + "\n");
-          actions.push(`Removed teamrc section from ${claudeMdPath}`);
-        }
+      if (removeMarkerBlock(claudeMdPath, "<!-- teamrc -->", "<!-- /teamrc -->")) {
+        actions.push(`Removed teamrc section from ${claudeMdPath}`);
       }
     }
 
@@ -425,7 +429,7 @@ ${teammates}
 
 ## Team Knowledge
 
-Shared findings and decisions are stored in \`.claude/team-knowledge.md\`. Read this file at the start of every session for context from other agents and machines. When you discover something important, append it to that file.
+Shared findings and decisions are stored in \`.claude/teamrc-knowledge.md\`. Read this file at the start of every session for context from other agents and machines. When you discover something important, append it to that file.
 `;
 }
 
@@ -435,8 +439,7 @@ function buildClaudeMdSection(team: TeamDefinition): string {
     .map((m) => `- **${sanitizeMarkerContent(m.name)}** — ${sanitizeMarkerContent(m.role)}`)
     .join("\n");
 
-  return `
-<!-- teamrc -->
+  return `<!-- teamrc -->
 ## teamrc Team: ${safeName}
 
 This project has a synced agent team managed by teamrc.
@@ -447,6 +450,6 @@ ${memberLines}
 Each member is defined as a subagent in \`.claude/agents/\`. Delegate tasks to them based on their roles.
 
 ### Team Knowledge
-Shared findings and decisions are stored in \`.claude/team-knowledge.md\`. Read this file at the start of every session for context from other agents and machines. When you discover something important (architecture decisions, gotchas, debugging insights), append it to this file so other team members can benefit.
+Shared findings and decisions are stored in \`.claude/teamrc-knowledge.md\`. Read this file at the start of every session for context from other agents and machines. When you discover something important (architecture decisions, gotchas, debugging insights), append it to this file so other team members can benefit.
 <!-- /teamrc -->`;
 }

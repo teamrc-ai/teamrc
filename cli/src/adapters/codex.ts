@@ -5,13 +5,17 @@ import {
   sanitizeMarkerContent,
   sanitizeText,
   slugify,
+  listTrcFiles,
+  upsertMarkerBlock,
+  removeMarkerBlock,
   writeSkillDir,
   cleanupSkillDirs,
+  resolveAgentSkills,
+  type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
   type TeamMember,
 } from "./base.js";
-import { resolveAgentSkills } from "../resolve-skills.js";
 
 export class CodexAdapter implements PlatformAdapter {
   private codexDir(): string {
@@ -30,13 +34,67 @@ export class CodexAdapter implements PlatformAdapter {
     return path.join(process.cwd(), ".agents", "skills");
   }
 
-  private listTbAgentFiles(): string[] {
-    const dir = this.agentsConfigDir();
-    if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".toml"));
-  }
 
   readTeam(): TeamDefinition | null { return null; }
+
+  planWrite(team: TeamDefinition): FileAction[] {
+    const actions: FileAction[] = [];
+
+    // Subagent TOML files
+    const existingAgents = new Set(listTrcFiles(this.agentsConfigDir(), ".toml"));
+    const newAgents = new Set<string>();
+    for (const member of team.members) {
+      validateAgentName(member.name);
+      const fileName = `trc-${slugify(member.name)}.toml`;
+      newAgents.add(fileName);
+      actions.push({
+        type: existingAgents.has(fileName) ? "update" : "create",
+        path: path.join(this.agentsConfigDir(), fileName),
+        description: `agent: ${member.name}`,
+      });
+    }
+    for (const f of existingAgents) {
+      if (!newAgents.has(f)) actions.push({ type: "delete", path: path.join(this.agentsConfigDir(), f) });
+    }
+
+    // config.toml
+    const configPath = path.join(this.codexDir(), "config.toml");
+    actions.push({
+      type: fs.existsSync(configPath) ? "update" : "create",
+      path: configPath,
+      description: "agent registration",
+    });
+
+    // Skill directories
+    const existingSkillDirs = new Set(
+      fs.existsSync(this.skillsDir()) ? fs.readdirSync(this.skillsDir()).filter((f) => f.startsWith("trc-")) : [],
+    );
+    const newSkillDirs = new Set<string>();
+    if (team.skills) {
+      for (const skill of team.skills) {
+        if (!skill.alwaysApply && !(skill.globs && skill.globs.length > 0)) {
+          const dirName = `trc-${skill.id}`;
+          newSkillDirs.add(dirName);
+          actions.push({
+            type: existingSkillDirs.has(dirName) ? "update" : "create",
+            path: path.join(this.skillsDir(), dirName, "SKILL.md"),
+            description: `skill: ${skill.id}`,
+          });
+        }
+      }
+    }
+    for (const d of existingSkillDirs) { if (!newSkillDirs.has(d)) actions.push({ type: "delete", path: path.join(this.skillsDir(), d) }); }
+
+    // AGENTS.md
+    const agentsMdPath = this.agentsMdPath();
+    actions.push({
+      type: fs.existsSync(agentsMdPath) ? "update" : "create",
+      path: agentsMdPath,
+      description: "team routing",
+    });
+
+    return actions;
+  }
 
   writeTeam(team: TeamDefinition): void {
     // Route skills: alwaysApply/globs → inline in AGENTS.md, on-demand → .agents/skills/
@@ -114,8 +172,9 @@ export class CodexAdapter implements PlatformAdapter {
       instructionParts.push("");
     }
 
-    // Escape triple quotes to prevent TOML injection
-    const instructions = instructionParts.join("\n").trim().replace(/"""/g, '"\\""');
+    const instructions = instructionParts.join("\n").trim()
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"');
 
     const tomlContent = [
       `# teamrc agent: ${safeName}`,
@@ -160,17 +219,7 @@ export class CodexAdapter implements PlatformAdapter {
 
     lines.push(markerEnd);
     const block = lines.join("\n");
-
-    if (fs.existsSync(configPath)) {
-      let content = fs.readFileSync(configPath, "utf-8");
-      const regex = new RegExp(
-        `${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
-      );
-      content = regex.test(content) ? content.replace(regex, block) : content.trimEnd() + "\n\n" + block + "\n";
-      fs.writeFileSync(configPath, content);
-    } else {
-      fs.writeFileSync(configPath, block + "\n");
-    }
+    upsertMarkerBlock(configPath, marker, markerEnd, block);
   }
 
   /** Write AGENTS.md with team context, routing, and always-on skills */
@@ -214,19 +263,13 @@ export class CodexAdapter implements PlatformAdapter {
       }
     }
 
-    const block = [marker, ...sections, markerEnd].join("\n");
-    const filePath = this.agentsMdPath();
+    sections.push("## Team Knowledge");
+    sections.push("");
+    sections.push("Shared findings and decisions are stored in `teamrc-knowledge.md`. Read this file at the start of every session for context from other agents and machines. When you discover something important (architecture decisions, gotchas, debugging insights), append it to this file so other team members can benefit.");
+    sections.push("");
 
-    if (fs.existsSync(filePath)) {
-      let content = fs.readFileSync(filePath, "utf-8");
-      const regex = new RegExp(
-        `${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
-      );
-      content = regex.test(content) ? content.replace(regex, block) : content.trimEnd() + "\n\n" + block + "\n";
-      fs.writeFileSync(filePath, content);
-    } else {
-      fs.writeFileSync(filePath, block + "\n");
-    }
+    const block = [marker, ...sections, markerEnd].join("\n");
+    upsertMarkerBlock(this.agentsMdPath(), marker, markerEnd, block);
   }
 
   readKnowledge(): string {
@@ -239,24 +282,11 @@ export class CodexAdapter implements PlatformAdapter {
     fs.writeFileSync(path.join(process.cwd(), "teamrc-knowledge.md"), content);
   }
 
-  appendKnowledge(entries: string[]): void {
-    if (entries.length === 0) return;
-    const filePath = path.join(process.cwd(), "teamrc-knowledge.md");
-    const newContent = entries
-      .map((e) => `- ${new Date().toISOString().slice(0, 10)}: ${e}`)
-      .join("\n");
-    if (fs.existsSync(filePath)) {
-      fs.appendFileSync(filePath, "\n" + newContent + "\n");
-    } else {
-      fs.writeFileSync(filePath, `# Team Knowledge\n\nShared findings and decisions synced by teamrc.\n\n${newContent}\n`);
-    }
-  }
-
   uninstall(): string[] {
     const actions: string[] = [];
 
     // Clean up subagent TOML files
-    const agentFiles = this.listTbAgentFiles();
+    const agentFiles = listTrcFiles(this.agentsConfigDir(), ".toml");
     for (const f of agentFiles) {
       fs.unlinkSync(path.join(this.agentsConfigDir(), f));
     }
@@ -265,19 +295,8 @@ export class CodexAdapter implements PlatformAdapter {
     }
 
     // Clean up config.toml teamrc section
-    const configPath = path.join(this.codexDir(), "config.toml");
-    if (fs.existsSync(configPath)) {
-      const content = fs.readFileSync(configPath, "utf-8");
-      const marker = "# --- teamrc start ---";
-      const markerEnd = "# --- teamrc end ---";
-      const regex = new RegExp(
-        `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
-      );
-      const cleaned = content.replace(regex, "\n");
-      if (cleaned !== content) {
-        fs.writeFileSync(configPath, cleaned.trimEnd() + "\n");
-        actions.push("Removed teamrc section from .codex/config.toml");
-      }
+    if (removeMarkerBlock(path.join(this.codexDir(), "config.toml"), "# --- teamrc start ---", "# --- teamrc end ---")) {
+      actions.push("Removed teamrc section from .codex/config.toml");
     }
 
     // Clean up skill directories
@@ -287,19 +306,8 @@ export class CodexAdapter implements PlatformAdapter {
     }
 
     // Clean up AGENTS.md marker block
-    const filePath = this.agentsMdPath();
-    if (fs.existsSync(filePath)) {
-      const content = fs.readFileSync(filePath, "utf-8");
-      const marker = "<!-- teamrc -->";
-      const markerEnd = "<!-- /teamrc -->";
-      const regex = new RegExp(
-        `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
-      );
-      const cleaned = content.replace(regex, "\n");
-      if (cleaned !== content) {
-        fs.writeFileSync(filePath, cleaned.trimEnd() + "\n");
-        actions.push("Removed teamrc section from AGENTS.md");
-      }
+    if (removeMarkerBlock(this.agentsMdPath(), "<!-- teamrc -->", "<!-- /teamrc -->")) {
+      actions.push("Removed teamrc section from AGENTS.md");
     }
 
     return actions;

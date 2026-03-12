@@ -14,9 +14,9 @@ check_cmd "teamrc sync exits cleanly" npx teamrc sync
 subsection "4.2: Push knowledge"
 # Create knowledge file if it doesn't exist
 mkdir -p .claude
-if [ ! -f ".claude/team-knowledge.md" ]; then
-  echo "# Team Knowledge" > .claude/team-knowledge.md
-  echo "Test entry: verification at $(date)" >> .claude/team-knowledge.md
+if [ ! -f ".claude/teamrc-knowledge.md" ]; then
+  echo "# Team Knowledge" > .claude/teamrc-knowledge.md
+  echo "Test entry: verification at $(date)" >> .claude/teamrc-knowledge.md
 fi
 PUSH_OUTPUT=$(npx teamrc push 2>&1 || true)
 if echo "$PUSH_OUTPUT" | grep -qi "push\|success\|knowledge"; then

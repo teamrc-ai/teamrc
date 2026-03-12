@@ -37,21 +37,28 @@ The canonical team definition. Check this into version control.
 
 ```yaml
 name: my-team
+teamId: <uuid>          # assigned by relay on init/join
+relay: http://localhost:4000
+platforms:
+  - claude-code
+  - cursor
+
 members:
   - name: architect
     role: Design system architecture
+    skills:
+      - code-review
   - name: implementer
     role: Write implementation code
     soul: "You are a meticulous coder who writes tests first."
 
-rules:
+skills:
   - id: code-style
     title: Code Style
+    alwaysApply: true
     globs: ["*.ts", "*.js"]
     body: |
       Use eslint + prettier defaults.
-
-skills:
   - id: deploy
     description: Deploy to staging
     body: |
@@ -60,20 +67,22 @@ skills:
 
 Fields:
 - **name** — Team name (alphanumeric, spaces, hyphens, underscores; max 64 chars)
+- **teamId** — UUID assigned by the relay server
+- **relay** — Relay server URL for cross-machine sync
+- **platforms** — Target platforms (`claude-code`, `cursor`, `codex`, `gemini`, `openclaw`)
 - **members** — Array of agents (max 100)
   - **name** — Agent name (alphanumeric, hyphens, underscores; max 64 chars)
   - **role** — One-line role description
   - **soul** — Optional custom persona/instructions
-- **rules** — Array of shared coding conventions (max 50)
-  - **id** — Rule identifier (alphanumeric, hyphens; max 64 chars)
+  - **skills** — Optional list of skill IDs to assign to this agent
+- **skills** — Array of shared skills and conventions (max 200)
+  - **id** — Skill identifier (alphanumeric, hyphens, underscores; max 64 chars)
   - **title** — Display name
-  - **globs** — Optional file patterns for scoped activation
-  - **alwaysApply** — Whether rule is always active (default: false)
-  - **body** — Rule content (inline string or `{ source: "./path" }`)
-- **skills** — Array of reusable capabilities (max 50)
-  - **id** — Skill identifier
   - **description** — What the skill does
-  - **body** — Skill content
+  - **globs** — Optional file patterns for scoped activation (written as native rules)
+  - **alwaysApply** — Whether skill is always active (written as native rules; default: false)
+  - **userInvocable** — Whether the skill can be invoked on demand
+  - **body** — Skill content (inline string or `{ source: "./path" }`)
 
 ## CLI Commands
 
@@ -82,6 +91,7 @@ Fields:
 | `teamrc init` | Detect platform, create agents, write `.teamrc.yaml`, connect to relay |
 | `teamrc join <token>` | Join an existing team and set up locally. `--no-sync` for local-only |
 | `teamrc clone <token>` | Copy a team locally without joining sync. `--name` to override name |
+| `teamrc dashboard` | Open the current team in your browser. `--ttl <hours>` (default: 24) |
 | `teamrc invite` | Generate an invite code for your team. `--ttl <hours>` (default: 24, max: 168) |
 | `teamrc apply` | Apply `.teamrc.yaml` to local platform(s) |
 | `teamrc export` | Export team from relay to `.teamrc.yaml` |
@@ -98,24 +108,38 @@ Fields:
 
 ## Platforms
 
-- **Claude Code** — Agents in `.claude/agents/trc-*.md` with YAML frontmatter. Rules as `.claude/rules/trc-*.md`. Skills as `.claude/skills/trc-*/SKILL.md`. Updates `CLAUDE.md` with team section.
-- **Cursor** — Subagents in `.cursor/agents/trc-*.md`. Rules as `.cursor/rules/trc-*.mdc`. Skills as `.cursor/skills/trc-*/SKILL.md`. Routing via `.cursor/AGENTS.md`.
+- **Claude Code** — Agents in `.claude/agents/trc-*.md` with YAML frontmatter. Skills with `alwaysApply`/`globs` as `.claude/rules/trc-*.md`. On-demand skills as `.claude/skills/trc-*/SKILL.md`. Updates `CLAUDE.md` with team section.
+- **Cursor** — Subagents in `.cursor/agents/trc-*.md`. Skills with `alwaysApply`/`globs` as `.cursor/rules/trc-*.mdc`. On-demand skills as `.cursor/skills/trc-*/SKILL.md`. Routing via `.cursor/AGENTS.md`.
 - **Codex** — Agent TOML configs in `.codex/agents/trc-*.toml`. Registered in `.codex/config.toml`. Routing via `AGENTS.md`.
 - **OpenClaw** — Agents in `.agents/agents/trc-*.md` with YAML frontmatter. Skills as `.agents/skills/trc-*/SKILL.md`. Routing via `AGENTS.md`.
-- **Gemini** — Agents in `.gemini/agents/trc-*.md` with YAML frontmatter. Skills as `.gemini/skills/trc-*/SKILL.md`. Updates `GEMINI.md` with team section.
+- **Gemini** — Agents in `.gemini/agents/trc-*.md` with YAML frontmatter. Skills as `.agents/skills/trc-*/SKILL.md` (Gemini CLI) and `.agent/skills/trc-*/SKILL.md` (Antigravity). Updates `GEMINI.md` with team section.
 
-## Relay
+## Self-Hosting
 
-Elixir/Phoenix server for cross-machine sync. Stores team definitions in PostgreSQL, sync state in memory (24h TTL).
-
-Optional account layer: Clerk JWT auth for linking machines to accounts via device auth flow.
+### Docker (recommended)
 
 ```bash
+# Clone and start with Docker Compose
+git clone <repo-url> && cd teamrc
+cp .env.example .env
+# Edit .env — set SECRET_KEY_BASE, SESSION_SIGNING_SALT, LIVE_VIEW_SIGNING_SALT, SESSION_ENCRYPTION_SALT
+docker compose up
+```
+
+The relay server will be available at `http://localhost:4000`. Postgres is included.
+
+For production (Coolify, etc.), set the required env vars and point at the `Dockerfile`. See `.env.example` for the full list.
+
+### Without Docker
+
+```bash
+# Requires Elixir 1.18+, PostgreSQL
 cd teamrc
-mix deps.get
-mix ecto.setup
+mix setup
 mix phx.server  # http://localhost:4000
 ```
+
+Point the CLI at your relay with `TEAMRC_RELAY=http://your-host:4000` or set `relay:` in `.teamrc.yaml`.
 
 ## Security
 
@@ -128,9 +152,8 @@ mix phx.server  # http://localhost:4000
 - Sync attribution: every content change tracks `pushed_by` token for accountability
 - Daemon defaults to knowledge-only sync mode (agent definitions require explicit `teamrc sync`)
 - Content cap: 50MB per team for sync state
-- Rules/skills validated: max 50 each, max 10KB per rule body
-- Clerk JWT validation for account endpoints (fail-closed)
-- Production config validated at boot (CLERK_ISSUER, signing salts)
+- Skills validated: max 200, max 10KB per skill body
+- Clerk JWT validation for account endpoints (fail-closed when configured)
 - See `docs/security-audit.md` for full audit
 
 ## Security Note

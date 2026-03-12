@@ -7,7 +7,12 @@ defmodule TeamrcWeb.Router do
     plug :fetch_live_flash
     plug :put_root_layout, html: {TeamrcWeb.Layouts, :root}
     plug :protect_from_forgery
-    plug :put_secure_browser_headers
+
+    plug :put_secure_browser_headers, %{
+      "content-security-policy" =>
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss:; font-src 'self' data:; frame-ancestors 'none'"
+    }
+
     plug TeamrcWeb.Plugs.SessionClerkAuth
   end
 
@@ -15,6 +20,12 @@ defmodule TeamrcWeb.Router do
     plug :accepts, ["json"]
     plug TeamrcWeb.Plugs.CORS
     plug TeamrcWeb.Plugs.VerifySignature
+    plug TeamrcWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
+  end
+
+  pipeline :public_api do
+    plug :accepts, ["json"]
+    plug TeamrcWeb.Plugs.CORS
     plug TeamrcWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
   end
 
@@ -33,20 +44,50 @@ defmodule TeamrcWeb.Router do
     plug TeamrcWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
   end
 
+  # Health check — no auth, no SSL redirect, no pipelines
+  scope "/", TeamrcWeb do
+    get "/health", PageController, :health
+  end
+
   scope "/", TeamrcWeb do
     pipe_through :browser
 
     get "/", PageController, :index
     get "/auth/sign-out", PageController, :sign_out
 
-    live_session :default,
+    live_session :public,
       layout: {TeamrcWeb.Layouts, :app},
-      on_mount: [TeamrcWeb.Hooks.AssignAuth] do
+      on_mount: [{TeamrcWeb.Hooks.AssignAuth, :default}] do
       live "/new", TeamLive, :index
-      live "/dashboard", DashboardLive
+      live "/invite/:code", InviteLive
       live "/teams/:id", TeamDetailLive
+      live "/teams/:team_id/members/:member_id", MemberDetailLive
+      live "/guide/get-started", GuideLive, :get_started
+      live "/guide", GuideLive, :overview
+      live "/guide/concepts", GuideLive, :concepts
+      live "/guide/cli", GuideLive, :cli
+      live "/guide/platforms", GuideLive, :platforms
+      live "/guide/sync", GuideLive, :sync
+      live "/guide/config", GuideLive, :config
+      live "/guide/web-ui", GuideLive, :web_ui
+      live "/guide/faq", GuideLive, :faq
       live "/auth/verify", AuthVerifyLive
+      live "/terms", LegalLive, :terms
+      live "/privacy", LegalLive, :privacy
     end
+
+    live_session :authenticated,
+      layout: {TeamrcWeb.Layouts, :app},
+      on_mount: [{TeamrcWeb.Hooks.AssignAuth, :require_auth}] do
+      live "/dashboard", DashboardLive
+    end
+  end
+
+  # Public API (no auth required)
+  scope "/api", TeamrcWeb do
+    pipe_through :public_api
+
+    get "/teams/clone/:clone_token", ApiController, :clone_team
   end
 
   scope "/api", TeamrcWeb do
@@ -59,7 +100,11 @@ defmodule TeamrcWeb.Router do
     post "/teams", ApiController, :create_team
     post "/teams/preview", ApiController, :preview_team
     post "/teams/invite", ApiController, :create_invite
+    post "/teams/visibility", ApiController, :set_visibility
+    post "/teams/claim", ApiController, :claim_ownership
+    delete "/token/:token/erase", ApiController, :erase_token
     get "/teams/all/:token", ApiController, :get_teams
+    get "/teams/:token/head", ApiController, :head_team
     get "/teams/:token", ApiController, :get_team
   end
 
@@ -68,7 +113,9 @@ defmodule TeamrcWeb.Router do
 
     get "/account", AccountController, :show
     get "/account/teams", AccountController, :teams
+    get "/account/export", AccountController, :export
     delete "/account/machines/:token", AccountController, :revoke_machine
+    delete "/account", AccountController, :delete
   end
 
   scope "/api", TeamrcWeb do

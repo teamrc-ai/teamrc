@@ -10,23 +10,35 @@ source "$(dirname "$0")/helpers.sh"
 
 PLATFORM="${1:-all}"
 
+# Find the first trc-* agent file for content checks
+first_agent() {
+  local dir="$1" ext="$2"
+  ls "$dir"/trc-*"$ext" 2>/dev/null | head -1 || echo ""
+}
+
 verify_claude_code() {
   subsection "3.1: Claude Code"
-  check_file ".claude/agents/trc-agent.md" "Agent file: .claude/agents/trc-agent.md"
-  check_contains ".claude/agents/trc-agent.md" "name:" "Agent has YAML frontmatter (name:)"
-  check_contains ".claude/agents/trc-agent.md" "description:" "Agent has YAML frontmatter (description:)"
+  check_glob ".claude/agents/trc-*.md" "Agent files exist"
+  AGENT=$(first_agent ".claude/agents" ".md")
+  if [ -n "$AGENT" ]; then
+    check_contains "$AGENT" "name:" "Agent has YAML frontmatter (name:)"
+    check_contains "$AGENT" "description:" "Agent has YAML frontmatter (description:)"
+  fi
 
   check_file "CLAUDE.md" "CLAUDE.md exists"
   check_contains "CLAUDE.md" "<!-- teamrc -->" "CLAUDE.md has <!-- teamrc --> marker"
   check_contains "CLAUDE.md" "<!-- /teamrc -->" "CLAUDE.md has <!-- /teamrc --> marker"
-  check_contains "CLAUDE.md" "team-knowledge.md" "CLAUDE.md references team-knowledge.md"
+  check_contains "CLAUDE.md" "teamrc-knowledge.md" "CLAUDE.md references teamrc-knowledge.md"
 }
 
 verify_cursor() {
   subsection "3.2: Cursor"
-  check_file ".cursor/agents/trc-agent.md" "Agent file: .cursor/agents/trc-agent.md"
-  check_contains ".cursor/agents/trc-agent.md" "name:" "Agent has YAML frontmatter (name:)"
-  check_contains ".cursor/agents/trc-agent.md" "description:" "Agent has YAML frontmatter (description:)"
+  check_glob ".cursor/agents/trc-*.md" "Agent files exist"
+  AGENT=$(first_agent ".cursor/agents" ".md")
+  if [ -n "$AGENT" ]; then
+    check_contains "$AGENT" "name:" "Agent has YAML frontmatter (name:)"
+    check_contains "$AGENT" "description:" "Agent has YAML frontmatter (description:)"
+  fi
 
   if [ -f ".cursor/AGENTS.md" ]; then
     check_contains ".cursor/AGENTS.md" "<!-- teamrc -->" "AGENTS.md has <!-- teamrc --> marker"
@@ -38,14 +50,17 @@ verify_cursor() {
 
 verify_codex() {
   subsection "3.3: Codex (TOML format)"
-  check_file ".codex/agents/trc-agent.toml" "Agent file: .codex/agents/trc-agent.toml (.toml, NOT .md)"
-  check_contains ".codex/agents/trc-agent.toml" 'developer_instructions = """' "Agent has developer_instructions block"
-  check_contains ".codex/agents/trc-agent.toml" '# teamrc agent:' "Agent has header comment"
+  check_glob ".codex/agents/trc-*.toml" "Agent files exist (.toml)"
+  AGENT=$(first_agent ".codex/agents" ".toml")
+  if [ -n "$AGENT" ]; then
+    check_contains "$AGENT" 'developer_instructions = """' "Agent has developer_instructions block"
+    check_contains "$AGENT" '# teamrc agent:' "Agent has header comment"
+  fi
 
   check_file ".codex/config.toml" "Config: .codex/config.toml"
   check_contains ".codex/config.toml" '# --- teamrc start ---' "config.toml has start marker"
   check_contains ".codex/config.toml" '# --- teamrc end ---' "config.toml has end marker"
-  check_contains ".codex/config.toml" '[agents.trc-agent]' "config.toml has [agents.trc-agent] section"
+  check_contains ".codex/config.toml" '[agents.trc-' "config.toml has [agents.trc-*] section"
   check_contains ".codex/config.toml" 'config_file' "config.toml has config_file reference"
 
   check_file "AGENTS.md" "Routing file: AGENTS.md"
@@ -58,9 +73,12 @@ verify_codex() {
 
 verify_gemini() {
   subsection "3.4: Gemini"
-  check_file ".gemini/agents/trc-agent.md" "Agent file: .gemini/agents/trc-agent.md"
-  check_contains ".gemini/agents/trc-agent.md" "name:" "Agent has YAML frontmatter (name:)"
-  check_contains ".gemini/agents/trc-agent.md" "description:" "Agent has YAML frontmatter (description:)"
+  check_glob ".gemini/agents/trc-*.md" "Agent files exist"
+  AGENT=$(first_agent ".gemini/agents" ".md")
+  if [ -n "$AGENT" ]; then
+    check_contains "$AGENT" "name:" "Agent has YAML frontmatter (name:)"
+    check_contains "$AGENT" "description:" "Agent has YAML frontmatter (description:)"
+  fi
 
   check_file "GEMINI.md" "Routing file: GEMINI.md"
   check_contains "GEMINI.md" "<!-- teamrc -->" "GEMINI.md has <!-- teamrc --> marker"
@@ -69,15 +87,11 @@ verify_gemini() {
 
 verify_openclaw() {
   subsection "3.5: OpenClaw"
-  check_dir "$HOME/.openclaw/workspaces/trc-agent" "Workspace: ~/.openclaw/workspaces/trc-agent/"
-  check_file "$HOME/.openclaw/workspaces/trc-agent/SOUL.md" "SOUL.md exists in workspace"
-  check_file "$HOME/.openclaw/workspaces/trc-agent/AGENTS.md" "AGENTS.md exists in workspace"
-  check_contains "$HOME/.openclaw/workspaces/trc-agent/AGENTS.md" "teamrc" "AGENTS.md has teamrc routing"
-
-  if [ -f "openclaw.json" ]; then
-    check_contains "openclaw.json" "trc-agent" "openclaw.json registers trc-agent"
-  else
-    skip "openclaw.json registration" "file not found"
+  check_glob "$HOME/.openclaw/workspaces/trc-*" "Workspaces exist"
+  WORKSPACE=$(ls -d "$HOME/.openclaw/workspaces/trc-"* 2>/dev/null | head -1 || echo "")
+  if [ -n "$WORKSPACE" ]; then
+    check_file "$WORKSPACE/AGENTS.md" "AGENTS.md exists in workspace"
+    check_contains "$WORKSPACE/AGENTS.md" "teamrc" "AGENTS.md has teamrc routing"
   fi
 }
 

@@ -287,4 +287,77 @@ describe("resolveBody", () => {
       /Path traversal blocked/,
     );
   });
+
+  it("handles concurrent deletion without TOCTOU race (no existsSync pre-check)", () => {
+    // The fix removes existsSync and uses try/catch on realpathSync,
+    // so a missing file returns "" without a race window.
+    const result = resolveBody({ source: "./deleted-between-check-and-read.md" }, tmpDir);
+    assert.equal(result, "");
+  });
+});
+
+describe("writeTeamYaml atomic writes", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-atomic-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it("writes atomically (no leftover temp files)", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    writeTeamYaml(filePath, {
+      name: "atomic-test",
+      members: [{ name: "agent", role: "helper" }],
+    });
+
+    // The file should exist and be readable
+    const result = readTeamYaml(filePath);
+    assert.ok(result);
+    assert.equal(result.name, "atomic-test");
+
+    // No temp files should remain
+    const files = fs.readdirSync(tmpDir);
+    assert.equal(files.length, 1, "only the target file should exist, no temp files");
+    assert.equal(files[0], ".teamrc.yaml");
+  });
+
+  it("creates parent directories if needed", () => {
+    const nested = path.join(tmpDir, "sub", "dir");
+    const filePath = path.join(nested, "team.yaml");
+    writeTeamYaml(filePath, {
+      name: "nested-test",
+      members: [{ name: "agent", role: "helper" }],
+    });
+
+    const result = readTeamYaml(filePath);
+    assert.ok(result);
+    assert.equal(result.name, "nested-test");
+  });
+
+  it("overwrites existing file atomically", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+
+    writeTeamYaml(filePath, {
+      name: "version-1",
+      members: [{ name: "agent-a", role: "role-a" }],
+    });
+
+    writeTeamYaml(filePath, {
+      name: "version-2",
+      members: [{ name: "agent-b", role: "role-b" }],
+    });
+
+    const result = readTeamYaml(filePath);
+    assert.ok(result);
+    assert.equal(result.name, "version-2");
+    assert.equal(result.members[0].name, "agent-b");
+
+    // No temp files should remain
+    const files = fs.readdirSync(tmpDir);
+    assert.equal(files.length, 1);
+  });
 });

@@ -9,6 +9,11 @@ defmodule TeamrcWeb.PageController do
     end
   end
 
+  def health(conn, _params) do
+    Ecto.Adapters.SQL.query!(Teamrc.Repo, "SELECT 1")
+    json(conn, %{status: "ok"})
+  end
+
   def sign_out(conn, _params) do
     conn
     |> clear_session()

@@ -1,30 +1,74 @@
 import { signMessage } from "./auth.js";
 import type { Skill, TeamDefinition } from "./adapters/base.js";
 
-import { validateSkillId } from "./team-yaml.js";
+import { validateSkillId, resolveBody } from "./team-yaml.js";
 
 export interface TeamrcTeam {
   id: string;
   name: string;
-  members: Array<{ name: string; role: string; platform?: string; skills?: string[] }>;
+  members: Array<{ name: string; role: string; platform?: string; skills?: string[]; soul?: string }>;
   skills?: Skill[];
   knowledge?: string;
-  updated_at?: string;
-  created_at?: string;
+  owner_claim_secret?: string;
+  hash?: string;
+  members_hash?: string;
+  skills_hash?: string;
+  knowledge_hash?: string;
+}
+
+export interface TeamHeadResponse {
+  hash: string;
+  members_hash: string;
+  skills_hash: string;
+  knowledge_hash: string;
+}
+
+export class SyncConflictError extends Error {
+  serverHash: string;
+  constructor(message: string, serverHash: string) {
+    super(message);
+    this.name = "SyncConflictError";
+    this.serverHash = serverHash;
+  }
+}
+
+// Size caps for relay-sourced content to prevent resource exhaustion
+const MAX_NAME_LEN = 64;
+const MAX_ROLE_LEN = 500;
+const MAX_SOUL_LEN = 4096;
+const MAX_BODY_LEN = 65536;
+
+function capString(s: string | undefined, max: number): string | undefined {
+  if (!s) return s;
+  return s.length > max ? s.slice(0, max) : s;
+}
+
+/** Strip YAML frontmatter delimiters from body/soul content to prevent injection */
+function sanitizeFrontmatter(s: string): string {
+  return s.replace(/^---\s*$/gm, "– – –");
 }
 
 export function remoteTeamToDefinition(team: TeamrcTeam): TeamDefinition {
   // Validate skill IDs from the relay to prevent path traversal
   const skills = team.skills?.filter((s) => {
     try { validateSkillId(s.id); return true; } catch { return false; }
-  });
+  }).map((s) => ({
+    ...s,
+    body: typeof s.body === "string" ? sanitizeFrontmatter(capString(s.body, MAX_BODY_LEN)!) : s.body,
+    globs: s.globs?.map((g) => g.replace(/[\n\r]/g, "")) ?? [],
+    ...(s.title ? { title: capString(s.title, MAX_NAME_LEN) } : {}),
+    ...(s.description ? { description: capString(s.description, MAX_ROLE_LEN) } : {}),
+  }));
 
   return {
-    name: team.name,
+    name: capString(team.name, MAX_NAME_LEN) ?? "",
     members: team.members.map((m) => ({
-      name: m.name,
-      role: m.role,
-      ...(m.skills?.length ? { skills: m.skills } : {}),
+      name: capString(m.name, MAX_NAME_LEN) ?? "",
+      role: capString(m.role, MAX_ROLE_LEN) ?? "",
+      ...(m.soul ? { soul: sanitizeFrontmatter(capString(m.soul, MAX_SOUL_LEN)!) } : {}),
+      ...(m.skills?.length ? { skills: m.skills.filter((id) => {
+        try { validateSkillId(id); return true; } catch { return false; }
+      }) } : {}),
     })),
     ...(skills?.length ? { skills } : {}),
   };
@@ -35,6 +79,9 @@ export class TeamrcClient {
   private privateKey: Uint8Array;
   private token: string;
   private teamId?: string;
+
+  /** Default timeout for all fetch requests (30 seconds) */
+  static readonly FETCH_TIMEOUT_MS = 30_000;
 
   constructor(baseUrl: string, privateKey: Uint8Array, token: string, teamId?: string) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
@@ -75,6 +122,7 @@ export class TeamrcClient {
         "x-trc-signature": signature,
         "x-trc-timestamp": timestamp,
       },
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, `GET ${path} failed`));
@@ -102,6 +150,7 @@ export class TeamrcClient {
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "createTeam failed"));
@@ -110,8 +159,11 @@ export class TeamrcClient {
     return data.team;
   }
 
-  async getTeam(token: string): Promise<TeamrcTeam> {
-    const data = await this.signedGet<{ team: TeamrcTeam }>(`/api/teams/${token}`);
+  async getTeam(): Promise<TeamrcTeam> {
+    const url = this.teamId
+      ? `/api/teams/${this.token}?team_id=${encodeURIComponent(this.teamId)}`
+      : `/api/teams/${this.token}`;
+    const data = await this.signedGet<{ team: TeamrcTeam }>(url);
     return data.team;
   }
 
@@ -122,6 +174,7 @@ export class TeamrcClient {
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "join failed"));
@@ -130,17 +183,31 @@ export class TeamrcClient {
     return data.team;
   }
 
-  async pushTeam(team: TeamDefinition, knowledge?: string): Promise<TeamrcTeam> {
+  async pushTeam(team: TeamDefinition, knowledge?: string, basePath?: string, baseHash?: string): Promise<TeamrcTeam> {
+    // Resolve source-body skills to their actual content before sending
+    const resolvedSkills = team.skills?.map((s) => {
+      if (typeof s.body === "object" && s.body.source) {
+        const resolved = resolveBody(s.body, basePath ?? process.cwd());
+        if (!resolved) {
+          throw new Error(`Skill "${s.id}" references source "${s.body.source}" which could not be read`);
+        }
+        return { ...s, body: resolved };
+      }
+      return s;
+    });
     const body = JSON.stringify({
       token: this.token,
+      ...(this.teamId ? { team_id: this.teamId } : {}),
+      ...(baseHash ? { base_hash: baseHash } : {}),
       team: {
         name: team.name,
         members: team.members.map((m) => ({
           name: m.name,
           role: m.role,
+          ...(m.soul ? { soul: m.soul } : {}),
           ...(m.skills?.length ? { skills: m.skills } : {}),
         })),
-        ...(team.skills?.length ? { skills: team.skills } : {}),
+        ...(resolvedSkills?.length ? { skills: resolvedSkills } : {}),
         ...(knowledge ? { knowledge } : {}),
       },
     });
@@ -149,12 +216,31 @@ export class TeamrcClient {
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
+    if (res.status === 409) {
+      let serverHash = "";
+      try {
+        const conflict = (await res.json()) as { server_hash?: string; error?: string };
+        serverHash = conflict.server_hash ?? "";
+      } catch { /* not JSON */ }
+      throw new SyncConflictError(
+        "Remote has changes. Run `teamrc pull` first.",
+        serverHash,
+      );
+    }
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "pushTeam failed"));
     }
     const data = (await res.json()) as { team: TeamrcTeam };
     return data.team;
+  }
+
+  async getTeamHead(): Promise<TeamHeadResponse> {
+    const url = this.teamId
+      ? `/api/teams/${this.token}/head?team_id=${encodeURIComponent(this.teamId)}`
+      : `/api/teams/${this.token}/head`;
+    return this.signedGet<TeamHeadResponse>(url);
   }
 
   async createDeviceAuth(): Promise<{
@@ -170,6 +256,7 @@ export class TeamrcClient {
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "createDeviceAuth failed"));
@@ -204,10 +291,80 @@ export class TeamrcClient {
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(await this.errorMessage(res, "preview failed"));
     const data = (await res.json()) as { team: TeamrcTeam };
     return data.team;
+  }
+
+  async cloneByToken(cloneToken: string): Promise<TeamrcTeam> {
+    const res = await fetch(`${this.baseUrl}/api/teams/clone/${encodeURIComponent(cloneToken)}`, {
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      throw new Error(await this.errorMessage(res, "clone failed"));
+    }
+    const data = (await res.json()) as { team: TeamrcTeam };
+    return data.team;
+  }
+
+  private async signedDelete<T>(path: string): Promise<T> {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const message = `${timestamp}.DELETE ${path}`;
+    const signature = await signMessage(this.privateKey, message);
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: "DELETE",
+      headers: {
+        "x-trc-signature": signature,
+        "x-trc-timestamp": timestamp,
+      },
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      throw new Error(await this.errorMessage(res, `DELETE ${path} failed`));
+    }
+    return (await res.json()) as T;
+  }
+
+  async eraseToken(): Promise<{ status: string; teams_removed: number }> {
+    return this.signedDelete<{ status: string; teams_removed: number }>(
+      `/api/token/${encodeURIComponent(this.token)}/erase`,
+    );
+  }
+
+  async claimOwnership(claimSecret: string): Promise<{ status: string }> {
+    const body = JSON.stringify({
+      token: this.token,
+      claim_secret: claimSecret,
+      ...(this.teamId ? { team_id: this.teamId } : {}),
+    });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/teams/claim`, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(await this.errorMessage(res, "claimOwnership failed"));
+    return (await res.json()) as { status: string };
+  }
+
+  async setVisibility(visibility: "public" | "private"): Promise<{ visibility: string; clone_token: string | null }> {
+    const body = JSON.stringify({
+      token: this.token,
+      visibility,
+      ...(this.teamId ? { team_id: this.teamId } : {}),
+    });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/teams/visibility`, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(await this.errorMessage(res, "setVisibility failed"));
+    return (await res.json()) as { visibility: string; clone_token: string | null };
   }
 
   async createInvite(ttlHours: number = 24): Promise<{ invite_code: string; expires_at: string }> {
@@ -221,6 +378,7 @@ export class TeamrcClient {
       method: "POST",
       headers,
       body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(await this.errorMessage(res, "createInvite failed"));
     return (await res.json()) as { invite_code: string; expires_at: string };

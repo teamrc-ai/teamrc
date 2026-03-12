@@ -13,6 +13,7 @@
 #   bash scripts/verify/section-03-platforms.sh all
 #   bash scripts/verify/section-04-sync.sh
 #   bash scripts/verify/section-05-rollback.sh post-delete
+#   bash scripts/verify/section-06-catalog.sh
 #   bash scripts/verify/section-07-cross-sync.sh
 #   bash scripts/verify/section-08-errors.sh
 #   bash scripts/verify/section-09-lifecycle.sh        # WARNING: destructive
@@ -115,6 +116,9 @@ if [ "$HAS_CONFIG" = true ] && [ "$HAS_YAML" = true ]; then
   else
     echo -e "\n${YELLOW}⊘ Skipping section-04 (relay not running)${RESET}"
   fi
+
+  # Catalog & team management (list-templates, list-agents, add-member)
+  run_section "section-06-catalog.sh"
 
   # Multi-platform cross-sync (if 3+ platforms)
   if [ "$PLATFORM_COUNT" -ge 3 ]; then

@@ -1,19 +1,3 @@
-defmodule Teamrc.DeviceAuth.Request do
-  @moduledoc "Ephemeral struct representing a device authorization request."
-
-  defstruct [
-    :device_code,
-    :user_code,
-    :token,
-    :status,
-    :clerk_user_id,
-    :email,
-    :expires_at,
-    :inserted_at,
-    failed_attempts: 0
-  ]
-end
-
 defmodule Teamrc.DeviceAuth do
   @moduledoc """
   GenServer for ephemeral device authorization requests.
@@ -141,6 +125,7 @@ defmodule Teamrc.DeviceAuth do
             {:reply, {:ok, %{status: :pending}}, state}
 
           req.status == :confirmed ->
+            state = update_in(state.requests, &Map.delete(&1, device_code))
             {:reply, {:ok, %{status: :confirmed, clerk_user_id: req.clerk_user_id, email: req.email}}, state}
         end
     end
@@ -222,12 +207,14 @@ defmodule Teamrc.DeviceAuth do
   defp generate_user_code do
     chars = @user_code_alphabet
     len = length(chars)
-    bytes = :crypto.strong_rand_bytes(8)
+    limit = div(256, len) * len
 
     code =
-      for <<byte <- bytes>>, into: "" do
-        <<Enum.at(chars, rem(byte, len))>>
-      end
+      Stream.repeatedly(fn -> :crypto.strong_rand_bytes(1) |> :binary.first() end)
+      |> Stream.filter(&(&1 < limit))
+      |> Enum.take(8)
+      |> Enum.map(&Enum.at(chars, rem(&1, len)))
+      |> List.to_string()
 
     String.slice(code, 0, 4) <> "-" <> String.slice(code, 4, 4)
   end

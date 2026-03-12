@@ -63,12 +63,18 @@ fi
 
 # 3. Generated project files
 echo "Cleaning project artifacts..."
-remove_if_exists ".claude/team-knowledge.md"
+remove_if_exists ".claude/teamrc-knowledge.md"
 remove_if_exists ".teamrc.yaml"
 
-# trc-* and tb-* agent files
+# Claude Code — agents, rules, skills
 for f in .claude/agents/trc-*.md .claude/agents/tb-*.md; do
   remove_if_exists "$f"
+done
+for f in .claude/rules/trc-*.md; do
+  remove_if_exists "$f"
+done
+for d in .claude/skills/trc-*; do
+  remove_if_exists "$d"
 done
 
 # Remove empty .claude/agents/ dir
@@ -78,22 +84,36 @@ if [ -d ".claude/agents" ] && [ -z "$(ls -A .claude/agents 2>/dev/null)" ]; then
   removed=$((removed + 1))
 fi
 
-# 4. OpenClaw workspaces
-for d in "$HOME/.openclaw/workspaces/trc-"* "$HOME/.openclaw/workspaces/tb-"*; do
+# 4. OpenClaw — workspaces, agent dirs, shared skills, knowledge
+for d in "$HOME"/.openclaw/workspace-trc-* "$HOME"/.openclaw/workspace-tb-*; do
   remove_if_exists "$d"
 done
+for d in "$HOME"/.openclaw/agents/trc-* "$HOME"/.openclaw/agents/tb-*; do
+  remove_if_exists "$d"
+done
+for d in "$HOME"/.openclaw/skills/trc-* "$HOME"/.openclaw/skills/tb-*; do
+  remove_if_exists "$d"
+done
+remove_if_exists "$HOME/.openclaw/teamrc-knowledge.md"
 
-if [ -f "openclaw.json" ] && grep -q "trc-\|tb-" "openclaw.json" 2>/dev/null; then
+# ~/.openclaw/openclaw.json — remove trc-/tb- agent entries
+OPENCLAW_JSON="$HOME/.openclaw/openclaw.json"
+if [ -f "$OPENCLAW_JSON" ] && grep -q "trc-\|tb-" "$OPENCLAW_JSON" 2>/dev/null; then
   python3 -c "
 import json
-with open('openclaw.json') as f:
+with open('$OPENCLAW_JSON') as f:
     data = json.load(f)
-if 'agents' in data:
-    data['agents'] = [a for a in data['agents'] if not a.get('name','').startswith(('trc-','tb-'))]
-    with open('openclaw.json', 'w') as f:
+agents = data.get('agents', {})
+agent_list = agents.get('list', [])
+cleaned = [a for a in agent_list if not a.get('id','').startswith(('trc-','tb-'))]
+removed_count = len(agent_list) - len(cleaned)
+if removed_count > 0:
+    agents['list'] = cleaned
+    data['agents'] = agents
+    with open('$OPENCLAW_JSON', 'w') as f:
         json.dump(data, f, indent=2)
         f.write('\n')
-    print('  Cleaned: openclaw.json')
+    print(f'  Cleaned: $OPENCLAW_JSON (removed {removed_count} agent(s))')
 "
   removed=$((removed + 1))
 fi
@@ -117,10 +137,30 @@ if [ -f "AGENTS.md" ] && grep -q "teamrc\|trc-" "AGENTS.md" 2>/dev/null; then
   remove_if_exists "AGENTS.md"
 fi
 
-# 7. Gemini artifacts
+# 7. Gemini agents
+for f in .gemini/agents/trc-*.md; do
+  remove_if_exists "$f"
+done
 if [ -f "GEMINI.md" ] && grep -q "teamrc\|trc-" "GEMINI.md" 2>/dev/null; then
   remove_if_exists "GEMINI.md"
 fi
+
+# 7b. Shared skill dirs: .agents/skills/ (Gemini CLI + OpenHands) and .agent/skills/ (Antigravity)
+for f in .agents/agents/trc-*.md; do
+  remove_if_exists "$f"
+done
+for d in .agents/skills/trc-*; do
+  remove_if_exists "$d"
+done
+for d in .agent/skills/trc-*; do
+  remove_if_exists "$d"
+done
+for f in "$HOME"/.agents/agents/trc-*.md; do
+  remove_if_exists "$f"
+done
+for d in "$HOME"/.agents/skills/trc-*; do
+  remove_if_exists "$d"
+done
 
 # 8. Summary + manual review guidance
 echo ""

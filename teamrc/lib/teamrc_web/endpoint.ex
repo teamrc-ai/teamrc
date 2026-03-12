@@ -1,19 +1,24 @@
 defmodule TeamrcWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :teamrc
 
-  # The session will be stored in the cookie and signed,
-  # this means its contents can be read but not tampered with.
-  # Set :encryption_salt if you would also like to encrypt it.
-  @session_options [
+  @default_session_options [
     store: :cookie,
     key: "_teamrc_key",
     signing_salt: "46xYNHT2",
+    encryption_salt: "k9Pm3xR7",
     same_site: "Lax"
   ]
 
+  # Runtime session config (e.g. salts from runtime.exs) should override defaults.
+  def session_options do
+    endpoint_config = Application.get_env(:teamrc, __MODULE__, [])
+    runtime_overrides = Keyword.get(endpoint_config, :session_options, [])
+    Keyword.merge(@default_session_options, runtime_overrides)
+  end
+
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
-    longpoll: [connect_info: [session: @session_options]]
+    websocket: [connect_info: [session: {__MODULE__, :session_options, []}]],
+    longpoll: [connect_info: [session: {__MODULE__, :session_options, []}]]
 
   # Serve at "/" the static files from "priv/static" directory.
   #
@@ -47,6 +52,11 @@ defmodule TeamrcWeb.Endpoint do
 
   plug Plug.MethodOverride
   plug Plug.Head
-  plug Plug.Session, @session_options
+  plug :put_runtime_session
   plug TeamrcWeb.Router
+
+  defp put_runtime_session(conn, _opts) do
+    opts = session_options()
+    Plug.Session.call(conn, Plug.Session.init(opts))
+  end
 end

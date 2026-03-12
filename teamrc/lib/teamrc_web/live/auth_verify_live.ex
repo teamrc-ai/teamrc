@@ -65,6 +65,8 @@ defmodule TeamrcWeb.AuthVerifyLive do
           end
 
       {:error, :not_found} ->
+        DeviceAuth.record_failed_attempt(code)
+
         {:noreply,
          assign(socket,
            step: :enter_code,
@@ -126,7 +128,7 @@ defmodule TeamrcWeb.AuthVerifyLive do
       <div :if={@step == :sign_in_required}>
         <div class="mb-8">
           <h1 class="text-2xl font-bold tracking-tight mb-1">Sign in to continue</h1>
-          <p class="text-sm text-base-content/50">
+          <p class="text-sm text-base-content/60">
             You need to sign in with your account before linking a device.
           </p>
         </div>
@@ -137,7 +139,7 @@ defmodule TeamrcWeb.AuthVerifyLive do
               <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
             </svg>
           </div>
-          <p class="text-sm text-base-content/60 mb-4">
+          <p class="text-sm text-base-content/70 mb-4">
             Sign in with your account to link this device code:
           </p>
           <div :if={@user_code != ""} class="mb-4">
@@ -151,7 +153,7 @@ defmodule TeamrcWeb.AuthVerifyLive do
           </button>
         </div>
 
-        <p class="text-xs text-center text-base-content/30">
+        <p class="text-xs text-center text-base-content/50">
           After signing in, you'll return here to confirm the device link.
         </p>
       </div>
@@ -160,7 +162,7 @@ defmodule TeamrcWeb.AuthVerifyLive do
       <div :if={@step == :enter_code}>
         <div class="mb-8">
           <h1 class="text-2xl font-bold tracking-tight mb-1">Link your machine</h1>
-          <p class="text-sm text-base-content/50">
+          <p class="text-sm text-base-content/60">
             Enter the code shown in your terminal.
           </p>
         </div>
@@ -170,14 +172,14 @@ defmodule TeamrcWeb.AuthVerifyLive do
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-success" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
           </svg>
-          <span class="text-xs text-base-content/60">
+          <span class="text-xs text-base-content/70">
             Signed in as <span class="font-mono font-medium"><%= @clerk_email %></span>
           </span>
         </div>
 
         <form phx-submit="submit_code" class="space-y-6">
           <div>
-            <label class="block text-xs font-medium text-base-content/60 uppercase tracking-wider mb-2" for="user-code">
+            <label class="block text-xs font-medium text-base-content/70 uppercase tracking-wider mb-2" for="user-code">
               Device code
             </label>
             <input
@@ -190,11 +192,11 @@ defmodule TeamrcWeb.AuthVerifyLive do
               autocomplete="off"
               spellcheck="false"
               maxlength="9"
-              class="trc-focus w-full rounded-md border border-base-300 bg-base-100 px-4 py-3 text-center text-2xl font-mono tracking-[0.3em] placeholder:text-base-content/20 placeholder:tracking-[0.3em] focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
+              class="trc-focus w-full rounded-md border border-base-300 bg-base-100 px-4 py-3 text-center text-2xl font-mono tracking-[0.3em] placeholder:text-base-content/50 placeholder:tracking-[0.3em] focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
             />
           </div>
 
-          <div :if={@error} class="rounded-md border border-error/30 bg-error/5 px-4 py-3">
+          <div :if={@error} role="alert" class="rounded-md border border-error/30 bg-error/5 px-4 py-3">
             <p class="text-sm text-error"><%= @error %></p>
           </div>
 
@@ -205,7 +207,7 @@ defmodule TeamrcWeb.AuthVerifyLive do
               "trc-focus w-full rounded-md px-4 py-2.5 text-sm font-semibold shadow-sm transition-all duration-150",
               if(valid_code_format?(@user_code),
                 do: "bg-primary text-primary-content hover:brightness-110 active:scale-[0.99]",
-                else: "bg-base-300 text-base-content/30 cursor-not-allowed"
+                else: "bg-base-300 text-base-content/50 cursor-not-allowed"
               )
             ]}
           >
@@ -218,19 +220,19 @@ defmodule TeamrcWeb.AuthVerifyLive do
       <div :if={@step == :consent}>
         <div class="mb-8">
           <h1 class="text-2xl font-bold tracking-tight mb-1">Confirm device link</h1>
-          <p class="text-sm text-base-content/50">
+          <p class="text-sm text-base-content/60">
             Review the details below before linking this machine to your account.
           </p>
         </div>
 
         <div class="rounded-lg border border-base-300 bg-base-200/30 p-5 mb-4 space-y-3">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-medium text-base-content/40 uppercase tracking-wider">Account</span>
+            <span class="text-xs font-medium text-base-content/60 uppercase tracking-wider">Account</span>
             <span class="text-sm font-mono text-base-content/70"><%= @clerk_email %></span>
           </div>
           <div class="border-t border-base-300/60"></div>
           <div class="flex items-center justify-between">
-            <span class="text-xs font-medium text-base-content/40 uppercase tracking-wider">Device code</span>
+            <span class="text-xs font-medium text-base-content/60 uppercase tracking-wider">Device code</span>
             <span class="text-lg font-mono tracking-[0.2em] text-primary font-semibold"><%= @user_code %></span>
           </div>
         </div>
@@ -242,21 +244,21 @@ defmodule TeamrcWeb.AuthVerifyLive do
             </svg>
             <div>
               <p class="text-sm font-medium text-warning">Security check</p>
-              <p class="text-sm text-base-content/60 mt-1">
+              <p class="text-sm text-base-content/70 mt-1">
                 Only confirm if you just ran <code class="font-mono text-xs bg-base-200 rounded px-1 py-0.5">teamrc login</code> and see this code in your terminal.
               </p>
             </div>
           </div>
         </div>
 
-        <div :if={@error} class="rounded-md border border-error/30 bg-error/5 px-4 py-3 mb-4">
+        <div :if={@error} role="alert" class="rounded-md border border-error/30 bg-error/5 px-4 py-3 mb-4">
           <p class="text-sm text-error"><%= @error %></p>
         </div>
 
         <div class="flex gap-3">
           <button
             phx-click="cancel"
-            class="trc-focus flex-1 rounded-md border border-base-300 bg-base-100 px-4 py-2.5 text-sm font-semibold text-base-content/60 hover:bg-base-200 transition-colors"
+            class="trc-focus flex-1 rounded-md border border-base-300 bg-base-100 px-4 py-2.5 text-sm font-semibold text-base-content/70 hover:bg-base-200 transition-colors"
           >
             Cancel
           </button>
@@ -281,7 +283,7 @@ defmodule TeamrcWeb.AuthVerifyLive do
             </div>
           </div>
           <h1 class="text-2xl font-bold tracking-tight mb-2">Machine linked</h1>
-          <p class="text-sm text-base-content/50 mb-6">
+          <p class="text-sm text-base-content/60 mb-6">
             You can close this tab and return to your terminal.
           </p>
           <a
@@ -308,7 +310,7 @@ defmodule TeamrcWeb.AuthVerifyLive do
       <div class={[
         "flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-semibold transition-colors",
         if(@current, do: "bg-primary text-primary-content", else:
-          if(@active && !@current, do: "bg-primary/15 text-primary", else: "bg-base-300 text-base-content/30")
+          if(@active && !@current, do: "bg-primary/15 text-primary", else: "bg-base-300 text-base-content/50")
         )
       ]}>
         <%= if @active && !@current do %>
@@ -322,7 +324,7 @@ defmodule TeamrcWeb.AuthVerifyLive do
       <span class={[
         "text-xs transition-colors hidden sm:inline",
         if(@current, do: "text-base-content font-medium", else:
-          if(@active, do: "text-base-content/50", else: "text-base-content/30")
+          if(@active, do: "text-base-content/60", else: "text-base-content/50")
         )
       ]}>
         <%= @label %>

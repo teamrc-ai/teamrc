@@ -11,6 +11,7 @@ import {
   listSkillCategories,
   resolveTeam,
   templateToTeamDefinition,
+  agentRecommendedSkills,
 } from "../catalog.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -312,6 +313,37 @@ describe("templateToTeamDefinition", () => {
     const def = templateToTeamDefinition(template, "test");
     const membersWithSkills = def.members.filter((m) => m.skills && m.skills.length > 0);
     assert.ok(membersWithSkills.length > 0, "No members have skills assigned");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// agentRecommendedSkills
+// ---------------------------------------------------------------------------
+
+describe("agentRecommendedSkills", () => {
+  it("returns skills for an agent used in team templates", () => {
+    // backend-dev appears in fullstack template with write-tests + others
+    const skills = agentRecommendedSkills("backend-dev");
+    assert.ok(Array.isArray(skills));
+    assert.ok(skills.length > 0, "Expected at least one recommended skill for backend-dev");
+    assert.ok(skills.includes("write-tests"), "Expected write-tests for backend-dev");
+  });
+
+  it("returns empty array for unknown agent", () => {
+    const skills = agentRecommendedSkills("nonexistent-agent-xyz");
+    assert.deepEqual(skills, []);
+  });
+
+  it("returns union across multiple templates", () => {
+    // An agent that appears in multiple team templates should get the union
+    const skills = agentRecommendedSkills("qa-engineer");
+    assert.ok(skills.includes("write-tests"), "Expected write-tests for qa-engineer");
+  });
+
+  it("returns no duplicates", () => {
+    const skills = agentRecommendedSkills("backend-dev");
+    const unique = [...new Set(skills)];
+    assert.equal(skills.length, unique.length, "Found duplicate skill IDs");
   });
 });
 

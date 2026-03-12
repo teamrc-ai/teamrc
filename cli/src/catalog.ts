@@ -77,11 +77,15 @@ function readYaml<T>(filePath: string): T {
   return YAML.parse(fs.readFileSync(filePath, "utf-8")) as T;
 }
 
+const SAFE_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
+
 export function loadAgent(name: string): CatalogAgent {
+  if (!SAFE_NAME_RE.test(name)) throw new Error(`Invalid agent name in template: ${JSON.stringify(name)}`);
   return readYaml<CatalogAgent>(path.join(TEMPLATES_DIR, "agents", `${name}.yaml`));
 }
 
 export function loadSkill(id: string): CatalogSkill {
+  if (!SAFE_NAME_RE.test(id)) throw new Error(`Invalid skill ID in template: ${JSON.stringify(id)}`);
   return readYaml<CatalogSkill>(path.join(TEMPLATES_DIR, "skills", `${id}.yaml`));
 }
 
@@ -210,6 +214,31 @@ export function listSkillCategories(): SkillCategory[] {
   }
 
   return categories;
+}
+
+// ---------------------------------------------------------------------------
+// Recommended skills — scan all team templates for per-agent skill assignments
+// ---------------------------------------------------------------------------
+
+/**
+ * Scan all team templates' agentSkills mappings and return the union of skill
+ * IDs assigned to the given agent across every template that includes it.
+ */
+export function agentRecommendedSkills(agentName: string): string[] {
+  const teamIds = listTeams();
+  const skillSet = new Set<string>();
+  for (const id of teamIds) {
+    try {
+      const team = loadTeamRaw(id);
+      const assigned = team.agentSkills?.[agentName];
+      if (assigned) {
+        for (const s of assigned) skillSet.add(s);
+      }
+    } catch {
+      // Skip unparseable team files
+    }
+  }
+  return [...skillSet];
 }
 
 // ---------------------------------------------------------------------------

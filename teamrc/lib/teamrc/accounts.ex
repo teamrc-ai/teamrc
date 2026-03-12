@@ -29,13 +29,18 @@ defmodule Teamrc.Accounts do
         })
         |> Repo.insert()
 
-      existing ->
+      %{account_id: ^account_id} = existing ->
+        # Token already belongs to this account — update machine info
         existing
         |> AccountToken.changeset(%{
           machine_name: machine_name || existing.machine_name,
           last_seen_at: now
         })
         |> Repo.update()
+
+      _existing ->
+        # Token belongs to a different account — reject to prevent hijacking
+        {:error, :token_belongs_to_another_account}
     end
   end
 
@@ -110,22 +115,37 @@ defmodule Teamrc.Accounts do
     end
   end
 
+  @doc "Check if a Clerk user has a machine token associated with a team."
+  def is_team_participant?(nil, _team_id), do: false
+
+  def is_team_participant?(clerk_user_id, team_id) do
+    account = get_account_with_tokens(clerk_user_id)
+
+    if account do
+      tokens =
+        account.account_tokens
+        |> Enum.reject(& &1.revoked_at)
+        |> Enum.map(& &1.token)
+
+      if tokens == [] do
+        false
+      else
+        from(tt in TokenTeam,
+          where: tt.team_id == ^team_id and tt.token in ^tokens,
+          select: tt.token,
+          limit: 1
+        )
+        |> Repo.one()
+        |> is_binary()
+      end
+    else
+      false
+    end
+  end
+
   @doc "Resolve participants for a single team."
   def resolve_participants(team_id) do
-    from(tt in TokenTeam,
-      left_join: at in AccountToken,
-      on: at.token == tt.token and is_nil(at.revoked_at),
-      left_join: a in Account,
-      on: a.id == at.account_id,
-      where: tt.team_id == ^team_id,
-      select: a.email
-    )
-    |> Repo.all()
-    |> Enum.map(fn
-      nil -> "anonymous"
-      email -> email
-    end)
-    |> Enum.uniq()
+    Map.get(resolve_participants_batch([team_id]), team_id, [])
   end
 
   @doc "Resolve participants for multiple teams in a single query. Returns %{team_id => [emails]}."
@@ -162,10 +182,100 @@ defmodule Teamrc.Accounts do
           |> Repo.delete_all()
         end)
 
-        # Notify GenServer to remove token from in-memory state
-        GenServer.cast(Teamrc.Teams, {:token_revoked, token})
-
         :ok
+    end
+  end
+
+  @doc "Delete an account and all associated data (tokens, token_teams). Teams themselves are preserved."
+  def delete_account(clerk_user_id) do
+    case get_account_with_tokens(clerk_user_id) do
+      nil ->
+        {:error, :not_found}
+
+      account ->
+        all_tokens = Enum.map(account.account_tokens, & &1.token)
+
+        Repo.transaction(fn ->
+          # Delete token_team associations for all tokens (including revoked)
+          if all_tokens != [] do
+            from(tt in TokenTeam, where: tt.token in ^all_tokens)
+            |> Repo.delete_all()
+          end
+
+          # Delete the account (cascades to account_tokens via FK)
+          Repo.delete!(account)
+        end)
+        |> case do
+          {:ok, _} ->
+            :ok
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+    end
+  end
+
+  @doc "Export all data associated with a Clerk account as a map."
+  def export_account_data(clerk_user_id) do
+    case get_account_with_tokens(clerk_user_id) do
+      nil ->
+        {:error, :not_found}
+
+      account ->
+        teams_with_machines = get_account_teams_with_machines(account.id)
+        team_ids = Enum.map(teams_with_machines, fn {team, _} -> team.id end)
+        participants = resolve_participants_batch(team_ids)
+
+        {:ok, %{
+          account: %{
+            id: account.id,
+            email: account.email,
+            created_at: account.inserted_at,
+            updated_at: account.updated_at
+          },
+          machines: Enum.map(account.account_tokens, fn at ->
+            %{
+              token: at.token,
+              machine_name: at.machine_name,
+              last_seen_at: at.last_seen_at,
+              revoked_at: at.revoked_at,
+              created_at: at.inserted_at
+            }
+          end),
+          teams: Enum.map(teams_with_machines, fn {team, machines} ->
+            %{
+              id: team.id,
+              name: team.name,
+              members: Enum.map(team.members, fn m ->
+                %{name: m.name, role: m.role, soul: m.soul, skills: m.skills}
+              end),
+              skills: team.skills || [],
+              platforms: team.platforms || [],
+              knowledge: team.knowledge,
+              visibility: team.visibility,
+              participants: Map.get(participants, team.id, []),
+              your_machines: Enum.map(machines, fn m ->
+                %{token: m.token, machine_name: m.machine_name, scope: m.scope, project_name: m.project_name}
+              end)
+            }
+          end)
+        }}
+    end
+  end
+
+  @doc "Check if a token belongs to the team's owner account."
+  def is_team_owner?(token, team_id) do
+    case Repo.get_by(AccountToken, token: token) do
+      nil -> false
+      %{revoked_at: revoked} when not is_nil(revoked) -> false
+      %{account_id: account_id} ->
+        from(t in Teamrc.Schema.Team,
+          where: t.id == ^team_id and t.owner_account_id == ^account_id,
+          select: t.id,
+          limit: 1
+        )
+        |> Repo.one()
+        |> is_binary()
     end
   end
 

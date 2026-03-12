@@ -1,0 +1,41 @@
+# docker compose up — starts Postgres + teamrc relay server
+# Runs migrations automatically on startup.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: teamrc
+      POSTGRES_PASSWORD: teamrc
+      POSTGRES_DB: teamrc
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U teamrc"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${PORT:-4000}:4000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: "ecto://teamrc:teamrc@db/teamrc"
+      SECRET_KEY_BASE: "${SECRET_KEY_BASE:?SECRET_KEY_BASE is required — generate with: mix phx.gen.secret}"
+      PHX_HOST: "${PHX_HOST:-teamrc.ai}"
+      PORT: "4000"
+      SESSION_SIGNING_SALT: "${SESSION_SIGNING_SALT:?SESSION_SIGNING_SALT is required}"
+      LIVE_VIEW_SIGNING_SALT: "${LIVE_VIEW_SIGNING_SALT:?LIVE_VIEW_SIGNING_SALT is required}"
+      SESSION_ENCRYPTION_SALT: "${SESSION_ENCRYPTION_SALT:?SESSION_ENCRYPTION_SALT is required}"
+
+volumes:
+  pgdata:

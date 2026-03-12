@@ -132,7 +132,7 @@ defmodule TeamrcWeb.Plugs.VerifySignature do
   # For GET: sign "METHOD /path" (e.g., "GET /api/teams/trc_ak_...")
   defp get_sign_message(conn) do
     case conn.method do
-      "GET" ->
+      method when method in ["GET", "DELETE"] ->
         full_path =
           if conn.query_string != "" do
             "#{conn.request_path}?#{conn.query_string}"
@@ -140,7 +140,7 @@ defmodule TeamrcWeb.Plugs.VerifySignature do
             conn.request_path
           end
 
-        {:ok, "GET #{full_path}"}
+        {:ok, "#{method} #{full_path}"}
 
       _ ->
         raw = CacheBodyReader.get_raw_body(conn)

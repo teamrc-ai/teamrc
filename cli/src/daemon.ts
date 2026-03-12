@@ -3,10 +3,9 @@ import { watch } from "chokidar";
 import type { PlatformAdapter, TeamDefinition } from "./adapters/base.js";
 import type { TeamrcClient, TeamrcTeam } from "./client.js";
 import { remoteTeamToDefinition } from "./client.js";
-import { readTeamYaml, writeTeamYaml, TEAM_YAML, validateTeamName, mergeKnowledge } from "./team-yaml.js";
+import { readTeamYaml, writeTeamYaml, TEAM_YAML, validateTeamName, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "./team-yaml.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
-const MAX_KNOWLEDGE_SIZE = 512 * 1024; // 512 KB
 
 export interface DaemonOptions {
   client: TeamrcClient;
@@ -21,7 +20,7 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   const pollInterval = opts.pollInterval ?? DEFAULT_POLL_INTERVAL_MS;
   const watchYaml = opts.watchYaml ?? true;
 
-  let lastUpdatedAt: string | null = null;
+  let lastKnownHash: string | null = null;
   let stopped = false;
 
   function log(msg: string): void {
@@ -45,7 +44,7 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
     }
   }
 
-  /** Poll relay for updates */
+  /** Poll relay for updates using hash-based change detection */
   async function pollRelay(): Promise<void> {
     if (stopped) return;
 
@@ -53,20 +52,21 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       const localYaml = readTeamYaml(TEAM_YAML);
       if (!localYaml?.teamId) return;
 
-      // Use the token from the client (it's embedded in getTeam)
-      const remoteTeam: TeamrcTeam = await client.getTeam(localYaml.teamId);
+      // Cheap check: fetch only the hash from the server
+      const head = await client.getTeamHead();
 
-      // Check if updated_at has changed
-      if (remoteTeam.updated_at && remoteTeam.updated_at === lastUpdatedAt) {
-        return; // No changes
+      // If hash hasn't changed since last poll, skip
+      if (head.hash === lastKnownHash) {
+        return;
       }
 
-      if (lastUpdatedAt !== null) {
+      if (lastKnownHash !== null) {
         // Only log on subsequent polls (not the first one)
         log("Remote changes detected, pulling...");
       }
 
-      lastUpdatedAt = remoteTeam.updated_at ?? null;
+      // Full fetch since hash differs
+      const remoteTeam: TeamrcTeam = await client.getTeam();
 
       // Convert to definition
       validateTeamName(remoteTeam.name);
@@ -77,10 +77,16 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       remoteDef.relay = localYaml.relay;
       remoteDef.platforms = localYaml.platforms;
 
+      // Store sync hashes so sync/push/pull know the last-synced state
+      remoteDef.syncHash = head.hash;
+      remoteDef.syncHashMembers = head.members_hash;
+      remoteDef.syncHashSkills = head.skills_hash;
+      remoteDef.syncHashKnowledge = head.knowledge_hash;
+
       // Merge knowledge
       if (remoteTeam.knowledge && adapters.length > 0) {
         const localKnowledge = adapters[0].readKnowledge();
-        const merged = mergeKnowledge(localKnowledge, remoteTeam.knowledge);
+        const merged = mergeKnowledge(remoteTeam.knowledge, localKnowledge);
         if (merged.length <= MAX_KNOWLEDGE_SIZE) {
           adapters[0].writeKnowledge(merged);
         } else {
@@ -88,13 +94,12 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
         }
       }
 
-      // Write YAML and apply
+      // Write YAML and apply — only update hash after successful write
       writeTeamYaml(TEAM_YAML, remoteDef);
       applyToAllPlatforms(remoteDef);
+      lastKnownHash = head.hash;
 
-      if (lastUpdatedAt !== null) {
-        log(`Applied remote changes (${remoteDef.members.length} agents).`);
-      }
+      log(`Applied remote changes (${remoteDef.members.length} agents).`);
     } catch (err) {
       warn(`Poll failed: ${(err as Error).message}`);
     }

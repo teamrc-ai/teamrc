@@ -7,13 +7,17 @@ import {
   escapeYamlString,
   validateAgentName,
   writeSkillDir,
+  listTrcFiles,
+  upsertMarkerBlock,
+  removeMarkerBlock,
   cleanupSkillDirs,
+  resolveAgentSkills,
+  type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
   type TeamMember,
   type Skill,
 } from "./base.js";
-import { resolveAgentSkills } from "../resolve-skills.js";
 
 export class CursorAdapter implements PlatformAdapter {
   private cursorDir(): string {
@@ -32,25 +36,76 @@ export class CursorAdapter implements PlatformAdapter {
     return path.join(this.cursorDir(), "skills");
   }
 
-  private listTbRules(): string[] {
-    const dir = this.rulesDir();
-    if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".mdc"));
-  }
-
-  private listTbAgentFiles(): string[] {
-    const dir = this.agentsDir();
-    if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".md"));
-  }
-
   readTeam(): TeamDefinition | null {
     return null;
   }
 
+  planWrite(team: TeamDefinition): FileAction[] {
+    const actions: FileAction[] = [];
+
+    // Agent files
+    const existingAgents = new Set(listTrcFiles(this.agentsDir()));
+    const newAgents = new Set<string>();
+    for (const member of team.members) {
+      validateAgentName(member.name);
+      const fileName = `trc-${slugify(member.name)}.md`;
+      newAgents.add(fileName);
+      actions.push({
+        type: existingAgents.has(fileName) ? "update" : "create",
+        path: path.join(this.agentsDir(), fileName),
+        description: `agent: ${member.name}`,
+      });
+    }
+    for (const f of existingAgents) {
+      if (!newAgents.has(f)) actions.push({ type: "delete", path: path.join(this.agentsDir(), f) });
+    }
+
+    // Rules (.mdc) and skill dirs
+    const existingRules = new Set(listTrcFiles(this.rulesDir(), ".mdc"));
+    const existingSkillDirs = new Set(
+      fs.existsSync(this.skillsDir()) ? fs.readdirSync(this.skillsDir()).filter((f) => f.startsWith("trc-")) : [],
+    );
+    const newRules = new Set<string>();
+    const newSkillDirs = new Set<string>();
+
+    if (team.skills) {
+      for (const skill of team.skills) {
+        if (skill.alwaysApply || (skill.globs && skill.globs.length > 0)) {
+          const fileName = `trc-${skill.id}.mdc`;
+          newRules.add(fileName);
+          actions.push({
+            type: existingRules.has(fileName) ? "update" : "create",
+            path: path.join(this.rulesDir(), fileName),
+            description: `rule: ${skill.id}`,
+          });
+        } else {
+          const dirName = `trc-${skill.id}`;
+          newSkillDirs.add(dirName);
+          actions.push({
+            type: existingSkillDirs.has(dirName) ? "update" : "create",
+            path: path.join(this.skillsDir(), dirName, "SKILL.md"),
+            description: `skill: ${skill.id}`,
+          });
+        }
+      }
+    }
+    for (const f of existingRules) { if (!newRules.has(f)) actions.push({ type: "delete", path: path.join(this.rulesDir(), f) }); }
+    for (const d of existingSkillDirs) { if (!newSkillDirs.has(d)) actions.push({ type: "delete", path: path.join(this.skillsDir(), d) }); }
+
+    // AGENTS.md
+    const agentsMdPath = path.join(this.cursorDir(), "AGENTS.md");
+    actions.push({
+      type: fs.existsSync(agentsMdPath) ? "update" : "create",
+      path: agentsMdPath,
+      description: "teamrc routing",
+    });
+
+    return actions;
+  }
+
   writeTeam(team: TeamDefinition): void {
     // Clean old rule files and skill dirs
-    const oldRules = this.listTbRules();
+    const oldRules = listTrcFiles(this.rulesDir(), ".mdc");
     for (const f of oldRules) {
       fs.unlinkSync(path.join(this.rulesDir(), f));
     }
@@ -130,6 +185,11 @@ export class CursorAdapter implements PlatformAdapter {
       bodyParts.push("");
     }
 
+    bodyParts.push("## Team Knowledge");
+    bodyParts.push("");
+    bodyParts.push("Shared findings and decisions are stored in `teamrc-knowledge.md`. Read this file at the start of every session for context from other agents and machines. When you discover something important, append it to that file.");
+    bodyParts.push("");
+
     const body = bodyParts.join("\n").trim();
 
     const content = `---
@@ -151,7 +211,8 @@ ${body}
     const filePath = path.join(dir, fileName);
 
     const description = JSON.stringify((skill.description || skill.title || skill.id).replace(/[\n\r]/g, " "));
-    const globs = skill.globs ? `globs: ${JSON.stringify(skill.globs)}` : "";
+    const sanitizedGlobs = skill.globs?.map((g) => g.replace(/[\n\r]/g, "")) ?? [];
+    const globs = sanitizedGlobs.length ? `globs: ${JSON.stringify(sanitizedGlobs)}` : "";
     const alwaysApply = skill.alwaysApply ? "alwaysApply: true" : "alwaysApply: false";
     const body = typeof skill.body === "string" ? skill.body : "";
 
@@ -192,18 +253,13 @@ ${body}
       }
     }
 
-    const block = [marker, ...sections, markerEnd].join("\n");
+    sections.push("## Team Knowledge");
+    sections.push("");
+    sections.push("Shared findings and decisions are stored in `teamrc-knowledge.md`. Read this file at the start of every session for context from other agents and machines. When you discover something important (architecture decisions, gotchas, debugging insights), append it to this file so other team members can benefit.");
+    sections.push("");
 
-    if (fs.existsSync(agentsMdPath)) {
-      let content = fs.readFileSync(agentsMdPath, "utf-8");
-      const regex = new RegExp(
-        `${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
-      );
-      content = regex.test(content) ? content.replace(regex, block) : content.trimEnd() + "\n\n" + block + "\n";
-      fs.writeFileSync(agentsMdPath, content);
-    } else {
-      fs.writeFileSync(agentsMdPath, block + "\n");
-    }
+    const block = [marker, ...sections, markerEnd].join("\n");
+    upsertMarkerBlock(agentsMdPath, marker, markerEnd, block);
   }
 
   readKnowledge(): string {
@@ -216,24 +272,11 @@ ${body}
     fs.writeFileSync(path.join(process.cwd(), "teamrc-knowledge.md"), content);
   }
 
-  appendKnowledge(entries: string[]): void {
-    if (entries.length === 0) return;
-    const filePath = path.join(process.cwd(), "teamrc-knowledge.md");
-    const newContent = entries
-      .map((e) => `- ${new Date().toISOString().slice(0, 10)}: ${e}`)
-      .join("\n");
-    if (fs.existsSync(filePath)) {
-      fs.appendFileSync(filePath, "\n" + newContent + "\n");
-    } else {
-      fs.writeFileSync(filePath, `# Team Knowledge\n\nShared findings and decisions synced by teamrc.\n\n${newContent}\n`);
-    }
-  }
-
   uninstall(): string[] {
     const actions: string[] = [];
 
     // Clean up subagent .md files
-    const agentFiles = this.listTbAgentFiles();
+    const agentFiles = listTrcFiles(this.agentsDir());
     for (const f of agentFiles) {
       fs.unlinkSync(path.join(this.agentsDir(), f));
     }
@@ -242,12 +285,12 @@ ${body}
     }
 
     // Clean up rule .mdc files
-    const tbRules = this.listTbRules();
-    for (const f of tbRules) {
+    const trcRules = listTrcFiles(this.rulesDir(), ".mdc");
+    for (const f of trcRules) {
       fs.unlinkSync(path.join(this.rulesDir(), f));
     }
-    if (tbRules.length > 0) {
-      actions.push(`Deleted ${tbRules.length} teamrc cursor rule(s)`);
+    if (trcRules.length > 0) {
+      actions.push(`Deleted ${trcRules.length} teamrc cursor rule(s)`);
     }
 
     // Clean up skill directories
@@ -258,18 +301,8 @@ ${body}
 
     // Clean up AGENTS.md marker block
     const agentsMdPath = path.join(this.cursorDir(), "AGENTS.md");
-    if (fs.existsSync(agentsMdPath)) {
-      const content = fs.readFileSync(agentsMdPath, "utf-8");
-      const marker = "<!-- teamrc -->";
-      const markerEnd = "<!-- /teamrc -->";
-      const regex = new RegExp(
-        `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
-      );
-      const cleaned = content.replace(regex, "\n");
-      if (cleaned !== content) {
-        fs.writeFileSync(agentsMdPath, cleaned.trimEnd() + "\n");
-        actions.push("Removed teamrc section from .cursor/AGENTS.md");
-      }
+    if (removeMarkerBlock(agentsMdPath, "<!-- teamrc -->", "<!-- /teamrc -->")) {
+      actions.push("Removed teamrc section from .cursor/AGENTS.md");
     }
 
     return actions;

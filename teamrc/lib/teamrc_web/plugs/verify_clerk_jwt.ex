@@ -177,7 +177,7 @@ defmodule TeamrcWeb.Plugs.VerifyClerkJWT do
       depth: 3
     ]
 
-    case :httpc.request(:get, {url_charlist, []}, [ssl: ssl_opts], []) do
+    case :httpc.request(:get, {url_charlist, []}, [ssl: ssl_opts, timeout: 5000, connect_timeout: 3000], []) do
       {:ok, {{_, 200, _}, _headers, body}} ->
         jwks = JOSE.JWK.from_map(Jason.decode!(List.to_string(body)))
         {:ok, jwks}

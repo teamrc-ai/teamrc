@@ -1,7 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { resolveAgentSkills } from "../resolve-skills.js";
-import type { TeamDefinition } from "../adapters/base.js";
+import { resolveAgentSkills, type TeamDefinition } from "../adapters/base.js";
 
 const team: TeamDefinition = {
   name: "test-team",
