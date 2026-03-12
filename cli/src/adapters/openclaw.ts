@@ -198,11 +198,15 @@ export class OpenClawAdapter implements PlatformAdapter {
 
     let config = this.readConfig() ?? {};
 
+    // Build full list of trc agent IDs for subagent allowlists
+    const allTrcIds = team.members.map((m) => `trc-${slugify(m.name)}`);
+
     const trcEntries: AgentEntry[] = team.members.map((m) => {
       const slug = `trc-${slugify(m.name)}`;
       return {
         id: slug,
         name: sanitizeText(m.name),
+        subagents: { allowAgents: [...allTrcIds] },
       };
     });
 
@@ -324,6 +328,7 @@ interface AgentEntry {
   workspace?: string;
   agentDir?: string;
   default?: boolean;
+  subagents?: { allowAgents: string[] };
   [key: string]: unknown;
 }
 

@@ -118,6 +118,81 @@ describe("OpenClaw adapter (file-based agents)", () => {
     const architectEntry = config.agents.list.find((a: { id: string }) => a.id === "trc-architect");
     assert.ok(architectEntry, "Should have architect entry");
     assert.equal(architectEntry.name, "architect", "Should have agent name");
+    assert.deepEqual(
+      architectEntry.subagents?.allowAgents,
+      ["trc-architect", "trc-dev"],
+      "Should have subagent allowlist with all team members",
+    );
+  });
+
+  it("configures subagent allowlists for all team members", async () => {
+    const { OpenClawAdapter } = await import("../adapters/openclaw.js");
+    const adapter = new OpenClawAdapter();
+
+    const team = {
+      name: "test-team",
+      members: [
+        { name: "architect", role: "System architect" },
+        { name: "implementer", role: "Developer" },
+        { name: "reviewer", role: "Code reviewer" },
+      ],
+    };
+
+    adapter.writeTeam(team);
+
+    const config = JSON.parse(fs.readFileSync(
+      path.join(tmpDir, ".openclaw", "openclaw.json"), "utf-8",
+    ));
+
+    const allIds = ["trc-architect", "trc-implementer", "trc-reviewer"];
+    for (const id of allIds) {
+      const entry = config.agents.list.find((a: { id: string }) => a.id === id);
+      assert.ok(entry, `Should have entry for ${id}`);
+      assert.deepEqual(
+        entry.subagents?.allowAgents,
+        allIds,
+        `${id} should be able to spawn all team agents`,
+      );
+    }
+  });
+
+  it("updates subagent allowlists when team changes", async () => {
+    const { OpenClawAdapter } = await import("../adapters/openclaw.js");
+    const adapter = new OpenClawAdapter();
+
+    // Write initial team with 3 members
+    adapter.writeTeam({
+      name: "test-team",
+      members: [
+        { name: "architect", role: "Architect" },
+        { name: "dev", role: "Developer" },
+        { name: "dba", role: "DBA" },
+      ],
+    });
+
+    // Remove dba from team
+    adapter.writeTeam({
+      name: "test-team",
+      members: [
+        { name: "architect", role: "Architect" },
+        { name: "dev", role: "Developer" },
+      ],
+    });
+
+    const config = JSON.parse(fs.readFileSync(
+      path.join(tmpDir, ".openclaw", "openclaw.json"), "utf-8",
+    ));
+
+    const architectEntry = config.agents.list.find((a: { id: string }) => a.id === "trc-architect");
+    assert.deepEqual(
+      architectEntry.subagents?.allowAgents,
+      ["trc-architect", "trc-dev"],
+      "Should no longer include removed agent in allowlist",
+    );
+    assert.ok(
+      !config.agents.list.find((a: { id: string }) => a.id === "trc-dba"),
+      "Removed agent should not be in config",
+    );
   });
 
   it("preserves non-trc agents in openclaw.json", async () => {

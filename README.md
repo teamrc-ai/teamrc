@@ -115,11 +115,17 @@ Fields:
 
 ## Platforms
 
-- **Claude Code**: Agents in `.claude/agents/trc-*.md` with YAML frontmatter. Skills with `alwaysApply`/`globs` as `.claude/rules/trc-*.md`. On-demand skills as `.claude/skills/trc-*/SKILL.md`. Updates `CLAUDE.md` with team section.
-- **Cursor**: Subagents in `.cursor/agents/trc-*.md`. Skills with `alwaysApply`/`globs` as `.cursor/rules/trc-*.mdc`. On-demand skills as `.cursor/skills/trc-*/SKILL.md`. Routing via `.cursor/AGENTS.md`.
-- **Codex**: Agent TOML configs in `.codex/agents/trc-*.toml`. Registered in `.codex/config.toml`. Routing via `AGENTS.md`.
-- **OpenClaw**: Each agent gets a workspace at `~/.openclaw/workspace-trc-*/` with `AGENTS.md` and `SOUL.md`. Skills in `~/.openclaw/skills/trc-*/SKILL.md`. Registered in `~/.openclaw/openclaw.json`.
-- **Gemini**: Agents in `.gemini/agents/trc-*.md` with YAML frontmatter. Skills as `.agents/skills/trc-*/SKILL.md` (Gemini CLI) and `.agent/skills/trc-*/SKILL.md` (Antigravity). Updates `GEMINI.md` with team section.
+Each platform adapter generates native files so the AI tool discovers agents without extra configuration. All managed files use the `trc-` prefix.
+
+| Platform | Agents | Skills/Rules | Routing | Scope |
+|----------|--------|-------------|---------|-------|
+| **Claude Code** | `.claude/agents/trc-*.md` | `.claude/rules/trc-*.md`, `.claude/skills/trc-*/SKILL.md` | `CLAUDE.md` | project + global |
+| **Cursor** | `.cursor/agents/trc-*.md` | `.cursor/rules/trc-*.mdc`, `.cursor/skills/trc-*/SKILL.md` | `.cursor/AGENTS.md` | project |
+| **Codex** | `.codex/agents/trc-*.toml` | `.agents/skills/trc-*/SKILL.md` | `AGENTS.md`, `.codex/config.toml` | project |
+| **Gemini** | `.gemini/agents/trc-*.md` | `.agents/skills/trc-*/SKILL.md`, `.agent/skills/trc-*/SKILL.md` | `GEMINI.md` | project + global |
+| **OpenClaw** | `~/.openclaw/agents/trc-*.md` | `~/.openclaw/skills/trc-*/SKILL.md` | `~/.openclaw/openclaw.json` | global |
+
+OpenClaw requires explicit subagent spawn permissions. teamrc configures `subagents.allowAgents` in `openclaw.json` so every team agent can delegate to every other team agent.
 
 ## Self-Hosting
 
