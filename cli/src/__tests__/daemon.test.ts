@@ -12,7 +12,7 @@ function makeTmpDir(): string {
 }
 
 function createMockAdapter(tmpDir: string): PlatformAdapter {
-  const teamFile = path.join(tmpDir, "agent-team.yaml");
+  const teamFile = path.join(tmpDir, ".teamrc.yaml");
   const knowledgeFile = path.join(tmpDir, "team-knowledge.md");
 
   return {
@@ -133,7 +133,7 @@ describe("daemon", () => {
     assert.ok(client.calls.some((c) => c.method === "sync"));
 
     // The file should have been written
-    const teamFile = path.join(tmpDir, "agent-team.yaml");
+    const teamFile = path.join(tmpDir, ".teamrc.yaml");
     assert.ok(fs.existsSync(teamFile));
     const content = fs.readFileSync(teamFile, "utf-8");
     assert.ok(content.includes("remote-team"));

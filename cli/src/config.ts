@@ -2,16 +2,27 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 
-export interface TeamrcConfig {
-  platform: string;
-  relay: string;
-  token: string;
-  teamId?: string;
+export interface GlobalTeam {
+  teamId: string;
+  platforms: string[];
   noSync?: boolean;
+}
+
+export interface TeamrcConfig {
+  token: string;
+  relay: string;
+  trustedRelays?: string[];
   account?: {
     email: string;
   };
   machineName?: string;
+  globalTeam?: GlobalTeam;
+  /** @deprecated Use globalTeam.platforms or .teamrc.yaml platforms instead */
+  platform?: string;
+  /** @deprecated Use globalTeam.teamId or .teamrc.yaml teamId instead */
+  teamId?: string;
+  /** @deprecated Use globalTeam.noSync or .teamrc.yaml noSync instead */
+  noSync?: boolean;
 }
 
 function getConfigDir(): string {
@@ -45,21 +56,23 @@ export function saveConfig(config: TeamrcConfig): void {
 
 export function detectPlatforms(): string[] {
   const home = os.homedir();
+  const cwd = process.cwd();
   const platforms: string[] = [];
-  if (fs.existsSync(path.join(home, ".claude"))) {
-    platforms.push("claude-code");
-  }
-  if (fs.existsSync(path.join(home, ".openclaw"))) {
-    platforms.push("openclaw");
-  }
-  if (fs.existsSync(path.join(process.cwd(), ".cursor"))) {
-    platforms.push("cursor");
-  }
-  if (fs.existsSync(path.join(home, ".codex")) || fs.existsSync(path.join(process.cwd(), ".codex"))) {
-    platforms.push("codex");
-  }
-  if (fs.existsSync(path.join(process.cwd(), ".gemini")) || fs.existsSync(path.join(home, ".gemini"))) {
-    platforms.push("gemini");
+
+  const signals: Record<string, () => boolean> = {
+    "claude-code": () => fs.existsSync(path.join(home, ".claude")),
+    "cursor": () => fs.existsSync(path.join(cwd, ".cursor")),
+    "codex": () => fs.existsSync(path.join(home, ".codex")) || fs.existsSync(path.join(cwd, ".codex")),
+    "gemini": () => fs.existsSync(path.join(cwd, ".gemini")) || fs.existsSync(path.join(home, ".gemini")),
+    "openclaw": () => fs.existsSync(path.join(home, ".openclaw")),
+    "copilot": () => fs.existsSync(path.join(cwd, ".github")),
+    "amazon-q": () => fs.existsSync(path.join(home, ".amazonq")) || fs.existsSync(path.join(cwd, ".amazonq")),
+    "windsurf": () => fs.existsSync(path.join(cwd, ".windsurf")),
+    "cline": () => fs.existsSync(path.join(cwd, ".clinerules")) || fs.existsSync(path.join(cwd, ".cline")),
+  };
+
+  for (const [name, check] of Object.entries(signals)) {
+    if (check()) platforms.push(name);
   }
   return platforms;
 }
@@ -75,9 +88,6 @@ export function getRelayUrl(overrideUrl?: string): string {
   const config = loadConfig();
   if (config?.relay) {
     return config.relay;
-  }
-  if (!process.env["TEAMRC_DEV"]) {
-    console.warn("Warning: No relay URL configured. Using http://localhost:4000. Set TEAMRC_RELAY or use --relay to configure.");
   }
   return "http://localhost:4000";
 }

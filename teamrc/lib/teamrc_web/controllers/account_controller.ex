@@ -33,7 +33,7 @@ defmodule TeamrcWeb.AccountController do
     end
   end
 
-  @doc "GET /api/account/teams — return teams accessible through account's tokens."
+  @doc "GET /api/account/teams — return teams accessible through account's tokens with machine details."
   def teams(conn, _params) do
     clerk_user_id = conn.assigns[:clerk_user_id]
 
@@ -44,18 +44,29 @@ defmodule TeamrcWeb.AccountController do
         |> json(%{error: "account_not_found"})
 
       account ->
-        teams = Accounts.get_account_teams(account.id)
-        team_ids = Enum.map(teams, & &1.id)
+        teams_with_machines = Accounts.get_account_teams_with_machines(account.id)
+        team_ids = Enum.map(teams_with_machines, fn {team, _} -> team.id end)
         participants_map = Accounts.resolve_participants_batch(team_ids)
 
         teams_data =
-          Enum.map(teams, fn team ->
+          Enum.map(teams_with_machines, fn {team, machines} ->
             %{
               id: team.id,
               name: team.name,
               agent_count: length(team.members),
               rule_count: length(team.rules || []),
-              participants: Map.get(participants_map, team.id, ["anonymous"])
+              platforms: team.platforms || [],
+              participants: Map.get(participants_map, team.id, ["anonymous"]),
+              machines:
+                Enum.map(machines, fn m ->
+                  %{
+                    token: truncate_token(m.token),
+                    name: m.machine_name,
+                    scope: m.scope,
+                    project_name: m.project_name,
+                    last_seen_at: m.last_seen_at || m.tt_last_seen_at
+                  }
+                end)
             }
           end)
 

@@ -32,7 +32,7 @@ defmodule Teamrc.TeamsTest do
     test "stores hashes and returns empty when no other platforms", %{pid: pid} do
       Teams.put_team(pid, "tok_a", %{"name" => "test", "members" => []})
 
-      {:ok, result} = Teams.sync(pid, "tok_a", "claude-code", %{"team.yaml" => "abc123"}, %{})
+      {:ok, result} = Teams.sync_to(pid, "tok_a", "claude-code", %{"team.yaml" => "abc123"}, %{})
       assert result.files == %{}
     end
 
@@ -42,10 +42,10 @@ defmodule Teamrc.TeamsTest do
 
       # Simulate both tokens on same team by syncing through same token namespace
       # Platform A syncs with content
-      {:ok, _} = Teams.sync(pid, "tok_a", "claude-code", %{"team.yaml" => "hash_v2"}, %{"team.yaml" => "name: updated-team"})
+      {:ok, _} = Teams.sync_to(pid, "tok_a", "claude-code", %{"team.yaml" => "hash_v2"}, %{"team.yaml" => "name: updated-team"})
 
       # Platform B syncs with old hash — should get the new content
-      {:ok, result} = Teams.sync(pid, "tok_a", "openclaw", %{"team.yaml" => "hash_v1"}, %{})
+      {:ok, result} = Teams.sync_to(pid, "tok_a", "openclaw", %{"team.yaml" => "hash_v1"}, %{})
       assert result.files["team.yaml"].content == "name: updated-team"
       assert is_integer(result.files["team.yaml"].updated_at)
     end
@@ -53,27 +53,27 @@ defmodule Teamrc.TeamsTest do
     test "does not return files when hashes match", %{pid: pid} do
       Teams.put_team(pid, "tok_a", %{"name" => "test", "members" => []})
 
-      {:ok, _} = Teams.sync(pid, "tok_a", "claude-code", %{"team.yaml" => "same_hash"}, %{"team.yaml" => "content"})
-      {:ok, result} = Teams.sync(pid, "tok_a", "openclaw", %{"team.yaml" => "same_hash"}, %{})
+      {:ok, _} = Teams.sync_to(pid, "tok_a", "claude-code", %{"team.yaml" => "same_hash"}, %{"team.yaml" => "content"})
+      {:ok, result} = Teams.sync_to(pid, "tok_a", "openclaw", %{"team.yaml" => "same_hash"}, %{})
       assert result.files == %{}
     end
 
     test "returns error for unknown token", %{pid: pid} do
-      assert {:error, :not_joined} = Teams.sync(pid, "tok_new", "claude-code", %{"f.md" => "h1"}, %{})
+      assert {:error, :not_joined} = Teams.sync_to(pid, "tok_new", "claude-code", %{"f.md" => "h1"}, %{})
     end
 
     test "multiple platforms can sync independently", %{pid: pid} do
       Teams.put_team(pid, "tok_1", %{"name" => "test", "members" => []})
 
       # Platform A pushes file A
-      {:ok, _} = Teams.sync(pid, "tok_1", "platform-a", %{"file-a" => "ha"}, %{"file-a" => "content-a"})
+      {:ok, _} = Teams.sync_to(pid, "tok_1", "platform-a", %{"file-a" => "ha"}, %{"file-a" => "content-a"})
       # Platform B pushes file B
-      {:ok, _} = Teams.sync(pid, "tok_1", "platform-b", %{"file-b" => "hb"}, %{"file-b" => "content-b"})
+      {:ok, _} = Teams.sync_to(pid, "tok_1", "platform-b", %{"file-b" => "hb"}, %{"file-b" => "content-b"})
       # Platform C pushes file C
-      {:ok, _} = Teams.sync(pid, "tok_1", "platform-c", %{"file-c" => "hc"}, %{"file-c" => "content-c"})
+      {:ok, _} = Teams.sync_to(pid, "tok_1", "platform-c", %{"file-c" => "hc"}, %{"file-c" => "content-c"})
 
       # Platform A syncs — should see files from B and C
-      {:ok, result} = Teams.sync(pid, "tok_1", "platform-a", %{}, %{})
+      {:ok, result} = Teams.sync_to(pid, "tok_1", "platform-a", %{}, %{})
       assert result.files["file-b"].content == "content-b"
       assert result.files["file-c"].content == "content-c"
       refute Map.has_key?(result.files, "file-a")
@@ -85,7 +85,7 @@ defmodule Teamrc.TeamsTest do
       Teams.put_team(pid, "tok_ttl", %{"name" => "test", "members" => []})
 
       # Set state with old content via sync then manually trigger cleanup
-      {:ok, _} = Teams.sync(pid, "tok_ttl", "cursor", %{"old-file" => "h1"}, %{"old-file" => "old stuff"})
+      {:ok, _} = Teams.sync_to(pid, "tok_ttl", "cursor", %{"old-file" => "h1"}, %{"old-file" => "old stuff"})
 
       # Overwrite the timestamp to be old by sending cleanup and checking
       # For now, test that cleanup runs without crashing
@@ -93,7 +93,7 @@ defmodule Teamrc.TeamsTest do
       _ = :sys.get_state(pid)
 
       # Content should still be there since it was just created
-      {:ok, result} = Teams.sync(pid, "tok_ttl", "other", %{}, %{})
+      {:ok, result} = Teams.sync_to(pid, "tok_ttl", "other", %{}, %{})
       assert result.files["old-file"].content == "old stuff"
     end
   end
@@ -102,9 +102,9 @@ defmodule Teamrc.TeamsTest do
     test "push adds entry and pull retrieves it", %{pid: pid} do
       Teams.put_team(pid, "tok_1", %{"name" => "test", "members" => []})
       entry = %{"type" => "message", "content" => "hello", "source_platform" => "cursor"}
-      assert :ok = Teams.push_buffer(pid, "tok_1", entry)
+      assert :ok = Teams.push_buffer_to(pid, "tok_1", entry)
 
-      {:ok, entries} = Teams.pull_buffer(pid, "tok_1", "claude_code")
+      {:ok, entries} = Teams.pull_buffer_from(pid, "tok_1", "claude_code")
       assert length(entries) == 1
       assert hd(entries)["content"] == "hello"
     end
@@ -112,19 +112,19 @@ defmodule Teamrc.TeamsTest do
     test "pull filters out entries from the same source_platform", %{pid: pid} do
       Teams.put_team(pid, "tok_1", %{"name" => "test", "members" => []})
       entry = %{"type" => "message", "content" => "hello", "source_platform" => "cursor"}
-      :ok = Teams.push_buffer(pid, "tok_1", entry)
+      :ok = Teams.push_buffer_to(pid, "tok_1", entry)
 
-      {:ok, entries} = Teams.pull_buffer(pid, "tok_1", "cursor")
+      {:ok, entries} = Teams.pull_buffer_from(pid, "tok_1", "cursor")
       assert entries == []
     end
 
     test "push returns error for unknown token", %{pid: pid} do
       entry = %{"type" => "message", "content" => "hello", "source_platform" => "cursor"}
-      assert {:error, :not_joined} = Teams.push_buffer(pid, "tok_unknown", entry)
+      assert {:error, :not_joined} = Teams.push_buffer_to(pid, "tok_unknown", entry)
     end
 
     test "pull returns error for unknown token", %{pid: pid} do
-      assert {:error, :not_joined} = Teams.pull_buffer(pid, "tok_unknown", "claude_code")
+      assert {:error, :not_joined} = Teams.pull_buffer_from(pid, "tok_unknown", "claude_code")
     end
   end
 
@@ -144,10 +144,10 @@ defmodule Teamrc.TeamsTest do
       Teams.put_team(pid, token, %{"name" => "test", "members" => []})
 
       # Platform A pushes content
-      {:ok, _} = Teams.sync(pid, token, "claude-code", %{"team.yaml" => "h1"}, %{"team.yaml" => "content-v1"})
+      {:ok, _} = Teams.sync_to(pid, token, "claude-code", %{"team.yaml" => "h1"}, %{"team.yaml" => "content-v1"})
 
       # Platform B syncs with different hash — should get content with pushed_by
-      {:ok, result} = Teams.sync(pid, token, "cursor", %{"team.yaml" => "old"}, %{})
+      {:ok, result} = Teams.sync_to(pid, token, "cursor", %{"team.yaml" => "old"}, %{})
       assert result.files["team.yaml"].content == "content-v1"
       assert result.files["team.yaml"].pushed_by == token
     end
@@ -157,9 +157,9 @@ defmodule Teamrc.TeamsTest do
       Teams.put_team(pid, token, %{"name" => "test", "members" => []})
 
       entry = %{"type" => "note", "content" => "hello from push", "source_platform" => "cursor"}
-      assert :ok = Teams.push_buffer(pid, token, entry)
+      assert :ok = Teams.push_buffer_to(pid, token, entry)
 
-      {:ok, entries} = Teams.pull_buffer(pid, token, "claude-code")
+      {:ok, entries} = Teams.pull_buffer_from(pid, token, "claude-code")
       assert length(entries) == 1
       assert hd(entries)["pushed_by"] == token
     end
@@ -210,10 +210,10 @@ defmodule Teamrc.TeamsTest do
       # Push some content from different platforms
       entry1 = %{"type" => "knowledge:notes", "content" => "finding one", "source_platform" => "cursor"}
       entry2 = %{"type" => "knowledge:debug", "content" => "finding two", "source_platform" => "claude-code"}
-      :ok = Teams.push_buffer(pid, token, entry1)
-      :ok = Teams.push_buffer(pid, token, entry2)
+      :ok = Teams.push_buffer_to(pid, token, entry1)
+      :ok = Teams.push_buffer_to(pid, token, entry2)
 
-      {:ok, entries} = Teams.get_log(pid, token)
+      {:ok, entries} = Teams.get_log_from(pid, token)
       assert length(entries) == 2
 
       # Verify all attribution fields are present
@@ -237,15 +237,15 @@ defmodule Teamrc.TeamsTest do
 
       long_content = String.duplicate("a", 200)
       entry = %{"type" => "note", "content" => long_content, "source_platform" => "cursor"}
-      :ok = Teams.push_buffer(pid, token, entry)
+      :ok = Teams.push_buffer_to(pid, token, entry)
 
-      {:ok, entries} = Teams.get_log(pid, token)
+      {:ok, entries} = Teams.get_log_from(pid, token)
       assert length(entries) == 1
       assert String.length(hd(entries)["content"]) == 100
     end
 
     test "returns error for non-member", %{pid: pid} do
-      assert {:error, :not_joined} = Teams.get_log(pid, "tok_stranger_#{:erlang.unique_integer([:positive])}")
+      assert {:error, :not_joined} = Teams.get_log_from(pid, "tok_stranger_#{:erlang.unique_integer([:positive])}")
     end
   end
 
@@ -254,14 +254,14 @@ defmodule Teamrc.TeamsTest do
       token = "tok_inviter_#{:erlang.unique_integer([:positive])}"
       Teams.put_team(pid, token, %{"name" => "invite-team", "members" => []})
 
-      {:ok, code, expires_at} = Teams.create_invite(pid, token, 24)
+      {:ok, code, expires_at} = Teams.create_invite_from(pid, token, 24)
       assert String.starts_with?(code, "trc_inv_")
       assert %DateTime{} = expires_at
       assert DateTime.compare(expires_at, DateTime.utc_now()) == :gt
     end
 
     test "non-member returns :error", %{pid: pid} do
-      assert :error = Teams.create_invite(pid, "tok_stranger", 24)
+      assert :error = Teams.create_invite_from(pid, "tok_stranger", 24)
     end
   end
 end

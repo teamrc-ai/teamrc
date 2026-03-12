@@ -37,33 +37,46 @@ defmodule Teamrc.Teams do
     GenServer.call(pid, {:get_team, token})
   end
 
+  @doc "Get all teams for a token. Returns {:ok, [team_map]} or :error."
+  def get_teams(pid \\ __MODULE__, token) do
+    GenServer.call(pid, {:get_teams, token})
+  end
+
   @doc """
   Sync files for a platform.
 
-  Accepts: token, platform name, hashes map, and files map (content for changed files).
+  Accepts: token, platform name, hashes map, files map, and optional team_id.
   Returns: {:ok, %{files: changed_files_from_others}} or :error.
 
   The relay:
-  1. Resolves token → team_id
+  1. Resolves token → team_id (using explicit team_id if provided)
   2. Stores the platform's hashes
   3. Stores any file content the platform sent
   4. Compares hashes across all platforms
   5. Returns content for any files where other platforms have newer versions
   """
-  def sync(token, platform, hashes, files \\ %{}) do
-    GenServer.call(__MODULE__, {:sync, token, platform, hashes, files})
+  def sync(token, platform, hashes, files \\ %{}, team_id \\ nil, opts \\ []) do
+    GenServer.call(__MODULE__, {:sync, token, platform, hashes, files, team_id, opts})
   end
 
-  def sync(pid, token, platform, hashes, files) when is_pid(pid) do
-    GenServer.call(pid, {:sync, token, platform, hashes, files})
+  def sync_to(pid, token, platform, hashes, files, team_id \\ nil) when is_pid(pid) do
+    GenServer.call(pid, {:sync, token, platform, hashes, files, team_id})
   end
 
-  def push_buffer(pid \\ __MODULE__, token, entry) do
-    GenServer.call(pid, {:push_buffer, token, entry})
+  def push_buffer(token, entry, team_id \\ nil) do
+    GenServer.call(__MODULE__, {:push_buffer, token, entry, team_id})
   end
 
-  def pull_buffer(pid \\ __MODULE__, token, platform) do
-    GenServer.call(pid, {:pull_buffer, token, platform})
+  def push_buffer_to(pid, token, entry, team_id \\ nil) when is_pid(pid) do
+    GenServer.call(pid, {:push_buffer, token, entry, team_id})
+  end
+
+  def pull_buffer(token, platform, team_id \\ nil) do
+    GenServer.call(__MODULE__, {:pull_buffer, token, platform, team_id})
+  end
+
+  def pull_buffer_from(pid, token, platform, team_id \\ nil) when is_pid(pid) do
+    GenServer.call(pid, {:pull_buffer, token, platform, team_id})
   end
 
   @doc "Preview a team by invite code without joining. Returns {:ok, team_map} or :error."
@@ -72,22 +85,30 @@ defmodule Teamrc.Teams do
   end
 
   @doc "Create a new invite code for a team the token belongs to. Returns {:ok, code, expires_at} or :error."
-  def create_invite(token, ttl_hours) do
-    GenServer.call(__MODULE__, {:create_invite, token, ttl_hours})
+  def create_invite(token, ttl_hours, team_id \\ nil) do
+    GenServer.call(__MODULE__, {:create_invite, token, ttl_hours, team_id})
   end
 
-  def create_invite(pid, token, ttl_hours) do
-    GenServer.call(pid, {:create_invite, token, ttl_hours})
+  def create_invite_from(pid, token, ttl_hours, team_id \\ nil) when is_pid(pid) do
+    GenServer.call(pid, {:create_invite, token, ttl_hours, team_id})
   end
 
   @doc "Check if a team has changes since a given Unix timestamp. Returns {:ok, boolean}."
-  def check_changed(pid \\ __MODULE__, token, since) do
-    GenServer.call(pid, {:check_changed, token, since})
+  def check_changed(token, since, team_id \\ nil) do
+    GenServer.call(__MODULE__, {:check_changed, token, since, team_id})
+  end
+
+  def check_changed_from(pid, token, since, team_id \\ nil) when is_pid(pid) do
+    GenServer.call(pid, {:check_changed, token, since, team_id})
   end
 
   @doc "Get all content entries for a team (for audit log). Returns {:ok, entries} or {:error, :not_joined}."
-  def get_log(pid \\ __MODULE__, token) do
-    GenServer.call(pid, {:get_log, token})
+  def get_log(token, team_id \\ nil) do
+    GenServer.call(__MODULE__, {:get_log, token, team_id})
+  end
+
+  def get_log_from(pid, token, team_id \\ nil) when is_pid(pid) do
+    GenServer.call(pid, {:get_log, token, team_id})
   end
 
   # --- GenServer Callbacks ---
@@ -98,7 +119,8 @@ defmodule Teamrc.Teams do
 
     token_teams =
       Repo.all(TokenTeam)
-      |> Map.new(fn tt -> {tt.token, tt.team_id} end)
+      |> Enum.group_by(& &1.token, & &1.team_id)
+      |> Map.new(fn {token, team_ids} -> {token, MapSet.new(team_ids)} end)
 
     {:ok, %{
       token_teams: token_teams,
@@ -112,12 +134,13 @@ defmodule Teamrc.Teams do
   def handle_call({:put_team, token, team_attrs}, _from, state) do
     team_data = normalize_team(team_attrs)
 
-    case Map.get(state.token_teams, token) do
+    case first_team_id(state, token) do
       nil ->
         case create_team_in_db(team_data) do
           {:ok, team} ->
             upsert_token_team(token, team.id)
-            state = put_in(state, [:token_teams, token], team.id)
+            token_teams = Map.update(state.token_teams, token, MapSet.new([team.id]), &MapSet.put(&1, team.id))
+            state = %{state | token_teams: token_teams}
             {:reply, {:ok, team_to_map(team)}, state}
 
           {:error, reason} ->
@@ -169,13 +192,14 @@ defmodule Teamrc.Teams do
 
       %Invite{team: team} ->
         upsert_token_team(token, team.id)
-        state = put_in(state, [:token_teams, token], team.id)
+        token_teams = Map.update(state.token_teams, token, MapSet.new([team.id]), &MapSet.put(&1, team.id))
+        state = %{state | token_teams: token_teams}
         {:reply, {:ok, team_to_map(team)}, state}
     end
   end
 
   def handle_call({:get_team, token}, _from, state) do
-    case Map.get(state.token_teams, token) do
+    case first_team_id(state, token) do
       nil ->
         {:reply, :error, state}
 
@@ -190,27 +214,58 @@ defmodule Teamrc.Teams do
     end
   end
 
-  def handle_call({:sync, token, platform, incoming_hashes, incoming_files}, _from, state) do
+  def handle_call({:get_teams, token}, _from, state) do
     case Map.get(state.token_teams, token) do
+      nil ->
+        {:reply, :error, state}
+
+      team_ids ->
+        teams =
+          team_ids
+          |> MapSet.to_list()
+          |> Enum.map(fn team_id ->
+            Repo.get(Team, team_id) |> Repo.preload(:members)
+          end)
+          |> Enum.reject(&is_nil/1)
+          |> Enum.map(&team_to_map/1)
+
+        {:reply, {:ok, teams}, state}
+    end
+  end
+
+  def handle_call({:sync, token, platform, incoming_hashes, incoming_files, team_id_param}, from, state) do
+    handle_call({:sync, token, platform, incoming_hashes, incoming_files, team_id_param, []}, from, state)
+  end
+
+  def handle_call({:sync, token, platform, incoming_hashes, incoming_files, team_id_param, opts}, _from, state) do
+    case resolve_team_id(state, token, team_id_param) do
       nil ->
         {:reply, {:error, :not_joined}, state}
 
       team_id ->
+        # Update token_team metadata (scope, project_name, last_seen_at)
+        scope = Keyword.get(opts, :scope)
+        project_name = Keyword.get(opts, :project_name)
+        if scope || project_name do
+          now = DateTime.utc_now() |> DateTime.truncate(:second)
+          upsert_token_team(token, team_id, scope: scope, project_name: project_name, last_seen_at: now)
+        end
+
         {result, state} = do_sync(state, team_id, platform, incoming_hashes, incoming_files, token)
         {:reply, {:ok, result}, state}
     end
   end
 
   # push_buffer and pull_buffer — used by /api/push and /api/pull
-  def handle_call({:push_buffer, token, entry}, _from, state) do
-    case Map.get(state.token_teams, token) do
+  def handle_call({:push_buffer, token, entry, team_id_param}, _from, state) do
+    case resolve_team_id(state, token, team_id_param) do
       nil -> {:reply, {:error, :not_joined}, state}
       team_id -> do_push_buffer(state, team_id, entry, token)
     end
   end
 
-  def handle_call({:pull_buffer, token, platform}, _from, state) do
-    case Map.get(state.token_teams, token) do
+  def handle_call({:pull_buffer, token, platform, team_id_param}, _from, state) do
+    case resolve_team_id(state, token, team_id_param) do
       nil -> {:reply, {:error, :not_joined}, state}
       team_id ->
         team_content = Map.get(state.content, team_id, %{})
@@ -246,8 +301,8 @@ defmodule Teamrc.Teams do
     end
   end
 
-  def handle_call({:create_invite, token, ttl_hours}, _from, state) do
-    case Map.get(state.token_teams, token) do
+  def handle_call({:create_invite, token, ttl_hours, team_id_param}, _from, state) do
+    case resolve_team_id(state, token, team_id_param) do
       nil ->
         {:reply, :error, state}
 
@@ -263,8 +318,8 @@ defmodule Teamrc.Teams do
     end
   end
 
-  def handle_call({:check_changed, token, since}, _from, state) do
-    case Map.get(state.token_teams, token) do
+  def handle_call({:check_changed, token, since, team_id_param}, _from, state) do
+    case resolve_team_id(state, token, team_id_param) do
       nil -> {:reply, {:error, :not_joined}, state}
       team_id ->
         last = Map.get(state.last_updated_at, team_id, 0)
@@ -272,8 +327,8 @@ defmodule Teamrc.Teams do
     end
   end
 
-  def handle_call({:get_log, token}, _from, state) do
-    case Map.get(state.token_teams, token) do
+  def handle_call({:get_log, token, team_id_param}, _from, state) do
+    case resolve_team_id(state, token, team_id_param) do
       nil ->
         {:reply, {:error, :not_joined}, state}
 
@@ -427,11 +482,43 @@ defmodule Teamrc.Teams do
 
   # --- Private helpers ---
 
-  defp upsert_token_team(token, team_id) do
-    %TokenTeam{}
-    |> TokenTeam.changeset(%{token: token, team_id: team_id})
-    |> Repo.insert(on_conflict: :nothing, conflict_target: [:token, :team_id])
+  defp first_team_id(state, token) do
+    case Map.get(state.token_teams, token) do
+      nil -> nil
+      %MapSet{} = set ->
+        if MapSet.size(set) == 0, do: nil, else: Enum.at(set, 0)
+    end
   end
+
+  # Resolve team_id for a token. If team_id is provided, verify the token belongs to that team.
+  # Otherwise fall back to the first team (backward compat).
+  defp resolve_team_id(state, token, nil), do: first_team_id(state, token)
+  defp resolve_team_id(state, token, team_id) do
+    case Map.get(state.token_teams, token) do
+      nil -> nil
+      %MapSet{} = set ->
+        if MapSet.member?(set, team_id), do: team_id, else: nil
+    end
+  end
+
+  defp upsert_token_team(token, team_id, opts \\ []) do
+    attrs =
+      %{token: token, team_id: team_id}
+      |> maybe_put(:scope, Keyword.get(opts, :scope))
+      |> maybe_put(:project_name, Keyword.get(opts, :project_name))
+      |> maybe_put(:last_seen_at, Keyword.get(opts, :last_seen_at))
+
+    replace_fields = Enum.filter([:scope, :project_name, :last_seen_at], &Map.has_key?(attrs, &1))
+
+    on_conflict = if replace_fields == [], do: :nothing, else: {:replace, replace_fields}
+
+    %TokenTeam{}
+    |> TokenTeam.changeset(attrs)
+    |> Repo.insert(on_conflict: on_conflict, conflict_target: [:token, :team_id])
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, val), do: Map.put(map, key, val)
 
   defp schedule_cleanup do
     Process.send_after(self(), :cleanup, @cleanup_interval_ms)
@@ -444,7 +531,7 @@ defmodule Teamrc.Teams do
   defp create_team_in_db(team_data) do
     Repo.transaction(fn ->
       case %Team{}
-           |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills})
+           |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills, platforms: team_data.platforms})
            |> Repo.insert() do
         {:ok, team} ->
           for m <- team_data.members do
@@ -466,7 +553,7 @@ defmodule Teamrc.Teams do
       team = Repo.get!(Team, team_id)
 
       case team
-           |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills})
+           |> Team.changeset(%{name: team_data.name, rules: team_data.rules, skills: team_data.skills, platforms: team_data.platforms})
            |> Repo.update() do
         {:ok, team} ->
           # Replace members atomically within the transaction
@@ -524,7 +611,9 @@ defmodule Teamrc.Teams do
         |> Map.new()
       end)
 
-    %{name: attrs["name"] || attrs[:name] || "", members: members, rules: rules, skills: skills}
+    platforms = attrs["platforms"] || attrs[:platforms] || []
+
+    %{name: attrs["name"] || attrs[:name] || "", members: members, rules: rules, skills: skills, platforms: platforms}
   end
 
   defp put_if_present(map, _key, nil), do: map
@@ -545,5 +634,6 @@ defmodule Teamrc.Teams do
     }
     |> put_if_present("rules", team.rules)
     |> put_if_present("skills", team.skills)
+    |> put_if_present("platforms", team.platforms)
   end
 end

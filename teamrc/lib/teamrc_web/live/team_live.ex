@@ -4,6 +4,28 @@ defmodule TeamrcWeb.TeamLive do
   alias Phoenix.LiveView.JS
   alias Teamrc.Teams
 
+  @all_platforms [
+    %{id: "claude-code", label: "Claude Code"},
+    %{id: "cursor", label: "Cursor"},
+    %{id: "codex", label: "Codex"},
+    %{id: "copilot", label: "Copilot"},
+    %{id: "gemini", label: "Gemini"},
+    %{id: "openclaw", label: "OpenClaw"},
+    %{id: "windsurf", label: "Windsurf"},
+    %{id: "cline", label: "Cline"},
+    %{id: "amazon-q", label: "Amazon Q"}
+  ]
+
+  @template_defaults %{
+    "fullstack" => ["claude-code", "cursor", "copilot"],
+    "backend" => ["claude-code", "cursor"],
+    "security" => ["claude-code", "codex"],
+    "marketing" => ["claude-code", "cursor"],
+    "research" => ["claude-code", "cursor"],
+    "devops" => ["claude-code", "cursor"],
+    "custom" => []
+  }
+
   @templates %{
     "fullstack" => %{
       label: "Full-Stack Product",
@@ -128,17 +150,20 @@ defmodule TeamrcWeb.TeamLive do
        members: [%{name: "", role: ""}],
        rules: [],
        skills: [],
+       selected_platforms: MapSet.new(),
        show_advanced: false,
        invite_code: nil,
        step: :choose_template,
        templates: @templates,
-       template_order: @template_order
+       template_order: @template_order,
+       all_platforms: @all_platforms
      )}
   end
 
   @impl true
   def handle_event("select_template", %{"template" => template_key}, socket) do
     template = Map.get(@templates, template_key)
+    default_platforms = Map.get(@template_defaults, template_key, [])
 
     {:noreply,
      assign(socket,
@@ -147,6 +172,7 @@ defmodule TeamrcWeb.TeamLive do
        members: Enum.map(template.members, &Map.take(&1, [:name, :role])),
        rules: template.rules,
        skills: template.skills,
+       selected_platforms: MapSet.new(default_platforms),
        show_advanced: false
      )}
   end
@@ -157,6 +183,16 @@ defmodule TeamrcWeb.TeamLive do
 
   def handle_event("update_member", params, socket),
     do: update_list_item(socket, :members, params, %{"name" => :name, "role" => :role})
+
+  def handle_event("toggle_platform", %{"platform" => platform_id}, socket) do
+    platforms = socket.assigns.selected_platforms
+    platforms = if MapSet.member?(platforms, platform_id) do
+      MapSet.delete(platforms, platform_id)
+    else
+      MapSet.put(platforms, platform_id)
+    end
+    {:noreply, assign(socket, selected_platforms: platforms)}
+  end
 
   def handle_event("toggle_member_rule", %{"member-index" => member_idx, "rule-id" => rule_id}, socket) do
     index = String.to_integer(member_idx)
@@ -239,8 +275,11 @@ defmodule TeamrcWeb.TeamLive do
     rule_ids = MapSet.new(rules, & &1.id)
     skill_ids = MapSet.new(skills, & &1.id)
 
+    platforms = MapSet.to_list(socket.assigns.selected_platforms)
+
     team = %{
       name: socket.assigns.team_name,
+      platforms: platforms,
       members:
         socket.assigns.members
         |> Enum.filter(fn m -> m.name != "" end)
@@ -273,6 +312,7 @@ defmodule TeamrcWeb.TeamLive do
        members: [%{name: "", role: ""}],
        rules: [],
        skills: [],
+       selected_platforms: MapSet.new(),
        show_advanced: false,
        invite_code: nil,
        page_title: "Create Team"
@@ -341,6 +381,16 @@ defmodule TeamrcWeb.TeamLive do
       1 -> "1 #{label}"
       n -> "#{n} #{label}s"
     end
+  end
+
+  defp platform_count(selected_platforms) do
+    MapSet.size(selected_platforms)
+  end
+
+  defp selected_platform_labels(selected_platforms, all_platforms) do
+    all_platforms
+    |> Enum.filter(fn p -> MapSet.member?(selected_platforms, p.id) end)
+    |> Enum.map(& &1.label)
   end
 
   defp step_number(:choose_template), do: 1
@@ -427,7 +477,7 @@ defmodule TeamrcWeb.TeamLive do
         <div class="mb-8">
           <h1 class="text-2xl font-bold tracking-tight mb-1">Configure your team</h1>
           <p class="text-sm text-base-content/50">
-            Name your team, adjust roles, then create.
+            Name your team, choose platforms, adjust roles, then create.
           </p>
         </div>
 
@@ -446,6 +496,52 @@ defmodule TeamrcWeb.TeamLive do
               placeholder="e.g. backend-squad"
               class="trc-focus w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-sm font-mono placeholder:text-base-content/25 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
             />
+          </div>
+
+          <%!-- Platform picker --%>
+          <div>
+            <label class="block text-xs font-medium text-base-content/60 uppercase tracking-wider mb-3">
+              Platforms
+              <span :if={platform_count(@selected_platforms) > 0} class="font-mono text-base-content/30 normal-case ml-1">
+                (<%= platform_count(@selected_platforms) %> selected)
+              </span>
+            </label>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                :for={platform <- @all_platforms}
+                phx-click="toggle_platform"
+                phx-value-platform={platform.id}
+                class={[
+                  "trc-focus flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors",
+                  if(MapSet.member?(@selected_platforms, platform.id),
+                    do: "border-primary/40 bg-primary/5 text-base-content",
+                    else: "border-base-300 bg-base-100 text-base-content/50 hover:border-base-300/80"
+                  )
+                ]}
+              >
+                <div class={[
+                  "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
+                  if(MapSet.member?(@selected_platforms, platform.id),
+                    do: "border-primary bg-primary",
+                    else: "border-base-300"
+                  )
+                ]}>
+                  <svg
+                    :if={MapSet.member?(@selected_platforms, platform.id)}
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-3 w-3 text-primary-content"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <span class="font-mono text-xs"><%= platform.label %></span>
+              </button>
+            </div>
+            <p class="text-xs text-base-content/30 mt-2">
+              The CLI will auto-detect platforms. These are stored as defaults.
+            </p>
           </div>
 
           <%!-- Members --%>
@@ -734,6 +830,21 @@ defmodule TeamrcWeb.TeamLive do
           </p>
         </div>
 
+        <%!-- Account linking prompt for non-signed-in users --%>
+        <div :if={!@clerk_email} class="rounded-lg border border-info/30 bg-info/5 p-4 mb-6">
+          <div class="flex items-start gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-info shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
+            </svg>
+            <div>
+              <p class="text-sm font-medium text-info">Link your account</p>
+              <p class="text-sm text-base-content/60 mt-1">
+                Sign in to manage your teams from the dashboard, link multiple machines, and recover access if you lose a key.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <%!-- Terminal block --%>
         <div class="terminal-block rounded-lg overflow-hidden mb-6">
           <div class="flex items-center justify-between px-4 py-2.5 border-b border-white/5">
@@ -761,19 +872,23 @@ defmodule TeamrcWeb.TeamLive do
           </div>
         </div>
 
-        <%!-- What happens next --%>
-        <div class="rounded-lg border border-base-300 bg-base-200/30 p-4 mb-8">
+        <%!-- What happens next — platform-aware --%>
+        <div class="rounded-lg border border-base-300 bg-base-200/30 p-4 mb-6">
           <p class="text-xs font-medium text-base-content/60 uppercase tracking-wider mb-3">
             What this does
           </p>
           <div class="space-y-2">
             <div class="flex items-start gap-2.5 text-sm text-base-content/60">
               <div class="mt-1.5 h-1 w-1 rounded-full bg-primary/40 shrink-0"></div>
-              Detects your platform (Claude Code, Cursor, Codex, etc.)
+              Downloads your team definition
             </div>
-            <div class="flex items-start gap-2.5 text-sm text-base-content/60">
+            <div :if={platform_count(@selected_platforms) > 0} class="flex items-start gap-2.5 text-sm text-base-content/60">
               <div class="mt-1.5 h-1 w-1 rounded-full bg-primary/40 shrink-0"></div>
-              Scaffolds all team agents with their roles locally
+              Generates agent files for: <%= Enum.join(selected_platform_labels(@selected_platforms, @all_platforms), ", ") %>
+            </div>
+            <div :if={platform_count(@selected_platforms) == 0} class="flex items-start gap-2.5 text-sm text-base-content/60">
+              <div class="mt-1.5 h-1 w-1 rounded-full bg-primary/40 shrink-0"></div>
+              Auto-detects your platforms and generates agent files
             </div>
             <div class="flex items-start gap-2.5 text-sm text-base-content/60">
               <div class="mt-1.5 h-1 w-1 rounded-full bg-primary/40 shrink-0"></div>
@@ -781,9 +896,15 @@ defmodule TeamrcWeb.TeamLive do
             </div>
             <div class="flex items-start gap-2.5 text-sm text-base-content/60">
               <div class="mt-1.5 h-1 w-1 rounded-full bg-primary/40 shrink-0"></div>
-              Sets up automatic sync on every session start
+              Starts syncing team knowledge
             </div>
           </div>
+        </div>
+
+        <%!-- Clone alternative --%>
+        <div class="rounded-lg border border-base-300/60 bg-base-200/20 p-4 mb-8">
+          <p class="text-xs text-base-content/40 mb-1">Or clone without syncing:</p>
+          <code class="text-xs font-mono text-base-content/60">npx teamrc clone <%= @invite_code %></code>
         </div>
 
         <button

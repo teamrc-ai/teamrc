@@ -17,8 +17,8 @@ describe("resolveTeamSource", () => {
     fs.rmSync(tmpDir, { recursive: true });
   });
 
-  it("returns YAML source when agent-team.yaml exists", () => {
-    const yamlPath = path.join(tmpDir, "agent-team.yaml");
+  it("returns YAML source when .teamrc.yaml exists", () => {
+    const yamlPath = path.join(tmpDir, ".teamrc.yaml");
     fs.writeFileSync(yamlPath, "name: yaml-team\nmembers:\n  - name: a\n    role: r\n");
 
     const adapterTeam: TeamDefinition = { name: "adapter-team", members: [{ name: "b", role: "s" }] };
@@ -29,7 +29,7 @@ describe("resolveTeamSource", () => {
   });
 
   it("falls back to adapter when no YAML exists", () => {
-    const yamlPath = path.join(tmpDir, "agent-team.yaml");
+    const yamlPath = path.join(tmpDir, ".teamrc.yaml");
     const adapterTeam: TeamDefinition = { name: "adapter-team", members: [{ name: "b", role: "s" }] };
 
     const result = resolveTeamSource(yamlPath, adapterTeam);
@@ -38,7 +38,7 @@ describe("resolveTeamSource", () => {
   });
 
   it("returns null team when nothing available", () => {
-    const yamlPath = path.join(tmpDir, "agent-team.yaml");
+    const yamlPath = path.join(tmpDir, ".teamrc.yaml");
 
     const result = resolveTeamSource(yamlPath, null);
     assert.equal(result.source, "none");

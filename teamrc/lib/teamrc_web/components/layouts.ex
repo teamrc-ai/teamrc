@@ -31,27 +31,78 @@ defmodule TeamrcWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
 
-  slot :inner_block, required: true
+  attr :clerk_email, :string, default: nil
+  attr :clerk_user_id, :string, default: nil
+
+  slot :inner_block
 
   def app(assigns) do
     ~H"""
     <header class="border-b border-base-300/60 bg-base-100/80 backdrop-blur-sm sticky top-0 z-40">
       <nav class="mx-auto max-w-3xl flex items-center justify-between px-4 sm:px-6 h-14">
-        <a href="/" class="flex items-center gap-2.5 group">
-          <div class="text-primary">
-            <img src={~p"/images/logo.svg"} width="24" height="24" class="text-primary" />
-          </div>
-          <span class="text-sm font-semibold tracking-tight">teamrc</span>
-        </a>
+        <div class="flex items-center gap-6">
+          <a href="/" class="flex items-center gap-2.5 group">
+            <div class="text-primary">
+              <img src={~p"/images/logo.svg"} width="24" height="24" class="text-primary" />
+            </div>
+            <span class="text-sm font-semibold tracking-tight">teamrc</span>
+          </a>
+          <nav :if={@clerk_email} class="hidden sm:flex items-center gap-1">
+            <a
+              href={~p"/dashboard"}
+              class="trc-focus rounded-md px-2.5 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/80 hover:bg-base-200/60 transition-colors"
+            >
+              Dashboard
+            </a>
+            <a
+              href={~p"/new"}
+              class="trc-focus rounded-md px-2.5 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/80 hover:bg-base-200/60 transition-colors"
+            >
+              Create Team
+            </a>
+          </nav>
+        </div>
         <div class="flex items-center gap-3">
+          <%!-- Auth state: signed in --%>
+          <div :if={@clerk_email} class="flex items-center gap-2">
+            <div class="flex items-center gap-2 rounded-md bg-base-200/50 px-2.5 py-1.5">
+              <div class="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-primary text-[10px] font-bold">
+                <%= String.first(@clerk_email) |> String.upcase() %>
+              </div>
+              <span class="text-xs text-base-content/60 font-mono hidden sm:inline max-w-[140px] truncate">
+                <%= @clerk_email %>
+              </span>
+            </div>
+            <a
+              href={~p"/auth/sign-out"}
+              class="trc-focus rounded-md px-2 py-1.5 text-xs font-medium text-base-content/30 hover:text-base-content/60 transition-colors"
+            >
+              Sign out
+            </a>
+          </div>
+          <%!-- Auth state: not signed in --%>
+          <button
+            :if={!@clerk_email}
+            phx-click={Phoenix.LiveView.JS.dispatch("trc:sign-in")}
+            class="trc-focus inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd" />
+            </svg>
+            Sign in
+          </button>
           <.theme_toggle />
         </div>
       </nav>
     </header>
 
-    <main class="px-4 py-12 sm:px-6 sm:py-16">
+    <main class="flex-1 px-6 py-12 sm:px-8 sm:py-16">
       <div class="mx-auto max-w-2xl">
-        {render_slot(@inner_block)}
+        <%= if assigns[:inner_content] do %>
+          {@inner_content}
+        <% else %>
+          {render_slot(@inner_block)}
+        <% end %>
       </div>
     </main>
 

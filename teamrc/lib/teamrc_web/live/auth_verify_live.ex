@@ -5,18 +5,24 @@ defmodule TeamrcWeb.AuthVerifyLive do
   alias Teamrc.Accounts
 
   @impl true
-  def mount(params, session, socket) do
+  def mount(params, _session, socket) do
     code = Map.get(params, "code", "")
 
     {:ok,
      assign(socket,
        page_title: "Verify Device",
-       step: :enter_code,
+       step: determine_initial_step(socket.assigns, code),
        user_code: code,
-       error: nil,
-       clerk_user_id: session["clerk_user_id"],
-       clerk_email: session["clerk_email"]
+       error: nil
      )}
+  end
+
+  defp determine_initial_step(assigns, code) do
+    cond do
+      is_nil(assigns[:clerk_user_id]) -> :sign_in_required
+      code != "" && valid_code_format?(code) -> :consent
+      true -> :enter_code
+    end
   end
 
   @impl true
@@ -45,13 +51,11 @@ defmodule TeamrcWeb.AuthVerifyLive do
     clerk_email = socket.assigns.clerk_email
 
     if is_nil(clerk_user_id) or is_nil(clerk_email) do
-      {:noreply, assign(socket, error: "You must be signed in to link a device. Please sign in first.")}
+      {:noreply, assign(socket, step: :sign_in_required, error: nil)}
     else
       case DeviceAuth.confirm_request(code, clerk_user_id, clerk_email) do
         :ok ->
-          # Find or create the account and link the token
           with {:ok, account} <- Accounts.find_or_create_account(clerk_user_id, clerk_email),
-               # Get the machine token from the device request to create the account_token link
                {:ok, request} <- DeviceAuth.get_request_by_user_code(code),
                {:ok, _at} <- Accounts.link_token(account.id, request.token, nil) do
             {:noreply, assign(socket, step: :success, error: nil)}
@@ -61,7 +65,6 @@ defmodule TeamrcWeb.AuthVerifyLive do
           end
 
       {:error, :not_found} ->
-        # Could be expired or invalid
         {:noreply,
          assign(socket,
            step: :enter_code,
@@ -82,7 +85,6 @@ defmodule TeamrcWeb.AuthVerifyLive do
   # --- Helpers ---
 
   defp format_code(raw) do
-    # Strip everything except alphanumeric, uppercase it
     clean =
       raw
       |> String.upcase()
@@ -100,17 +102,58 @@ defmodule TeamrcWeb.AuthVerifyLive do
     Regex.match?(~r/^[A-Z0-9]{4}-[A-Z0-9]{4}$/, code)
   end
 
+  defp step_num(:sign_in_required), do: 0
+  defp step_num(:enter_code), do: 1
+  defp step_num(:consent), do: 2
+  defp step_num(:success), do: 3
+
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-md mx-auto mt-8">
+    <div class="max-w-md mx-auto mt-4">
       <%!-- Step indicator --%>
       <div class="flex items-center gap-2 mb-10 text-xs font-medium">
-        <.step_dot number={1} label="Enter Code" active={step_num(@step) >= 1} current={@step == :enter_code} />
-        <div class={"w-8 h-px " <> if(step_num(@step) >= 2, do: "bg-primary/40", else: "bg-base-300")} />
-        <.step_dot number={2} label="Confirm" active={step_num(@step) >= 2} current={@step == :consent} />
-        <div class={"w-8 h-px " <> if(step_num(@step) >= 3, do: "bg-primary/40", else: "bg-base-300")} />
-        <.step_dot number={3} label="Done" active={step_num(@step) >= 3} current={@step == :success} />
+        <.step_dot number={1} label="Sign In" active={step_num(@step) >= 1} current={@step == :sign_in_required} />
+        <div class={"w-6 h-px " <> if(step_num(@step) >= 1, do: "bg-primary/40", else: "bg-base-300")} />
+        <.step_dot number={2} label="Enter Code" active={step_num(@step) >= 1} current={@step == :enter_code} />
+        <div class={"w-6 h-px " <> if(step_num(@step) >= 2, do: "bg-primary/40", else: "bg-base-300")} />
+        <.step_dot number={3} label="Confirm" active={step_num(@step) >= 2} current={@step == :consent} />
+        <div class={"w-6 h-px " <> if(step_num(@step) >= 3, do: "bg-primary/40", else: "bg-base-300")} />
+        <.step_dot number={4} label="Done" active={step_num(@step) >= 3} current={@step == :success} />
+      </div>
+
+      <%!-- Step 0: Sign in required --%>
+      <div :if={@step == :sign_in_required}>
+        <div class="mb-8">
+          <h1 class="text-2xl font-bold tracking-tight mb-1">Sign in to continue</h1>
+          <p class="text-sm text-base-content/50">
+            You need to sign in with your account before linking a device.
+          </p>
+        </div>
+
+        <div class="rounded-lg border border-base-300 bg-base-200/30 p-6 mb-6 text-center">
+          <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
+            </svg>
+          </div>
+          <p class="text-sm text-base-content/60 mb-4">
+            Sign in with your account to link this device code:
+          </p>
+          <div :if={@user_code != ""} class="mb-4">
+            <code class="text-lg font-mono tracking-[0.2em] text-primary font-semibold"><%= @user_code %></code>
+          </div>
+          <button
+            phx-click={Phoenix.LiveView.JS.dispatch("trc:sign-in")}
+            class="trc-focus rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-primary-content shadow-sm hover:brightness-110 active:scale-[0.99] transition-all duration-150"
+          >
+            Sign in
+          </button>
+        </div>
+
+        <p class="text-xs text-center text-base-content/30">
+          After signing in, you'll return here to confirm the device link.
+        </p>
       </div>
 
       <%!-- Step 1: Enter Code --%>
@@ -120,6 +163,16 @@ defmodule TeamrcWeb.AuthVerifyLive do
           <p class="text-sm text-base-content/50">
             Enter the code shown in your terminal.
           </p>
+        </div>
+
+        <%!-- Signed in indicator --%>
+        <div class="flex items-center gap-2 rounded-md bg-success/5 border border-success/20 px-3 py-2 mb-6">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-success" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+          </svg>
+          <span class="text-xs text-base-content/60">
+            Signed in as <span class="font-mono font-medium"><%= @clerk_email %></span>
+          </span>
         </div>
 
         <form phx-submit="submit_code" class="space-y-6">
@@ -170,16 +223,19 @@ defmodule TeamrcWeb.AuthVerifyLive do
           </p>
         </div>
 
-        <div class="rounded-lg border border-base-300 bg-base-200/30 p-5 mb-6">
-          <p class="text-xs font-medium text-base-content/60 uppercase tracking-wider mb-3">
-            Device code
-          </p>
-          <p class="text-2xl font-mono tracking-[0.3em] text-center text-primary font-semibold">
-            <%= @user_code %>
-          </p>
+        <div class="rounded-lg border border-base-300 bg-base-200/30 p-5 mb-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-base-content/40 uppercase tracking-wider">Account</span>
+            <span class="text-sm font-mono text-base-content/70"><%= @clerk_email %></span>
+          </div>
+          <div class="border-t border-base-300/60"></div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-base-content/40 uppercase tracking-wider">Device code</span>
+            <span class="text-lg font-mono tracking-[0.2em] text-primary font-semibold"><%= @user_code %></span>
+          </div>
         </div>
 
-        <div class="rounded-lg border border-warning/30 bg-warning/5 p-4 mb-8">
+        <div class="rounded-lg border border-warning/30 bg-warning/5 p-4 mb-6">
           <div class="flex items-start gap-3">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-warning shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
@@ -209,7 +265,7 @@ defmodule TeamrcWeb.AuthVerifyLive do
             phx-disable-with="Linking..."
             class="trc-focus flex-1 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-content shadow-sm hover:brightness-110 active:scale-[0.99] transition-all duration-150"
           >
-            Confirm
+            Link this machine
           </button>
         </div>
       </div>
@@ -224,10 +280,20 @@ defmodule TeamrcWeb.AuthVerifyLive do
               </svg>
             </div>
           </div>
-          <h1 class="text-2xl font-bold tracking-tight mb-2">Machine linked successfully</h1>
-          <p class="text-sm text-base-content/50">
+          <h1 class="text-2xl font-bold tracking-tight mb-2">Machine linked</h1>
+          <p class="text-sm text-base-content/50 mb-6">
             You can close this tab and return to your terminal.
           </p>
+          <a
+            :if={@clerk_email}
+            href={~p"/dashboard"}
+            class="trc-focus inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            Go to dashboard
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+            </svg>
+          </a>
         </div>
       </div>
     </div>
@@ -235,10 +301,6 @@ defmodule TeamrcWeb.AuthVerifyLive do
   end
 
   # --- Step indicator component ---
-
-  defp step_num(:enter_code), do: 1
-  defp step_num(:consent), do: 2
-  defp step_num(:success), do: 3
 
   defp step_dot(assigns) do
     ~H"""

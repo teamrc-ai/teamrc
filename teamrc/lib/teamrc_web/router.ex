@@ -36,8 +36,17 @@ defmodule TeamrcWeb.Router do
   scope "/", TeamrcWeb do
     pipe_through :browser
 
-    live "/", TeamLive, :index
-    live "/auth/verify", AuthVerifyLive
+    get "/", PageController, :index
+    get "/auth/sign-out", PageController, :sign_out
+
+    live_session :default,
+      layout: {TeamrcWeb.Layouts, :app},
+      on_mount: [TeamrcWeb.Hooks.AssignAuth] do
+      live "/new", TeamLive, :index
+      live "/dashboard", DashboardLive
+      live "/teams/:id", TeamDetailLive
+      live "/auth/verify", AuthVerifyLive
+    end
   end
 
   scope "/api", TeamrcWeb do
@@ -50,6 +59,7 @@ defmodule TeamrcWeb.Router do
     post "/teams", ApiController, :create_team
     post "/teams/preview", ApiController, :preview_team
     post "/teams/invite", ApiController, :create_invite
+    get "/teams/all/:token", ApiController, :get_teams
     get "/teams/:token", ApiController, :get_team
     post "/sync", ApiController, :sync
     get "/sync/check", ApiController, :sync_check

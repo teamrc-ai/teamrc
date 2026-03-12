@@ -50,7 +50,25 @@ export interface TeamDefinition {
   members: TeamMember[];
   rules?: Rule[];
   skills?: Skill[];
+  teamId?: string;
+  relay?: string;
+  platforms?: string[];
+  noSync?: boolean;
 }
+
+export const VALID_PLATFORMS = [
+  "claude-code",
+  "cursor",
+  "codex",
+  "gemini",
+  "openclaw",
+  "copilot",
+  "amazon-q",
+  "windsurf",
+  "cline",
+] as const;
+
+export type PlatformName = (typeof VALID_PLATFORMS)[number];
 
 export type TeamScope = "project" | "global";
 
@@ -155,6 +173,11 @@ export function getAdapter(platform: string): PlatformAdapter {
       };
       return new mod.GeminiAdapter();
     }
+    case "copilot":
+    case "amazon-q":
+    case "windsurf":
+    case "cline":
+      throw new Error(`Platform "${platform}" adapter not yet implemented`);
     default:
       throw new Error(`Unknown platform: ${platform}`);
   }

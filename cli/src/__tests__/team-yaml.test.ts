@@ -17,7 +17,7 @@ describe("readTeamYaml", () => {
   });
 
   it("returns null when file does not exist", () => {
-    const result = readTeamYaml(path.join(tmpDir, "agent-team.yaml"));
+    const result = readTeamYaml(path.join(tmpDir, ".teamrc.yaml"));
     assert.equal(result, null);
   });
 
@@ -30,7 +30,7 @@ members:
     role: write code
     soul: "You are a meticulous coder."
 `;
-    const filePath = path.join(tmpDir, "agent-team.yaml");
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
     fs.writeFileSync(filePath, yaml);
 
     const result = readTeamYaml(filePath);
@@ -44,7 +44,7 @@ members:
 
   it("handles YAML with no members gracefully", () => {
     const yaml = `name: solo-team\n`;
-    const filePath = path.join(tmpDir, "agent-team.yaml");
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
     fs.writeFileSync(filePath, yaml);
 
     const result = readTeamYaml(filePath);
@@ -66,7 +66,7 @@ describe("writeTeamYaml", () => {
   });
 
   it("writes a TeamDefinition to YAML", () => {
-    const filePath = path.join(tmpDir, "agent-team.yaml");
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
     writeTeamYaml(filePath, {
       name: "my-team",
       members: [
@@ -83,7 +83,7 @@ describe("writeTeamYaml", () => {
   });
 
   it("roundtrips correctly", () => {
-    const filePath = path.join(tmpDir, "agent-team.yaml");
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
     const team = {
       name: "roundtrip-team",
       members: [
@@ -131,7 +131,7 @@ rules:
     alwaysApply: true
     body: "Validate all inputs."
 `;
-    const filePath = path.join(tmpDir, "agent-team.yaml");
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
     fs.writeFileSync(filePath, yaml);
 
     const result = readTeamYaml(filePath);
@@ -157,7 +157,7 @@ skills:
     description: Deploy to production
     body: "Run npm deploy."
 `;
-    const filePath = path.join(tmpDir, "agent-team.yaml");
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
     fs.writeFileSync(filePath, yaml);
 
     const result = readTeamYaml(filePath);
@@ -184,7 +184,7 @@ skills:
   - id: skill_search
     description: Search code
 `;
-    const filePath = path.join(tmpDir, "agent-team.yaml");
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
     fs.writeFileSync(filePath, yaml);
 
     const result = readTeamYaml(filePath);
@@ -199,7 +199,7 @@ members:
   - name: agent
     role: helper
 `;
-    const filePath = path.join(tmpDir, "agent-team.yaml");
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
     fs.writeFileSync(filePath, yaml);
 
     const result = readTeamYaml(filePath);
@@ -209,7 +209,7 @@ members:
   });
 
   it("roundtrips rules and skills through write/read", () => {
-    const filePath = path.join(tmpDir, "agent-team.yaml");
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
     const team = {
       name: "roundtrip-team",
       members: [{ name: "agent-a", role: "role-a", rules: ["rule_x"], skills: ["skill_y"] }],

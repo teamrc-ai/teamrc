@@ -73,14 +73,10 @@ defmodule TeamrcWeb.Plugs.RateLimiter do
   end
 
   defp client_ip(conn) do
-    # Respect X-Forwarded-For if behind a reverse proxy
-    case get_req_header(conn, "x-forwarded-for") do
-      [forwarded | _] ->
-        forwarded |> String.split(",") |> List.first() |> String.trim()
-
-      _ ->
-        conn.remote_ip |> :inet.ntoa() |> to_string()
-    end
+    # Always use conn.remote_ip — X-Forwarded-For is attacker-controlled
+    # and can be spoofed to bypass rate limits. If deploying behind a proxy,
+    # configure Plug.RemoteIp or Bandit/Cowboy to set conn.remote_ip correctly.
+    conn.remote_ip |> :inet.ntoa() |> to_string()
   end
 
   defp extract_token(conn) do

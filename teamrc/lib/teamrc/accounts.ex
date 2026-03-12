@@ -59,6 +59,57 @@ defmodule Teamrc.Accounts do
     |> Repo.all()
   end
 
+  @doc "Get teams with machine details for the dashboard. Returns [{team, machines}]."
+  def get_account_teams_with_machines(account_id) do
+    # Get all active tokens for this account
+    active_tokens =
+      from(at in AccountToken,
+        where: at.account_id == ^account_id and is_nil(at.revoked_at),
+        select: at
+      )
+      |> Repo.all()
+
+    token_strings = Enum.map(active_tokens, & &1.token)
+
+    if token_strings == [] do
+      []
+    else
+      # Get all token_team associations for these tokens
+      token_teams =
+        from(tt in TokenTeam,
+          where: tt.token in ^token_strings,
+          preload: [team: :members]
+        )
+        |> Repo.all()
+
+      # Build a lookup from token -> machine info
+      token_to_machine = Map.new(active_tokens, fn at ->
+        {at.token, %{
+          token: at.token,
+          machine_name: at.machine_name,
+          last_seen_at: at.last_seen_at
+        }}
+      end)
+
+      # Group by team, collect machines for each team
+      token_teams
+      |> Enum.group_by(& &1.team_id)
+      |> Enum.map(fn {_team_id, tts} ->
+        team = hd(tts).team
+        machines = Enum.map(tts, fn tt ->
+          machine = Map.get(token_to_machine, tt.token, %{token: tt.token, machine_name: nil, last_seen_at: nil})
+          Map.merge(machine, %{
+            scope: tt.scope || "project",
+            project_name: tt.project_name,
+            tt_last_seen_at: tt.last_seen_at
+          })
+        end)
+        |> Enum.uniq_by(& &1.token)
+        {team, machines}
+      end)
+    end
+  end
+
   @doc "Resolve participants for a single team."
   def resolve_participants(team_id) do
     from(tt in TokenTeam,
