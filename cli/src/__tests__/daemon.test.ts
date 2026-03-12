@@ -116,7 +116,7 @@ describe("daemon", () => {
     });
 
     // Give the initial async poll a moment to execute
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 100));
 
     assert.ok(client.calls.some((c) => c.method === "getTeamHead"));
 
@@ -147,7 +147,7 @@ describe("daemon", () => {
       watchYaml: false,
     });
 
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 100));
 
     // The adapter should have received a writeTeam call
     assert.ok(adapter.writtenTeams.length > 0);
@@ -181,12 +181,12 @@ describe("daemon", () => {
       client,
       adapters: [adapter],
       platforms: ["claude-code"],
-      pollInterval: 100, // fast poll for testing
+      pollInterval: 50, // fast poll for testing
       watchYaml: false,
     });
 
-    // Wait for initial poll + one more
-    await new Promise((r) => setTimeout(r, 350));
+    // Wait for initial poll + at least one more interval
+    await new Promise((r) => setTimeout(r, 180));
 
     // getTeamHead should be called multiple times
     const headCalls = client.calls.filter((c) => c.method === "getTeamHead");
@@ -226,7 +226,7 @@ describe("daemon", () => {
       watchYaml: false,
     });
 
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 100));
 
     // Read state.json and check sync hashes were written
     const stateContent = fs.readFileSync(path.join(tmpDir, ".teamrc", "state.json"), "utf-8");
@@ -273,7 +273,7 @@ describe("daemon", () => {
       watchYaml: false,
     });
 
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 100));
 
     const knowledge = adapter.readKnowledge();
     assert.ok(knowledge.includes("local fact 1"), "Should keep local knowledge");
@@ -294,7 +294,7 @@ describe("daemon", () => {
       watchYaml: false,
     });
 
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 100));
 
     // No pushTeam calls should have been made
     const pushCalls = client.calls.filter((c) => c.method === "pushTeam");

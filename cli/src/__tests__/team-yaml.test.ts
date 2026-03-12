@@ -330,6 +330,76 @@ describe("resolveBody", () => {
   });
 });
 
+describe("readTeamYaml limit enforcement", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-yaml-limits-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it("throws when YAML exceeds MAX_YAML_SIZE (256 KB)", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    // Create a file larger than 256 KB
+    const bigContent = "name: big-team\nmembers: []\n# " + "x".repeat(256 * 1024);
+    fs.writeFileSync(filePath, bigContent);
+
+    assert.throws(
+      () => readTeamYaml(filePath),
+      /exceeds maximum size/,
+    );
+  });
+
+  it("throws when team has too many members (> 100)", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    const members = Array.from({ length: 101 }, (_, i) => `  - name: agent${i}\n    role: helper`);
+    const yaml = `name: big-team\nmembers:\n${members.join("\n")}\n`;
+    fs.writeFileSync(filePath, yaml);
+
+    assert.throws(
+      () => readTeamYaml(filePath),
+      /at most 100 entries/,
+    );
+  });
+
+  it("throws when team has too many skills (> 200)", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    const skills = Array.from({ length: 201 }, (_, i) => `  - id: skill${i}\n    body: "do stuff"`);
+    const yaml = `name: skill-team\nmembers:\n  - name: agent\n    role: helper\nskills:\n${skills.join("\n")}\n`;
+    fs.writeFileSync(filePath, yaml);
+
+    assert.throws(
+      () => readTeamYaml(filePath),
+      /at most 200 entries/,
+    );
+  });
+
+  it("accepts team at exactly MAX_MEMBERS (100)", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    const members = Array.from({ length: 100 }, (_, i) => `  - name: agent${i}\n    role: helper`);
+    const yaml = `name: full-team\nmembers:\n${members.join("\n")}\n`;
+    fs.writeFileSync(filePath, yaml);
+
+    const result = readTeamYaml(filePath);
+    assert.ok(result);
+    assert.equal(result.members.length, 100);
+  });
+
+  it("accepts team at exactly MAX_SKILLS (200)", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    const skills = Array.from({ length: 200 }, (_, i) => `  - id: skill${i}\n    body: "do stuff"`);
+    const yaml = `name: skill-team\nmembers:\n  - name: agent\n    role: helper\nskills:\n${skills.join("\n")}\n`;
+    fs.writeFileSync(filePath, yaml);
+
+    const result = readTeamYaml(filePath);
+    assert.ok(result);
+    assert.equal(result.skills!.length, 200);
+  });
+});
+
 describe("writeTeamYaml atomic writes", () => {
   let tmpDir: string;
 

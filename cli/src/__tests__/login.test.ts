@@ -1,11 +1,45 @@
-import { describe, it } from "node:test";
+import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeypair, toToken } from "../auth.js";
 
 // We test the client methods by importing the class directly
 import { TeamrcClient } from "../client.js";
 
+// ---------------------------------------------------------------------------
+// Helpers: centralized mockFetch / restoreFetch pattern
+// ---------------------------------------------------------------------------
+
+interface CapturedCall {
+  url: string;
+  init?: RequestInit;
+}
+
+let captured: CapturedCall[] = [];
+const originalFetch = globalThis.fetch;
+
+function mockFetch(response: object, status = 200) {
+  captured = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input.toString();
+    captured.push({ url, init });
+    return new Response(JSON.stringify(response), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+}
+
+function restoreFetch() {
+  globalThis.fetch = originalFetch;
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
 describe("device auth client methods", () => {
+  afterEach(() => restoreFetch());
+
   it("createDeviceAuth sends signed POST and returns device info", async () => {
     const kp = await generateKeypair();
     const token = toToken(kp.publicKey);
@@ -18,77 +52,41 @@ describe("device auth client methods", () => {
       interval: 5,
     };
 
-    let capturedUrl = "";
-    let capturedMethod = "";
-    let capturedHeaders: Record<string, string> = {};
+    mockFetch(deviceResponse);
 
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = async (url: string | URL, opts?: RequestInit) => {
-      capturedUrl = url.toString();
-      capturedMethod = opts?.method ?? "GET";
-      capturedHeaders = Object.fromEntries(
-        Object.entries(opts?.headers ?? {}),
-      );
-      return {
-        ok: true,
-        status: 200,
-        json: async () => deviceResponse,
-        text: async () => JSON.stringify(deviceResponse),
-      } as Response;
-    };
+    const client = new TeamrcClient("http://localhost:4000", kp.privateKey, token);
+    const result = await client.createDeviceAuth();
 
-    try {
-      const client = new TeamrcClient("http://localhost:4000", kp.privateKey, token);
-      const result = await client.createDeviceAuth();
+    assert.equal(captured.length, 1);
+    assert.equal(captured[0].url, "http://localhost:4000/api/auth/device");
+    assert.equal(captured[0].init?.method, "POST");
 
-      assert.equal(capturedUrl, "http://localhost:4000/api/auth/device");
-      assert.equal(capturedMethod, "POST");
-      assert.equal(capturedHeaders["Content-Type"], "application/json");
-      assert.ok(capturedHeaders["x-trc-signature"]);
-      assert.ok(capturedHeaders["x-trc-timestamp"]);
+    const headers = captured[0].init?.headers as Record<string, string>;
+    assert.equal(headers["Content-Type"], "application/json");
+    assert.ok(headers["x-trc-signature"]);
+    assert.ok(headers["x-trc-timestamp"]);
 
-      assert.equal(result.device_code, "dc_test123");
-      assert.equal(result.user_code, "ABCD-1234");
-      assert.equal(result.verification_url, "https://teamrc.dev/auth/verify");
-      assert.equal(result.expires_in, 300);
-      assert.equal(result.interval, 5);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    assert.equal(result.device_code, "dc_test123");
+    assert.equal(result.user_code, "ABCD-1234");
+    assert.equal(result.verification_url, "https://teamrc.dev/auth/verify");
+    assert.equal(result.expires_in, 300);
+    assert.equal(result.interval, 5);
   });
 
   it("pollDeviceAuth returns pending status", async () => {
     const kp = await generateKeypair();
     const token = toToken(kp.publicKey);
 
-    const pendingResponse = { status: "pending" };
+    mockFetch({ status: "pending" });
 
-    let capturedUrl = "";
-    let capturedMethod = "";
+    const client = new TeamrcClient("http://localhost:4000", kp.privateKey, token);
+    const result = await client.pollDeviceAuth("dc_test123");
 
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = async (url: string | URL, opts?: RequestInit) => {
-      capturedUrl = url.toString();
-      capturedMethod = opts?.method ?? "GET";
-      return {
-        ok: true,
-        status: 200,
-        json: async () => pendingResponse,
-        text: async () => JSON.stringify(pendingResponse),
-      } as Response;
-    };
-
-    try {
-      const client = new TeamrcClient("http://localhost:4000", kp.privateKey, token);
-      const result = await client.pollDeviceAuth("dc_test123");
-
-      assert.equal(capturedUrl, "http://localhost:4000/api/auth/device/dc_test123");
-      assert.equal(capturedMethod, "GET");
-      assert.equal(result.status, "pending");
-      assert.equal(result.email, undefined);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    assert.equal(captured.length, 1);
+    assert.equal(captured[0].url, "http://localhost:4000/api/auth/device/dc_test123");
+    assert.equal(captured[0].init?.method, "GET");
+    assert.equal(result.status, "pending");
+    assert.equal(result.email, undefined);
   });
 
   it("pollDeviceAuth returns confirmed status with account info", async () => {
@@ -102,26 +100,14 @@ describe("device auth client methods", () => {
       team_count: 2,
     };
 
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = async (_url: string | URL, _opts?: RequestInit) => {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => confirmedResponse,
-        text: async () => JSON.stringify(confirmedResponse),
-      } as Response;
-    };
+    mockFetch(confirmedResponse);
 
-    try {
-      const client = new TeamrcClient("http://localhost:4000", kp.privateKey, token);
-      const result = await client.pollDeviceAuth("dc_test123");
+    const client = new TeamrcClient("http://localhost:4000", kp.privateKey, token);
+    const result = await client.pollDeviceAuth("dc_test123");
 
-      assert.equal(result.status, "confirmed");
-      assert.equal(result.email, "ben@example.com");
-      assert.equal(result.machine_count, 1);
-      assert.equal(result.team_count, 2);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    assert.equal(result.status, "confirmed");
+    assert.equal(result.email, "ben@example.com");
+    assert.equal(result.machine_count, 1);
+    assert.equal(result.team_count, 2);
   });
 });

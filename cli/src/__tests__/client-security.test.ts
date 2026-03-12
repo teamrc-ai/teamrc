@@ -110,14 +110,25 @@ describe("TeamrcClient fetch timeouts", () => {
     assert.ok(captured[0].init?.signal, "signal should be set on fetch");
   });
 
-  it("eraseToken sends signal with timeout and uses DELETE method", async () => {
-    mockFetch({ status: "erased", teams_removed: 2 });
+  it("disconnect sends signal with timeout and uses DELETE method", async () => {
+    mockFetch({ status: "disconnected", teams_removed: 2 });
     const client = new TeamrcClient("http://localhost:4000", dummyKey, dummyToken);
-    const result = await client.eraseToken();
+    const result = await client.disconnect();
     assert.equal(captured.length, 1);
     assert.ok(captured[0].init?.signal, "signal should be set on fetch");
     assert.equal(captured[0].init?.method, "DELETE");
     assert.equal(result.teams_removed, 2);
+  });
+
+  it("disconnect with teamId includes query parameter", async () => {
+    mockFetch({ status: "disconnected", teams_removed: 1 });
+    const client = new TeamrcClient("http://localhost:4000", dummyKey, dummyToken);
+    await client.disconnect("my-team-id");
+    assert.equal(captured.length, 1);
+    assert.ok(
+      captured[0].url.includes("?team_id=my-team-id"),
+      `URL should contain team_id param, got: ${captured[0].url}`,
+    );
   });
 });
 

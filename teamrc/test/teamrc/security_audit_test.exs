@@ -1,17 +1,10 @@
 defmodule Teamrc.SecurityAuditTest do
   @moduledoc "Tests for security and data integrity fixes from the comprehensive audit."
 
-  use ExUnit.Case, async: false
+  use Teamrc.DataCase, async: false
 
-  import Ecto.Query
   alias Teamrc.{Accounts, Repo, Teams}
   alias Teamrc.Schema.{Invite, TokenTeam, Team}
-
-  setup do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Teamrc.Repo, shared: true)
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
-    :ok
-  end
 
   # Helper to create a user and link a machine token
   defp create_user_with_token(email, machine_token, machine_name \\ "test-machine") do
@@ -28,22 +21,44 @@ defmodule Teamrc.SecurityAuditTest do
   # ---------------------------------------------------------------------------
 
   describe "is_team_participant? filters revoked tokens" do
-    test "returns true for active token, false after revocation" do
-      token = "trc_ak_revoke_#{:erlang.unique_integer([:positive])}"
-      {:ok, user} = create_user_with_token("revoke@example.com", token)
-
-      # Create team and associate token
-      {:ok, team_data} = Teams.put_team(token, %{"name" => "revoke-team", "members" => []})
+    test "non-owner loses access after token revocation" do
+      # Create a team with one token (becomes owner)
+      owner_token = "trc_ak_owner_#{:erlang.unique_integer([:positive])}"
+      {:ok, _owner} = create_user_with_token("owner_revoke@example.com", owner_token)
+      {:ok, team_data} = Teams.put_team(owner_token, %{"name" => "revoke-team", "members" => []})
       team_id = team_data["id"]
 
-      # Should be participant
+      # Have a second user join via invite
+      joiner_token = "trc_ak_joiner_#{:erlang.unique_integer([:positive])}"
+      {:ok, joiner} = create_user_with_token("joiner_revoke@example.com", joiner_token)
+      {:ok, invite_code, _} = Teams.create_invite(owner_token, 24, team_id)
+      {:ok, _} = Teams.join_by_invite(invite_code, joiner_token)
+
+      # Joiner should be participant
+      assert Accounts.is_team_participant?(joiner.id, team_id)
+
+      # Revoke the joiner's token
+      :ok = Accounts.revoke_machine_token(joiner.id, joiner_token)
+
+      # Joiner should NOT be participant after revocation
+      refute Accounts.is_team_participant?(joiner.id, team_id)
+    end
+
+    test "owner retains access after token revocation" do
+      token = "trc_ak_owner_rev_#{:erlang.unique_integer([:positive])}"
+      {:ok, user} = create_user_with_token("owner_keep@example.com", token)
+
+      # put_team with a linked token auto-sets owner_user_id
+      {:ok, team_data} = Teams.put_team(token, %{"name" => "owner-team", "members" => []})
+      team_id = team_data["id"]
+
       assert Accounts.is_team_participant?(user.id, team_id)
 
       # Revoke the token
       :ok = Accounts.revoke_machine_token(user.id, token)
 
-      # Should NOT be participant after revocation
-      refute Accounts.is_team_participant?(user.id, team_id)
+      # Owner should STILL be participant (ownership trumps revocation)
+      assert Accounts.is_team_participant?(user.id, team_id)
     end
 
     test "returns true when one token is revoked but another is active" do
@@ -86,7 +101,7 @@ defmodule Teamrc.SecurityAuditTest do
       assert Repo.get_by(Invite, code: invite_code)
     end
 
-    test "team is not left behind if invite fails" do
+    test "creates team and invite atomically (both exist after success)" do
       teams_before = Repo.aggregate(Team, :count)
 
       {:ok, _code, team_id} =

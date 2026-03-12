@@ -1,18 +1,11 @@
 defmodule Teamrc.TeamsTest do
-  use ExUnit.Case, async: false
+  use Teamrc.DataCase, async: false
 
-  import Ecto.Query
   alias Teamrc.Teams
-
-  setup do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Teamrc.Repo, shared: true)
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
-    :ok
-  end
 
   describe "put_team/get_team" do
     test "stores and retrieves a team" do
-      token = "tok_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_#{:erlang.unique_integer([:positive])}"
       team = %{"name" => "my-team", "members" => [%{"name" => "agent1", "role" => "worker"}]}
       assert {:ok, _team_data} = Teams.put_team(token, team)
       {:ok, result} = Teams.get_team(token)
@@ -22,11 +15,11 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "returns :error for unknown token" do
-      assert :error = Teams.get_team("tok_unknown_#{:erlang.unique_integer([:positive])}")
+      assert :error = Teams.get_team("trc_ak_unknown_#{:erlang.unique_integer([:positive])}")
     end
 
     test "stores and retrieves knowledge" do
-      token = "tok_k1_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_k1_#{:erlang.unique_integer([:positive])}"
       team = %{"name" => "knowledge-team", "members" => [], "knowledge" => "shared notes here"}
       {:ok, _} = Teams.put_team(token, team)
       {:ok, result} = Teams.get_team(token)
@@ -34,7 +27,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "knowledge is append-only on put_team overwrite" do
-      token = "tok_k2_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_k2_#{:erlang.unique_integer([:positive])}"
       Teams.put_team(token, %{"name" => "k-team", "members" => [], "knowledge" => "v1"})
       Teams.put_team(token, %{"name" => "k-team", "members" => [], "knowledge" => "v2"})
       {:ok, result} = Teams.get_team(token)
@@ -43,7 +36,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "knowledge deduplicates identical lines" do
-      token = "tok_k3_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_k3_#{:erlang.unique_integer([:positive])}"
       Teams.put_team(token, %{"name" => "k-team", "members" => [], "knowledge" => "line A\nline B"})
       Teams.put_team(token, %{"name" => "k-team", "members" => [], "knowledge" => "line B\nline C"})
       {:ok, result} = Teams.get_team(token)
@@ -55,7 +48,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "get_team returns content hashes" do
-      token = "tok_ts_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_ts_#{:erlang.unique_integer([:positive])}"
       team = %{"name" => "ts-team", "members" => []}
       {:ok, _} = Teams.put_team(token, team)
       {:ok, result} = Teams.get_team(token)
@@ -82,15 +75,24 @@ defmodule Teamrc.TeamsTest do
     test "returns team data without creating token_teams" do
       {:ok, invite_code, _team_id} = Teams.create_team_with_invite(%{
         "name" => "preview-team",
-        "members" => [%{"name" => "agent1", "role" => "dev"}]
+        "members" => [%{"name" => "agent1", "role" => "dev", "soul" => "I am a dev agent"}],
+        "knowledge" => "secret knowledge"
       })
 
       {:ok, team} = Teams.preview_by_invite(invite_code)
       assert team["name"] == "preview-team"
       assert length(team["members"]) == 1
 
+      # Knowledge should be redacted from preview
+      assert is_nil(team["knowledge"])
+
+      # Member souls should be redacted from preview
+      Enum.each(team["members"], fn member ->
+        refute Map.has_key?(member, "soul")
+      end)
+
       # A new token should NOT be able to get_team (no token_teams row created)
-      assert :error = Teams.get_team("tok_preview_visitor_#{:erlang.unique_integer([:positive])}")
+      assert :error = Teams.get_team("trc_ak_preview_visitor_#{:erlang.unique_integer([:positive])}")
     end
 
     test "returns :error with expired invite code" do
@@ -114,7 +116,7 @@ defmodule Teamrc.TeamsTest do
 
   describe "create_invite" do
     test "member can create a valid invite code" do
-      token = "tok_inviter_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_inviter_#{:erlang.unique_integer([:positive])}"
       Teams.put_team(token, %{"name" => "invite-team", "members" => []})
 
       {:ok, code, expires_at} = Teams.create_invite(token, 24)
@@ -124,13 +126,13 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "non-member returns :error" do
-      assert :error = Teams.create_invite("tok_stranger_#{:erlang.unique_integer([:positive])}", 24)
+      assert :error = Teams.create_invite("trc_ak_stranger_#{:erlang.unique_integer([:positive])}", 24)
     end
   end
 
   describe "multi-team routing" do
     test "get_team with team_id returns the correct team" do
-      token = "tok_multi_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_multi_#{:erlang.unique_integer([:positive])}"
 
       # Create Team A via put_team
       {:ok, team_a} = Teams.put_team(token, %{"name" => "Team A", "members" => []})
@@ -153,7 +155,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "put_team with team_id updates only the targeted team" do
-      token = "tok_multi_put_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_multi_put_#{:erlang.unique_integer([:positive])}"
 
       {:ok, team_a} = Teams.put_team(token, %{"name" => "Team A", "members" => []})
       team_a_id = team_a["id"]
@@ -178,7 +180,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "get_team with wrong team_id returns :error" do
-      token = "tok_multi_err_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_multi_err_#{:erlang.unique_integer([:positive])}"
       {:ok, _} = Teams.put_team(token, %{"name" => "My Team", "members" => []})
 
       # A team_id the token doesn't belong to
@@ -186,7 +188,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "put_team with wrong team_id creates a new team instead of overwriting" do
-      token = "tok_multi_new_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_multi_new_#{:erlang.unique_integer([:positive])}"
       {:ok, team_a} = Teams.put_team(token, %{"name" => "Team A", "members" => []})
 
       # Pass a team_id the token doesn't belong to. resolve_team_id returns nil, so it creates
@@ -206,7 +208,7 @@ defmodule Teamrc.TeamsTest do
 
   describe "content hashes" do
     test "hashes are stamped on create" do
-      token = "tok_hash_create_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_hash_create_#{:erlang.unique_integer([:positive])}"
       team = %{"name" => "hash-team", "members" => [%{"name" => "alice", "role" => "dev"}], "knowledge" => "notes\n"}
       {:ok, result} = Teams.put_team(token, team)
 
@@ -219,7 +221,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "hashes change when team content changes" do
-      token = "tok_hash_change_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_hash_change_#{:erlang.unique_integer([:positive])}"
       {:ok, v1} = Teams.put_team(token, %{"name" => "hash-team", "members" => [%{"name" => "alice", "role" => "dev"}]})
       {:ok, v2} = Teams.put_team(token, %{"name" => "hash-team", "members" => [%{"name" => "bob", "role" => "qa"}]})
 
@@ -230,7 +232,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "hashes are consistent across get and put" do
-      token = "tok_hash_consistent_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_hash_consistent_#{:erlang.unique_integer([:positive])}"
       {:ok, created} = Teams.put_team(token, %{"name" => "consistent", "members" => []})
       {:ok, fetched} = Teams.get_team(token)
 
@@ -241,7 +243,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "update without base_hash succeeds unconditionally (backward compat)" do
-      token = "tok_hash_nobase_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_hash_nobase_#{:erlang.unique_integer([:positive])}"
       {:ok, _} = Teams.put_team(token, %{"name" => "team", "members" => []})
       # Update without base_hash. Should succeed even though hashes differ
       {:ok, result} = Teams.put_team(token, %{"name" => "updated", "members" => [%{"name" => "new", "role" => "dev"}]})
@@ -249,7 +251,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "update with matching base_hash succeeds (fast-forward)" do
-      token = "tok_hash_ff_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_hash_ff_#{:erlang.unique_integer([:positive])}"
       {:ok, v1} = Teams.put_team(token, %{"name" => "team", "members" => [%{"name" => "alice", "role" => "dev"}]})
 
       # Use the current hash as base_hash. Should fast-forward
@@ -264,7 +266,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "update with mismatched base_hash on members returns conflict" do
-      token = "tok_hash_conflict_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_hash_conflict_#{:erlang.unique_integer([:positive])}"
       {:ok, _v1} = Teams.put_team(token, %{"name" => "team", "members" => [%{"name" => "alice", "role" => "dev"}]})
 
       # Simulate a stale base_hash
@@ -280,7 +282,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "update with knowledge-only difference performs server-side merge" do
-      token = "tok_hash_merge_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_hash_merge_#{:erlang.unique_integer([:positive])}"
       {:ok, v1} = Teams.put_team(token, %{
         "name" => "team",
         "members" => [],
@@ -312,7 +314,7 @@ defmodule Teamrc.TeamsTest do
 
   describe "get_team_hashes" do
     test "returns hashes for a valid token" do
-      token = "tok_head_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_head_#{:erlang.unique_integer([:positive])}"
       {:ok, created} = Teams.put_team(token, %{"name" => "head-team", "members" => []})
 
       {:ok, hashes} = Teams.get_team_hashes(token)
@@ -323,15 +325,174 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "returns :error for unknown token" do
-      assert :error = Teams.get_team_hashes("tok_head_unknown_#{:erlang.unique_integer([:positive])}")
+      assert :error = Teams.get_team_hashes("trc_ak_head_unknown_#{:erlang.unique_integer([:positive])}")
     end
 
     test "returns hashes for specific team_id" do
-      token = "tok_head_multi_#{:erlang.unique_integer([:positive])}"
+      token = "trc_ak_head_multi_#{:erlang.unique_integer([:positive])}"
       {:ok, team_a} = Teams.put_team(token, %{"name" => "Head A", "members" => []})
 
       {:ok, hashes} = Teams.get_team_hashes(token, team_a["id"])
       assert hashes["hash"] == team_a["hash"]
+    end
+  end
+
+  describe "join_by_invite" do
+    test "happy path: create team, create invite, join with another token" do
+      creator_token = "trc_ak_join_creator_#{:erlang.unique_integer([:positive])}"
+      joiner_token = "trc_ak_join_joiner_#{:erlang.unique_integer([:positive])}"
+
+      {:ok, _team} = Teams.put_team(creator_token, %{
+        "name" => "join-team",
+        "members" => [%{"name" => "bot", "role" => "helper"}]
+      })
+
+      {:ok, code, _expires} = Teams.create_invite(creator_token, 24)
+      {:ok, joined_team} = Teams.join_by_invite(code, joiner_token)
+
+      assert joined_team["name"] == "join-team"
+      assert length(joined_team["members"]) == 1
+
+      # Joiner can now get the team
+      {:ok, fetched} = Teams.get_team(joiner_token)
+      assert fetched["name"] == "join-team"
+    end
+
+    test "expired invite returns :error" do
+      {:ok, invite_code, _team_id} = Teams.create_team_with_invite(%{
+        "name" => "expired-join-team",
+        "members" => []
+      })
+
+      # Expire the invite
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      past = DateTime.add(now, -3600)
+
+      Repo.update_all(
+        from(i in Teamrc.Schema.Invite, where: i.code == ^invite_code),
+        set: [expires_at: past]
+      )
+
+      token = "trc_ak_join_expired_#{:erlang.unique_integer([:positive])}"
+      assert :error = Teams.join_by_invite(invite_code, token)
+    end
+
+    test "invalid/nonexistent invite code returns :error" do
+      token = "trc_ak_join_invalid_#{:erlang.unique_integer([:positive])}"
+      assert :error = Teams.join_by_invite("trc_inv_nonexistent_code", token)
+    end
+
+    test "joining same team twice is idempotent" do
+      creator_token = "trc_ak_join_idem_cr_#{:erlang.unique_integer([:positive])}"
+      joiner_token = "trc_ak_join_idem_jr_#{:erlang.unique_integer([:positive])}"
+
+      {:ok, _team} = Teams.put_team(creator_token, %{
+        "name" => "idem-team",
+        "members" => []
+      })
+
+      {:ok, code, _expires} = Teams.create_invite(creator_token, 24)
+
+      {:ok, first_join} = Teams.join_by_invite(code, joiner_token)
+      {:ok, second_join} = Teams.join_by_invite(code, joiner_token)
+
+      assert first_join["id"] == second_join["id"]
+      assert first_join["name"] == second_join["name"]
+    end
+  end
+
+  describe "preview_by_clone_token" do
+    setup do
+      alias Teamrc.Accounts
+
+      token = "trc_ak_clone_prev_#{:erlang.unique_integer([:positive])}"
+      {:ok, team_data} = Teams.put_team(token, %{
+        "name" => "clone-preview-team",
+        "members" => [%{"name" => "dev", "role" => "backend"}],
+        "knowledge" => "private knowledge"
+      })
+      claim_secret = team_data["owner_claim_secret"]
+      team_id = team_data["id"]
+
+      # Create user and link token
+      {:ok, user} = Accounts.register_user(%{
+        "email" => "clone_preview_#{:erlang.unique_integer([:positive])}@test.com",
+        "terms_accepted" => "true"
+      })
+      {:ok, _mt} = Accounts.link_machine_token(user.id, token, "test-machine")
+
+      # Claim ownership so we can set visibility
+      {:ok, :claimed} = Teams.claim_ownership(token, claim_secret)
+
+      %{token: token, team_id: team_id, team_data: team_data}
+    end
+
+    test "public team clone token returns team data", %{token: token, team_id: team_id} do
+      {:ok, updated} = Teams.set_visibility(token, team_id, "public")
+      clone_token = updated.clone_token
+
+      {:ok, preview} = Teams.preview_by_clone_token(clone_token)
+      assert preview["name"] == "clone-preview-team"
+      assert length(preview["members"]) == 1
+
+      # Knowledge should be redacted from clone preview
+      assert is_nil(preview["knowledge"])
+    end
+
+    test "private team clone token returns :error", %{token: token, team_id: team_id} do
+      # Set public first to generate clone_token, then back to private
+      {:ok, updated} = Teams.set_visibility(token, team_id, "public")
+      clone_token = updated.clone_token
+
+      {:ok, _} = Teams.set_visibility(token, team_id, "private")
+      assert :error = Teams.preview_by_clone_token(clone_token)
+    end
+
+    test "invalid clone token returns :error" do
+      assert :error = Teams.preview_by_clone_token("trc_cl_nonexistent_token")
+    end
+  end
+
+  describe "erase_token" do
+    test "erases all token_teams for a token" do
+      token = "trc_ak_erase_ctx_#{:erlang.unique_integer([:positive])}"
+      {:ok, _} = Teams.put_team(token, %{"name" => "Erase Team", "members" => []})
+
+      {:ok, count} = Teams.erase_token(token)
+      assert count >= 1
+
+      assert :error = Teams.get_teams(token)
+    end
+
+    test "erases only specific team when team_id is given" do
+      token = "trc_ak_erase_scoped_#{:erlang.unique_integer([:positive])}"
+
+      {:ok, team_a} = Teams.put_team(token, %{"name" => "Keep Team", "members" => []})
+      team_a_id = team_a["id"]
+
+      {:ok, invite_code, _} = Teams.create_team_with_invite(%{
+        "name" => "Remove Team",
+        "members" => []
+      })
+      {:ok, team_b} = Teams.join_by_invite(invite_code, token)
+      team_b_id = team_b["id"]
+
+      # Erase only team_b
+      {:ok, count} = Teams.erase_token(token, team_b_id)
+      assert count == 1
+
+      # Team A should still be accessible
+      {:ok, got_a} = Teams.get_team(token, team_a_id)
+      assert got_a["name"] == "Keep Team"
+
+      # Team B should not be accessible
+      assert :error = Teams.get_team(token, team_b_id)
+    end
+
+    test "returns 0 when no teams to erase" do
+      token = "trc_ak_erase_empty_ctx_#{:erlang.unique_integer([:positive])}"
+      {:ok, count} = Teams.erase_token(token)
+      assert count == 0
     end
   end
 end
