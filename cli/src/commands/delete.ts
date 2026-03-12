@@ -12,6 +12,7 @@ import {
   globals,
   requireTTY,
   handleCancel,
+  cliCmd,
 } from "../utils.js";
 
 export function registerDelete(program: Command): void {
@@ -228,7 +229,7 @@ export function registerDelete(program: Command): void {
       } else if (deleteScope === "global") {
         p.outro("Global team removed. Project team and token unchanged.");
       } else {
-        p.outro("Done. Run `teamrc init` or `teamrc join` to set up again.");
+        p.outro(`Done. Run \`${cliCmd("init")}\` or \`${cliCmd("join")}\` to set up again.`);
       }
     });
 }

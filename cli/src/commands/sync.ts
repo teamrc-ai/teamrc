@@ -8,6 +8,7 @@ import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-
 import {
   requireTeamContext,
   effectiveScope,
+  cliCmd,
 } from "../utils.js";
 
 export function registerSync(program: Command): void {
@@ -193,7 +194,7 @@ export function registerSync(program: Command): void {
 
         // Members/skills differ on both sides — pull first, warn user
         s.start("Both sides changed. Pulling remote first...");
-        p.log.warn("Both local and remote have changes. Pulling remote changes first. Run `teamrc push` to push local changes.");
+        p.log.warn(`Both local and remote have changes. Pulling remote changes first. Run \`${cliCmd("push")}\` to push local changes.`);
         const remoteTeam = await client.getTeam();
         validateTeamName(remoteTeam.name);
         const remoteDef = remoteTeamToDefinition(remoteTeam);
@@ -224,7 +225,7 @@ export function registerSync(program: Command): void {
           a.writeTeam(remoteDef, effectiveScope(pl, scope));
         }
         s.stop("Pulled remote changes.");
-        p.outro("Synced. Run `teamrc push` to push local changes.");
+        p.outro(`Synced. Run \`${cliCmd("push")}\` to push local changes.`);
       } catch (err) {
         s.stop("Sync failed.");
         p.log.error((err as Error).message);

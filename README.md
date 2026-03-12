@@ -70,12 +70,12 @@ Fields:
 - **teamId**: UUID assigned by the relay server
 - **relay**: Relay server URL for cross-machine sync
 - **platforms**: Target platforms (`claude-code`, `cursor`, `codex`, `gemini`, `openclaw`)
-- **members**: Array of agents (max 100)
+- **members**: Array of agents (max 20)
   - **name**: Agent name (alphanumeric, hyphens, underscores; max 64 chars)
   - **role**: One-line role description
   - **soul**: Optional custom persona or instructions
   - **skills**: Optional list of skill IDs to assign to this agent
-- **skills**: Array of shared skills and conventions (max 200)
+- **skills**: Array of shared skills and conventions (max 50)
   - **id**: Skill identifier (alphanumeric, hyphens, underscores; max 64 chars)
   - **title**: Display name
   - **description**: What the skill does
@@ -89,21 +89,28 @@ Fields:
 | Command | Description |
 |---------|-------------|
 | `teamrc init` | Detect platform, create agents, write `.teamrc.yaml`, connect to relay |
-| `teamrc join <token>` | Join an existing team and set up locally. `--no-sync` for local-only |
+| `teamrc join <token>` | Join an existing team and set up locally |
 | `teamrc clone <token>` | Copy a team locally without joining sync. `--name` to override name |
-| `teamrc dashboard` | Open the current team in your browser. `--ttl <hours>` (default: 24) |
-| `teamrc invite` | Generate an invite code for your team. `--ttl <hours>` (default: 24, max: 168) |
 | `teamrc apply` | Apply `.teamrc.yaml` to local platform(s) |
-| `teamrc export` | Export team from relay to `.teamrc.yaml` |
 | `teamrc sync` | One-time sync with relay server |
-| `teamrc push` | Push team knowledge to relay |
+| `teamrc push` | Push local state and knowledge to relay |
+| `teamrc pull` | Pull latest team from relay and apply locally |
 | `teamrc diff` | Show differences between local and relay. `--json` for machine-readable output |
 | `teamrc status` | Show current config and team state. `--json` for machine-readable output |
-| `teamrc whoami` | Show local identity (token, machine, account, team). No network calls |
-| `teamrc log` | Show recent sync activity with attribution. `--limit <n>` (default: 20) |
+| `teamrc export` | Export team from relay to `.teamrc.yaml` |
+| `teamrc import <platform>` | Import existing platform config into `.teamrc.yaml` |
+| `teamrc dashboard` | Open the current team in your browser |
+| `teamrc invite` | Generate an invite code for your team |
+| `teamrc share` | Toggle team visibility (public/private) |
+| `teamrc claim <secret>` | Claim ownership of a team |
+| `teamrc add-member` | Add a member interactively from the catalog |
+| `teamrc list-templates` | List available team templates |
+| `teamrc list-agents` | List available agent templates |
+| `teamrc whoami` | Show local identity (token, machine, account, team) |
 | `teamrc doctor` | Run health checks on config, relay, auth, and team state |
 | `teamrc daemon` | Start background sync. `--sync-mode <all\|knowledge\|none>` (default: knowledge) |
-| `teamrc login` | Link this machine to a Clerk account via device auth |
+| `teamrc login` | Link this machine to an account via device auth |
+| `teamrc erase` | Erase a token and its data from the relay |
 | `teamrc delete` | Remove all teamrc setup from this machine |
 
 ## Platforms
@@ -111,7 +118,7 @@ Fields:
 - **Claude Code**: Agents in `.claude/agents/trc-*.md` with YAML frontmatter. Skills with `alwaysApply`/`globs` as `.claude/rules/trc-*.md`. On-demand skills as `.claude/skills/trc-*/SKILL.md`. Updates `CLAUDE.md` with team section.
 - **Cursor**: Subagents in `.cursor/agents/trc-*.md`. Skills with `alwaysApply`/`globs` as `.cursor/rules/trc-*.mdc`. On-demand skills as `.cursor/skills/trc-*/SKILL.md`. Routing via `.cursor/AGENTS.md`.
 - **Codex**: Agent TOML configs in `.codex/agents/trc-*.toml`. Registered in `.codex/config.toml`. Routing via `AGENTS.md`.
-- **OpenClaw**: Agents in `.agents/agents/trc-*.md` with YAML frontmatter. Skills as `.agents/skills/trc-*/SKILL.md`. Routing via `AGENTS.md`.
+- **OpenClaw**: Each agent gets a workspace at `~/.openclaw/workspace-trc-*/` with `AGENTS.md` and `SOUL.md`. Skills in `~/.openclaw/skills/trc-*/SKILL.md`. Registered in `~/.openclaw/openclaw.json`.
 - **Gemini**: Agents in `.gemini/agents/trc-*.md` with YAML frontmatter. Skills as `.agents/skills/trc-*/SKILL.md` (Gemini CLI) and `.agent/skills/trc-*/SKILL.md` (Antigravity). Updates `GEMINI.md` with team section.
 
 ## Self-Hosting
@@ -145,15 +152,15 @@ Point the CLI at your relay with `TEAMRC_RELAY=http://your-host:4000` or set `re
 
 - Ed25519 authentication with timestamp-signed requests
 - Agent names validated with strict regex before filesystem use
-- YAML file size limited to 256KB, max 100 members
+- YAML file size limited to 256KB, max 20 members
 - Team names and roles sanitized in all template outputs
 - Daemon sync operations are serialized with a mutex
 - Invite codes are multi-use with 144-bit entropy and 24h TTL
 - Every content change tracks `pushed_by` token for attribution
 - Daemon defaults to knowledge-only sync mode (agent definitions require explicit `teamrc sync`)
 - Sync state capped at 50MB per team
-- Skills capped at 200 per team and 10KB per skill body
+- Skills capped at 50 per team and 10KB per skill body
 - Clerk JWT validation for account endpoints (fail-closed when configured)
-- See `docs/security-audit.md` for the full audit
+- See security test suite for coverage of auth, ownership, and validation
 
 **Important:** Treat `.teamrc.yaml` as a trusted configuration file (like `.env`). The `soul` field controls agent behavior, so review YAML changes in PRs just as you would review code changes.

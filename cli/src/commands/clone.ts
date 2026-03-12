@@ -10,6 +10,7 @@ import {
   requireKeypair,
   selectScope,
   effectiveScope,
+  cliCmd,
 } from "../utils.js";
 
 export function registerClone(program: Command): void {
@@ -69,9 +70,9 @@ export function registerClone(program: Command): void {
 
         p.log.success(`Cloned "${teamDef.name}" (${teamDef.members.length} agents) locally.`);
         if (code.startsWith("trc_cl_")) {
-          p.outro("Cloned. Run `teamrc pull` to fetch updates.");
+          p.outro(`Cloned. Run \`${cliCmd("pull")}\` to fetch updates.`);
         } else {
-          p.outro("Cloned locally. To join and sync with the original team, use `teamrc join <invite-code>`.");
+          p.outro(`Cloned locally. To join and sync with the original team, use \`${cliCmd("join <invite-code>")}\`.`);
         }
       } catch (err) {
         s.error("Failed to clone team.");

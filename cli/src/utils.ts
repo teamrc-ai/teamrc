@@ -21,12 +21,31 @@ import type { TeamrcConfig } from "./config.js";
 import { openBrowserIfSameOrigin } from "./browser.js";
 
 // ---------------------------------------------------------------------------
+// CLI name detection — use the right invocation form in messages
+// ---------------------------------------------------------------------------
+function detectCliName(): string {
+  const scriptPath = process.argv[1] || "";
+  if (scriptPath.includes("_npx") || process.env.npm_command === "exec") {
+    return "npx @teamrc/cli";
+  }
+  return "teamrc";
+}
+
+/** The CLI command prefix, e.g. "teamrc" or "npx @teamrc/cli" */
+export const CLI_NAME = detectCliName();
+
+/** Format a CLI command for display, e.g. cliCmd("init") → "teamrc init" or "npx @teamrc/cli init" */
+export function cliCmd(subcommand: string): string {
+  return `${CLI_NAME} ${subcommand}`;
+}
+
+// ---------------------------------------------------------------------------
 // Program definition — single shared instance
 // ---------------------------------------------------------------------------
 export const program = new Command();
 
 program
-  .name("teamrc")
+  .name(CLI_NAME)
   .description("teamrc -- sync multi-agent teams across platforms")
   .version("0.1.0")
   .option("--json", "Output as JSON")
@@ -169,12 +188,12 @@ export interface TeamContext {
 export function requireTeamContext(): TeamContext {
   const config = loadConfig();
   if (!config) {
-    p.log.error("Not initialized. Run `teamrc init` first.");
+    p.log.error(`Not initialized. Run \`${cliCmd("init")}\` first.`);
     process.exit(1);
   }
   const kp = loadKeypair();
   if (!kp) {
-    p.log.error("No keypair found. Run `teamrc init` first.");
+    p.log.error(`No keypair found. Run \`${cliCmd("init")}\` first.`);
     process.exit(1);
   }
 
@@ -222,7 +241,7 @@ export function requireTeamContext(): TeamContext {
     };
   }
 
-  p.log.error("No team configured. Run `teamrc init` or `teamrc join`.");
+  p.log.error(`No team configured. Run \`${cliCmd("init")}\` or \`${cliCmd("join")}\`.`);
   process.exit(1);
 }
 

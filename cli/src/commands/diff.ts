@@ -5,6 +5,7 @@ import {
   globals,
   requireTeamContext,
   jsonOutput,
+  cliCmd,
 } from "../utils.js";
 
 export function registerDiff(program: Command): void {
@@ -157,7 +158,7 @@ export function registerDiff(program: Command): void {
 
         const effectiveDiffs = (membersDiffer ? 1 : 0) + (skillsDiffer ? 1 : 0) +
           (knowledgeDiffers ? 1 : 0) + (teamNameDiff ? 1 : 0);
-        p.outro(`${effectiveDiffs} section(s) differ. Run teamrc sync to resolve.`);
+        p.outro(`${effectiveDiffs} section(s) differ. Run ${cliCmd("sync")} to resolve.`);
       } catch (err) {
         if (!useJson) s.error("Failed to fetch relay state.");
         if (useJson) {

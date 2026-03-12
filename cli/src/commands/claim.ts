@@ -3,6 +3,7 @@ import * as p from "@clack/prompts";
 import { loadConfig } from "../config.js";
 import {
   requireTeamContext,
+  cliCmd,
 } from "../utils.js";
 
 export function registerClaim(program: Command): void {
@@ -20,7 +21,7 @@ export function registerClaim(program: Command): void {
 
       const config = loadConfig();
       if (!config?.account?.email) {
-        p.log.error("You must link your account first. Run `teamrc login`.");
+        p.log.error(`You must link your account first. Run \`${cliCmd("login")}\`.`);
         process.exit(1);
       }
 
@@ -34,7 +35,7 @@ export function registerClaim(program: Command): void {
         s.stop("Ownership claimed.");
 
         p.log.info(`You are now the owner of "${ctx.team.name}".`);
-        p.outro("Use `teamrc share` to make this team publicly cloneable.");
+        p.outro(`Use \`${cliCmd("share")}\` to make this team publicly cloneable.`);
       } catch (err) {
         s.error("Failed to claim ownership.");
         p.log.error((err as Error).message);

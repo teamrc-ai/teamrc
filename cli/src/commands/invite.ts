@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import {
   requireTeamContext,
+  cliCmd,
 } from "../utils.js";
 
 export function registerInvite(program: Command): void {
@@ -33,7 +34,7 @@ export function registerInvite(program: Command): void {
           "Invite",
         );
 
-        p.outro("Share this command with your teammates. For your own browser session, use `teamrc dashboard`.");
+        p.outro(`Share this command with your teammates. For your own browser session, use \`${cliCmd("dashboard")}\`.`);
       } catch (err) {
         s.error("Failed to create invite.");
         p.log.error((err as Error).message);

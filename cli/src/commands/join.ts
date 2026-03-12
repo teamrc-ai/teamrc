@@ -14,6 +14,7 @@ import {
   selectScope,
   effectiveScope,
   deviceAuthFlow,
+  cliCmd,
 } from "../utils.js";
 
 export function registerJoin(program: Command): void {
@@ -112,11 +113,11 @@ export function registerJoin(program: Command): void {
             const machineName = os.hostname();
             await deviceAuthFlow(client, machineName, relayUrl);
           } else {
-            p.log.info("Tip: Run `teamrc login` anytime to link your account.");
+            p.log.info(`Tip: Run \`${cliCmd("login")}\` anytime to link your account.`);
           }
         }
 
-        p.log.info("Tip: Run `teamrc dashboard` to manage this team in your browser.");
+        p.log.info(`Tip: Run \`${cliCmd("dashboard")}\` to manage this team in your browser.`);
         p.outro("Next: Run teamrc daemon to start live sync");
       } catch (err) {
         s.error("Failed to join team.");

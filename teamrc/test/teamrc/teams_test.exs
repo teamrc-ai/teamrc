@@ -2,6 +2,7 @@ defmodule Teamrc.TeamsTest do
   use Teamrc.DataCase, async: false
 
   alias Teamrc.Teams
+  import Teamrc.AccountsFixtures
 
   describe "put_team/get_team" do
     test "stores and retrieves a team" do
@@ -493,6 +494,163 @@ defmodule Teamrc.TeamsTest do
       token = "trc_ak_erase_empty_ctx_#{:erlang.unique_integer([:positive])}"
       {:ok, count} = Teams.erase_token(token)
       assert count == 0
+    end
+  end
+
+  describe "web mutations recompute content hashes (BUG 1)" do
+    setup do
+      token = "trc_ak_webhash_#{:erlang.unique_integer([:positive])}"
+
+      {:ok, team_data} =
+        Teams.put_team(token, %{
+          "name" => "web-hash-team",
+          "members" => [%{"name" => "alice", "role" => "dev"}],
+          "skills" => [%{"id" => "skill-a", "body" => "do stuff"}],
+          "knowledge" => "initial knowledge"
+        })
+
+      team = Teams.get_team_by_id(team_data["id"])
+
+      {:ok, initial_hashes} = Teams.get_team_hashes(token, team_data["id"])
+
+      %{token: token, team: team, team_id: team_data["id"], initial_hashes: initial_hashes}
+    end
+
+    test "add_member updates hashes", %{token: token, team_id: team_id, initial_hashes: initial_hashes} do
+      {:ok, _member} = Teams.add_member(team_id, %{name: "bob", role: "qa"})
+
+      {:ok, new_hashes} = Teams.get_team_hashes(token, team_id)
+      assert new_hashes["members_hash"] != initial_hashes["members_hash"]
+      assert new_hashes["hash"] != initial_hashes["hash"]
+      # Skills and knowledge unchanged
+      assert new_hashes["skills_hash"] == initial_hashes["skills_hash"]
+      assert new_hashes["knowledge_hash"] == initial_hashes["knowledge_hash"]
+    end
+
+    test "update_member updates hashes", %{token: token, team: team, team_id: team_id, initial_hashes: initial_hashes} do
+      member = hd(team.members)
+      {:ok, _updated} = Teams.update_member(member, %{role: "lead"})
+
+      {:ok, new_hashes} = Teams.get_team_hashes(token, team_id)
+      assert new_hashes["members_hash"] != initial_hashes["members_hash"]
+      assert new_hashes["hash"] != initial_hashes["hash"]
+    end
+
+    test "delete_member updates hashes", %{token: token, team: team, team_id: team_id, initial_hashes: initial_hashes} do
+      member = hd(team.members)
+      {:ok, _deleted} = Teams.delete_member(member)
+
+      {:ok, new_hashes} = Teams.get_team_hashes(token, team_id)
+      assert new_hashes["members_hash"] != initial_hashes["members_hash"]
+      assert new_hashes["hash"] != initial_hashes["hash"]
+    end
+
+    test "update_team_skills updates hashes", %{token: token, team: team, team_id: team_id, initial_hashes: initial_hashes} do
+      new_skills = [%{"id" => "skill-b", "body" => "new stuff"}]
+      {:ok, _updated} = Teams.update_team_skills(team, new_skills)
+
+      {:ok, new_hashes} = Teams.get_team_hashes(token, team_id)
+      assert new_hashes["skills_hash"] != initial_hashes["skills_hash"]
+      assert new_hashes["hash"] != initial_hashes["hash"]
+      # Members unchanged
+      assert new_hashes["members_hash"] == initial_hashes["members_hash"]
+    end
+
+    test "update_team_name updates stored hashes", %{token: token, team: team, team_id: team_id} do
+      {:ok, _updated} = Teams.update_team_name(team, "renamed-team")
+
+      # Name doesn't affect content hashes (members/skills/knowledge), but recompute should still run
+      {:ok, new_hashes} = Teams.get_team_hashes(token, team_id)
+      assert is_binary(new_hashes["hash"])
+      assert String.length(new_hashes["hash"]) == 64
+    end
+
+    test "delete_skill updates hashes", %{token: token, team: team, team_id: team_id, initial_hashes: initial_hashes} do
+      {:ok, _updated} = Teams.delete_skill(team, "skill-a")
+
+      {:ok, new_hashes} = Teams.get_team_hashes(token, team_id)
+      assert new_hashes["skills_hash"] != initial_hashes["skills_hash"]
+      assert new_hashes["hash"] != initial_hashes["hash"]
+    end
+
+    test "web edit followed by CLI get_team returns consistent data", %{token: token, team_id: team_id} do
+      {:ok, _member} = Teams.add_member(team_id, %{name: "charlie", role: "ops"})
+
+      {:ok, team_map} = Teams.get_team(token, team_id)
+      {:ok, stored_hashes} = Teams.get_team_hashes(token, team_id)
+
+      # The hashes from get_team (computed on the fly) should match the stored hashes
+      assert team_map["members_hash"] == stored_hashes["members_hash"]
+      assert team_map["skills_hash"] == stored_hashes["skills_hash"]
+      assert team_map["knowledge_hash"] == stored_hashes["knowledge_hash"]
+      assert team_map["hash"] == stored_hashes["hash"]
+    end
+  end
+
+  describe "create_invite_by_team_id (BUG 2)" do
+    test "creates invite without a token" do
+      {:ok, _invite_code, team_id} =
+        Teams.create_team_with_invite(%{"name" => "web-only-team", "members" => []})
+
+      {:ok, code, expires_at} = Teams.create_invite_by_team_id(team_id, 24)
+      assert String.starts_with?(code, "trc_inv_")
+      assert DateTime.compare(expires_at, DateTime.utc_now()) == :gt
+    end
+
+    test "web-only owner can generate invite for their team" do
+      # Create a user for the owner
+      user = user_fixture()
+
+      # Create a team via web wizard (no machine token, direct owner_user_id)
+      {:ok, _invite_code, team_id} =
+        Teams.create_team_with_invite(
+          %{"name" => "web-owner-team", "members" => []},
+          owner_user_id: user.id
+        )
+
+      {:ok, code, _expires_at} = Teams.create_invite_by_team_id(team_id, 48)
+      assert String.starts_with?(code, "trc_inv_")
+
+      # The invite can be used to join
+      joiner_token = "trc_ak_joiner_#{:erlang.unique_integer([:positive])}"
+      {:ok, joined} = Teams.join_by_invite(code, joiner_token)
+      assert joined["name"] == "web-owner-team"
+    end
+  end
+
+  describe "set_visibility_by_owner (BUG 3)" do
+    test "web-only owner can toggle visibility" do
+      user = user_fixture()
+
+      {:ok, _invite_code, team_id} =
+        Teams.create_team_with_invite(
+          %{"name" => "visibility-team", "members" => []},
+          owner_user_id: user.id
+        )
+
+      {:ok, updated} = Teams.set_visibility_by_owner(user.id, team_id, "public")
+      assert updated.visibility == "public"
+      assert is_binary(updated.clone_token)
+
+      {:ok, private_again} = Teams.set_visibility_by_owner(user.id, team_id, "private")
+      assert private_again.visibility == "private"
+    end
+
+    test "non-owner cannot set visibility" do
+      user = user_fixture()
+      other_user = user_fixture()
+
+      {:ok, _invite_code, team_id} =
+        Teams.create_team_with_invite(
+          %{"name" => "owned-team", "members" => []},
+          owner_user_id: user.id
+        )
+
+      assert {:error, :not_owner} = Teams.set_visibility_by_owner(other_user.id, team_id, "public")
+    end
+
+    test "returns error for invalid visibility" do
+      assert {:error, :invalid_visibility} = Teams.set_visibility_by_owner(Ecto.UUID.generate(), Ecto.UUID.generate(), "bogus")
     end
   end
 end

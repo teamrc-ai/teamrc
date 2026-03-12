@@ -11,6 +11,7 @@ import { readSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
 import {
   globals,
   jsonOutput,
+  cliCmd,
 } from "../utils.js";
 
 export function registerStatus(program: Command): void {
@@ -28,7 +29,7 @@ export function registerStatus(program: Command): void {
         } else {
           p.intro("teamrc");
           p.log.warn("teamrc is not initialized.");
-          p.outro("Run `teamrc init` to get started.");
+          p.outro(`Run \`${cliCmd("init")}\` to get started.`);
         }
         return;
       }

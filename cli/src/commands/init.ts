@@ -21,6 +21,7 @@ import {
   selectTemplate,
   promptTeamName,
   deviceAuthFlow,
+  cliCmd,
 } from "../utils.js";
 
 export function registerInit(program: Command): void {
@@ -49,8 +50,8 @@ export function registerInit(program: Command): void {
       }
       if (existingYaml?.teamId) {
         p.log.error(`Already initialized: "${existingYaml.name}" (${yamlPath}).`);
-        p.log.info(`To add platforms, run: teamrc apply --platform <platforms>`);
-        p.log.info(`To start over, run: teamrc delete`);
+        p.log.info(`To add platforms, run: ${cliCmd("apply --platform <platforms>")}`);
+        p.log.info(`To start over, run: ${cliCmd("delete")}`);
         process.exit(1);
       }
 
@@ -134,7 +135,7 @@ export function registerInit(program: Command): void {
           const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
           p.log.warn(
             `${yellow("Save this to claim ownership:")}  ${relayTeam.owner_claim_secret}\n` +
-            `${dim("Run `teamrc claim <token>` anytime, or link your account now to claim automatically.")}`,
+            `${dim(`Run \`${cliCmd("claim <token>")}\` anytime, or link your account now to claim automatically.`)}`,
           );
 
           if (!isNonInteractive()) {
@@ -150,7 +151,7 @@ export function registerInit(program: Command): void {
                   await client.claimOwnership(relayTeam.owner_claim_secret);
                   p.log.step("Ownership claimed.");
                 } catch {
-                  p.log.warn("Account linked, but ownership claim failed. Run `teamrc claim <token>` later.");
+                  p.log.warn(`Account linked, but ownership claim failed. Run \`${cliCmd("claim <token>")}\` later.`);
                 }
               }
             }
@@ -184,13 +185,13 @@ export function registerInit(program: Command): void {
           );
         }
 
-        p.log.info("Tip: Run `teamrc dashboard` to open this team in your browser.");
+        p.log.info(`Tip: Run \`${cliCmd("dashboard")}\` to open this team in your browser.`);
         p.outro("Customize agents and skills in .teamrc.yaml, then run teamrc apply");
       } catch (err) {
         s.error("Failed to create team on relay.");
         p.log.warn(`Relay error: ${(err as Error).message}`);
         p.log.info("No local files were created.");
-        p.outro("Check your relay connection and re-run `teamrc init`.");
+        p.outro(`Check your relay connection and re-run \`${cliCmd("init")}\`.`);
       }
     });
 }

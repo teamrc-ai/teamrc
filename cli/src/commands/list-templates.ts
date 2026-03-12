@@ -4,6 +4,7 @@ import { resolveTeam, listTeams } from "../catalog.js";
 import {
   globals,
   jsonOutput,
+  cliCmd,
 } from "../utils.js";
 
 export function registerListTemplates(program: Command): void {
@@ -44,6 +45,6 @@ export function registerListTemplates(program: Command): void {
         );
       }
 
-      p.outro(`${teams.length} templates. Use \`teamrc init --team <name>\` to create a team.`);
+      p.outro(`${teams.length} templates. Use \`${cliCmd("init --team <name>")}\` to create a team.`);
     });
 }

@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import {
   requireTeamContext,
+  CLI_NAME,
 } from "../utils.js";
 
 export function registerDaemon(program: Command): void {
@@ -19,7 +20,7 @@ export function registerDaemon(program: Command): void {
       const ctx = requireTeamContext();
       const { client } = ctx;
 
-      p.intro("teamrc daemon");
+      p.intro(`${CLI_NAME} daemon`);
       p.log.info([
         `Watching "${ctx.team.name || "team"}" on ${ctx.platforms.join(", ")}`,
         `Poll interval: ${pollMs / 1000}s`,

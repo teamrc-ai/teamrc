@@ -7,6 +7,7 @@ import { getRelayUrl } from "../config.js";
 import {
   requireKeypair,
   deviceAuthFlow,
+  cliCmd,
 } from "../utils.js";
 
 export function registerLogin(program: Command): void {
@@ -27,7 +28,7 @@ export function registerLogin(program: Command): void {
       if (success) {
         p.outro("Account linked.");
       } else {
-        p.outro("Login failed. Run `teamrc login` to try again.");
+        p.outro(`Login failed. Run \`${cliCmd("login")}\` to try again.`);
         process.exit(1);
       }
     });

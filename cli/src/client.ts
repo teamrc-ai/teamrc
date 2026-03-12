@@ -2,6 +2,7 @@ import { signMessage } from "./auth.js";
 import type { Skill, TeamDefinition } from "./adapters/base.js";
 
 import { validateSkillId, resolveBody } from "./team-yaml.js";
+import { cliCmd } from "./utils.js";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -253,7 +254,7 @@ export class TeamrcClient {
         serverHash = conflict.server_hash ?? "";
       } catch { /* not JSON */ }
       throw new SyncConflictError(
-        "Remote has changes. Run `teamrc pull` first.",
+        `Remote has changes. Run \`${cliCmd("pull")}\` first.`,
         serverHash,
       );
     }

@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import { getAdapter, VALID_PLATFORMS } from "../adapters/base.js";
 import { writeTeamYaml, TEAM_YAML } from "../team-yaml.js";
+import { cliCmd } from "../utils.js";
 
 export function registerImport(program: Command): void {
   program
@@ -26,6 +27,6 @@ export function registerImport(program: Command): void {
       writeTeamYaml(TEAM_YAML, team);
       p.log.success(`Imported "${team.name}" (${team.members.length} agents) from ${platform}.`);
       p.log.step(`Wrote ${TEAM_YAML}`);
-      p.outro("This is a local copy. Run `teamrc init` to create a synced team.");
+      p.outro(`This is a local copy. Run \`${cliCmd("init")}\` to create a synced team.`);
     });
 }

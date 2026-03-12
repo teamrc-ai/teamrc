@@ -4,6 +4,7 @@ import { listAgentCategories, loadAgent } from "../catalog.js";
 import {
   globals,
   jsonOutput,
+  cliCmd,
 } from "../utils.js";
 
 export function registerListAgents(program: Command): void {
@@ -49,6 +50,6 @@ export function registerListAgents(program: Command): void {
         p.log.message(`${cat.label}\n${lines.join("\n")}\n`);
       }
 
-      p.outro(`${totalAgents} agents. Use \`teamrc add-member <name>\` to add one to your team.`);
+      p.outro(`${totalAgents} agents. Use \`${cliCmd("add-member <name>")}\` to add one to your team.`);
     });
 }

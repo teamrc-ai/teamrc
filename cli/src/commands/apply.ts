@@ -6,6 +6,7 @@ import {
   requirePlatforms,
   selectScope,
   effectiveScope,
+  cliCmd,
 } from "../utils.js";
 
 export function registerApply(program: Command): void {
@@ -37,7 +38,7 @@ export function registerApply(program: Command): void {
         }
       }
       if (!team) {
-        p.log.error("No .teamrc.yaml found. Run `teamrc init` or `teamrc import <platform>` first.");
+        p.log.error(`No .teamrc.yaml found. Run \`${cliCmd("init")}\` or \`${cliCmd("import <platform>")}\` first.`);
         process.exit(1);
       }
 

@@ -5,6 +5,7 @@ import { readTeamYaml, TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
 import {
   requireTeamContext,
+  cliCmd,
 } from "../utils.js";
 
 export function registerPush(program: Command): void {
@@ -26,7 +27,7 @@ export function registerPush(program: Command): void {
         process.exit(1);
       }
       if (!team) {
-        p.log.error("No .teamrc.yaml found. Run `teamrc init` first.");
+        p.log.error(`No .teamrc.yaml found. Run \`${cliCmd("init")}\` first.`);
         process.exit(1);
       }
       // Migrate legacy syncHash fields from YAML to state.json
@@ -66,7 +67,7 @@ export function registerPush(program: Command): void {
       } catch (err) {
         s.stop("Push failed.");
         if (err instanceof SyncConflictError) {
-          p.log.error("Remote has changes. Run `teamrc pull` first.");
+          p.log.error(`Remote has changes. Run \`${cliCmd("pull")}\` first.`);
         } else {
           p.log.error((err as Error).message);
         }

@@ -3,6 +3,7 @@ import * as p from "@clack/prompts";
 import { loadConfig } from "../config.js";
 import {
   requireTeamContext,
+  cliCmd,
 } from "../utils.js";
 
 export function registerShare(program: Command): void {
@@ -15,7 +16,7 @@ export function registerShare(program: Command): void {
 
       const config = loadConfig();
       if (!config?.account?.email) {
-        p.log.error("teamrc share requires a linked account. Run `teamrc login` first.");
+        p.log.error(`${cliCmd("share")} requires a linked account. Run \`${cliCmd("login")}\` first.`);
         process.exit(1);
       }
 
@@ -36,7 +37,7 @@ export function registerShare(program: Command): void {
           );
         }
 
-        p.outro(opts.off ? "Cloning disabled." : "Share the clone command above. Use `teamrc share --off` to disable.");
+        p.outro(opts.off ? "Cloning disabled." : `Share the clone command above. Use \`${cliCmd("share --off")}\` to disable.`);
       } catch (err) {
         s.error("Failed to update visibility.");
         p.log.error((err as Error).message);
