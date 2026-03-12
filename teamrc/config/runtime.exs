@@ -25,9 +25,18 @@ config :teamrc, TeamrcWeb.Endpoint,
 
 config :teamrc, env: config_env()
 
-# Clerk frontend publishable key (optional — enables Sign In button on web UI)
-if clerk_pk = System.get_env("CLERK_PUBLISHABLE_KEY") do
-  config :teamrc, :clerk_publishable_key, clerk_pk
+# GitHub OAuth
+if github_client_id = System.get_env("GITHUB_CLIENT_ID") do
+  config :ueberauth, Ueberauth.Strategy.Github.OAuth,
+    client_id: github_client_id,
+    client_secret: System.get_env("GITHUB_CLIENT_SECRET")
+end
+
+# Google OAuth
+if google_client_id = System.get_env("GOOGLE_CLIENT_ID") do
+  config :ueberauth, Ueberauth.Strategy.Google.OAuth,
+    client_id: google_client_id,
+    client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
 end
 
 if config_env() == :prod do
@@ -85,17 +94,12 @@ if config_env() == :prod do
     live_view: [signing_salt: live_view_signing_salt],
     force_ssl: [hsts: true, rewrite_on: [:x_forwarded_proto]]
 
-  # Clerk JWT verification (optional — enables account linking + dashboard)
-  clerk_jwks_url = System.get_env("CLERK_JWKS_URL")
-  clerk_issuer = System.get_env("CLERK_ISSUER")
-  clerk_audience = System.get_env("CLERK_AUDIENCE")
+  # Swoosh mailer for production
+  config :teamrc, Teamrc.Mailer,
+    adapter: Swoosh.Adapters.Resend,
+    api_key: System.get_env("RESEND_API_KEY")
 
-  if clerk_jwks_url && clerk_issuer do
-    config :teamrc, Teamrc.ClerkJWT,
-      jwks_url: clerk_jwks_url,
-      issuer: clerk_issuer,
-      audience: clerk_audience
-  end
+  config :swoosh, :api_client, Swoosh.ApiClient.Finch
 
   # ## SSL Support
   #

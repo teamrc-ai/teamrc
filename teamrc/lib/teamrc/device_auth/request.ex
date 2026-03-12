@@ -6,7 +6,7 @@ defmodule Teamrc.DeviceAuth.Request do
     :user_code,
     :token,
     :status,
-    :clerk_user_id,
+    :user_id,
     :email,
     :expires_at,
     :inserted_at,

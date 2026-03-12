@@ -13,50 +13,49 @@ defmodule Teamrc.SecurityAuditTest do
     :ok
   end
 
+  # Helper to create a user and link a machine token
+  defp create_user_with_token(email, machine_token, machine_name \\ "test-machine") do
+    {:ok, user} = Accounts.register_user(%{
+      email: email,
+      accepted_terms_at: DateTime.utc_now(:second),
+      terms_version_accepted: "2026-03-11"
+    })
+    {:ok, _mt} = Accounts.link_machine_token(user.id, machine_token, machine_name)
+    {:ok, user}
+  end
+
   # ---------------------------------------------------------------------------
   # Fix 1: is_team_participant?/2 filters revoked tokens
   # ---------------------------------------------------------------------------
 
   describe "is_team_participant? filters revoked tokens" do
     test "returns true for active token, false after revocation" do
-      # Create account
-      {:ok, account} =
-        Accounts.find_or_create_account("clerk_revoke_test", "revoke@example.com")
-
-      # Create and link token
       token = "trc_ak_revoke_#{:erlang.unique_integer([:positive])}"
-      {:ok, _} = Accounts.link_token(account.id, token, "test-machine")
+      {:ok, user} = create_user_with_token("revoke@example.com", token)
 
       # Create team and associate token
       {:ok, team_data} = Teams.put_team(token, %{"name" => "revoke-team", "members" => []})
       team_id = team_data["id"]
 
       # Should be participant
-      assert Accounts.is_team_participant?("clerk_revoke_test", team_id)
+      assert Accounts.is_team_participant?(user.id, team_id)
 
       # Revoke the token
-      :ok = Accounts.revoke_token(account.id, token)
+      :ok = Accounts.revoke_machine_token(user.id, token)
 
       # Should NOT be participant after revocation
-      refute Accounts.is_team_participant?("clerk_revoke_test", team_id)
+      refute Accounts.is_team_participant?(user.id, team_id)
     end
 
     test "returns true when one token is revoked but another is active" do
-      {:ok, account} =
-        Accounts.find_or_create_account("clerk_multi_tok", "multi@example.com")
-
       token1 = "trc_ak_mt1_#{:erlang.unique_integer([:positive])}"
       token2 = "trc_ak_mt2_#{:erlang.unique_integer([:positive])}"
-      {:ok, _} = Accounts.link_token(account.id, token1, "machine1")
-      {:ok, _} = Accounts.link_token(account.id, token2, "machine2")
+      {:ok, user} = create_user_with_token("multi@example.com", token1, "machine1")
+      {:ok, _} = Accounts.link_machine_token(user.id, token2, "machine2")
 
       # Create team with token1
       {:ok, team_data} = Teams.put_team(token1, %{"name" => "multi-tok-team", "members" => []})
       team_id = team_data["id"]
-
-      # Join with token2 too
-      {:ok, _code, _} =
-        Teams.create_team_with_invite(%{"name" => "dummy", "members" => []})
 
       # Directly associate token2 with the team
       %TokenTeam{}
@@ -64,10 +63,10 @@ defmodule Teamrc.SecurityAuditTest do
       |> Repo.insert(on_conflict: :nothing)
 
       # Revoke token1
-      :ok = Accounts.revoke_token(account.id, token1)
+      :ok = Accounts.revoke_machine_token(user.id, token1)
 
       # Should still be participant via token2
-      assert Accounts.is_team_participant?("clerk_multi_tok", team_id)
+      assert Accounts.is_team_participant?(user.id, team_id)
     end
   end
 
@@ -89,8 +88,6 @@ defmodule Teamrc.SecurityAuditTest do
     end
 
     test "team is not left behind if invite fails" do
-      # We can verify atomicity by checking that a successful call always has both
-      # and that the function returns consistently
       teams_before = Repo.aggregate(Team, :count)
 
       {:ok, _code, team_id} =
@@ -157,8 +154,6 @@ defmodule Teamrc.SecurityAuditTest do
     end
 
     test "accepts valid IDs" do
-      # These should not raise (they may raise File.Error if the file doesn't exist,
-      # but not ArgumentError for invalid ID)
       assert_raise File.Error, fn ->
         Teamrc.Catalog.load_agent("valid-name-123")
       end
@@ -183,7 +178,6 @@ defmodule Teamrc.SecurityAuditTest do
       token = "trc_ak_bias_#{:erlang.unique_integer([:positive])}"
       {:ok, result} = Teamrc.DeviceAuth.create_request(pid, token)
 
-      # Format: XXXX-XXXX where X is from the alphabet
       assert Regex.match?(~r/^[A-Z2-9]{4}-[A-Z2-9]{4}$/, result.user_code)
     end
 
@@ -215,9 +209,8 @@ defmodule Teamrc.SecurityAuditTest do
       team_id = team_data["id"]
       claim_secret = team_data["owner_claim_secret"]
 
-      # Link account and claim ownership via secret
-      {:ok, account} = Accounts.find_or_create_account("clerk_vis_#{:erlang.unique_integer([:positive])}", "vis@test.com")
-      Accounts.link_token(account.id, token, "test-machine")
+      # Link user and claim ownership via secret
+      {:ok, _user} = create_user_with_token("vis@test.com", token)
       {:ok, :claimed} = Teams.claim_ownership(token, claim_secret)
 
       assert {:ok, updated} = Teams.set_visibility(token, team_id, "public")
@@ -233,7 +226,7 @@ defmodule Teamrc.SecurityAuditTest do
       {:ok, team_data} = Teams.put_team(token, %{"name" => "vis-team2", "members" => []})
       team_id = team_data["id"]
 
-      # Token is a member but has no linked account — not the owner
+      # Token is a member but has no linked user — not the owner
       assert {:error, :not_owner} = Teams.set_visibility(token, team_id, "public")
     end
 
@@ -260,19 +253,17 @@ defmodule Teamrc.SecurityAuditTest do
   # ---------------------------------------------------------------------------
 
   describe "ownership fixes" do
-    test "creator with existing account gets ownership immediately" do
-      # Create account and link token BEFORE creating the team
+    test "creator with linked user gets ownership immediately" do
       token = "trc_ak_own_imm_#{:erlang.unique_integer([:positive])}"
-      {:ok, account} = Accounts.find_or_create_account("clerk_own_imm_#{:erlang.unique_integer([:positive])}", "own_imm@test.com")
-      {:ok, _} = Accounts.link_token(account.id, token, "test-machine")
+      {:ok, user} = create_user_with_token("own_imm@test.com", token)
 
-      # Create team — should get ownership immediately since token has a linked account
+      # Create team — should get ownership immediately since token has a linked user
       {:ok, team_data} = Teams.put_team(token, %{"name" => "imm-owner-team", "members" => []})
       team_id = team_data["id"]
 
       # Verify ownership was set and no claim secret generated (owner already known)
       team = Repo.get(Team, team_id)
-      assert team.owner_account_id == account.id
+      assert team.owner_user_id == user.id
       assert is_nil(team.owner_claim_secret)
     end
 
@@ -282,9 +273,8 @@ defmodule Teamrc.SecurityAuditTest do
       team_id = team_data["id"]
       claim_secret = team_data["owner_claim_secret"]
 
-      # Link account and claim ownership
-      {:ok, account} = Accounts.find_or_create_account("clerk_clone_pres_#{:erlang.unique_integer([:positive])}", "clone@test.com")
-      Accounts.link_token(account.id, token, "test-machine")
+      # Link user and claim ownership
+      {:ok, _user} = create_user_with_token("clone@test.com", token)
       {:ok, :claimed} = Teams.claim_ownership(token, claim_secret)
 
       # Set public — generates clone_token
@@ -309,11 +299,11 @@ defmodule Teamrc.SecurityAuditTest do
       token = "trc_ak_claim_sec_#{:erlang.unique_integer([:positive])}"
       {:ok, team_data} = Teams.put_team(token, %{"name" => "claim-secret-team", "members" => []})
 
-      # Team should have a claim secret since creator has no linked account
+      # Team should have a claim secret since creator has no linked user
       team = Repo.get(Team, team_data["id"])
       assert team.owner_claim_secret
       assert String.starts_with?(team.owner_claim_secret, "trc_ocs_")
-      assert is_nil(team.owner_account_id)
+      assert is_nil(team.owner_user_id)
 
       # Claim secret should also be in the API response
       assert team_data["owner_claim_secret"] == team.owner_claim_secret
@@ -331,8 +321,6 @@ defmodule Teamrc.SecurityAuditTest do
       {:ok, fetched} = Teams.get_team(token, team_id)
       refute Map.has_key?(fetched, "owner_claim_secret")
 
-      # join_by_invite should NOT include it
-      {:ok, _code, _} = Teams.create_invite(token, 24, team_id)
       # get_teams should NOT include it
       {:ok, teams} = Teams.get_teams(token)
       refute Enum.any?(teams, &Map.has_key?(&1, "owner_claim_secret"))
@@ -344,16 +332,15 @@ defmodule Teamrc.SecurityAuditTest do
       claim_secret = team_data["owner_claim_secret"]
       team_id = team_data["id"]
 
-      # Link account to the token
-      {:ok, account} = Accounts.find_or_create_account("clerk_claim_#{:erlang.unique_integer([:positive])}", "claim@test.com")
-      {:ok, _} = Accounts.link_token(account.id, token, "test-machine")
+      # Link user to the token
+      {:ok, user} = create_user_with_token("claim@test.com", token)
 
       # Claim ownership
       assert {:ok, :claimed} = Teams.claim_ownership(token, claim_secret)
 
       # Verify ownership set and secret cleared
       team = Repo.get(Team, team_id)
-      assert team.owner_account_id == account.id
+      assert team.owner_user_id == user.id
       assert is_nil(team.owner_claim_secret)
     end
 
@@ -361,13 +348,12 @@ defmodule Teamrc.SecurityAuditTest do
       token = "trc_ak_bad_claim_#{:erlang.unique_integer([:positive])}"
       {:ok, _team_data} = Teams.put_team(token, %{"name" => "bad-claim-team", "members" => []})
 
-      {:ok, account} = Accounts.find_or_create_account("clerk_bad_claim_#{:erlang.unique_integer([:positive])}", "bad@test.com")
-      {:ok, _} = Accounts.link_token(account.id, token, "test-machine")
+      {:ok, _user} = create_user_with_token("bad@test.com", token)
 
       assert {:error, :invalid_secret} = Teams.claim_ownership(token, "trc_ocs_wrong")
     end
 
-    test "claim_ownership fails without linked account" do
+    test "claim_ownership fails without linked user" do
       token = "trc_ak_no_acct_#{:erlang.unique_integer([:positive])}"
       {:ok, team_data} = Teams.put_team(token, %{"name" => "no-acct-team", "members" => []})
 
@@ -379,8 +365,7 @@ defmodule Teamrc.SecurityAuditTest do
       {:ok, team_data} = Teams.put_team(creator_token, %{"name" => "non-member-team", "members" => []})
 
       other_token = "trc_ak_other2_#{:erlang.unique_integer([:positive])}"
-      {:ok, account} = Accounts.find_or_create_account("clerk_other2_#{:erlang.unique_integer([:positive])}", "other2@test.com")
-      {:ok, _} = Accounts.link_token(account.id, other_token, "other-machine")
+      {:ok, _user} = create_user_with_token("other2@test.com", other_token, "other-machine")
 
       assert {:error, :not_member} = Teams.claim_ownership(other_token, team_data["owner_claim_secret"])
     end
@@ -390,8 +375,7 @@ defmodule Teamrc.SecurityAuditTest do
       {:ok, team_data} = Teams.put_team(token, %{"name" => "dbl-claim-team", "members" => []})
       claim_secret = team_data["owner_claim_secret"]
 
-      {:ok, account} = Accounts.find_or_create_account("clerk_dbl_#{:erlang.unique_integer([:positive])}", "dbl@test.com")
-      {:ok, _} = Accounts.link_token(account.id, token, "test-machine")
+      {:ok, _user} = create_user_with_token("dbl@test.com", token)
 
       assert {:ok, :claimed} = Teams.claim_ownership(token, claim_secret)
       # Second claim with same secret should fail (secret was cleared)

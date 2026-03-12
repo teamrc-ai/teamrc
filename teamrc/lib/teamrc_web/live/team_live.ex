@@ -36,8 +36,9 @@ defmodule TeamrcWeb.TeamLive do
 
     team = build_team_payload(template.team_name, members, template.skills, template.default_platforms)
 
-    # If the Clerk user is authenticated, set them as owner immediately
-    opts = resolve_owner_opts(socket.assigns[:clerk_user_id], socket.assigns[:clerk_email])
+    # If the user is authenticated, set them as owner immediately
+    current_user = socket.assigns[:current_scope] && socket.assigns.current_scope.user
+    opts = resolve_owner_opts(current_user)
 
     case Teams.create_team_with_invite(team, opts) do
       {:ok, invite_code, team_id} ->
@@ -80,14 +81,10 @@ defmodule TeamrcWeb.TeamLive do
     }
   end
 
-  defp resolve_owner_opts(nil, _email), do: []
-  defp resolve_owner_opts(_clerk_user_id, nil), do: []
+  defp resolve_owner_opts(nil), do: []
 
-  defp resolve_owner_opts(clerk_user_id, clerk_email) do
-    case Teamrc.Accounts.find_or_create_account(clerk_user_id, clerk_email) do
-      {:ok, account} -> [owner_account_id: account.id]
-      _ -> []
-    end
+  defp resolve_owner_opts(current_user) do
+    [owner_user_id: current_user.id]
   end
 
   defp put_if(map, nil, _key), do: map

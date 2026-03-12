@@ -39,6 +39,9 @@ defmodule TeamrcWeb.AuthControllerTest do
     test "returns confirmed status after confirmation", %{conn: conn} do
       token = "trc_ak_test_#{:erlang.unique_integer([:positive])}"
 
+      # Create a real user so get_user_stats can look it up
+      user = Teamrc.AccountsFixtures.user_fixture(%{email: "device_auth@example.com"})
+
       # Create the request
       create_conn =
         build_conn()
@@ -50,14 +53,14 @@ defmodule TeamrcWeb.AuthControllerTest do
       user_code = resp["user_code"]
 
       # Confirm via GenServer directly (simulating web UI confirmation)
-      Teamrc.DeviceAuth.confirm_request(user_code, "clerk_test_123", "test@example.com")
+      Teamrc.DeviceAuth.confirm_request(user_code, user.id, user.email)
 
       # Poll — should be confirmed
       conn = get(conn, "/api/auth/device/#{device_code}", %{"token" => token})
       resp = json_response(conn, 200)
 
       assert resp["status"] == "confirmed"
-      assert resp["email"] == "test@example.com"
+      assert resp["email"] == user.email
       assert is_integer(resp["machine_count"])
       assert is_integer(resp["team_count"])
     end

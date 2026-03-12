@@ -5,20 +5,31 @@ defmodule TeamrcWeb.DashboardLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    if is_nil(socket.assigns[:clerk_user_id]) do
+    current_user = socket.assigns.current_scope && socket.assigns.current_scope.user
+
+    if is_nil(current_user) do
       {:ok, redirect(socket, to: ~p"/new")}
     else
-      {:ok, load_dashboard(socket)}
+      {:ok, load_dashboard(socket, current_user)}
     end
   end
 
-  defp load_dashboard(socket) do
-    account = Accounts.get_account_with_tokens(socket.assigns.clerk_user_id)
+  defp load_dashboard(socket, current_user) do
+    user_data = Accounts.get_user_with_machine_tokens(current_user.id)
 
-    if account do
-      teams_with_machines = Accounts.get_account_teams_with_machines(account.id)
+    if user_data do
+      teams_with_machines = Accounts.get_user_teams_with_machines(current_user.id)
       team_ids = Enum.map(teams_with_machines, fn {team, _} -> team.id end)
       participants = Accounts.resolve_participants_batch(team_ids)
+
+      hashed_participants =
+        Map.new(participants, fn {team_id, emails} ->
+          {team_id,
+           Enum.map(emails, fn
+             "anonymous" -> "anonymous"
+             email -> Teamrc.PII.email_hash(email)
+           end)}
+        end)
 
       # Build enriched team data
       teams_data = Enum.map(teams_with_machines, fn {team, machines} ->
@@ -29,12 +40,12 @@ defmodule TeamrcWeb.DashboardLive do
           skills: team.skills || [],
           platforms: team.platforms || [],
           machines: machines,
-          participants: Map.get(participants, team.id, ["anonymous"])
+          participants: Map.get(hashed_participants, team.id, ["anonymous"])
         }
       end)
 
       active_machines =
-        account.account_tokens
+        user_data.machine_tokens
         |> Enum.reject(& &1.revoked_at)
         |> Enum.sort_by(& &1.last_seen_at, {:desc, DateTime})
 
@@ -43,10 +54,11 @@ defmodule TeamrcWeb.DashboardLive do
 
       assign(socket,
         page_title: "Dashboard",
-        account: account,
+        current_user: current_user,
+        user_data: user_data,
         machines: active_machines,
         teams: teams_data,
-        participants: participants,
+        participants: hashed_participants,
         machine_teams: machine_teams,
         expanded_team: nil,
         confirming_revoke: nil,
@@ -55,7 +67,8 @@ defmodule TeamrcWeb.DashboardLive do
     else
       assign(socket,
         page_title: "Dashboard",
-        account: nil,
+        current_user: current_user,
+        user_data: nil,
         machines: [],
         teams: [],
         participants: %{},
@@ -97,14 +110,14 @@ defmodule TeamrcWeb.DashboardLive do
   end
 
   def handle_event("revoke_machine", %{"token" => token}, socket) do
-    account = socket.assigns.account
+    current_user = socket.assigns.current_user
 
-    case Accounts.revoke_token(account.id, token) do
+    case Accounts.revoke_machine_token(current_user.id, token) do
       :ok ->
         socket =
           socket
           |> assign(confirming_revoke: nil)
-          |> load_dashboard()
+          |> load_dashboard(current_user)
           |> put_flash(:info, "Machine revoked successfully.")
 
         {:noreply, socket}
@@ -123,9 +136,9 @@ defmodule TeamrcWeb.DashboardLive do
   end
 
   def handle_event("delete_account", _params, socket) do
-    case Accounts.delete_account(socket.assigns.clerk_user_id) do
+    case Accounts.delete_user_and_data(socket.assigns.current_user) do
       :ok ->
-        {:noreply, redirect(socket, to: ~p"/auth/sign-out")}
+        {:noreply, redirect(socket, to: ~p"/")}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to delete account. Please try again.")}
@@ -133,7 +146,7 @@ defmodule TeamrcWeb.DashboardLive do
   end
 
   def handle_event("export_data", _params, socket) do
-    case Accounts.export_account_data(socket.assigns.clerk_user_id) do
+    case Accounts.export_user_data(socket.assigns.current_user.id) do
       {:ok, data} ->
         json = Jason.encode!(data, pretty: true)
         {:noreply, push_event(socket, "trc:download", %{data: json, filename: "teamrc-export.json"})}
@@ -166,11 +179,11 @@ defmodule TeamrcWeb.DashboardLive do
 
   defp truncate_token(_), do: ""
 
-  defp participant_display(participants, my_email) do
+  defp participant_display(participants, my_email_hash) do
     Enum.map(participants, fn
-      p when p == my_email -> "you"
+      p when p == my_email_hash -> "you"
       "anonymous" -> "anonymous"
-      email -> email
+      hash -> String.slice(hash, 0, 8) <> "..."
     end)
   end
 
@@ -195,6 +208,8 @@ defmodule TeamrcWeb.DashboardLive do
 
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, :my_email_hash, Teamrc.PII.email_hash(assigns.current_user.email))
+
     ~H"""
     <div class="space-y-10">
       <%!-- Header --%>
@@ -311,7 +326,7 @@ defmodule TeamrcWeb.DashboardLive do
                 <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-2">Participants</p>
                 <div class="flex flex-wrap gap-1">
                   <span
-                    :for={p <- participant_display(Map.get(@participants, team.id, []), @clerk_email)}
+                    :for={p <- participant_display(Map.get(@participants, team.id, []), @my_email_hash)}
                     class={[
                       "inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-mono",
                       if(p == "you",
@@ -441,15 +456,16 @@ defmodule TeamrcWeb.DashboardLive do
         <div class="space-y-3">
           <div class="flex items-center justify-between rounded-lg border border-base-300 bg-base-100 px-4 py-3">
             <div>
-              <p class="text-sm font-medium"><%= @clerk_email %></p>
-              <p class="text-xs text-base-content/60">Signed in via Clerk</p>
+              <p class="text-sm font-medium"><%= @current_user.email %></p>
+              <p class="text-xs text-base-content/60">Signed in</p>
             </div>
-            <a
-              href={~p"/auth/sign-out"}
+            <.link
+              href={~p"/users/log-out"}
+              method="delete"
               class="trc-focus rounded px-2.5 py-1 text-xs font-medium text-base-content/60 hover:text-base-content/70 hover:bg-base-200/60 transition-colors"
             >
               Sign out
-            </a>
+            </.link>
           </div>
 
           <div class="flex items-center gap-2">

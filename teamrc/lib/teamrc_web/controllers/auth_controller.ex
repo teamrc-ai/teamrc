@@ -43,8 +43,8 @@ defmodule TeamrcWeb.AuthController do
       {:ok, %{status: :pending}} ->
         json(conn, %{status: "pending"})
 
-      {:ok, %{status: :confirmed, clerk_user_id: clerk_user_id, email: email}} ->
-        {machine_count, team_count} = get_account_stats(clerk_user_id)
+      {:ok, %{status: :confirmed, user_id: user_id, email: email}} ->
+        {machine_count, team_count} = get_user_stats(user_id)
 
         json(conn, %{
           status: "confirmed",
@@ -67,14 +67,14 @@ defmodule TeamrcWeb.AuthController do
 
   # --- Private ---
 
-  defp get_account_stats(clerk_user_id) do
-    case Accounts.get_account_with_tokens(clerk_user_id) do
+  defp get_user_stats(user_id) do
+    case Accounts.get_user_with_machine_tokens(user_id) do
       nil ->
         {0, 0}
 
-      account ->
+      user ->
         active_tokens =
-          account.account_tokens
+          user.machine_tokens
           |> Enum.filter(&is_nil(&1.revoked_at))
 
         machine_count = length(active_tokens)

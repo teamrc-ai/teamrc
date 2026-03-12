@@ -7,24 +7,13 @@ defmodule Teamrc.Application do
 
   @impl true
   def start(_type, _args) do
-    # Validate required config in production
-    validate_prod_config!()
-
-    # Start :inets and :ssl once at boot (needed for JWKS fetching via :httpc)
-    :inets.start()
-    :ssl.start()
-
-    # Create ETS table for JWKS caching before endpoint starts
-    if :ets.whereis(:clerk_jwks_cache) == :undefined do
-      :ets.new(:clerk_jwks_cache, [:named_table, :set, :public, read_concurrency: true])
-    end
-
     children = [
       TeamrcWeb.Telemetry,
       Teamrc.Repo,
       {DNSCluster, query: Application.get_env(:teamrc, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Teamrc.PubSub},
 
+      {Finch, name: Swoosh.Finch},
       {Teamrc.DeviceAuth, name: Teamrc.DeviceAuth},
       # Start to serve requests, typically the last entry
       TeamrcWeb.Endpoint
@@ -42,20 +31,5 @@ defmodule Teamrc.Application do
   def config_change(changed, _new, removed) do
     TeamrcWeb.Endpoint.config_change(changed, removed)
     :ok
-  end
-
-  defp validate_prod_config! do
-    if Application.get_env(:teamrc, :env, :dev) == :prod do
-      config = Application.get_env(:teamrc, Teamrc.ClerkJWT, [])
-
-      unless Keyword.get(config, :issuer) && Keyword.get(config, :jwks_url) do
-        require Logger
-
-        Logger.warning(
-          "CLERK_ISSUER and/or CLERK_JWKS_URL not set — Clerk account linking disabled. " <>
-            "Set these env vars to enable the user dashboard and machine management."
-        )
-      end
-    end
   end
 end

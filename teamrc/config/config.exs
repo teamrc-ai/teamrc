@@ -10,7 +10,7 @@ import Config
 config :teamrc,
   namespace: Teamrc,
   ecto_repos: [Teamrc.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime, binary_id: true]
 
 # Configure the endpoint
 config :teamrc, TeamrcWeb.Endpoint,
@@ -51,6 +51,16 @@ config :logger, :default_formatter,
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+
+# Ueberauth OAuth configuration
+config :ueberauth, Ueberauth,
+  providers: [
+    github: {Ueberauth.Strategy.Github, [default_scope: "user:email"]},
+    google: {Ueberauth.Strategy.Google, [default_scope: "email profile"]}
+  ]
+
+# Swoosh mailer (adapter configured per-environment)
+config :teamrc, Teamrc.Mailer, adapter: Swoosh.Adapters.Local
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

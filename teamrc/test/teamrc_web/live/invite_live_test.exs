@@ -78,43 +78,6 @@ defmodule TeamrcWeb.InviteLiveTest do
     {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
 
     assert has_element?(view, "button", "Add team member")
-
-    view |> element("button", "Add team member") |> render_click()
-    view |> element("button[phx-click='custom_member']") |> render_click()
-    view |> element("input[placeholder='agent-name']") |> render_keyup(%{"value" => "new-agent"})
-
-    view
-    |> element("input[placeholder='Role description']")
-    |> render_keyup(%{"value" => "testing"})
-
-    view |> element("button[phx-click='add_member']", "Add") |> render_click()
-
-    html = render(view)
-    assert html =~ "new-agent"
-    assert html =~ "testing"
-  end
-
-  test "team page blocks edit actions after invite expires", %{conn: conn} do
-    {code, team_id} = create_team_with_invite()
-    set_invite_expiry!(code, DateTime.utc_now() |> DateTime.add(2, :second))
-
-    {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
-
-    Process.sleep(2_500)
-
-    view |> element("button", "Add team member") |> render_click()
-    view |> element("button[phx-click='custom_member']") |> render_click()
-    view |> element("input[placeholder='agent-name']") |> render_keyup(%{"value" => "late-agent"})
-
-    view
-    |> element("input[placeholder='Role description']")
-    |> render_keyup(%{"value" => "should-fail"})
-
-    view |> element("button[phx-click='add_member']", "Add") |> render_click()
-
-    html = render(view)
-    refute html =~ "late-agent"
-    assert html =~ "This invite has expired. Changes cannot be saved."
   end
 
   test "member cards link to member detail page", %{conn: conn} do

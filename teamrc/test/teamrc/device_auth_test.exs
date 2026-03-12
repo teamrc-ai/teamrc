@@ -51,22 +51,22 @@ defmodule Teamrc.DeviceAuthTest do
       {:ok, result} = DeviceAuth.create_request(pid, token)
 
       assert :ok =
-               DeviceAuth.confirm_request(pid, result.user_code, "clerk_123", "user@example.com")
+               DeviceAuth.confirm_request(pid, result.user_code, "user_123", "user@example.com")
     end
 
     test "polling confirmed request returns confirmed status", %{pid: pid} do
       token = "trc_ak_test_#{:erlang.unique_integer([:positive])}"
       {:ok, result} = DeviceAuth.create_request(pid, token)
 
-      DeviceAuth.confirm_request(pid, result.user_code, "clerk_123", "user@example.com")
+      DeviceAuth.confirm_request(pid, result.user_code, "user_123", "user@example.com")
 
-      assert {:ok, %{status: :confirmed, clerk_user_id: "clerk_123", email: "user@example.com"}} =
+      assert {:ok, %{status: :confirmed, user_id: "user_123", email: "user@example.com"}} =
                DeviceAuth.poll_request(pid, result.device_code, token)
     end
 
     test "confirming nonexistent user_code returns error", %{pid: pid} do
       assert {:error, :not_found} =
-               DeviceAuth.confirm_request(pid, "ZZZZ-ZZZZ", "clerk_123", "user@example.com")
+               DeviceAuth.confirm_request(pid, "ZZZZ-ZZZZ", "user_123", "user@example.com")
     end
   end
 

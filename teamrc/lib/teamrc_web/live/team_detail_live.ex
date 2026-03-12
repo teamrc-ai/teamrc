@@ -14,6 +14,9 @@ defmodule TeamrcWeb.TeamDetailLive do
 
   @impl true
   def mount(%{"id" => team_id}, _session, socket) do
+    current_user = socket.assigns[:current_scope] && socket.assigns.current_scope.user
+    socket = assign(socket, current_user: current_user)
+
     case load_team(team_id, socket.assigns) do
       {:ok, %{access_level: :private_gate}} ->
         {:ok,
@@ -168,13 +171,14 @@ defmodule TeamrcWeb.TeamDetailLive do
         :not_found
 
       team ->
-        clerk_user_id = assigns[:clerk_user_id]
-        is_participant = Accounts.is_team_participant?(clerk_user_id, team.id)
-        account = if clerk_user_id, do: Accounts.get_account_with_tokens(clerk_user_id)
+        current_scope = assigns[:current_scope]
+        current_user = current_scope && current_scope.user
+        user_id = current_user && current_user.id
+        is_participant = Accounts.is_team_participant?(user_id, team.id)
 
         access_level =
           cond do
-            is_participant && account && account.id == team.owner_account_id -> :owner
+            is_participant && user_id && user_id == team.owner_user_id -> :owner
             is_participant -> :participant
             team.visibility == "public" -> :viewer
             true -> :private_gate
@@ -185,8 +189,15 @@ defmodule TeamrcWeb.TeamDetailLive do
             {:ok, %{access_level: :private_gate}}
 
           _ ->
-            participants =
+            raw_participants =
               if is_participant, do: Accounts.resolve_participants(team.id), else: []
+
+            # Security: hash participant emails before storing in socket assigns
+            participants =
+              Enum.map(raw_participants, fn
+                "anonymous" -> "anonymous"
+                email -> Teamrc.PII.email_hash(email) || "anonymous"
+              end)
 
             invites = if is_participant, do: load_active_invites(team.id), else: []
             clone_token = if is_participant, do: team.clone_token, else: nil
@@ -654,16 +665,17 @@ defmodule TeamrcWeb.TeamDetailLive do
   end
 
   defp find_user_token_for_team(assigns, team_id) do
-    clerk_user_id = assigns[:clerk_user_id]
-    if is_nil(clerk_user_id), do: nil, else: do_find_token(clerk_user_id, team_id)
+    current_scope = assigns[:current_scope]
+    current_user = current_scope && current_scope.user
+    if is_nil(current_user), do: nil, else: do_find_token(current_user.id, team_id)
   end
 
-  defp do_find_token(clerk_user_id, team_id) do
-    account = Accounts.get_account_with_tokens(clerk_user_id)
+  defp do_find_token(user_id, team_id) do
+    user_data = Accounts.get_user_with_machine_tokens(user_id)
 
-    if account do
+    if user_data do
       tokens =
-        account.account_tokens
+        user_data.machine_tokens
         |> Enum.reject(& &1.revoked_at)
         |> Enum.map(& &1.token)
 
@@ -885,9 +897,9 @@ defmodule TeamrcWeb.TeamDetailLive do
           <p class="text-xs text-amber-500/80 mb-3">
             Invite codes grant full edit access — only share with people you trust.
           </p>
-          <p :if={!@clerk_email} class="text-sm text-base-content/60 mb-4">
+          <p :if={!@current_user} class="text-sm text-base-content/60 mb-4">
             For permanent access, <a
-              href={~p"/"}
+              href={~p"/users/log-in"}
               class="text-primary font-medium hover:text-primary/80 transition-colors"
             >sign in or create an account</a>.
           </p>
@@ -1565,13 +1577,13 @@ defmodule TeamrcWeb.TeamDetailLive do
               :for={p <- @participants}
               class={[
                 "inline-flex items-center rounded px-2 py-1 text-xs font-mono",
-                if(p == @clerk_email,
+                if(@current_user && p == Teamrc.PII.email_hash(@current_user.email),
                   do: "bg-primary/10 text-primary",
                   else: "bg-base-200/60 text-base-content/60"
                 )
               ]}
             >
-              {if p == @clerk_email, do: "you (#{p})", else: p}
+              {if @current_user && p == Teamrc.PII.email_hash(@current_user.email), do: "you", else: String.slice(p, 0, 8) <> "..."}
             </span>
           </div>
         </section>

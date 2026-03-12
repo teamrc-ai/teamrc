@@ -35,8 +35,8 @@ defmodule Teamrc.DeviceAuth do
   end
 
   @doc "Confirm a device authorization request by user_code (called from the web UI)."
-  def confirm_request(pid \\ __MODULE__, user_code, clerk_user_id, email) do
-    GenServer.call(pid, {:confirm_request, user_code, clerk_user_id, email})
+  def confirm_request(pid \\ __MODULE__, user_code, user_id, email) do
+    GenServer.call(pid, {:confirm_request, user_code, user_id, email})
   end
 
   @doc "Record a failed attempt for a user_code. Returns :ok or {:error, :code_invalidated} after 5 failures."
@@ -126,22 +126,26 @@ defmodule Teamrc.DeviceAuth do
 
           req.status == :confirmed ->
             state = update_in(state.requests, &Map.delete(&1, device_code))
-            {:reply, {:ok, %{status: :confirmed, clerk_user_id: req.clerk_user_id, email: req.email}}, state}
+            {:reply, {:ok, %{status: :confirmed, user_id: req.user_id, email: req.email}}, state}
         end
     end
   end
 
-  def handle_call({:confirm_request, user_code, clerk_user_id, email}, _from, state) do
+  def handle_call({:confirm_request, user_code, user_id, email}, _from, state) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     case find_by_user_code(state.requests, user_code, now) do
       nil ->
         {:reply, {:error, :not_found}, state}
 
+      {_device_code, %{status: :confirmed}} ->
+        # Security: prevent double-confirm race that could hijack a request
+        {:reply, {:error, :already_confirmed}, state}
+
       {device_code, _req} ->
         state =
           update_in(state, [:requests, device_code], fn req ->
-            %{req | status: :confirmed, clerk_user_id: clerk_user_id, email: email}
+            %{req | status: :confirmed, user_id: user_id, email: email}
           end)
 
         {:reply, :ok, state}

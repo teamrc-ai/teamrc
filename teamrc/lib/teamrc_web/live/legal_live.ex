@@ -242,11 +242,11 @@ defmodule TeamrcWeb.LegalLive do
           />
           <.data_item
             label="Account Information"
-            description="If you optionally sign in via Clerk: your Clerk user ID and email address, stored alongside your machine token associations for machine management and recovery."
+            description="If you sign in via email or OAuth (GitHub, Google): your email address, stored alongside your machine token associations for machine management and recovery."
           />
           <.data_item
             label="Machine Hostnames"
-            description="When you link a Clerk account via teamrc login, your machine hostname is stored to help you identify machines on the dashboard. This hostname may contain personal information (e.g. john-macbook). Machines that have not linked a Clerk account do not have hostnames stored."
+            description="When you link an account via teamrc login, your machine hostname is stored to help you identify machines on the dashboard. This hostname may contain personal information (e.g. john-macbook). Machines that have not linked an account do not have hostnames stored."
           />
           <.data_item
             label="Invite Codes"
@@ -267,7 +267,7 @@ defmodule TeamrcWeb.LegalLive do
 
       <.legal_section title="3. Cookies">
         <p>
-          We use strictly necessary cookies for authentication. When you sign in via Clerk, session cookies
+          We use strictly necessary cookies for authentication. When you sign in, session cookies
           (<code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">_teamrc_key</code>)
           are set to maintain your authenticated session. We do not use tracking, analytics, or advertising cookies.
         </p>
@@ -279,7 +279,7 @@ defmodule TeamrcWeb.LegalLive do
           <li>Authenticating your CLI requests via signed tokens</li>
           <li>Syncing team configurations between your machines</li>
           <li>Managing team membership and invitations</li>
-          <li>Associating machines with optional Clerk accounts</li>
+          <li>Associating machines with your user account</li>
         </ul>
       </.legal_section>
 
@@ -305,20 +305,28 @@ defmodule TeamrcWeb.LegalLive do
         <p>The Service integrates with:</p>
         <ul>
           <li>
-            <strong>Clerk</strong>: Optional authentication provider. When you link a Clerk account, your Clerk user ID and email address are copied from Clerk into our database and stored alongside your machine token associations. We also periodically verify your Clerk session by fetching public keys from Clerk's servers. Subject to <a
-              href="https://clerk.com/legal/privacy"
+            <strong>GitHub OAuth</strong>: Optional sign-in provider. When you sign in with GitHub, your GitHub user ID and email address are stored in our database. Subject to <a
+              href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement"
               class="text-primary hover:underline"
               target="_blank"
               rel="noopener"
-            >Clerk's Privacy Policy</a>.
+            >GitHub's Privacy Statement</a>.
+          </li>
+          <li>
+            <strong>Google OAuth</strong>: Optional sign-in provider. When you sign in with Google, your Google user ID and email address are stored in our database. Subject to <a
+              href="https://policies.google.com/privacy"
+              class="text-primary hover:underline"
+              target="_blank"
+              rel="noopener"
+            >Google's Privacy Policy</a>.
           </li>
         </ul>
       </.legal_section>
 
       <.legal_section title="8. Your Rights">
-        <p><strong>For Clerk-linked accounts:</strong></p>
+        <p><strong>For signed-in users:</strong></p>
         <p>
-          You can delete your account and all associated data via the dashboard or
+          You can delete your account and all associated data via the dashboard settings page or
           <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">DELETE /api/account</code>
           endpoint. This removes your account, all machine-token associations, and team participations.
         </p>

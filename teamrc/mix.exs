@@ -62,8 +62,15 @@ defmodule Teamrc.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
-      {:jose, "~> 1.11"},
-      {:yaml_elixir, "~> 2.11"}
+      {:yaml_elixir, "~> 2.11"},
+      # Auth
+      {:bcrypt_elixir, "~> 3.0"},
+      {:ueberauth, "~> 0.10"},
+      {:ueberauth_github, "~> 0.8"},
+      {:ueberauth_google, "~> 0.12"},
+      # Email
+      {:swoosh, "~> 1.5"},
+      {:finch, "~> 0.13"}
     ]
   end
 

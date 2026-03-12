@@ -7,19 +7,21 @@ defmodule TeamrcWeb.AuthVerifyLive do
   @impl true
   def mount(params, _session, socket) do
     code = Map.get(params, "code", "")
+    current_user = socket.assigns[:current_scope] && socket.assigns.current_scope.user
 
     {:ok,
      assign(socket,
        page_title: "Verify Device",
-       step: determine_initial_step(socket.assigns, code),
+       current_user: current_user,
+       step: determine_initial_step(current_user, code),
        user_code: code,
        error: nil
      )}
   end
 
-  defp determine_initial_step(assigns, code) do
+  defp determine_initial_step(current_user, code) do
     cond do
-      is_nil(assigns[:clerk_user_id]) -> :sign_in_required
+      is_nil(current_user) -> :sign_in_required
       code != "" && valid_code_format?(code) -> :consent
       true -> :enter_code
     end
@@ -47,40 +49,52 @@ defmodule TeamrcWeb.AuthVerifyLive do
 
   def handle_event("confirm", _params, socket) do
     code = socket.assigns.user_code
-    clerk_user_id = socket.assigns.clerk_user_id
-    clerk_email = socket.assigns.clerk_email
+    current_user = socket.assigns.current_user
 
-    if is_nil(clerk_user_id) or is_nil(clerk_email) do
-      {:noreply, assign(socket, step: :sign_in_required, error: nil)}
-    else
-      case DeviceAuth.confirm_request(code, clerk_user_id, clerk_email) do
-        :ok ->
-          with {:ok, account} <- Accounts.find_or_create_account(clerk_user_id, clerk_email),
-               {:ok, request} <- DeviceAuth.get_request_by_user_code(code),
-               {:ok, _at} <- Accounts.link_token(account.id, request.token, nil) do
-            {:noreply, assign(socket, step: :success, error: nil)}
-          else
-            _ ->
-              {:noreply, assign(socket, error: "Failed to link account. Please try again.")}
-          end
+    cond do
+      is_nil(current_user) ->
+        {:noreply, assign(socket, step: :sign_in_required, error: nil)}
 
-      {:error, :not_found} ->
-        DeviceAuth.record_failed_attempt(code)
-
+      is_nil(current_user.accepted_terms_at) ->
         {:noreply,
-         assign(socket,
-           step: :enter_code,
-           error: "This code has expired or is invalid. Please run `teamrc login` again."
-         )}
+         socket
+         |> put_flash(:error, "You must accept the Terms of Service before linking a device.")
+         |> assign(error: "Please accept the Terms of Service first.")}
 
-      {:error, :code_invalidated} ->
-        {:noreply,
-         assign(socket,
-           step: :enter_code,
-           error: "Too many failed attempts. Please run `teamrc login` again.",
-           user_code: ""
-         )}
-      end
+      true ->
+        case DeviceAuth.confirm_request(code, current_user.id, current_user.email) do
+          :ok ->
+            with {:ok, request} <- DeviceAuth.get_request_by_user_code(code),
+                 {:ok, _at} <- Accounts.link_machine_token(current_user.id, request.token, nil) do
+              {:noreply, assign(socket, step: :success, error: nil)}
+            else
+              _ ->
+                {:noreply, assign(socket, error: "Failed to link account. Please try again.")}
+            end
+
+          {:error, :not_found} ->
+            DeviceAuth.record_failed_attempt(code)
+
+            {:noreply,
+             assign(socket,
+               step: :enter_code,
+               error: "This code has expired or is invalid. Please run `teamrc login` again."
+             )}
+
+          {:error, :already_confirmed} ->
+            {:noreply,
+             assign(socket,
+               error: "This code has already been confirmed."
+             )}
+
+          {:error, :code_invalidated} ->
+            {:noreply,
+             assign(socket,
+               step: :enter_code,
+               error: "Too many failed attempts. Please run `teamrc login` again.",
+               user_code: ""
+             )}
+        end
     end
   end
 
@@ -145,12 +159,12 @@ defmodule TeamrcWeb.AuthVerifyLive do
           <div :if={@user_code != ""} class="mb-4">
             <code class="text-lg font-mono tracking-[0.2em] text-primary font-semibold"><%= @user_code %></code>
           </div>
-          <button
-            phx-click={Phoenix.LiveView.JS.dispatch("trc:sign-in")}
-            class="trc-focus rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-primary-content shadow-sm hover:brightness-110 active:scale-[0.99] transition-all duration-150"
+          <.link
+            href={~p"/users/log-in?redirect_to=/auth/verify" <> if(@user_code != "", do: "&code=#{@user_code}", else: "")}
+            class="trc-focus inline-block rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-primary-content shadow-sm hover:brightness-110 active:scale-[0.99] transition-all duration-150"
           >
             Sign in
-          </button>
+          </.link>
         </div>
 
         <p class="text-xs text-center text-base-content/50">
@@ -173,7 +187,7 @@ defmodule TeamrcWeb.AuthVerifyLive do
             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
           </svg>
           <span class="text-xs text-base-content/70">
-            Signed in as <span class="font-mono font-medium"><%= @clerk_email %></span>
+            Signed in as <span class="font-mono font-medium"><%= @current_user.email %></span>
           </span>
         </div>
 
@@ -228,7 +242,7 @@ defmodule TeamrcWeb.AuthVerifyLive do
         <div class="rounded-lg border border-base-300 bg-base-200/30 p-5 mb-4 space-y-3">
           <div class="flex items-center justify-between">
             <span class="text-xs font-medium text-base-content/60 uppercase tracking-wider">Account</span>
-            <span class="text-sm font-mono text-base-content/70"><%= @clerk_email %></span>
+            <span class="text-sm font-mono text-base-content/70"><%= @current_user.email %></span>
           </div>
           <div class="border-t border-base-300/60"></div>
           <div class="flex items-center justify-between">
@@ -287,7 +301,7 @@ defmodule TeamrcWeb.AuthVerifyLive do
             You can close this tab and return to your terminal.
           </p>
           <a
-            :if={@clerk_email}
+            :if={@current_user}
             href={~p"/dashboard"}
             class="trc-focus inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
           >

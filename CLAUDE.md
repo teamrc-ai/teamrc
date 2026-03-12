@@ -24,17 +24,12 @@ Clean SaaS dashboard with developer-native accents. Light and spacious for the w
 5. **Accessible by default** — WCAG AA compliance, sufficient contrast ratios, keyboard navigable. No accessibility as an afterthought.
 
 <!-- teamrc -->
-## teamrc Team: product-team
+## teamrc Team: my-team
 
 This project has a synced agent team managed by teamrc.
 
 Members:
-- **product-manager** — Product manager
-- **team-lead** — Team lead
-- **ux-designer** — UX designer
-- **frontend-dev** — Frontend developer
-- **backend-dev** — Backend developer
-- **qa-engineer** — QA engineer
+
 
 Each member is defined as a subagent in `.claude/agents/`. Delegate tasks to them based on their roles.
 

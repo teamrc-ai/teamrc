@@ -29,15 +29,15 @@ mix phx.server  # http://localhost:4000
 - **PostgreSQL** (via Ecto) — Persistent storage: teams, members, invites, account tokens
 - **LiveView** — Web UI for team creation with template catalog
 - **Ed25519 signature verification** — All API endpoints authenticated via `VerifySignature` plug
-- **Clerk JWT** — Optional account layer for linking machines to user accounts (dashboard, machine management, recovery)
+- **phx.gen.auth + UeberAuth** — Session-based auth with GitHub/Google OAuth for user accounts (dashboard, machine management, recovery)
 
 ## API Pipelines
 
 | Pipeline | Auth | Endpoints |
 |----------|------|-----------|
 | `:api` | Ed25519 signature + rate limit | `/api/sync`, `/api/push`, `/api/join`, `/api/teams`, `/api/teams/preview`, `/api/teams/invite`, `/api/log` |
-| `:clerk_api` | Clerk JWT + rate limit | `/api/account`, `/api/account/teams` |
-| `:clerk_and_signature_api` | Both | `/api/account/reassociate` |
+| `:session_api` | Session auth + rate limit | `/api/account`, `/api/account/teams` |
+| `:session_and_signature_api` | Session + Ed25519 signature | `/api/account/reassociate` |
 
 ## API Endpoints
 
@@ -77,16 +77,16 @@ MIX_ENV=test mix ecto.reset  # Reset test DB
 | `LIVE_VIEW_SIGNING_SALT` | LiveView signing salt |
 | `SESSION_ENCRYPTION_SALT` | Session cookie encryption salt |
 
-### Optional (Clerk account linking)
+### Optional (OAuth account linking)
 
-Without these, teamrc works fully — team sync, CLI, invites all function. Clerk adds: user dashboard, machine management, account recovery.
+Without these, teamrc works fully — team sync, CLI, invites all function. OAuth adds: user dashboard, machine management, account recovery.
 
 | Env var | Description |
 |---------|-------------|
-| `CLERK_PUBLISHABLE_KEY` | Clerk frontend key (enables Sign In button) |
-| `CLERK_JWKS_URL` | Clerk JWKS endpoint for JWT verification |
-| `CLERK_ISSUER` | Clerk JWT issuer |
-| `CLERK_AUDIENCE` | Clerk JWT audience (optional) |
+| `GITHUB_CLIENT_ID` | GitHub OAuth App client ID |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth App client secret |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 
 ### Other
 

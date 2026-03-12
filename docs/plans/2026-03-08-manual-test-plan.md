@@ -1,6 +1,6 @@
 # Manual Test Plan — teamrc
 
-**Date:** 2026-03-08 (updated 2026-03-10)
+**Date:** 2026-03-08 (updated 2026-03-11)
 **Platforms:** Claude Code, Cursor, Codex, Gemini, OpenClaw, Claude Desktop
 
 ---
@@ -32,12 +32,13 @@ bash scripts/verify/prereqs.sh
 | [9. Full Lifecycle](#9-full-lifecycle) | End-to-end reset sequence | `section-09` |
 | [10. Legacy Cleanup](#10-legacy-teambridge-cleanup) | TeamBridge artifact removal | `section-10` |
 | [11. Multi-Machine Sync](#part-3-multi-machine) | Cross-machine push/pull/daemon | E2E script |
-| [12. Account & Auth](#part-4-account--web) | Device auth, Clerk linking | Partial |
+| [12. Account & Auth](#part-4-account--web) | Device auth, account linking | Partial |
 | [13. Team Visibility](#13-team-visibility--clone-tokens) | Public/private, clone tokens (owner only) | Manual only |
 | [13b. Share Command](#13b-share-command) | `teamrc share` / `--off` | Manual only |
 | [13c. Claim Command](#13c-claim-command) | `teamrc claim <secret>` | Manual only |
 | [14. Dashboard CLI](#14-dashboard-command) | `teamrc dashboard` | Manual only |
-| [15. Web Dashboard](#15-web-dashboard--account-management) | Clerk dashboard, machines, revoke | Manual only |
+| [15. Web Dashboard](#15-web-dashboard--account-management) | Dashboard, machines, settings, revoke | Manual only |
+| [15b. Auth & Security](#15b-auth--security) | Registration, login, OAuth, ToS, CSRF | Manual only |
 | [16. Legal & Guide](#16-legal--guide-pages) | Terms, privacy, guide pages | Manual only |
 | [17. In-Platform Usage](#part-5-in-platform-verification) | Agents work inside each IDE | Manual only |
 
@@ -769,7 +770,8 @@ npx teamrc login                     # Already linked
 ### 12.5 Browser Verification Page (Manual)
 
 Open the URL from `teamrc login`:
-- [ ] Consent screen shows user code and machine name
+- [ ] Redirects to `/users/log-in` if not authenticated (email/password or OAuth sign-in required)
+- [ ] After sign-in, consent screen shows user code and machine name
 - [ ] "Approve" → success confirmation, CLI detects it
 - [ ] "Deny" → rejection, CLI gets error
 
@@ -786,14 +788,14 @@ npx teamrc login                     # Don't approve in browser
 ```bash
 npx teamrc init --platform claude-code    # Init + link account
 npx teamrc delete && rm -rf ~/.teamrc     # Lose everything
-npx teamrc init --platform claude-code    # Re-init + re-link same Clerk account
+npx teamrc init --platform claude-code    # Re-init + re-link same email account
 ```
 
-- [ ] New keypair, account re-linked, previous machines visible in dashboard
+- [ ] New keypair, account re-linked via same email address, previous machines visible in dashboard
 
 ### 12.8 Multi-Machine Linking
 
-**A:** Init + link → **B:** Join + `teamrc login` with same Clerk account
+**A:** Init + link → **B:** Join + `teamrc login` with same account (email/password or OAuth)
 - [ ] Dashboard shows both machines
 - [ ] Revoking B doesn't affect A
 
@@ -844,10 +846,49 @@ npx teamrc claim <A's-secret>
 
 ### 12.12 Web Wizard Sets Owner Directly
 
-Create a team via `/new` while logged into Clerk:
+Create a team via `/new` while authenticated (email/password or OAuth):
 - [ ] Team owner is set immediately (no claim secret needed)
 - [ ] Owner can toggle visibility from the team detail page
 - [ ] No `trc_ocs_` secret is generated for web-created teams
+
+### 12.14 Registration via Email/Password
+
+1. Navigate to `/users/register`
+2. Enter email and password (min 12 chars)
+3. Accept Terms of Service checkbox
+
+- [ ] Account created, redirected to dashboard
+- [ ] `accepted_terms_at` set on user record
+- [ ] Password validation enforced (min 12, max 72 chars)
+- [ ] Duplicate email rejected with error
+
+### 12.15 Registration via OAuth (GitHub)
+
+1. Navigate to `/users/log-in`
+2. Click "Sign in with GitHub"
+3. Authorize on GitHub
+
+- [ ] Redirected to `/users/accept-terms` if first login
+- [ ] After ToS acceptance, redirected to dashboard
+- [ ] User record has `provider: "github"` and `provider_uid` set
+- [ ] Subsequent logins skip ToS acceptance
+
+### 12.16 Registration via OAuth (Google)
+
+Same flow as 12.15 but using "Sign in with Google":
+- [ ] Redirected to `/users/accept-terms` if first login
+- [ ] User record has `provider: "google"` and `provider_uid` set
+- [ ] Email from Google profile stored on user record
+
+### 12.17 ToS Acceptance Flow
+
+1. Log in via OAuth or email/password (new account, no ToS accepted yet)
+2. Attempt to access `/dashboard`
+
+- [ ] Redirected to `/users/accept-terms` with flash: "You must accept the Terms of Service to continue."
+- [ ] Accepting terms sets `accepted_terms_at` and `terms_version_accepted`
+- [ ] After acceptance, redirected to intended destination
+- [ ] Subsequent logins no longer require ToS acceptance
 
 ---
 
@@ -1074,12 +1115,13 @@ Verify the printed URL loads the team page in browser.
 
 ## 15. Web Dashboard & Account Management
 
-Requires Clerk auth. Open `/dashboard`.
+Requires authentication (email/password or OAuth). Open `/dashboard`.
 
 ### 15.1 Access
 
-- [ ] Unauthenticated → redirected to `/new`
-- [ ] Authenticated → shows "Your Teams", "Your Machines", "Account" sections
+- [ ] Unauthenticated → redirected to `/users/log-in` with flash: "You must log in to access this page."
+- [ ] Authenticated without ToS accepted → redirected to `/users/accept-terms`
+- [ ] Authenticated with ToS accepted → shows "Your Teams", "Your Machines", "Account" sections
 
 ### 15.2 Teams Section
 
@@ -1103,9 +1145,175 @@ Requires Clerk auth. Open `/dashboard`.
 
 ### 15.4 Account Section
 
-- [ ] Shows Clerk email, "Signed in via Clerk" label, sign out link
+- [ ] Shows user email and auth provider (e.g., "email", "github", "google")
+- [ ] Sign out link works (redirects to `/`)
 - [ ] "Export data" → downloads `teamrc-export.json` (valid JSON: account, machines, teams)
 - [ ] "Delete account" → confirmation → account deleted, all tokens revoked, teams persist for others
+
+### 15.5 User Settings (`/users/settings`)
+
+- [ ] Accessible when authenticated (redirects to `/users/log-in` otherwise)
+- [ ] Change email: enter new email → confirmation email sent → click link → email updated
+- [ ] Change password: enter current password + new password (min 12 chars) → "Password updated successfully!"
+- [ ] Password change disconnects all other sessions (LiveView and remember-me)
+
+### 15.6 Password Reset Flow
+
+1. Navigate to `/users/forgot-password`
+2. Enter registered email
+
+- [ ] Flash: "If your email is in our system, you will receive reset instructions shortly." (no user enumeration)
+- [ ] Email contains reset link (`/users/reset-password/:token`)
+- [ ] Clicking link → enter new password → "Password reset successfully."
+- [ ] Expired/invalid token → "Reset password link is invalid or it has expired."
+
+### 15.7 Session Management
+
+- [ ] "Remember me" checkbox on login → cookie persists for 14 days
+- [ ] Without "Remember me" → session-only cookie (cleared on browser close)
+- [ ] Logging out clears session and remember-me cookie
+- [ ] Logging out broadcasts disconnect to all LiveView sockets for that session
+- [ ] Session token reissued after 7 days of use
+
+### 15.8 Account Deletion (from Settings)
+
+1. Navigate to `/users/settings` or `/dashboard`
+2. Click "Delete account" → confirm
+
+- [ ] User record deleted
+- [ ] All machine tokens revoked
+- [ ] All sessions invalidated
+- [ ] Teams persist for other members
+- [ ] Redirected to `/` after deletion
+
+---
+
+## 15b. Auth & Security
+
+### 15b.1 Registration — Email/Password
+
+```
+Navigate to /users/register
+```
+
+- [ ] Email required (valid format, max 160 chars)
+- [ ] Password required (min 12, max 72 chars, confirmation must match)
+- [ ] Terms of Service acceptance required during registration
+- [ ] Duplicate email → "has already been taken"
+- [ ] Successful registration → logged in, redirected to dashboard
+
+### 15b.2 Registration — OAuth
+
+```
+Navigate to /users/log-in → click GitHub or Google
+```
+
+- [ ] GitHub: redirected to `/auth/github`, then GitHub authorize page, callback to `/auth/github/callback`
+- [ ] Google: redirected to `/auth/google`, then Google authorize page, callback to `/auth/google/callback`
+- [ ] New OAuth user → redirected to `/users/accept-terms` (no session until ToS accepted)
+- [ ] Returning OAuth user (ToS already accepted) → logged in, redirected to dashboard
+- [ ] OAuth user email collision with existing password user → "Authentication failed" error (provider mismatch)
+
+### 15b.3 Login — Email/Password
+
+```
+Navigate to /users/log-in
+```
+
+- [ ] Valid email + password → "Welcome back!", redirected to return path or `/`
+- [ ] Invalid email or password → "Invalid email or password" (no user enumeration)
+- [ ] Email field pre-populated after failed attempt
+- [ ] "Remember me" checkbox available
+
+### 15b.4 Login — Magic Link
+
+```
+Navigate to /users/log-in → request magic link
+```
+
+- [ ] Email sent with login link (`/users/log-in/:token`)
+- [ ] Clicking valid link → "User confirmed successfully.", logged in
+- [ ] Clicking expired/invalid link → "The link is invalid or it has expired."
+
+### 15b.5 Login — OAuth
+
+```
+Navigate to /users/log-in → click GitHub or Google
+```
+
+- [ ] Existing user with matching provider → logged in
+- [ ] Ueberauth failure (denied access, network error) → "Authentication failed. Please try again."
+
+### 15b.6 Password Reset
+
+```
+Navigate to /users/forgot-password
+```
+
+- [ ] Enter email → flash: "If your email is in our system, you will receive reset instructions shortly."
+- [ ] Non-existent email → same flash (prevents user enumeration)
+- [ ] Reset link in email → `/users/reset-password/:token`
+- [ ] Enter new password (min 12 chars) → "Password reset successfully.", redirected to login
+- [ ] All existing sessions disconnected after password reset
+- [ ] Invalid/expired token → "Reset password link is invalid or it has expired."
+- [ ] Failed validation (short password) → "Failed to reset password. Please try again."
+
+### 15b.7 ToS Acceptance Gate
+
+- [ ] New user (no `accepted_terms_at`) accessing `/dashboard` → redirected to `/users/accept-terms`
+- [ ] New OAuth user → redirected to `/users/accept-terms` before getting full session
+- [ ] API endpoints behind `session_api` pipeline → 403 for users without ToS accepted
+- [ ] After accepting terms → `accepted_terms_at` and `terms_version_accepted` set
+- [ ] Redirected to original destination after acceptance
+- [ ] `GET /users/log-in/terms-accepted` renews session for already-authenticated user who just accepted
+
+### 15b.8 Session Security
+
+- [ ] Session token stored in server-side session (not exposed to JavaScript)
+- [ ] Remember-me cookie is `HttpOnly`, `Secure`, `SameSite=Lax`, 14-day max age
+- [ ] CSRF token regenerated on login/logout (via `renew_session`)
+- [ ] Logging out broadcasts `disconnect` to all LiveView sockets for the session
+- [ ] Password change disconnects all other sessions
+
+### 15b.9 OAuth Provider Mismatch
+
+1. Register via GitHub (email: user@example.com)
+2. Try to register via Google with same email
+
+- [ ] Returns "Authentication failed" error
+- [ ] Original account remains intact
+- [ ] User can still log in via original provider (GitHub)
+
+### 15b.10 Device Auth Full Flow
+
+1. `npx teamrc login` → CLI shows URL + user code
+2. Open URL in browser → redirected to `/users/log-in` if not authenticated
+3. Sign in (email/password or OAuth) → consent screen with user code
+4. Approve → CLI receives confirmation
+
+- [ ] CLI polls `/api/auth/device/:device_code` until approved
+- [ ] After approval, `~/.teamrc/config.json` gets `account.email`
+- [ ] Device auth works with both email/password and OAuth accounts
+
+### 15b.11 PII Protection
+
+- [ ] Participant emails hashed in dashboard (`Teamrc.PII.email_hash/1`)
+- [ ] Participant emails hashed in team detail page
+- [ ] Participant emails hashed in export data
+- [ ] `X-PII-Level` header controls PII disclosure level in API responses
+
+### 15b.12 CSRF / VerifyOrigin
+
+- [ ] `VerifyOrigin` plug blocks cross-origin requests to session-based API endpoints
+- [ ] `protect_from_forgery` plug active on all browser routes
+- [ ] CSRF token required for POST/DELETE form submissions
+- [ ] API endpoints using signature auth (not session) are not affected by CSRF checks
+
+### 15b.13 Content Security Policy
+
+- [ ] CSP header set on all browser responses
+- [ ] `frame-ancestors 'none'` prevents clickjacking
+- [ ] `default-src 'self'` restricts resource loading to same origin
 
 ---
 

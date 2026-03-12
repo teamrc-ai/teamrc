@@ -110,7 +110,7 @@ teamrc needs PostgreSQL to store teams, tokens, and invites.
 2. Click **+ New Resource** → **Database** → **PostgreSQL**
 3. Fill in the settings:
    - **Name**: `teamrc-db`
-   - **Version**: `16` (recommended — well-tested, stable)
+   - **Version**: `18` (default in Coolify — latest stable)
    - **Default Database**: `teamrc`
    - **Username**: `teamrc` (or anything you like)
    - **Password**: click **Generate** to create a strong password
@@ -248,14 +248,14 @@ Go to the **Environment Variables** tab in your Coolify application and add each
 | `SESSION_ENCRYPTION_SALT` | _(your generated secret)_ | From Step 6b |
 | `POOL_SIZE` | `10` | How many database connections to keep open |
 
-**Optional** — only needed if you want Clerk-based user accounts (dashboard, machine management, account recovery):
+**Optional** — only needed if you want OAuth-based user accounts (dashboard, machine management, account recovery):
 
 | Variable | Value |
 |----------|-------|
-| `CLERK_PUBLISHABLE_KEY` | `pk_live_...` (from your Clerk dashboard) |
-| `CLERK_JWKS_URL` | `https://your-app.clerk.accounts.dev/.well-known/jwks.json` |
-| `CLERK_ISSUER` | `https://your-app.clerk.accounts.dev` |
-| `CLERK_AUDIENCE` | _(usually blank)_ |
+| `GITHUB_CLIENT_ID` | From your GitHub OAuth App settings |
+| `GITHUB_CLIENT_SECRET` | From your GitHub OAuth App settings |
+| `GOOGLE_CLIENT_ID` | From your Google Cloud Console OAuth credentials |
+| `GOOGLE_CLIENT_SECRET` | From your Google Cloud Console OAuth credentials |
 
 ### 6d. Configure Health Checks
 
@@ -640,7 +640,7 @@ Phoenix supports clustering via DNS-based service discovery. If you need multipl
 | `ERL_FLAGS` | No | `+K true +sbwt none ...` | BEAM VM tuning flags |
 | `LOGGER_LEVEL` | No | `info` | Log verbosity (debug/info/warn) |
 | `DNS_CLUSTER_QUERY` | No | `teamrc.internal` | For multi-instance clustering |
-| `CLERK_PUBLISHABLE_KEY` | No | `pk_live_...` | Clerk integration |
-| `CLERK_JWKS_URL` | No | `https://.../.well-known/jwks.json` | Clerk JWT verification |
-| `CLERK_ISSUER` | No | `https://...` | Clerk issuer URL |
-| `CLERK_AUDIENCE` | No | _(usually blank)_ | Clerk audience claim |
+| `GITHUB_CLIENT_ID` | No | _(from GitHub OAuth App)_ | GitHub OAuth login |
+| `GITHUB_CLIENT_SECRET` | No | _(from GitHub OAuth App)_ | GitHub OAuth login |
+| `GOOGLE_CLIENT_ID` | No | _(from Google Cloud Console)_ | Google OAuth login |
+| `GOOGLE_CLIENT_SECRET` | No | _(from Google Cloud Console)_ | Google OAuth login |

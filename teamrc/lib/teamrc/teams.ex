@@ -3,7 +3,8 @@ defmodule Teamrc.Teams do
 
   import Ecto.Query
   alias Teamrc.Repo
-  alias Teamrc.Schema.{Team, Member, Invite, TokenTeam, AccountToken}
+  alias Teamrc.Schema.{Team, Member, Invite, TokenTeam}
+  alias Teamrc.Accounts.MachineToken
   alias Teamrc.ContentHash
 
   @invite_ttl_hours 24
@@ -43,10 +44,10 @@ defmodule Teamrc.Teams do
     team_data = normalize_team(team_attrs)
     invite_code = generate_invite_code()
     expires_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(@invite_ttl_hours * 3600)
-    owner_account_id = Keyword.get(opts, :owner_account_id)
+    owner_user_id = Keyword.get(opts, :owner_user_id)
 
     Repo.transaction(fn ->
-      case create_team_in_db_inner(team_data, nil, owner_account_id) do
+      case create_team_in_db_inner(team_data, nil, owner_user_id) do
         {:ok, team} ->
           case %Invite{}
                |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team.id})
@@ -230,7 +231,7 @@ defmodule Teamrc.Teams do
   def claim_ownership(token, claim_secret) do
     # Resolve the team by the claim secret
     team =
-      from(t in Team, where: t.owner_claim_secret == ^claim_secret and is_nil(t.owner_account_id))
+      from(t in Team, where: t.owner_claim_secret == ^claim_secret and is_nil(t.owner_user_id))
       |> Repo.one()
 
     case team do
@@ -239,9 +240,9 @@ defmodule Teamrc.Teams do
 
       %Team{} = team ->
         # Verify the token has a linked account
-        account_id = resolve_owner_from_token(token)
+        user_id = resolve_owner_from_token(token)
 
-        if is_nil(account_id) do
+        if is_nil(user_id) do
           {:error, :no_account}
         else
           # Verify the token belongs to this team
@@ -254,8 +255,8 @@ defmodule Teamrc.Teams do
           else
             # Atomic claim — only succeeds if still unclaimed
             {count, _} =
-              from(t in Team, where: t.id == ^team.id and is_nil(t.owner_account_id))
-              |> Repo.update_all(set: [owner_account_id: account_id, owner_claim_secret: nil])
+              from(t in Team, where: t.id == ^team.id and is_nil(t.owner_user_id))
+              |> Repo.update_all(set: [owner_user_id: user_id, owner_claim_secret: nil])
 
             if count == 1 do
               {:ok, :claimed}
@@ -318,19 +319,19 @@ defmodule Teamrc.Teams do
     end)
   end
 
-  defp create_team_in_db_inner(team_data, token, owner_account_id \\ nil) do
+  defp create_team_in_db_inner(team_data, token, owner_user_id \\ nil) do
     # If a token is provided and no explicit owner, check if the token already has a linked account
     resolved_owner =
-      owner_account_id || resolve_owner_from_token(token)
+      owner_user_id || resolve_owner_from_token(token)
 
     # Generate a claim secret only when there is no owner yet (CLI flow).
-    # Web wizard sets owner_account_id directly, so no secret needed.
+    # Web wizard sets owner_user_id directly, so no secret needed.
     claim_secret = if is_nil(resolved_owner), do: generate_claim_secret()
 
     team_attrs =
       %{name: team_data.name, skills: team_data.skills, platforms: team_data.platforms, knowledge: team_data.knowledge}
       |> put_non_nil(:owner_claim_secret, claim_secret)
-      |> put_non_nil(:owner_account_id, resolved_owner)
+      |> put_non_nil(:owner_user_id, resolved_owner)
 
     case %Team{}
          |> Team.changeset(team_attrs)
@@ -516,9 +517,9 @@ defmodule Teamrc.Teams do
   defp resolve_owner_from_token(nil), do: nil
 
   defp resolve_owner_from_token(token) do
-    from(at in AccountToken,
-      where: at.token == ^token and is_nil(at.revoked_at),
-      select: at.account_id,
+    from(mt in MachineToken,
+      where: mt.token == ^token and is_nil(mt.revoked_at),
+      select: mt.user_id,
       limit: 1
     )
     |> Repo.one()

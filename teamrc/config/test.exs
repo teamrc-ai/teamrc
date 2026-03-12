@@ -20,9 +20,12 @@ config :teamrc, TeamrcWeb.Endpoint,
 # Security-specific tests override this to test the auth plug directly.
 config :teamrc, :skip_auth, true
 
-# Skip Clerk JWT verification in tests by default.
-# The VerifyClerkJWT test overrides this to test the plug directly.
-config :teamrc, :skip_clerk_auth, true
+# Reduce bcrypt rounds for faster tests
+config :bcrypt_elixir, log_rounds: 1
+
+# Swoosh test adapter (no actual sending)
+config :teamrc, Teamrc.Mailer, adapter: Swoosh.Adapters.Test
+config :swoosh, :api_client, false
 
 # Print only warnings and errors during test
 config :logger, level: :warning

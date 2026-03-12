@@ -68,6 +68,10 @@ config :teamrc, TeamrcWeb.Endpoint,
 # Enable dev routes for dashboard and mailbox
 config :teamrc, dev_routes: true
 
+# Swoosh local adapter for dev (view emails at /dev/mailbox)
+config :teamrc, Teamrc.Mailer, adapter: Swoosh.Adapters.Local
+config :swoosh, :api_client, false
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"
 

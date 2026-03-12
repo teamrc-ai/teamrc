@@ -1,6 +1,8 @@
 defmodule TeamrcWeb.Router do
   use TeamrcWeb, :router
 
+  import TeamrcWeb.UserAuth
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -13,7 +15,7 @@ defmodule TeamrcWeb.Router do
         "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss:; font-src 'self' data:; frame-ancestors 'none'"
     }
 
-    plug TeamrcWeb.Plugs.SessionClerkAuth
+    plug :fetch_current_scope_for_user
   end
 
   pipeline :api do
@@ -29,17 +31,27 @@ defmodule TeamrcWeb.Router do
     plug TeamrcWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
   end
 
-  pipeline :clerk_api do
+  # Session-based API auth for account endpoints
+  pipeline :session_api do
     plug :accepts, ["json"]
     plug TeamrcWeb.Plugs.CORS
-    plug TeamrcWeb.Plugs.VerifyClerkJWT
+    plug :fetch_session
+    plug :fetch_current_scope_for_user
+    plug :require_authenticated_user
+    plug TeamrcWeb.Plugs.VerifyOrigin
+    plug TeamrcWeb.Plugs.PIIHeader
     plug TeamrcWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
   end
 
-  pipeline :clerk_and_signature_api do
+  # Session + signature API auth for sensitive endpoints
+  pipeline :session_and_signature_api do
     plug :accepts, ["json"]
     plug TeamrcWeb.Plugs.CORS
-    plug TeamrcWeb.Plugs.VerifyClerkJWT
+    plug :fetch_session
+    plug :fetch_current_scope_for_user
+    plug :require_authenticated_user
+    plug TeamrcWeb.Plugs.VerifyOrigin
+    plug TeamrcWeb.Plugs.PIIHeader
     plug TeamrcWeb.Plugs.VerifySignature
     plug TeamrcWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
   end
@@ -49,15 +61,23 @@ defmodule TeamrcWeb.Router do
     get "/health", PageController, :health
   end
 
+  scope "/auth", TeamrcWeb do
+    pipe_through :browser
+
+    get "/github", OAuthController, :request
+    get "/github/callback", OAuthController, :callback
+    get "/google", OAuthController, :request
+    get "/google/callback", OAuthController, :callback
+  end
+
   scope "/", TeamrcWeb do
     pipe_through :browser
 
     get "/", PageController, :index
-    get "/auth/sign-out", PageController, :sign_out
 
     live_session :public,
       layout: {TeamrcWeb.Layouts, :app},
-      on_mount: [{TeamrcWeb.Hooks.AssignAuth, :default}] do
+      on_mount: [{TeamrcWeb.UserAuth, :mount_current_scope}] do
       live "/new", TeamLive, :index
       live "/invite/:code", InviteLive
       live "/teams/:id", TeamDetailLive
@@ -78,10 +98,50 @@ defmodule TeamrcWeb.Router do
 
     live_session :authenticated,
       layout: {TeamrcWeb.Layouts, :app},
-      on_mount: [{TeamrcWeb.Hooks.AssignAuth, :require_auth}] do
+      on_mount: [{TeamrcWeb.UserAuth, :require_authenticated}] do
       live "/dashboard", DashboardLive
     end
   end
+
+  ## ──────────────────────────────────────────────────────────
+  ## phx.gen.auth routes
+  ## ──────────────────────────────────────────────────────────
+
+  scope "/", TeamrcWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :require_authenticated_user,
+      on_mount: [{TeamrcWeb.UserAuth, :require_authenticated}] do
+      live "/users/settings", UserLive.Settings, :edit
+      live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
+    end
+
+    post "/users/update-password", UserSessionController, :update_password
+  end
+
+  scope "/", TeamrcWeb do
+    pipe_through [:browser]
+
+    live_session :current_user,
+      on_mount: [{TeamrcWeb.UserAuth, :mount_current_scope}] do
+      live "/users/register", UserLive.Registration, :new
+      live "/users/log-in", UserLive.Login, :new
+      live "/users/log-in/:token", UserLive.Confirmation, :new
+      live "/users/forgot-password", UserLive.ForgotPassword, :new
+      live "/users/reset-password/:token", UserLive.ResetPassword, :new
+      live "/users/accept-terms", UserLive.AcceptTerms, :new
+    end
+
+    post "/users/log-in", UserSessionController, :create
+    get "/users/complete-login", UserSessionController, :terms_accepted
+    post "/users/forgot-password", UserSessionController, :forgot_password
+    post "/users/reset-password/:token", UserSessionController, :reset_password
+    delete "/users/log-out", UserSessionController, :delete
+  end
+
+  ## ──────────────────────────────────────────────────────────
+  ## API routes
+  ## ──────────────────────────────────────────────────────────
 
   # Public API (no auth required)
   scope "/api", TeamrcWeb do
@@ -90,6 +150,7 @@ defmodule TeamrcWeb.Router do
     get "/teams/clone/:clone_token", ApiController, :clone_team
   end
 
+  # CLI API (ed25519 signature auth)
   scope "/api", TeamrcWeb do
     pipe_through :api
 
@@ -108,8 +169,9 @@ defmodule TeamrcWeb.Router do
     get "/teams/:token", ApiController, :get_team
   end
 
+  # Account API (session-based auth)
   scope "/api", TeamrcWeb do
-    pipe_through :clerk_api
+    pipe_through :session_api
 
     get "/account", AccountController, :show
     get "/account/teams", AccountController, :teams
@@ -118,8 +180,9 @@ defmodule TeamrcWeb.Router do
     delete "/account", AccountController, :delete
   end
 
+  # Account API with additional signature verification
   scope "/api", TeamrcWeb do
-    pipe_through :clerk_and_signature_api
+    pipe_through :session_and_signature_api
 
     post "/account/reassociate", AccountController, :reassociate
   end

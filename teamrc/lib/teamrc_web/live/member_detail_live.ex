@@ -25,7 +25,8 @@ defmodule TeamrcWeb.MemberDetailLive do
          |> redirect(to: "/teams/#{team_id}")}
 
       true ->
-        owner_access = Accounts.is_team_participant?(socket.assigns[:clerk_user_id], team.id)
+        current_user = socket.assigns[:current_scope] && socket.assigns.current_scope.user
+        owner_access = Accounts.is_team_participant?(current_user && current_user.id, team.id)
         invite_access = load_valid_invite(team.id, invite_code)
 
         can_view =

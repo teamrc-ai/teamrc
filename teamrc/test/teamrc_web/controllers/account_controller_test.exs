@@ -3,33 +3,35 @@ defmodule TeamrcWeb.AccountControllerTest do
 
   import Ecto.Query
   alias Teamrc.Repo
-  alias Teamrc.Schema.{Account, AccountToken, Team, Member, TokenTeam}
+  alias Teamrc.Accounts.MachineToken
+  alias Teamrc.Schema.{Team, Member, TokenTeam}
 
   setup %{conn: conn} do
-    # Create account
-    account =
-      %Account{}
-      |> Account.changeset(%{clerk_user_id: "clerk_test_user", email: "test@example.com"})
-      |> Repo.insert!()
+    # Create user via fixture
+    user = Teamrc.AccountsFixtures.user_fixture(%{email: "test@example.com"})
+
+    # Accept terms so require_authenticated_user doesn't redirect
+    {:ok, user} =
+      Teamrc.Accounts.accept_terms(user, "2026-03-11")
 
     # Create two machine tokens
-    token1 =
-      %AccountToken{}
-      |> AccountToken.changeset(%{
-        account_id: account.id,
+    {:ok, mt1} =
+      %MachineToken{}
+      |> MachineToken.changeset(%{
+        user_id: user.id,
         token: "trc_ak_machine1_token",
         machine_name: "laptop"
       })
-      |> Repo.insert!()
+      |> Repo.insert()
 
-    token2 =
-      %AccountToken{}
-      |> AccountToken.changeset(%{
-        account_id: account.id,
+    {:ok, mt2} =
+      %MachineToken{}
+      |> MachineToken.changeset(%{
+        user_id: user.id,
         token: "trc_ak_machine2_token",
         machine_name: "desktop"
       })
-      |> Repo.insert!()
+      |> Repo.insert()
 
     # Create a team with members and skills
     team =
@@ -43,49 +45,42 @@ defmodule TeamrcWeb.AccountControllerTest do
 
     # Associate token1 with the team
     %TokenTeam{}
-    |> TokenTeam.changeset(%{token: token1.token, team_id: team.id})
+    |> TokenTeam.changeset(%{token: mt1.token, team_id: team.id})
     |> Repo.insert!()
 
-    # Set clerk_user_id on conn (simulating VerifyClerkJWT in test)
+    # Log in via session (session_api pipeline uses fetch_session + fetch_current_scope_for_user)
     conn =
       conn
-      |> Plug.Conn.assign(:clerk_user_id, "clerk_test_user")
+      |> log_in_user(user)
+      |> put_req_header("accept", "application/json")
       |> put_req_header("content-type", "application/json")
+      |> put_req_header("origin", TeamrcWeb.Endpoint.url())
 
     %{
       conn: conn,
-      account: account,
-      token1: token1,
-      token2: token2,
+      user: user,
+      token1: mt1,
+      token2: mt2,
       team: team
     }
   end
 
   describe "GET /api/account" do
-    test "returns account and machines", %{conn: conn, account: account} do
+    test "returns account and machines", %{conn: conn, user: user} do
       conn = get(conn, "/api/account")
       resp = json_response(conn, 200)
 
-      assert resp["account"]["id"] == account.id
+      assert resp["account"]["id"] == user.id
       assert resp["account"]["email"] == "test@example.com"
       assert length(resp["machines"]) == 2
 
       machine = Enum.find(resp["machines"], &(&1["machine_name"] == "laptop"))
       assert machine["token"] == "trc_ak_machi..."
     end
-
-    test "returns 404 for unknown clerk user", %{conn: conn} do
-      conn =
-        conn
-        |> Plug.Conn.assign(:clerk_user_id, "nonexistent_user")
-        |> get("/api/account")
-
-      assert json_response(conn, 404)["error"] == "account_not_found"
-    end
   end
 
   describe "GET /api/account/teams" do
-    test "returns teams with participants", %{conn: conn, team: team} do
+    test "returns teams with hashed participants", %{conn: conn, team: team} do
       conn = get(conn, "/api/account/teams")
       resp = json_response(conn, 200)
 
@@ -95,7 +90,8 @@ defmodule TeamrcWeb.AccountControllerTest do
       assert team_resp["name"] == "test-team"
       assert team_resp["agent_count"] == 1
       assert team_resp["skill_count"] == 1
-      assert "test@example.com" in team_resp["participants"]
+      assert is_list(team_resp["participants"])
+      refute "test@example.com" in team_resp["participants"]
     end
 
     test "returns empty list when no active tokens", %{conn: conn, token1: token1, token2: token2} do
@@ -124,7 +120,7 @@ defmodule TeamrcWeb.AccountControllerTest do
       assert resp["status"] == "revoked"
 
       # Verify token is revoked in DB
-      updated = Repo.get!(AccountToken, token1.id)
+      updated = Repo.get!(MachineToken, token1.id)
       refute is_nil(updated.revoked_at)
 
       # Verify token_teams row is deleted
