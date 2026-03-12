@@ -1,4 +1,4 @@
-# TeamBridge Code Review Fixes — Design
+# teamrc Code Review Fixes — Design
 
 Date: 2026-03-05
 
@@ -6,51 +6,51 @@ Date: 2026-03-05
 
 Fix all issues identified in the code review. Eight changes organized into three categories: rename/consolidation, API contract fixes, and targeted bug fixes.
 
-## Fix 1: Rename app `:relay` to `:teambridge` and consolidate directories
+## Fix 1: Rename app `:relay` to `:teamrc` and consolidate directories
 
 ### Elixir/Phoenix (relay/ directory)
 
 **mix.exs:**
-- `app: :relay` -> `app: :teambridge`
-- Esbuild key: `relay:` -> `teambridge:`
-- Tailwind key: `relay:` -> `teambridge:`
-- Aliases referencing `relay` -> `teambridge`
+- `app: :relay` -> `app: :teamrc`
+- Esbuild key: `relay:` -> `teamrc:`
+- Tailwind key: `relay:` -> `teamrc:`
+- Aliases referencing `relay` -> `teamrc`
 
 **Config files (config/*.exs):**
-- All `config :relay` -> `config :teambridge`
-- All `Application.get_env(:relay, ...)` -> `Application.get_env(:teambridge, ...)`
+- All `config :relay` -> `config :teamrc`
+- All `Application.get_env(:relay, ...)` -> `Application.get_env(:teamrc, ...)`
 
 **Endpoint:**
-- `otp_app: :relay` -> `otp_app: :teambridge`
+- `otp_app: :relay` -> `otp_app: :teamrc`
 
 **Repo:**
-- `otp_app: :relay` -> `otp_app: :teambridge`
+- `otp_app: :relay` -> `otp_app: :teamrc`
 
-**File moves (no module renames, modules are already Teambridge/TeambridgeWeb):**
-- `lib/relay_web.ex` -> `lib/teambridge_web.ex`
-- `lib/relay.ex` -> `lib/teambridge.ex`
-- `lib/relay/application.ex` -> `lib/teambridge/application.ex`
-- `lib/relay_web/endpoint.ex` -> `lib/teambridge_web/endpoint.ex`
-- `lib/relay_web/router.ex` -> `lib/teambridge_web/router.ex`
-- `lib/relay_web/telemetry.ex` -> `lib/teambridge_web/telemetry.ex`
-- `lib/relay_web/gettext.ex` -> `lib/teambridge_web/gettext.ex`
-- `lib/relay_web/controllers/*` -> `lib/teambridge_web/controllers/*`
-- `lib/relay_web/components/*` -> `lib/teambridge_web/components/*`
-- `lib/relay_web/live/*` -> `lib/teambridge_web/live/*`
-- `test/relay_web/*` -> `test/teambridge_web/*`
+**File moves (no module renames, modules are already Teamrc/TeamrcWeb):**
+- `lib/relay_web.ex` -> `lib/teamrc_web.ex`
+- `lib/relay.ex` -> `lib/teamrc.ex`
+- `lib/relay/application.ex` -> `lib/teamrc/application.ex`
+- `lib/relay_web/endpoint.ex` -> `lib/teamrc_web/endpoint.ex`
+- `lib/relay_web/router.ex` -> `lib/teamrc_web/router.ex`
+- `lib/relay_web/telemetry.ex` -> `lib/teamrc_web/telemetry.ex`
+- `lib/relay_web/gettext.ex` -> `lib/teamrc_web/gettext.ex`
+- `lib/relay_web/controllers/*` -> `lib/teamrc_web/controllers/*`
+- `lib/relay_web/components/*` -> `lib/teamrc_web/components/*`
+- `lib/relay_web/live/*` -> `lib/teamrc_web/live/*`
+- `test/relay_web/*` -> `test/teamrc_web/*`
 - Delete empty `lib/relay/`, `lib/relay_web/`, `test/relay_web/`
 
 **Plug.Static `from:` option:**
-- `from: :relay` -> `from: :teambridge`
+- `from: :relay` -> `from: :teamrc`
 
 **app.css `@source` directive:**
-- `@source "../../lib/relay_web"` -> `@source "../../lib/teambridge_web"`
+- `@source "../../lib/relay_web"` -> `@source "../../lib/teamrc_web"`
 
 ### CLI (cli/ directory)
 
 **Type renames:**
-- `RelayTeam` -> `TeamBridgeTeam`
-- `RelayClient` -> `TeamBridgeClient`
+- `RelayTeam` -> `teamrcTeam`
+- `RelayClient` -> `TeamrcClient`
 - `SyncChange` / `SyncResult` stay as-is (not relay-specific names)
 
 **File renames:**
@@ -62,7 +62,7 @@ Fix all issues identified in the code review. Eight changes organized into three
 ### Root .gitignore
 - `relay/_build/` -> update if the directory itself is renamed (TBD — may keep `relay/` as the directory name since it describes the component's role)
 
-**Decision: keep `relay/` as the directory name.** It describes what the component is (the relay server). The app name `:teambridge` is the product name. These serve different purposes.
+**Decision: keep `relay/` as the directory name.** It describes what the component is (the relay server). The app name `:teamrc` is the product name. These serve different purposes.
 
 ## Fix 2: Client/server API contract alignment
 
@@ -78,8 +78,8 @@ Fix all issues identified in the code review. Eight changes organized into three
 ### CLI side
 
 **`createTeam` in `client.ts`:**
-- Change from `(await res.json()) as { data: TeamBridgeTeam }` / `return data.data`
-- To `(await res.json()) as { team: TeamBridgeTeam }` / `return data.team`
+- Change from `(await res.json()) as { data: teamrcTeam }` / `return data.data`
+- To `(await res.json()) as { team: teamrcTeam }` / `return data.team`
 
 **`getTeam` usage in `index.ts`:**
 - `client.getTeam(config.teamId)` is wrong — the API route is `GET /api/teams/:token`
@@ -87,7 +87,7 @@ Fix all issues identified in the code review. Eight changes organized into three
 - Or better: store token as the team identifier (since the relay maps token -> team internally)
 
 **`joinByInvite` in `client.ts`:**
-- Response shape `{ team: TeamBridgeTeam }` — already correct
+- Response shape `{ team: teamrcTeam }` — already correct
 - But the returned team map now includes `id`, so `joinedTeam.id` works
 
 ## Fix 3: Persist token-to-team mappings
@@ -106,7 +106,7 @@ create unique_index(:token_teams, [:token])
 create index(:token_teams, [:team_id])
 ```
 
-### New schema: `Teambridge.Schema.TokenTeam`
+### New schema: `Teamrc.Schema.TokenTeam`
 
 Fields: `id`, `token`, `team_id`, timestamps.
 
@@ -189,18 +189,18 @@ The regex `description.match(/^(.+?)\s+on the\s+/)` extracts role from the descr
 
 ### Elixir
 - `mix.exs` — app name, esbuild/tailwind keys, aliases
-- `config/config.exs`, `config/dev.exs`, `config/test.exs`, `config/prod.exs`, `config/runtime.exs` — `:relay` -> `:teambridge`
-- `lib/teambridge_web/endpoint.ex` — otp_app (moved from relay_web/)
-- `lib/teambridge/repo.ex` — otp_app
-- `lib/teambridge_web/plugs/verify_signature.ex` — Application.get_env
-- `lib/teambridge_web/plugs/rate_limiter.ex` — no change needed
-- `lib/teambridge/teams.ex` — add token_teams persistence, add id to team_to_map, track invite claims
-- `lib/teambridge_web/controllers/api_controller.ex` — fix create_team response
-- `lib/teambridge_web/live/team_live.ex` — harden field atom conversion
-- `lib/teambridge/schema/token_team.ex` — new file
-- `lib/teambridge/schema/invite.ex` — add claimed fields to changeset
+- `config/config.exs`, `config/dev.exs`, `config/test.exs`, `config/prod.exs`, `config/runtime.exs` — `:relay` -> `:teamrc`
+- `lib/teamrc_web/endpoint.ex` — otp_app (moved from relay_web/)
+- `lib/teamrc/repo.ex` — otp_app
+- `lib/teamrc_web/plugs/verify_signature.ex` — Application.get_env
+- `lib/teamrc_web/plugs/rate_limiter.ex` — no change needed
+- `lib/teamrc/teams.ex` — add token_teams persistence, add id to team_to_map, track invite claims
+- `lib/teamrc_web/controllers/api_controller.ex` — fix create_team response
+- `lib/teamrc_web/live/team_live.ex` — harden field atom conversion
+- `lib/teamrc/schema/token_team.ex` — new file
+- `lib/teamrc/schema/invite.ex` — add claimed fields to changeset
 - `priv/repo/migrations/*_create_token_teams.exs` — new migration
-- `test/teambridge/teams_test.exs` — fix Process.sleep
+- `test/teamrc/teams_test.exs` — fix Process.sleep
 - All moved files from relay_web/ and relay/
 
 ### TypeScript

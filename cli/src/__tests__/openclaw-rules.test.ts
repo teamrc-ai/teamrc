@@ -9,7 +9,7 @@ describe("OpenClaw agent files with rules and skills", () => {
   let origHome: string | undefined;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tb-oc-rules-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-oc-rules-"));
     origHome = process.env.HOME;
     process.env.HOME = tmpDir;
   });
@@ -38,7 +38,7 @@ describe("OpenClaw agent files with rules and skills", () => {
 
     adapter.writeTeam(team);
 
-    const agentsPath = path.join(tmpDir, ".openclaw", "workspaces", "tb-architect", "AGENTS.md");
+    const agentsPath = path.join(tmpDir, ".openclaw", "workspaces", "trc-architect", "AGENTS.md");
     assert.ok(fs.existsSync(agentsPath), "AGENTS.md should exist");
 
     const content = fs.readFileSync(agentsPath, "utf-8");

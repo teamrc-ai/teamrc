@@ -1070,8 +1070,8 @@ export class CursorAdapter implements PlatformAdapter {
     if (!fs.existsSync(cursorDir)) fs.mkdirSync(cursorDir, { recursive: true });
 
     const agentsMdPath = path.join(cursorDir, "AGENTS.md");
-    const marker = "<!-- teambridge -->";
-    const markerEnd = "<!-- /teambridge -->";
+    const marker = "<!-- teamrc -->";
+    const markerEnd = "<!-- /teamrc -->";
 
     const memberLines = team.members
       .map((m) => `- **${m.name}** — ${m.role}`)
@@ -1106,7 +1106,7 @@ export class CursorAdapter implements PlatformAdapter {
       fs.unlinkSync(path.join(this.rulesDir(), f));
     }
     if (tbRules.length > 0) {
-      actions.push(`Deleted ${tbRules.length} TeamBridge cursor rule(s)`);
+      actions.push(`Deleted ${tbRules.length} teamrc cursor rule(s)`);
     }
     return actions;
   }
@@ -1220,8 +1220,8 @@ export class CodexAdapter implements PlatformAdapter {
   readTeam(): TeamDefinition | null { return null; }
 
   writeTeam(team: TeamDefinition): void {
-    const marker = "<!-- teambridge -->";
-    const markerEnd = "<!-- /teambridge -->";
+    const marker = "<!-- teamrc -->";
+    const markerEnd = "<!-- /teamrc -->";
 
     const memberLines = team.members
       .map((m) => `- **${m.name}** — ${m.role}`)
@@ -1275,15 +1275,15 @@ export class CodexAdapter implements PlatformAdapter {
     const filePath = this.agentsMdPath();
     if (!fs.existsSync(filePath)) return [];
     const content = fs.readFileSync(filePath, "utf-8");
-    const marker = "<!-- teambridge -->";
-    const markerEnd = "<!-- /teambridge -->";
+    const marker = "<!-- teamrc -->";
+    const markerEnd = "<!-- /teamrc -->";
     const regex = new RegExp(
       `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
     );
     const cleaned = content.replace(regex, "\n");
     if (cleaned !== content) {
       fs.writeFileSync(filePath, cleaned.trimEnd() + "\n");
-      return ["Removed TeamBridge section from AGENTS.md"];
+      return ["Removed teamrc section from AGENTS.md"];
     }
     return [];
   }
@@ -1390,8 +1390,8 @@ export class GeminiAdapter implements PlatformAdapter {
   readTeam(): TeamDefinition | null { return null; }
 
   writeTeam(team: TeamDefinition): void {
-    const marker = "<!-- teambridge -->";
-    const markerEnd = "<!-- /teambridge -->";
+    const marker = "<!-- teamrc -->";
+    const markerEnd = "<!-- /teamrc -->";
 
     const memberLines = team.members
       .map((m) => `- **${m.name}** — ${m.role}`)
@@ -1445,15 +1445,15 @@ export class GeminiAdapter implements PlatformAdapter {
     const filePath = this.geminiMdPath();
     if (!fs.existsSync(filePath)) return [];
     const content = fs.readFileSync(filePath, "utf-8");
-    const marker = "<!-- teambridge -->";
-    const markerEnd = "<!-- /teambridge -->";
+    const marker = "<!-- teamrc -->";
+    const markerEnd = "<!-- /teamrc -->";
     const regex = new RegExp(
       `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
     );
     const cleaned = content.replace(regex, "\n");
     if (cleaned !== content) {
       fs.writeFileSync(filePath, cleaned.trimEnd() + "\n");
-      return ["Removed TeamBridge section from GEMINI.md"];
+      return ["Removed teamrc section from GEMINI.md"];
     }
     return [];
   }

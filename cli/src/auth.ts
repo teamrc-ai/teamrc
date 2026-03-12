@@ -43,7 +43,7 @@ export async function generateKeypair(): Promise<Keypair> {
 }
 
 function getKeyDir(): string {
-  return path.join(os.homedir(), ".teambridge");
+  return path.join(os.homedir(), ".teamrc");
 }
 
 function getKeyPath(): string {
@@ -83,7 +83,7 @@ export function loadKeypair(): Keypair | null {
 }
 
 export function toToken(publicKey: Uint8Array): string {
-  return "tb_ak_" + base64UrlEncode(publicKey);
+  return "trc_ak_" + base64UrlEncode(publicKey);
 }
 
 export async function signMessage(

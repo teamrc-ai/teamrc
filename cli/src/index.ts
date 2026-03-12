@@ -12,7 +12,7 @@ import {
   loadKeypair,
   toToken,
 } from "./auth.js";
-import { TeamBridgeClient, remoteTeamToDefinition } from "./client.js";
+import { TeamrcClient, remoteTeamToDefinition } from "./client.js";
 import {
   loadConfig,
   saveConfig,
@@ -21,7 +21,7 @@ import {
 } from "./config.js";
 import { getAdapter, type TeamScope, type TeamDefinition } from "./adapters/base.js";
 import { resolveChange } from "./merge.js";
-import { writeTeamYaml, validateTeamName } from "./team-yaml.js";
+import { writeTeamYaml, validateTeamName, readTeamYaml } from "./team-yaml.js";
 import { resolveTeamSource } from "./resolve-source.js";
 
 function askQuestion(question: string): Promise<string> {
@@ -65,7 +65,7 @@ async function requirePlatform(override?: string): Promise<string> {
   const platforms = detectPlatforms();
   if (platforms.length === 0) {
     console.error(
-      "Could not detect platform. Ensure ~/.claude or ~/.openclaw exists, or use --platform.",
+      "Could not detect platform. Ensure a supported platform is installed (claude-code, cursor, codex, gemini, openclaw), or use --platform.",
     );
     process.exit(1);
   }
@@ -78,7 +78,7 @@ async function requirePlatform(override?: string): Promise<string> {
   for (let i = 0; i < platforms.length; i++) {
     console.log(`  ${i + 1}) ${platforms[i]}`);
   }
-  console.log(`  ${platforms.length + 1}) Both`);
+  console.log(`  ${platforms.length + 1}) All detected`);
   const answer = await askQuestion(`\nWhich platform? [1-${platforms.length + 1}]: `);
   const choice = parseInt(answer, 10);
   if (choice >= 1 && choice <= platforms.length) {
@@ -106,8 +106,8 @@ async function requireKeypair() {
 }
 
 interface ConnectedContext {
-  config: import("./config.js").TeambridgeConfig & { teamId: string };
-  client: TeamBridgeClient;
+  config: import("./config.js").TeamrcConfig & { teamId: string };
+  client: TeamrcClient;
   platform: string;
   adapter: import("./adapters/base.js").PlatformAdapter;
 }
@@ -116,7 +116,7 @@ interface ConnectedContext {
 function requireClient(): ConnectedContext {
   const config = loadConfig();
   if (!config) {
-    console.error("Not initialized. Run `teambridge init` first.");
+    console.error("Not initialized. Run `teamrc init` first.");
     process.exit(1);
   }
   if (!config.teamId) {
@@ -131,13 +131,13 @@ function requireClient(): ConnectedContext {
   const platform = primaryPlatform(config.platform);
   return {
     config: config as ConnectedContext["config"],
-    client: new TeamBridgeClient(config.relay, kp.privateKey, config.token),
+    client: new TeamrcClient(config.relay, kp.privateKey, config.token),
     platform,
     adapter: getAdapter(platform),
   };
 }
 
-async function deviceAuthFlow(client: TeamBridgeClient, machineName: string): Promise<boolean> {
+async function deviceAuthFlow(client: TeamrcClient, machineName: string): Promise<boolean> {
   let deviceAuth;
   try {
     deviceAuth = await client.createDeviceAuth();
@@ -199,16 +199,16 @@ async function deviceAuthFlow(client: TeamBridgeClient, machineName: string): Pr
 const program = new Command();
 
 program
-  .name("teambridge")
-  .description("TeamBridge — sync multi-agent teams across platforms")
+  .name("teamrc")
+  .description("teamrc — sync multi-agent teams across platforms")
   .version("0.1.0");
 
 // --- init ---
 program
   .command("init")
-  .description("Initialize TeamBridge: detect platform, create agents, connect to relay")
+  .description("Initialize teamrc: detect platform, create agents, connect to relay")
   .option("--relay <url>", "Relay server URL")
-  .option("--platform <platform>", "Override platform detection (claude-code, openclaw)")
+  .option("--platform <platform>", "Override platform detection (claude-code, cursor, codex, gemini, openclaw)")
   .action(async (opts: { relay?: string; platform?: string }) => {
     const selected = await requirePlatform(opts.platform);
     const platforms = selected === "both" ? detectPlatforms() : [selected];
@@ -245,7 +245,7 @@ program
     }
 
     // Create team on relay
-    const client = new TeamBridgeClient(relayUrl, kp.privateKey, token);
+    const client = new TeamrcClient(relayUrl, kp.privateKey, token);
     try {
       const relayTeam = await client.createTeam(
         team.name,
@@ -277,10 +277,10 @@ program
         const machineName = os.hostname();
         await deviceAuthFlow(client, machineName);
       } else {
-        console.log("Tip: Run `teambridge login` anytime to link your account.");
+        console.log("Tip: Run `teamrc login` anytime to link your account.");
       }
     } catch (err) {
-      console.error("Failed to initialize with relay:", err);
+      console.error("Failed to initialize with relay:", (err as Error).message);
       saveConfig({ platform: platforms.join(","), relay: relayUrl, token });
       console.log("Configuration saved (relay unreachable).");
     }
@@ -292,16 +292,18 @@ program
   .description("Join an existing team and create local agents")
   .argument("<token>", "Team invitation token")
   .option("--relay <url>", "Relay server URL")
-  .option("--platform <platform>", "Override platform detection (claude-code, openclaw)")
+  .option("--platform <platform>", "Override platform detection (claude-code, cursor, codex, gemini, openclaw)")
   .option("--scope <scope>", "Team scope: project or global (skips prompt)")
-  .action(async (joinToken: string, opts: { relay?: string; platform?: string; scope?: string }) => {
+  .option("--no-sync", "Join without live sync")
+  .action(async (joinToken: string, opts: { relay?: string; platform?: string; scope?: string; sync?: boolean }) => {
+    const noSync = opts.sync === false;
     const selected = await requirePlatform(opts.platform);
     const platforms = selected === "both" ? detectPlatforms() : [selected];
 
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
     const relayUrl = getRelayUrl(opts.relay);
-    const client = new TeamBridgeClient(relayUrl, kp.privateKey, token);
+    const client = new TeamrcClient(relayUrl, kp.privateKey, token);
 
     try {
       const joinedTeam = await client.joinByInvite(joinToken);
@@ -329,19 +331,24 @@ program
         relay: relayUrl,
         token,
         teamId: joinedTeam.id,
+        ...(noSync ? { noSync: true } : {}),
       });
       console.log("Configuration saved.");
 
-      // Offer account linking
-      const linkAnswer = await askQuestion("\nLink your account for recovery and dashboard access?\n[Y/n]: ");
-      if (linkAnswer.toLowerCase() !== "n") {
-        const machineName = os.hostname();
-        await deviceAuthFlow(client, machineName);
+      if (noSync) {
+        console.log("Joined without live sync. Use `teamrc sync` for manual sync.");
       } else {
-        console.log("Tip: Run `teambridge login` anytime to link your account.");
+        // Offer account linking
+        const linkAnswer = await askQuestion("\nLink your account for recovery and dashboard access?\n[Y/n]: ");
+        if (linkAnswer.toLowerCase() !== "n") {
+          const machineName = os.hostname();
+          await deviceAuthFlow(client, machineName);
+        } else {
+          console.log("Tip: Run `teamrc login` anytime to link your account.");
+        }
       }
     } catch (err) {
-      console.error("Failed to join team:", err);
+      console.error("Failed to join team:", (err as Error).message);
       process.exit(1);
     }
   });
@@ -350,7 +357,7 @@ program
 program
   .command("apply")
   .description("Re-apply team agents to local platform native format")
-  .option("--platform <platform>", "Override platform detection (claude-code, openclaw)")
+  .option("--platform <platform>", "Override platform detection (claude-code, cursor, codex, gemini, openclaw)")
   .option("--scope <scope>", "Team scope: project or global")
   .action(async (opts: { platform?: string; scope?: string }) => {
     const selected = await requirePlatform(opts.platform);
@@ -360,7 +367,7 @@ program
     const sourceAdapter = getAdapter(platforms[0]);
     const { source, team } = resolveTeamSource("agent-team.yaml", sourceAdapter.readTeam());
     if (!team) {
-      console.error("No team agents found. Run `teambridge init` or `teambridge join` first.");
+      console.error("No team agents found. Run `teamrc init` or `teamrc join` first.");
       process.exit(1);
     }
 
@@ -387,7 +394,8 @@ program
 program
   .command("diff")
   .description("Show differences between local agents and relay")
-  .action(async () => {
+  .option("--json", "Output as JSON")
+  .action(async (opts: { json?: boolean }) => {
     const { config, client, adapter } = requireClient();
     const localTeam = adapter.readTeam();
     if (!localTeam) {
@@ -401,37 +409,65 @@ program
       const localAgents = new Map(localTeam.members.map((m) => [m.name, m.role]));
       const remoteAgents = new Map(remoteTeam.members.map((m) => [m.name, m.role]));
 
-      let hasDiff = false;
+      const added: string[] = [];
+      const removed: string[] = [];
+      const changed: string[] = [];
+      const teamNameDiff = localTeam.name !== remoteTeam.name
+        ? { local: localTeam.name, remote: remoteTeam.name }
+        : null;
 
-      if (localTeam.name !== remoteTeam.name) {
-        console.log(`  team name: "${localTeam.name}" (local) vs "${remoteTeam.name}" (relay)`);
-        hasDiff = true;
-      }
-
-      // Agents only in local
+      // Agents only in local or changed
       for (const [name, role] of localAgents) {
         if (!remoteAgents.has(name)) {
-          console.log(`  + ${name} (${role}) — local only`);
-          hasDiff = true;
+          added.push(name);
         } else if (remoteAgents.get(name) !== role) {
-          console.log(`  ~ ${name}: role "${role}" (local) vs "${remoteAgents.get(name)}" (relay)`);
-          hasDiff = true;
+          changed.push(name);
         }
       }
 
       // Agents only on relay
-      for (const [name, role] of remoteAgents) {
+      for (const [name] of remoteAgents) {
         if (!localAgents.has(name)) {
-          console.log(`  - ${name} (${role}) — relay only`);
-          hasDiff = true;
+          removed.push(name);
         }
+      }
+
+      if (opts.json) {
+        const result: Record<string, unknown> = { added, removed, changed };
+        if (teamNameDiff) {
+          result.teamName = teamNameDiff;
+        }
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+
+      let hasDiff = false;
+
+      if (teamNameDiff) {
+        console.log(`  team name: "${teamNameDiff.local}" (local) vs "${teamNameDiff.remote}" (relay)`);
+        hasDiff = true;
+      }
+
+      for (const name of added) {
+        console.log(`  + ${name} (${localAgents.get(name)}) — local only`);
+        hasDiff = true;
+      }
+
+      for (const name of changed) {
+        console.log(`  ~ ${name}: role "${localAgents.get(name)}" (local) vs "${remoteAgents.get(name)}" (relay)`);
+        hasDiff = true;
+      }
+
+      for (const name of removed) {
+        console.log(`  - ${name} (${remoteAgents.get(name)}) — relay only`);
+        hasDiff = true;
       }
 
       if (!hasDiff) {
         console.log("No differences between local and relay.");
       }
     } catch (err) {
-      console.error("Failed to fetch relay state:", err);
+      console.error("Failed to fetch relay state:", (err as Error).message);
       process.exit(1);
     }
   });
@@ -443,6 +479,11 @@ program
   .action(async () => {
     const { client, platform, adapter } = requireClient();
 
+    if (!adapter.supportsSync) {
+      console.error(`Sync is not supported for ${platform}. Use \`teamrc apply\` to apply team changes.`);
+      process.exit(1);
+    }
+
     try {
       const hashes = adapter.getHashes();
       const result = await client.sync(platform, hashes);
@@ -452,7 +493,8 @@ program
         let applied = 0;
         for (const [key, remoteChange] of entries) {
           const localContent = adapter.readFile(key);
-          const merged = resolveChange(key, localContent, remoteChange, 0);
+          const localMtime = adapter.getFileMtime(key);
+          const merged = resolveChange(key, localContent, remoteChange, localMtime);
           if (merged.warning) {
             console.warn(`  WARN: ${merged.warning}`);
           }
@@ -466,7 +508,7 @@ program
         console.log("Already up to date.");
       }
     } catch (err) {
-      console.error("Sync failed:", err);
+      console.error("Sync failed:", (err as Error).message);
       process.exit(1);
     }
   });
@@ -474,7 +516,7 @@ program
 // --- push ---
 program
   .command("push")
-  .description("Push local memory to relay")
+  .description("Push local knowledge to relay")
   .action(async () => {
     const { client, platform, adapter } = requireClient();
 
@@ -491,7 +533,7 @@ program
       });
       console.log("Pushed team knowledge.");
     } catch (err) {
-      console.error("Push failed:", err);
+      console.error("Push failed:", (err as Error).message);
       process.exit(1);
     }
   });
@@ -500,15 +542,51 @@ program
 program
   .command("status")
   .description("Show current configuration and sync state")
-  .action(async () => {
+  .option("--json", "Output as JSON")
+  .action(async (opts: { json?: boolean }) => {
     const config = loadConfig();
     if (!config) {
-      console.log("TeamBridge is not initialized.");
-      console.log("Run `teambridge init` to get started.");
+      if (opts.json) {
+        console.log(JSON.stringify({ error: "not initialized" }, null, 2));
+      } else {
+        console.log("teamrc is not initialized.");
+        console.log("Run `teamrc init` to get started.");
+      }
       return;
     }
 
-    console.log("TeamBridge Status:");
+    // Show local team info from native agent files
+    const platform = primaryPlatform(config.platform);
+    const adapter = getAdapter(platform);
+    const localTeam = adapter.readTeam();
+
+    // Show relay state if configured
+    let remoteTeam = null;
+    if (config.teamId) {
+      const kp = loadKeypair();
+      if (kp) {
+        const client = new TeamrcClient(config.relay, kp.privateKey, config.token);
+        try {
+          remoteTeam = await client.getTeam(config.token);
+        } catch {
+          // relay unreachable
+        }
+      }
+    }
+
+    if (opts.json) {
+      console.log(JSON.stringify({
+        platform: config.platform,
+        relay: config.relay,
+        token: config.token.slice(0, 12) + "...",
+        teamId: config.teamId ?? null,
+        localTeam: localTeam ?? null,
+        remoteTeam: remoteTeam ?? null,
+      }, null, 2));
+      return;
+    }
+
+    console.log("teamrc Status:");
     console.log(`  Platform: ${config.platform}`);
     console.log(`  Relay:    ${config.relay}`);
     console.log(`  Token:    ${config.token.slice(0, 12)}...`);
@@ -516,10 +594,6 @@ program
       console.log(`  Team ID:  ${config.teamId}`);
     }
 
-    // Show local team info from native agent files
-    const platform = primaryPlatform(config.platform);
-    const adapter = getAdapter(platform);
-    const localTeam = adapter.readTeam();
     if (localTeam) {
       console.log(`\nLocal Team: ${localTeam.name}`);
       console.log("  Agents:");
@@ -530,22 +604,14 @@ program
       console.log("\nNo local team agents found.");
     }
 
-    // Show relay state if configured
-    if (config.teamId) {
-      const kp = loadKeypair();
-      if (kp) {
-        const client = new TeamBridgeClient(config.relay, kp.privateKey, config.token);
-        try {
-          const remoteTeam = await client.getTeam(config.token);
-          console.log(`\nRelay Team: ${remoteTeam.name}`);
-          console.log("  Members:");
-          for (const m of remoteTeam.members) {
-            console.log(`    - ${m.name}: ${m.role} (${m.platform})`);
-          }
-        } catch {
-          console.log("\nRelay unreachable.");
-        }
+    if (remoteTeam) {
+      console.log(`\nRelay Team: ${remoteTeam.name}`);
+      console.log("  Members:");
+      for (const m of remoteTeam.members) {
+        console.log(`    - ${m.name}: ${m.role} (${m.platform})`);
       }
+    } else if (config.teamId) {
+      console.log("\nRelay unreachable.");
     }
   });
 
@@ -554,8 +620,20 @@ program
   .command("daemon")
   .description("Start the background sync daemon")
   .option("--poll-interval <ms>", "Poll interval in milliseconds", "120000")
-  .action(async (opts: { pollInterval: string }) => {
+  .option("--sync-mode <mode>", "What to sync: all, knowledge, none", "knowledge")
+  .action(async (opts: { pollInterval: string; syncMode: string }) => {
     const { client, platform, adapter } = requireClient();
+
+    if (!adapter.supportsSync) {
+      console.error(`Daemon sync is not supported for ${platform}. Use \`teamrc apply\` to apply team changes.`);
+      process.exit(1);
+    }
+
+    const validModes = ["all", "knowledge", "none"];
+    if (!validModes.includes(opts.syncMode)) {
+      console.error(`Invalid sync mode: ${opts.syncMode}. Valid options: ${validModes.join(", ")}`);
+      process.exit(1);
+    }
 
     const { startDaemon } = await import("./daemon.js");
     const daemon = startDaemon({
@@ -563,6 +641,7 @@ program
       client,
       platform,
       pollInterval: parseInt(opts.pollInterval, 10),
+      syncMode: opts.syncMode as "all" | "knowledge" | "none",
     });
 
     // Graceful shutdown
@@ -588,7 +667,7 @@ program
       writeTeamYaml("agent-team.yaml", team);
       console.log(`Exported "${team.name}" (${team.members.length} agents) to agent-team.yaml.`);
     } catch (err) {
-      console.error("Failed to fetch team from relay:", err);
+      console.error("Failed to fetch team from relay:", (err as Error).message);
       process.exit(1);
     }
   });
@@ -624,7 +703,7 @@ program
         console.log(`Applied to ${p} (${scope} scope).`);
       }
     } catch (err) {
-      console.error("Pull failed:", err);
+      console.error("Pull failed:", (err as Error).message);
       process.exit(1);
     }
   });
@@ -632,14 +711,14 @@ program
 // --- login ---
 program
   .command("login")
-  .description("Link this machine to your TeamBridge account")
+  .description("Link this machine to your teamrc account")
   .option("--name <machine-name>", "Machine name (defaults to hostname)")
   .action(async (opts: { name?: string }) => {
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
     const config = loadConfig();
     const relayUrl = config?.relay ?? getRelayUrl();
-    const client = new TeamBridgeClient(relayUrl, kp.privateKey, token);
+    const client = new TeamrcClient(relayUrl, kp.privateKey, token);
     const machineName = opts.name ?? os.hostname();
 
     const success = await deviceAuthFlow(client, machineName);
@@ -648,20 +727,245 @@ program
     }
   });
 
+// --- clone ---
+program
+  .command("clone")
+  .description("Clone a team locally from an invite code without joining")
+  .argument("<invite-code>", "Team invitation code")
+  .option("--relay <url>", "Relay server URL")
+  .option("--platform <platform>", "Override platform detection (claude-code, cursor, codex, gemini, openclaw)")
+  .option("--scope <scope>", "Team scope: project or global (skips prompt)")
+  .option("--name <name>", "Override team name")
+  .action(async (inviteCode: string, opts: { relay?: string; platform?: string; scope?: string; name?: string }) => {
+    const selected = await requirePlatform(opts.platform);
+    const platforms = selected === "both" ? detectPlatforms() : [selected];
+
+    const kp = await requireKeypair();
+    const token = toToken(kp.publicKey);
+    const relayUrl = getRelayUrl(opts.relay);
+    const client = new TeamrcClient(relayUrl, kp.privateKey, token);
+
+    try {
+      const previewTeam = await client.previewByInvite(inviteCode);
+      const teamDef = remoteTeamToDefinition(previewTeam);
+
+      if (opts.name) {
+        validateTeamName(opts.name);
+        teamDef.name = opts.name;
+      }
+
+      // Write canonical YAML
+      writeTeamYaml("agent-team.yaml", teamDef);
+      console.log("Wrote agent-team.yaml.");
+
+      // Apply to each platform's native format
+      for (const p of platforms) {
+        console.log(`Setting up ${p}...`);
+        const adapter = getAdapter(p);
+        const scope: TeamScope = opts.scope === "project" || opts.scope === "global"
+          ? opts.scope
+          : await askScope(p);
+        adapter.writeTeam(teamDef, scope);
+        console.log(`  ${p} configured.`);
+      }
+
+      console.log(`\nCloned "${teamDef.name}" (${teamDef.members.length} agents) locally.`);
+      console.log("This is a local copy. Run `teamrc init` to create your own synced team.");
+    } catch (err) {
+      console.error("Failed to clone team:", (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+// --- invite ---
+program
+  .command("invite")
+  .description("Create an invite code for the current team")
+  .option("--ttl <hours>", "Invite expiry in hours", "24")
+  .action(async (opts: { ttl: string }) => {
+    const { client } = requireClient();
+    const ttlHours = parseInt(opts.ttl, 10);
+
+    if (isNaN(ttlHours) || ttlHours < 1) {
+      console.error("TTL must be a positive number of hours.");
+      process.exit(1);
+    }
+
+    try {
+      const result = await client.createInvite(ttlHours);
+      console.log(`\nInvite code: ${result.invite_code}`);
+      console.log(`Expires: ${result.expires_at}`);
+      console.log(`\nShare this command:\n  npx teamrc join ${result.invite_code}`);
+    } catch (err) {
+      console.error("Failed to create invite:", (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+// --- whoami ---
+program
+  .command("whoami")
+  .description("Show current identity and configuration")
+  .option("--json", "Output as JSON")
+  .action((opts: { json?: boolean }) => {
+    const config = loadConfig();
+    if (!config) {
+      if (opts.json) {
+        console.log(JSON.stringify({ error: "not initialized" }, null, 2));
+      } else {
+        console.log("teamrc is not initialized.");
+      }
+      return;
+    }
+
+    if (opts.json) {
+      console.log(JSON.stringify({
+        token: config.token.slice(0, 16) + "...",
+        machine: config.machineName ?? "unknown",
+        account: config.account?.email ?? "not linked",
+        teamId: config.teamId ?? "none",
+        relay: config.relay,
+        platform: config.platform,
+      }, null, 2));
+      return;
+    }
+
+    console.log(`Token:    ${config.token.slice(0, 16)}...`);
+    console.log(`Machine:  ${config.machineName ?? "unknown"}`);
+    console.log(`Account:  ${config.account?.email ?? "not linked"}`);
+    console.log(`Team ID:  ${config.teamId ?? "none"}`);
+    console.log(`Relay:    ${config.relay}`);
+    console.log(`Platform: ${config.platform}`);
+  });
+
+// --- log ---
+program
+  .command("log")
+  .description("Show recent sync activity")
+  .option("--limit <n>", "Number of entries to show", "20")
+  .option("--json", "Output as JSON")
+  .action(async (opts: { limit: string; json?: boolean }) => {
+    const { client } = requireClient();
+    const limit = parseInt(opts.limit, 10) || 20;
+
+    try {
+      const entries = await client.getLog();
+      const sliced = entries.slice(0, limit);
+
+      if (opts.json) {
+        console.log(JSON.stringify(sliced, null, 2));
+        return;
+      }
+
+      if (sliced.length === 0) {
+        console.log("No recent sync activity.");
+        return;
+      }
+
+      for (const entry of sliced) {
+        const pushedBy = entry.pushed_by
+          ? entry.pushed_by.length > 16
+            ? entry.pushed_by.slice(0, 16) + "..."
+            : entry.pushed_by
+          : "unknown";
+        console.log(`  ${entry.timestamp}  ${entry.type}  ${pushedBy}  ${entry.source_platform}`);
+      }
+    } catch (err) {
+      console.error("Failed to fetch log:", (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+// --- doctor ---
+program
+  .command("doctor")
+  .description("Check teamrc setup and connectivity")
+  .action(async () => {
+    let passed = 0;
+    let warnings = 0;
+    let failures = 0;
+
+    // 1. Keypair check
+    const kp = loadKeypair();
+    if (kp) {
+      console.log("[ok] Keypair found");
+      passed++;
+    } else {
+      console.log("[fail] No keypair");
+      failures++;
+    }
+
+    // 2. Config check
+    const config = loadConfig();
+    if (config) {
+      console.log("[ok] Config valid");
+      passed++;
+    } else {
+      console.log("[fail] No config");
+      failures++;
+    }
+
+    // 3. Relay reachable (only if config exists)
+    if (config) {
+      try {
+        await fetch(`${config.relay}/api/sync/check?token=test&since=0`);
+        // Any response (even 401/403) means reachable
+        console.log("[ok] Relay reachable");
+        passed++;
+      } catch {
+        console.log("[fail] Relay unreachable");
+        failures++;
+      }
+    }
+
+    // 4. agent-team.yaml check
+    const yamlTeam = readTeamYaml("agent-team.yaml");
+    if (yamlTeam) {
+      console.log("[ok] agent-team.yaml found");
+      passed++;
+    } else {
+      console.log("[warn] No agent-team.yaml");
+      warnings++;
+    }
+
+    // 5. Platform agents match
+    if (config && yamlTeam) {
+      const platform = primaryPlatform(config.platform);
+      const adapter = getAdapter(platform);
+      const platformTeam = adapter.readTeam();
+      if (platformTeam) {
+        const yamlCount = yamlTeam.members.length;
+        const platformCount = platformTeam.members.length;
+        if (yamlCount === platformCount) {
+          console.log(`[ok] ${yamlCount} agents synced`);
+          passed++;
+        } else {
+          console.log(`[warn] Mismatch: YAML has ${yamlCount}, platform has ${platformCount}`);
+          warnings++;
+        }
+      } else {
+        console.log("[warn] Mismatch: YAML has agents, platform has none");
+        warnings++;
+      }
+    }
+
+    console.log(`\n${passed} passed, ${warnings} warnings, ${failures} failures`);
+  });
+
 // --- delete ---
 program
   .command("delete")
-  .description("Remove TeamBridge from this machine")
+  .description("Remove teamrc from this machine")
   .action(async () => {
     const config = loadConfig();
     if (!config) {
-      console.log("TeamBridge is not initialized. Nothing to remove.");
+      console.log("teamrc is not initialized. Nothing to remove.");
       return;
     }
 
     const platforms = config.platform.split(",");
 
-    console.log("\nThis will remove all TeamBridge agents, config, and team knowledge from this machine.");
+    console.log("\nThis will remove all teamrc agents, config, and team knowledge from this machine.");
     console.log("Other team members will keep their setup — you're just disconnecting.\n");
     const answer = await askQuestion("Continue? [y/N]: ");
 
@@ -679,8 +983,8 @@ program
       }
     }
 
-    // Delete ~/.teambridge/ config
-    const configDir = path.join(os.homedir(), ".teambridge");
+    // Delete ~/.teamrc/ config
+    const configDir = path.join(os.homedir(), ".teamrc");
     if (fs.existsSync(configDir)) {
       fs.rmSync(configDir, { recursive: true });
       console.log(`  Deleted ${configDir}`);
@@ -692,7 +996,7 @@ program
       console.log("  Deleted agent-team.yaml");
     }
 
-    console.log("\nTeamBridge removed. Run `teambridge init` or `teambridge join` to set up again.");
+    console.log("\nteamrc removed. Run `teamrc init` or `teamrc join` to set up again.");
   });
 
 program.parse();

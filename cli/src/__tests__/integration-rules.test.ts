@@ -11,7 +11,7 @@ describe("integration: full rules/skills flow", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tb-integration-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-integration-"));
   });
 
   afterEach(() => {

@@ -2,6 +2,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import {
   sanitizeMarkerContent,
+  sanitizeText,
+  slugify,
+  escapeYamlString,
   validateAgentName,
   writeSkillDir,
   cleanupSkillDirs,
@@ -12,23 +15,8 @@ import {
 } from "./base.js";
 import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
 
-function sanitizeText(s: string): string {
-  return s.replace(/[\n\r]/g, " ").trim();
-}
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
-function escapeYamlString(s: string): string {
-  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
-}
-
 export class CursorAdapter implements PlatformAdapter {
+  readonly supportsSync = false;
   private cursorDir(): string {
     return path.join(process.cwd(), ".cursor");
   }
@@ -48,13 +36,13 @@ export class CursorAdapter implements PlatformAdapter {
   private listTbRules(): string[] {
     const dir = this.rulesDir();
     if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir).filter((f) => f.startsWith("tb-") && f.endsWith(".mdc"));
+    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".mdc"));
   }
 
   private listTbAgentFiles(): string[] {
     const dir = this.agentsDir();
     if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir).filter((f) => f.startsWith("tb-") && f.endsWith(".md"));
+    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".md"));
   }
 
   readTeam(): TeamDefinition | null {
@@ -90,7 +78,7 @@ export class CursorAdapter implements PlatformAdapter {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     const slug = slugify(member.name);
-    const filePath = path.join(dir, `tb-${slug}.md`);
+    const filePath = path.join(dir, `trc-${slug}.md`);
 
     const safeName = sanitizeText(member.name);
     const safeRole = sanitizeText(member.role);
@@ -157,7 +145,7 @@ export class CursorAdapter implements PlatformAdapter {
     const body = bodyParts.join("\n").trim();
 
     const content = `---
-name: tb-${slug}
+name: trc-${slug}
 description: "${escapeYamlString(safeRole)} on the ${escapeYamlString(safeTeamName)} team. Use when tasks relate to ${escapeYamlString(safeRole.toLowerCase())}."
 ---
 
@@ -171,7 +159,7 @@ ${body}
     const dir = this.rulesDir();
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    const fileName = `tb-${rule.id}.mdc`;
+    const fileName = `trc-${rule.id}.mdc`;
     const filePath = path.join(dir, fileName);
 
     const description = JSON.stringify((rule.title || rule.id).replace(/[\n\r]/g, " "));
@@ -195,15 +183,15 @@ ${body}
     if (!fs.existsSync(cursorDir)) fs.mkdirSync(cursorDir, { recursive: true });
 
     const agentsMdPath = path.join(cursorDir, "AGENTS.md");
-    const marker = "<!-- teambridge -->";
-    const markerEnd = "<!-- /teambridge -->";
+    const marker = "<!-- teamrc -->";
+    const markerEnd = "<!-- /teamrc -->";
 
     const sections = [`# Team: ${sanitizeMarkerContent(team.name)}`, ""];
     sections.push("You have access to specialized subagents. Delegate tasks to the right specialist.", "");
 
     for (const member of team.members) {
       const slug = slugify(member.name);
-      sections.push(`## ${sanitizeMarkerContent(member.name)} (\`tb-${slug}\`)`, "");
+      sections.push(`## ${sanitizeMarkerContent(member.name)} (\`trc-${slug}\`)`, "");
       sections.push(`**Role:** ${sanitizeMarkerContent(member.role)}`, "");
 
       const agentRules = resolveAgentRules(member, team);
@@ -246,6 +234,7 @@ ${body}
   watchPaths(): string[] { return []; }
   writeFile(_key: string, _content: string): void {}
   readFile(_key: string): string | null { return null; }
+  getFileMtime(_key: string): number { return 0; }
   uninstall(): string[] {
     const actions: string[] = [];
 
@@ -264,28 +253,28 @@ ${body}
       fs.unlinkSync(path.join(this.rulesDir(), f));
     }
     if (tbRules.length > 0) {
-      actions.push(`Deleted ${tbRules.length} TeamBridge cursor rule(s)`);
+      actions.push(`Deleted ${tbRules.length} teamrc cursor rule(s)`);
     }
 
     // Clean up skill directories
     const skillCount = cleanupSkillDirs(this.skillsDir());
     if (skillCount > 0) {
-      actions.push(`Deleted ${skillCount} TeamBridge cursor skill(s)`);
+      actions.push(`Deleted ${skillCount} teamrc cursor skill(s)`);
     }
 
     // Clean up AGENTS.md marker block
     const agentsMdPath = path.join(this.cursorDir(), "AGENTS.md");
     if (fs.existsSync(agentsMdPath)) {
       const content = fs.readFileSync(agentsMdPath, "utf-8");
-      const marker = "<!-- teambridge -->";
-      const markerEnd = "<!-- /teambridge -->";
+      const marker = "<!-- teamrc -->";
+      const markerEnd = "<!-- /teamrc -->";
       const regex = new RegExp(
         `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
       );
       const cleaned = content.replace(regex, "\n");
       if (cleaned !== content) {
         fs.writeFileSync(agentsMdPath, cleaned.trimEnd() + "\n");
-        actions.push("Removed TeamBridge section from .cursor/AGENTS.md");
+        actions.push("Removed teamrc section from .cursor/AGENTS.md");
       }
     }
 

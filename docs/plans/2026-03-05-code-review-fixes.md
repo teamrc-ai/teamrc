@@ -2,39 +2,39 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Fix all issues from the code review: rename app to `:teambridge`, consolidate directories, fix API contracts, persist token mappings, and targeted bug fixes.
+**Goal:** Fix all issues from the code review: rename app to `:teamrc`, consolidate directories, fix API contracts, persist token mappings, and targeted bug fixes.
 
-**Architecture:** The Elixir app name changes from `:relay` to `:teambridge`. All files under `lib/relay_web/` and `lib/relay/` move to `lib/teambridge_web/` and `lib/teambridge/`. Tests follow. The CLI renames `RelayClient`/`RelayTeam` to `TeamBridgeClient`/`TeamBridgeTeam`. API response shapes are aligned between server and client. Token-to-team mappings get persisted to Postgres.
+**Architecture:** The Elixir app name changes from `:relay` to `:teamrc`. All files under `lib/relay_web/` and `lib/relay/` move to `lib/teamrc_web/` and `lib/teamrc/`. Tests follow. The CLI renames `RelayClient`/`RelayTeam` to `TeamrcClient`/`teamrcTeam`. API response shapes are aligned between server and client. Token-to-team mappings get persisted to Postgres.
 
 **Tech Stack:** Elixir/Phoenix 1.8, Ecto, PostgreSQL, TypeScript/Node.js CLI
 
 ---
 
-### Task 1: Move Elixir files from relay_web/ and relay/ to teambridge_web/ and teambridge/
+### Task 1: Move Elixir files from relay_web/ and relay/ to teamrc_web/ and teamrc/
 
 This task moves files only. No content changes yet.
 
 **Files:**
-- Move: `relay/lib/relay_web.ex` -> `relay/lib/teambridge_web.ex`
-- Move: `relay/lib/relay.ex` -> `relay/lib/teambridge.ex`
-- Move: `relay/lib/relay/application.ex` -> `relay/lib/teambridge/application.ex`
-- Move: `relay/lib/relay_web/endpoint.ex` -> `relay/lib/teambridge_web/endpoint.ex`
-- Move: `relay/lib/relay_web/router.ex` -> `relay/lib/teambridge_web/router.ex`
-- Move: `relay/lib/relay_web/telemetry.ex` -> `relay/lib/teambridge_web/telemetry.ex`
-- Move: `relay/lib/relay_web/gettext.ex` -> `relay/lib/teambridge_web/gettext.ex`
-- Move: `relay/lib/relay_web/controllers/error_json.ex` -> `relay/lib/teambridge_web/controllers/error_json.ex`
-- Move: `relay/lib/relay_web/controllers/error_html.ex` -> `relay/lib/teambridge_web/controllers/error_html.ex`
-- Move: `relay/lib/relay_web/controllers/page_controller.ex` -> `relay/lib/teambridge_web/controllers/page_controller.ex`
-- Move: `relay/lib/relay_web/controllers/page_html.ex` -> `relay/lib/teambridge_web/controllers/page_html.ex`
-- Move: `relay/lib/relay_web/controllers/page_html/home.html.heex` -> `relay/lib/teambridge_web/controllers/page_html/home.html.heex`
-- Move: `relay/lib/relay_web/components/core_components.ex` -> `relay/lib/teambridge_web/components/core_components.ex`
-- Move: `relay/lib/relay_web/components/layouts.ex` -> `relay/lib/teambridge_web/components/layouts.ex`
-- Move: `relay/lib/relay_web/components/layouts/root.html.heex` -> `relay/lib/teambridge_web/components/layouts/root.html.heex`
-- Move: `relay/lib/relay_web/live/team_live.ex` -> `relay/lib/teambridge_web/live/team_live.ex`
-- Move: `relay/test/relay_web/controllers/error_json_test.exs` -> `relay/test/teambridge_web/controllers/error_json_test.exs`
-- Move: `relay/test/relay_web/controllers/error_html_test.exs` -> `relay/test/teambridge_web/controllers/error_html_test.exs`
-- Move: `relay/test/relay_web/controllers/page_controller_test.exs` -> `relay/test/teambridge_web/controllers/page_controller_test.exs`
-- Move: `relay/test/relay_web/live/team_live_test.exs` -> `relay/test/teambridge_web/live/team_live_test.exs`
+- Move: `relay/lib/relay_web.ex` -> `relay/lib/teamrc_web.ex`
+- Move: `relay/lib/relay.ex` -> `relay/lib/teamrc.ex`
+- Move: `relay/lib/relay/application.ex` -> `relay/lib/teamrc/application.ex`
+- Move: `relay/lib/relay_web/endpoint.ex` -> `relay/lib/teamrc_web/endpoint.ex`
+- Move: `relay/lib/relay_web/router.ex` -> `relay/lib/teamrc_web/router.ex`
+- Move: `relay/lib/relay_web/telemetry.ex` -> `relay/lib/teamrc_web/telemetry.ex`
+- Move: `relay/lib/relay_web/gettext.ex` -> `relay/lib/teamrc_web/gettext.ex`
+- Move: `relay/lib/relay_web/controllers/error_json.ex` -> `relay/lib/teamrc_web/controllers/error_json.ex`
+- Move: `relay/lib/relay_web/controllers/error_html.ex` -> `relay/lib/teamrc_web/controllers/error_html.ex`
+- Move: `relay/lib/relay_web/controllers/page_controller.ex` -> `relay/lib/teamrc_web/controllers/page_controller.ex`
+- Move: `relay/lib/relay_web/controllers/page_html.ex` -> `relay/lib/teamrc_web/controllers/page_html.ex`
+- Move: `relay/lib/relay_web/controllers/page_html/home.html.heex` -> `relay/lib/teamrc_web/controllers/page_html/home.html.heex`
+- Move: `relay/lib/relay_web/components/core_components.ex` -> `relay/lib/teamrc_web/components/core_components.ex`
+- Move: `relay/lib/relay_web/components/layouts.ex` -> `relay/lib/teamrc_web/components/layouts.ex`
+- Move: `relay/lib/relay_web/components/layouts/root.html.heex` -> `relay/lib/teamrc_web/components/layouts/root.html.heex`
+- Move: `relay/lib/relay_web/live/team_live.ex` -> `relay/lib/teamrc_web/live/team_live.ex`
+- Move: `relay/test/relay_web/controllers/error_json_test.exs` -> `relay/test/teamrc_web/controllers/error_json_test.exs`
+- Move: `relay/test/relay_web/controllers/error_html_test.exs` -> `relay/test/teamrc_web/controllers/error_html_test.exs`
+- Move: `relay/test/relay_web/controllers/page_controller_test.exs` -> `relay/test/teamrc_web/controllers/page_controller_test.exs`
+- Move: `relay/test/relay_web/live/team_live_test.exs` -> `relay/test/teamrc_web/live/team_live_test.exs`
 - Delete: empty `relay/lib/relay/`, `relay/lib/relay_web/`, `relay/test/relay_web/`
 
 **Step 1: Create target directories and move files**
@@ -43,35 +43,35 @@ This task moves files only. No content changes yet.
 cd /Users/benjamincates/Dev/agent-sync/relay
 
 # Create target directories
-mkdir -p lib/teambridge_web/controllers/page_html
-mkdir -p lib/teambridge_web/components/layouts
-mkdir -p lib/teambridge_web/live
-mkdir -p test/teambridge_web/controllers
-mkdir -p test/teambridge_web/live
+mkdir -p lib/teamrc_web/controllers/page_html
+mkdir -p lib/teamrc_web/components/layouts
+mkdir -p lib/teamrc_web/live
+mkdir -p test/teamrc_web/controllers
+mkdir -p test/teamrc_web/live
 
 # Move lib files
-mv lib/relay_web.ex lib/teambridge_web.ex
-mv lib/relay.ex lib/teambridge.ex
-mv lib/relay/application.ex lib/teambridge/application.ex
-mv lib/relay_web/endpoint.ex lib/teambridge_web/endpoint.ex
-mv lib/relay_web/router.ex lib/teambridge_web/router.ex
-mv lib/relay_web/telemetry.ex lib/teambridge_web/telemetry.ex
-mv lib/relay_web/gettext.ex lib/teambridge_web/gettext.ex
-mv lib/relay_web/controllers/error_json.ex lib/teambridge_web/controllers/error_json.ex
-mv lib/relay_web/controllers/error_html.ex lib/teambridge_web/controllers/error_html.ex
-mv lib/relay_web/controllers/page_controller.ex lib/teambridge_web/controllers/page_controller.ex
-mv lib/relay_web/controllers/page_html.ex lib/teambridge_web/controllers/page_html.ex
-mv lib/relay_web/controllers/page_html/home.html.heex lib/teambridge_web/controllers/page_html/home.html.heex
-mv lib/relay_web/components/core_components.ex lib/teambridge_web/components/core_components.ex
-mv lib/relay_web/components/layouts.ex lib/teambridge_web/components/layouts.ex
-mv lib/relay_web/components/layouts/root.html.heex lib/teambridge_web/components/layouts/root.html.heex
-mv lib/relay_web/live/team_live.ex lib/teambridge_web/live/team_live.ex
+mv lib/relay_web.ex lib/teamrc_web.ex
+mv lib/relay.ex lib/teamrc.ex
+mv lib/relay/application.ex lib/teamrc/application.ex
+mv lib/relay_web/endpoint.ex lib/teamrc_web/endpoint.ex
+mv lib/relay_web/router.ex lib/teamrc_web/router.ex
+mv lib/relay_web/telemetry.ex lib/teamrc_web/telemetry.ex
+mv lib/relay_web/gettext.ex lib/teamrc_web/gettext.ex
+mv lib/relay_web/controllers/error_json.ex lib/teamrc_web/controllers/error_json.ex
+mv lib/relay_web/controllers/error_html.ex lib/teamrc_web/controllers/error_html.ex
+mv lib/relay_web/controllers/page_controller.ex lib/teamrc_web/controllers/page_controller.ex
+mv lib/relay_web/controllers/page_html.ex lib/teamrc_web/controllers/page_html.ex
+mv lib/relay_web/controllers/page_html/home.html.heex lib/teamrc_web/controllers/page_html/home.html.heex
+mv lib/relay_web/components/core_components.ex lib/teamrc_web/components/core_components.ex
+mv lib/relay_web/components/layouts.ex lib/teamrc_web/components/layouts.ex
+mv lib/relay_web/components/layouts/root.html.heex lib/teamrc_web/components/layouts/root.html.heex
+mv lib/relay_web/live/team_live.ex lib/teamrc_web/live/team_live.ex
 
 # Move test files
-mv test/relay_web/controllers/error_json_test.exs test/teambridge_web/controllers/error_json_test.exs
-mv test/relay_web/controllers/error_html_test.exs test/teambridge_web/controllers/error_html_test.exs
-mv test/relay_web/controllers/page_controller_test.exs test/teambridge_web/controllers/page_controller_test.exs
-mv test/relay_web/live/team_live_test.exs test/teambridge_web/live/team_live_test.exs
+mv test/relay_web/controllers/error_json_test.exs test/teamrc_web/controllers/error_json_test.exs
+mv test/relay_web/controllers/error_html_test.exs test/teamrc_web/controllers/error_html_test.exs
+mv test/relay_web/controllers/page_controller_test.exs test/teamrc_web/controllers/page_controller_test.exs
+mv test/relay_web/live/team_live_test.exs test/teamrc_web/live/team_live_test.exs
 
 # Remove empty directories
 rm -rf lib/relay lib/relay_web test/relay_web
@@ -81,97 +81,97 @@ rm -rf lib/relay lib/relay_web test/relay_web
 
 ```bash
 git add -A
-git commit -m "refactor: move files from relay_web/ to teambridge_web/"
+git commit -m "refactor: move files from relay_web/ to teamrc_web/"
 ```
 
 ---
 
-### Task 2: Rename app from :relay to :teambridge in all Elixir config and source files
+### Task 2: Rename app from :relay to :teamrc in all Elixir config and source files
 
 **Files:**
 - Modify: `relay/mix.exs` — app name, esbuild/tailwind keys, aliases
-- Modify: `relay/config/config.exs` — all `config :relay` -> `config :teambridge`
-- Modify: `relay/config/dev.exs` — all `config :relay` -> `config :teambridge`, watcher keys, live_reload patterns
-- Modify: `relay/config/test.exs` — all `config :relay` -> `config :teambridge`
-- Modify: `relay/config/prod.exs` — all `config :relay` -> `config :teambridge`
-- Modify: `relay/config/runtime.exs` — all `config :relay` -> `config :teambridge`
-- Modify: `relay/lib/teambridge_web/endpoint.ex` — `otp_app: :relay` -> `otp_app: :teambridge`, `from: :relay` -> `from: :teambridge`
-- Modify: `relay/lib/teambridge/repo.ex` — `otp_app: :relay` -> `otp_app: :teambridge`
-- Modify: `relay/lib/teambridge_web/plugs/verify_signature.ex` — `Application.get_env(:relay,` -> `Application.get_env(:teambridge,`
-- Modify: `relay/lib/teambridge_web/plugs/cors.ex` — `Application.get_env(:relay,` -> `Application.get_env(:teambridge,`
-- Modify: `relay/assets/css/app.css` — `@source "../../lib/relay_web"` -> `@source "../../lib/teambridge_web"`
-- Modify: `relay/assets/js/app.js` — `phoenix-colocated/relay` -> `phoenix-colocated/teambridge`
+- Modify: `relay/config/config.exs` — all `config :relay` -> `config :teamrc`
+- Modify: `relay/config/dev.exs` — all `config :relay` -> `config :teamrc`, watcher keys, live_reload patterns
+- Modify: `relay/config/test.exs` — all `config :relay` -> `config :teamrc`
+- Modify: `relay/config/prod.exs` — all `config :relay` -> `config :teamrc`
+- Modify: `relay/config/runtime.exs` — all `config :relay` -> `config :teamrc`
+- Modify: `relay/lib/teamrc_web/endpoint.ex` — `otp_app: :relay` -> `otp_app: :teamrc`, `from: :relay` -> `from: :teamrc`
+- Modify: `relay/lib/teamrc/repo.ex` — `otp_app: :relay` -> `otp_app: :teamrc`
+- Modify: `relay/lib/teamrc_web/plugs/verify_signature.ex` — `Application.get_env(:relay,` -> `Application.get_env(:teamrc,`
+- Modify: `relay/lib/teamrc_web/plugs/cors.ex` — `Application.get_env(:relay,` -> `Application.get_env(:teamrc,`
+- Modify: `relay/assets/css/app.css` — `@source "../../lib/relay_web"` -> `@source "../../lib/teamrc_web"`
+- Modify: `relay/assets/js/app.js` — `phoenix-colocated/relay` -> `phoenix-colocated/teamrc`
 
 **Step 1: Update mix.exs**
 
 In `relay/mix.exs`, make these changes:
-- Line 6: `app: :relay` -> `app: :teambridge`
-- Line 80: `"assets.build": ["compile", "tailwind relay", "esbuild relay"]` -> `"assets.build": ["compile", "tailwind teambridge", "esbuild teambridge"]`
-- Line 82-84: `"tailwind relay --minify"` -> `"tailwind teambridge --minify"`, `"esbuild relay --minify"` -> `"esbuild teambridge --minify"`
+- Line 6: `app: :relay` -> `app: :teamrc`
+- Line 80: `"assets.build": ["compile", "tailwind relay", "esbuild relay"]` -> `"assets.build": ["compile", "tailwind teamrc", "esbuild teamrc"]`
+- Line 82-84: `"tailwind relay --minify"` -> `"tailwind teamrc --minify"`, `"esbuild relay --minify"` -> `"esbuild teamrc --minify"`
 
 **Step 2: Update config/config.exs**
 
-Replace all occurrences of `config :relay` with `config :teambridge`. There are 3 occurrences (lines 10, 16, and the esbuild/tailwind sections).
+Replace all occurrences of `config :relay` with `config :teamrc`. There are 3 occurrences (lines 10, 16, and the esbuild/tailwind sections).
 
-In esbuild config (line 29): `relay:` -> `teambridge:`
-In tailwind config (line 39): `relay:` -> `teambridge:`
+In esbuild config (line 29): `relay:` -> `teamrc:`
+In tailwind config (line 39): `relay:` -> `teamrc:`
 
 **Step 3: Update config/dev.exs**
 
-Replace all `config :relay` with `config :teambridge` (lines 3, 19, 56, 71).
-Line 28: `[:relay, ~w(--sourcemap=inline --watch)]` -> `[:teambridge, ~w(--sourcemap=inline --watch)]`
-Line 29: `[:relay, ~w(--watch)]` -> `[:teambridge, ~w(--watch)]`
-Lines 65-66: `~r"lib/relay_web/router\.ex$"` -> `~r"lib/teambridge_web/router\.ex$"`, `~r"lib/relay_web/(controllers|live|components)/.*\.(ex|heex)$"` -> `~r"lib/teambridge_web/(controllers|live|components)/.*\.(ex|heex)$"`
+Replace all `config :relay` with `config :teamrc` (lines 3, 19, 56, 71).
+Line 28: `[:relay, ~w(--sourcemap=inline --watch)]` -> `[:teamrc, ~w(--sourcemap=inline --watch)]`
+Line 29: `[:relay, ~w(--watch)]` -> `[:teamrc, ~w(--watch)]`
+Lines 65-66: `~r"lib/relay_web/router\.ex$"` -> `~r"lib/teamrc_web/router\.ex$"`, `~r"lib/relay_web/(controllers|live|components)/.*\.(ex|heex)$"` -> `~r"lib/teamrc_web/(controllers|live|components)/.*\.(ex|heex)$"`
 
 **Step 4: Update config/test.exs**
 
-Replace all `config :relay` with `config :teambridge` (lines 3, 14, 21).
+Replace all `config :relay` with `config :teamrc` (lines 3, 14, 21).
 
 **Step 5: Update config/prod.exs**
 
-Read file first, then replace `config :relay` with `config :teambridge`.
+Read file first, then replace `config :relay` with `config :teamrc`.
 
 **Step 6: Update config/runtime.exs**
 
-Replace all `config :relay` with `config :teambridge` (lines 20, 23, 34, 53, 55, and comments).
+Replace all `config :relay` with `config :teamrc` (lines 20, 23, 34, 53, 55, and comments).
 
 **Step 7: Update endpoint.ex**
 
-In `relay/lib/teambridge_web/endpoint.ex`:
-- Line 2: `otp_app: :relay` -> `otp_app: :teambridge`
-- Line 26: `from: :relay` -> `from: :teambridge`
+In `relay/lib/teamrc_web/endpoint.ex`:
+- Line 2: `otp_app: :relay` -> `otp_app: :teamrc`
+- Line 26: `from: :relay` -> `from: :teamrc`
 
 **Step 8: Update repo.ex**
 
-In `relay/lib/teambridge/repo.ex`:
-- Line 3: `otp_app: :relay` -> `otp_app: :teambridge`
+In `relay/lib/teamrc/repo.ex`:
+- Line 3: `otp_app: :relay` -> `otp_app: :teamrc`
 
 **Step 9: Update verify_signature.ex**
 
-In `relay/lib/teambridge_web/plugs/verify_signature.ex`:
-- Line 40: `Application.get_env(:relay, :skip_auth, false)` -> `Application.get_env(:teambridge, :skip_auth, false)`
+In `relay/lib/teamrc_web/plugs/verify_signature.ex`:
+- Line 40: `Application.get_env(:relay, :skip_auth, false)` -> `Application.get_env(:teamrc, :skip_auth, false)`
 
 **Step 10: Update cors.ex**
 
-In `relay/lib/teambridge_web/plugs/cors.ex`:
-- Line 14: `Application.get_env(:relay, :cors_origins, [])` -> `Application.get_env(:teambridge, :cors_origins, [])`
+In `relay/lib/teamrc_web/plugs/cors.ex`:
+- Line 14: `Application.get_env(:relay, :cors_origins, [])` -> `Application.get_env(:teamrc, :cors_origins, [])`
 
 **Step 11: Update verify_signature_test.exs**
 
-In `relay/test/teambridge_web/plugs/verify_signature_test.exs`:
-- Line 8: `Application.get_env(:relay, :skip_auth, false)` -> `Application.get_env(:teambridge, :skip_auth, false)`
-- Line 9: `Application.put_env(:relay, :skip_auth, false)` -> `Application.put_env(:teambridge, :skip_auth, false)`
-- Line 10: `Application.put_env(:relay, :skip_auth, original)` -> `Application.put_env(:teambridge, :skip_auth, original)`
+In `relay/test/teamrc_web/plugs/verify_signature_test.exs`:
+- Line 8: `Application.get_env(:relay, :skip_auth, false)` -> `Application.get_env(:teamrc, :skip_auth, false)`
+- Line 9: `Application.put_env(:relay, :skip_auth, false)` -> `Application.put_env(:teamrc, :skip_auth, false)`
+- Line 10: `Application.put_env(:relay, :skip_auth, original)` -> `Application.put_env(:teamrc, :skip_auth, original)`
 
 **Step 12: Update app.css**
 
 In `relay/assets/css/app.css`:
-- Line 7: `@source "../../lib/relay_web"` -> `@source "../../lib/teambridge_web"`
+- Line 7: `@source "../../lib/relay_web"` -> `@source "../../lib/teamrc_web"`
 
 **Step 13: Update app.js**
 
 In `relay/assets/js/app.js`:
-- Line 25: `import {hooks as colocatedHooks} from "phoenix-colocated/relay"` -> `import {hooks as colocatedHooks} from "phoenix-colocated/teambridge"`
+- Line 25: `import {hooks as colocatedHooks} from "phoenix-colocated/relay"` -> `import {hooks as colocatedHooks} from "phoenix-colocated/teamrc"`
 
 **Step 14: Verify compilation**
 
@@ -185,7 +185,7 @@ Expected: compiles with no errors.
 
 ```bash
 git add -A
-git commit -m "refactor: rename OTP app from :relay to :teambridge"
+git commit -m "refactor: rename OTP app from :relay to :teamrc"
 ```
 
 ---
@@ -194,15 +194,15 @@ git commit -m "refactor: rename OTP app from :relay to :teambridge"
 
 **Files:**
 - Create: `relay/priv/repo/migrations/20260305000002_create_token_teams.exs`
-- Create: `relay/lib/teambridge/schema/token_team.ex`
-- Modify: `relay/lib/teambridge/teams.ex` — load token_teams on init, persist on put_team/join_by_invite
+- Create: `relay/lib/teamrc/schema/token_team.ex`
+- Modify: `relay/lib/teamrc/teams.ex` — load token_teams on init, persist on put_team/join_by_invite
 
 **Step 1: Create migration**
 
 Create `relay/priv/repo/migrations/20260305000002_create_token_teams.exs`:
 
 ```elixir
-defmodule Teambridge.Repo.Migrations.CreateTokenTeams do
+defmodule Teamrc.Repo.Migrations.CreateTokenTeams do
   use Ecto.Migration
 
   def change do
@@ -222,10 +222,10 @@ end
 
 **Step 2: Create schema**
 
-Create `relay/lib/teambridge/schema/token_team.ex`:
+Create `relay/lib/teamrc/schema/token_team.ex`:
 
 ```elixir
-defmodule Teambridge.Schema.TokenTeam do
+defmodule Teamrc.Schema.TokenTeam do
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -233,7 +233,7 @@ defmodule Teambridge.Schema.TokenTeam do
 
   schema "token_teams" do
     field :token, :string
-    belongs_to :team, Teambridge.Schema.Team, type: :binary_id
+    belongs_to :team, Teamrc.Schema.Team, type: :binary_id
 
     timestamps(type: :utc_datetime)
   end
@@ -249,11 +249,11 @@ end
 
 **Step 3: Update Teams GenServer — add alias and update init**
 
-In `relay/lib/teambridge/teams.ex`:
+In `relay/lib/teamrc/teams.ex`:
 
 Add to the aliases at line 6:
 ```elixir
-alias Teambridge.Schema.{Team, Member, Invite, TokenTeam}
+alias Teamrc.Schema.{Team, Member, Invite, TokenTeam}
 ```
 
 Replace `init/1` (lines 84-97) with:
@@ -361,7 +361,7 @@ Expected: migration runs successfully.
 **Step 8: Run tests**
 
 ```bash
-cd /Users/benjamincates/Dev/agent-sync/relay && mix test test/teambridge/teams_test.exs
+cd /Users/benjamincates/Dev/agent-sync/relay && mix test test/teamrc/teams_test.exs
 ```
 
 Expected: all tests pass.
@@ -378,10 +378,10 @@ git commit -m "feat: persist token-to-team mappings in Postgres"
 ### Task 4: Add team ID to team_to_map and fix API response shapes
 
 **Files:**
-- Modify: `relay/lib/teambridge/teams.ex:391-400` — add `"id"` to team_to_map
-- Modify: `relay/lib/teambridge_web/controllers/api_controller.ex:17-31` — fix create_team response
-- Modify: `relay/test/teambridge_web/controllers/api_controller_test.exs` — update assertion
-- Modify: `relay/test/teambridge_web/plugs/verify_signature_test.exs:44-47` — update assertion
+- Modify: `relay/lib/teamrc/teams.ex:391-400` — add `"id"` to team_to_map
+- Modify: `relay/lib/teamrc_web/controllers/api_controller.ex:17-31` — fix create_team response
+- Modify: `relay/test/teamrc_web/controllers/api_controller_test.exs` — update assertion
+- Modify: `relay/test/teamrc_web/plugs/verify_signature_test.exs:44-47` — update assertion
 
 **Step 1: Update team_to_map in teams.ex**
 
@@ -423,7 +423,7 @@ end
 
 **Step 3: Update api_controller_test.exs create_team assertion**
 
-In `relay/test/teambridge_web/controllers/api_controller_test.exs`, line 14:
+In `relay/test/teamrc_web/controllers/api_controller_test.exs`, line 14:
 Replace:
 ```elixir
 assert resp["status"] == "ok"
@@ -437,7 +437,7 @@ assert resp["team"]["id"]
 
 **Step 4: Update verify_signature_test.exs create_team assertion**
 
-In `relay/test/teambridge_web/plugs/verify_signature_test.exs`, lines 44-46:
+In `relay/test/teamrc_web/plugs/verify_signature_test.exs`, lines 44-46:
 Replace:
 ```elixir
 resp = json_response(conn, 201)
@@ -471,11 +471,11 @@ git commit -m "fix: add team ID to API responses and fix create_team shape"
 ### Task 5: Update Invite changeset to accept claimed fields
 
 **Files:**
-- Modify: `relay/lib/teambridge/schema/invite.ex:19` — add claimed fields to cast
+- Modify: `relay/lib/teamrc/schema/invite.ex:19` — add claimed fields to cast
 
 **Step 1: Update invite changeset**
 
-In `relay/lib/teambridge/schema/invite.ex`, replace line 19:
+In `relay/lib/teamrc/schema/invite.ex`, replace line 19:
 ```elixir
 |> cast(attrs, [:code, :expires_at, :team_id])
 ```
@@ -504,7 +504,7 @@ git commit -m "fix: allow invite changeset to track claim data"
 ### Task 6: Harden String.to_existing_atom in TeamLive
 
 **Files:**
-- Modify: `relay/lib/teambridge_web/live/team_live.ex:121-131`
+- Modify: `relay/lib/teamrc_web/live/team_live.ex:121-131`
 
 **Step 1: Replace handle_event("update_member")**
 
@@ -536,7 +536,7 @@ end
 **Step 2: Run tests**
 
 ```bash
-cd /Users/benjamincates/Dev/agent-sync/relay && mix test test/teambridge_web/live/team_live_test.exs
+cd /Users/benjamincates/Dev/agent-sync/relay && mix test test/teamrc_web/live/team_live_test.exs
 ```
 
 Expected: all tests pass.
@@ -553,11 +553,11 @@ git commit -m "fix: harden field atom conversion in TeamLive"
 ### Task 7: Fix Process.sleep in teams_test.exs
 
 **Files:**
-- Modify: `relay/test/teambridge/teams_test.exs:89`
+- Modify: `relay/test/teamrc/teams_test.exs:89`
 
 **Step 1: Replace Process.sleep with :sys.get_state**
 
-In `relay/test/teambridge/teams_test.exs`, replace line 89:
+In `relay/test/teamrc/teams_test.exs`, replace line 89:
 ```elixir
 Process.sleep(50)
 ```
@@ -569,7 +569,7 @@ _ = :sys.get_state(pid)
 **Step 2: Run test**
 
 ```bash
-cd /Users/benjamincates/Dev/agent-sync/relay && mix test test/teambridge/teams_test.exs
+cd /Users/benjamincates/Dev/agent-sync/relay && mix test test/teamrc/teams_test.exs
 ```
 
 Expected: all tests pass.
@@ -601,14 +601,14 @@ mv src/relay-client.ts src/client.ts
 **Step 2: Rename types in client.ts**
 
 In `cli/src/client.ts`:
-- Replace all `RelayTeam` with `TeamBridgeTeam` (lines 3, 57, 77, 82-83, 87, 98)
-- Replace `RelayClient` with `TeamBridgeClient` (line 19)
-- Line 77: change `const data = (await res.json()) as { data: TeamBridgeTeam };` to `const data = (await res.json()) as { team: TeamBridgeTeam };`
+- Replace all `RelayTeam` with `teamrcTeam` (lines 3, 57, 77, 82-83, 87, 98)
+- Replace `RelayClient` with `TeamrcClient` (line 19)
+- Line 77: change `const data = (await res.json()) as { data: teamrcTeam };` to `const data = (await res.json()) as { team: teamrcTeam };`
 - Line 78: change `return data.data;` to `return data.team;`
 
 The full updated file should have these type names:
 ```typescript
-export interface TeamBridgeTeam {
+export interface teamrcTeam {
   id: string;
   name: string;
   members: Array<{ name: string; role: string; platform: string }>;
@@ -617,23 +617,23 @@ export interface TeamBridgeTeam {
 
 // ... SyncChange and SyncResult stay the same ...
 
-export class TeamBridgeClient {
+export class TeamrcClient {
   // ... all method bodies stay the same except createTeam:
 
-  async createTeam(...): Promise<TeamBridgeTeam> {
+  async createTeam(...): Promise<teamrcTeam> {
     // ...
-    const data = (await res.json()) as { team: TeamBridgeTeam };
+    const data = (await res.json()) as { team: teamrcTeam };
     return data.team;
   }
 
-  async getTeam(token: string): Promise<TeamBridgeTeam> {
-    const data = await this.signedGet<{ team: TeamBridgeTeam }>(`/api/teams/${token}`);
+  async getTeam(token: string): Promise<teamrcTeam> {
+    const data = await this.signedGet<{ team: teamrcTeam }>(`/api/teams/${token}`);
     return data.team;
   }
 
-  async joinByInvite(inviteCode: string): Promise<TeamBridgeTeam> {
+  async joinByInvite(inviteCode: string): Promise<teamrcTeam> {
     // ...
-    const data = (await res.json()) as { team: TeamBridgeTeam };
+    const data = (await res.json()) as { team: teamrcTeam };
     return data.team;
   }
 }
@@ -642,22 +642,22 @@ export class TeamBridgeClient {
 **Step 3: Update imports in index.ts**
 
 In `cli/src/index.ts`:
-- Line 12: change `import { RelayClient } from "./relay-client.js";` to `import { TeamBridgeClient } from "./client.js";`
-- All occurrences of `new RelayClient(` -> `new TeamBridgeClient(` (lines 180, 227, 444)
+- Line 12: change `import { RelayClient } from "./relay-client.js";` to `import { TeamrcClient } from "./client.js";`
+- All occurrences of `new RelayClient(` -> `new TeamrcClient(` (lines 180, 227, 444)
 - Line 306 (`diff` command): change `client.getTeam(config.teamId)` to `client.getTeam(config.token)`
 - Line 446 (`status` command): change `client.getTeam(config.teamId)` to `client.getTeam(config.token)`
 
 **Step 4: Update imports in daemon.ts**
 
 In `cli/src/daemon.ts`:
-- Line 5: change `import type { RelayClient, SyncChange } from "./relay-client.js";` to `import type { TeamBridgeClient, SyncChange } from "./client.js";`
-- Line 13 and everywhere `RelayClient` is used as a type: change to `TeamBridgeClient`
+- Line 5: change `import type { RelayClient, SyncChange } from "./relay-client.js";` to `import type { TeamrcClient, SyncChange } from "./client.js";`
+- Line 13 and everywhere `RelayClient` is used as a type: change to `TeamrcClient`
 
 The `DaemonOptions` interface (line 12) becomes:
 ```typescript
 export interface DaemonOptions {
   adapter: PlatformAdapter;
-  client: TeamBridgeClient;
+  client: TeamrcClient;
   platform: string;
   pollInterval?: number;
 }
@@ -666,8 +666,8 @@ export interface DaemonOptions {
 **Step 5: Update imports in daemon.test.ts**
 
 In `cli/src/__tests__/daemon.test.ts`:
-- Line 8: change `import type { RelayClient } from "../relay-client.js";` to `import type { TeamBridgeClient } from "../client.js";`
-- Line 52: change `}): RelayClient & { calls: ... }` to `}): TeamBridgeClient & { calls: ... }`
+- Line 8: change `import type { RelayClient } from "../relay-client.js";` to `import type { TeamrcClient } from "../client.js";`
+- Line 52: change `}): RelayClient & { calls: ... }` to `}): TeamrcClient & { calls: ... }`
 - Line 68: change `} as unknown as ReturnType<typeof createMockClient>;` — this stays the same since it's cast
 
 **Step 6: Run CLI tests**
@@ -682,7 +682,7 @@ Expected: all tests pass.
 
 ```bash
 git add -A
-git commit -m "refactor: rename RelayClient/RelayTeam to TeamBridgeClient/TeamBridgeTeam"
+git commit -m "refactor: rename RelayClient/RelayTeam to TeamrcClient/teamrcTeam"
 ```
 
 ---

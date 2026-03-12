@@ -2,11 +2,12 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 
-export interface TeambridgeConfig {
+export interface TeamrcConfig {
   platform: string;
   relay: string;
   token: string;
   teamId?: string;
+  noSync?: boolean;
   account?: {
     email: string;
   };
@@ -14,27 +15,27 @@ export interface TeambridgeConfig {
 }
 
 function getConfigDir(): string {
-  return path.join(os.homedir(), ".teambridge");
+  return path.join(os.homedir(), ".teamrc");
 }
 
 function getConfigPath(): string {
   return path.join(getConfigDir(), "config.json");
 }
 
-export function loadConfig(): TeambridgeConfig | null {
+export function loadConfig(): TeamrcConfig | null {
   const configPath = getConfigPath();
   if (!fs.existsSync(configPath)) {
     return null;
   }
   try {
     const raw = fs.readFileSync(configPath, "utf-8");
-    return JSON.parse(raw) as TeambridgeConfig;
+    return JSON.parse(raw) as TeamrcConfig;
   } catch {
     return null;
   }
 }
 
-export function saveConfig(config: TeambridgeConfig): void {
+export function saveConfig(config: TeamrcConfig): void {
   const dir = getConfigDir();
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -67,13 +68,16 @@ export function getRelayUrl(overrideUrl?: string): string {
   if (overrideUrl) {
     return overrideUrl;
   }
-  const envUrl = process.env["TEAMBRIDGE_RELAY"];
+  const envUrl = process.env["TEAMRC_RELAY"];
   if (envUrl) {
     return envUrl;
   }
   const config = loadConfig();
   if (config?.relay) {
     return config.relay;
+  }
+  if (!process.env["TEAMRC_DEV"]) {
+    console.warn("Warning: No relay URL configured. Using http://localhost:4000. Set TEAMRC_RELAY or use --relay to configure.");
   }
   return "http://localhost:4000";
 }

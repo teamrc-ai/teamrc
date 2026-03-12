@@ -5,19 +5,19 @@
 
 ## Problem
 
-TeamBridge uses ed25519 keypairs for machine identity. If a user loses `~/.teambridge/key`, they lose access to all their teams. There's no way to:
+teamrc uses ed25519 keypairs for machine identity. If a user loses `~/.teamrc/key`, they lose access to all their teams. There's no way to:
 - Recover access from a new machine
 - See all teams across multiple machines in one place
 - Revoke a compromised machine
 
 ## Design Principles
 
-1. **Zero signup to use the product.** `teambridge join <invite>` works exactly as today. No Clerk, no email, no account required.
+1. **Zero signup to use the product.** `teamrc join <invite>` works exactly as today. No Clerk, no email, no account required.
 2. **Machine key = primary identity.** Ed25519 keypair remains the authentication mechanism for all API calls. Clerk is additive.
 3. **Account = your machines.** A Clerk account groups your machine tokens. It enables recovery, dashboard visibility, and revocation. It does NOT expose your machines to other team participants.
 4. **Teams are shared, machines are private.** Teams can have multiple participants (via invite codes). When viewing a team, you see participants (accounts/emails if linked, anonymous otherwise). You never see another participant's machine names or token details.
 5. **Linking requires both sides.** Valid ed25519 signature (proves machine ownership) + valid Clerk JWT (proves human identity). Knowing someone's token alone is not enough.
-6. **Once per machine, not per terminal.** `teambridge login` links the machine's keypair (stored in `~/.teambridge/key`) to the account. All terminals on that machine share the same key, so login only happens once.
+6. **Once per machine, not per terminal.** `teamrc login` links the machine's keypair (stored in `~/.teamrc/key`) to the account. All terminals on that machine share the same key, so login only happens once.
 
 ## Visibility Model
 
@@ -26,8 +26,8 @@ TeamBridge uses ed25519 keypairs for machine identity. If a user loses `~/.teamb
 **Your Machines** (private to your account):
 ```
 Machines
-  MacBook-Pro       tb_ak_abc...   Last seen: 2 min ago    [Revoke]
-  Linux-Server      tb_ak_def...   Last seen: 1 hour ago   [Revoke]
+  MacBook-Pro       trc_ak_abc...   Last seen: 2 min ago    [Revoke]
+  Linux-Server      trc_ak_def...   Last seen: 1 hour ago   [Revoke]
 ```
 
 Only you see your machine names and tokens. Other participants never see this.
@@ -49,7 +49,7 @@ product-team
 ```
 
 - Linked accounts show email
-- Unlinked machines show as "anonymous participant" (they joined via invite but never ran `teambridge login`)
+- Unlinked machines show as "anonymous participant" (they joined via invite but never ran `teamrc login`)
 - No one sees another person's machine names, token details, or how many machines they have
 
 ### Privacy boundary
@@ -121,16 +121,16 @@ To resolve "participants in a team": follow token_teams → account_tokens → a
 ### 1. Create team on web, join from CLI
 
 ```
-Browser: https://teambridge.dev
+Browser: https://teamrc.dev
 
   [Pick template, customize, create]
 
   product-team created!
-  $ npx teambridge join tb_inv_abc123
+  $ npx teamrc join trc_inv_abc123
 ```
 
 ```
-$ npx teambridge join tb_inv_abc123
+$ npx teamrc join trc_inv_abc123
 
   Joined team: product-team (6 agents)
   Detected platform: claude-code
@@ -152,7 +152,7 @@ $ npx teambridge join tb_inv_abc123
 ### 2. Colleague joins the same team
 
 ```
-$ npx teambridge join tb_inv_abc123
+$ npx teamrc join trc_inv_abc123
 
   Joined team: product-team (6 agents)
   Detected platform: cursor
@@ -162,19 +162,19 @@ $ npx teambridge join tb_inv_abc123
   [Y/n]: n
 
   Team is syncing. Your agents are ready.
-  Tip: Run `teambridge login` anytime to link your account.
+  Tip: Run `teamrc login` anytime to link your account.
 ```
 
 Alice is now an anonymous participant. Ben's dashboard shows "1 anonymous participant" on the team. Alice's machines are not visible to Ben.
 
-### 3. `teambridge login` (Device Authorization)
+### 3. `teamrc login` (Device Authorization)
 
 Standalone command for linking a machine later, or on a second machine.
 
 ```
-$ teambridge login
+$ teamrc login
 
-  Open in browser: https://teambridge.dev/auth/verify
+  Open in browser: https://teamrc.dev/auth/verify
   Enter code: ABCD-1234
 
   Waiting for confirmation... (press Ctrl+C to cancel)
@@ -190,7 +190,7 @@ $ teambridge login
 CLI                          Server                      Browser
  |                             |                            |
  |-- POST /api/auth/device --> |                            |
- |   { token: tb_ak_... }     |                            |
+ |   { token: trc_ak_... }     |                            |
  |                             |                            |
  | <-- { device_code,         |                            |
  |       user_code: ABCD-1234,|                            |
@@ -229,7 +229,7 @@ CLI                          Server                      Browser
 %DeviceRequest{
   device_code: "abc123...",
   user_code: "ABCD-1234",
-  token: "tb_ak_...",           # machine token from CLI
+  token: "trc_ak_...",           # machine token from CLI
   status: :pending | :confirmed,
   clerk_user_id: nil,           # set on confirmation
   expires_at: ~U[...],
@@ -241,7 +241,7 @@ CLI                          Server                      Browser
 ### 4. Recovery (Lost Key)
 
 ```
-$ teambridge login
+$ teamrc login
 
   No existing keypair found. Generated new machine key.
 
@@ -293,7 +293,7 @@ Are you sure? This machine will lose access to all teams.
 
 **`POST /api/auth/device`**
 - Auth: ed25519 signature (standard VerifySignature plug)
-- Body: `{ token: "tb_ak_..." }`
+- Body: `{ token: "trc_ak_..." }`
 - Response: `{ device_code, user_code, verification_url, expires_in, interval }`
 - Rate limit: 3 active device requests per token
 
@@ -333,7 +333,7 @@ Are you sure? This machine will lose access to all teams.
 
 **`POST /api/account/reassociate`**
 - Auth: Clerk JWT + ed25519 signature (both)
-- Body: `{ new_token: "tb_ak_..." }`
+- Body: `{ new_token: "trc_ak_..." }`
 - Validation: new_token must be linked to the caller's account
 - Action: Copies all `token_teams` from the account's other (non-revoked) tokens to `new_token`. Immediate, no hold.
 - Response: `{ reassociated: 3 }`
@@ -379,7 +379,7 @@ Fixed: `VerifyClerkJWT` plug pins algorithm to RS256, validates `iss`, `exp`, an
 ### What doesn't change
 
 - All existing API endpoints (sync, push, pull, teams) use ed25519 signatures only
-- `teambridge join` works without any account
+- `teamrc join` works without any account
 - The GenServer/in-memory sync layer is unchanged
 - Invite codes work exactly the same
 
@@ -404,7 +404,7 @@ Clerk hosted sign-in page (redirect flow). The `/auth/verify` page redirects to 
 No Clerk SDK needed. The CLI just:
 1. Opens a browser URL
 2. Polls a device code endpoint
-3. Stores the result locally in `~/.teambridge/config.json`
+3. Stores the result locally in `~/.teamrc/config.json`
 
 ## Implementation Plan
 
@@ -418,9 +418,9 @@ No Clerk SDK needed. The CLI just:
 7. Add email notifications for new machine linking and reassociation (via Clerk or simple SMTP)
 
 ### Phase 2: CLI
-7. Add `teambridge login` command (device auth flow with browser open)
-8. Add inline account linking prompt to `teambridge join` and `teambridge init`
-9. Add account info to `~/.teambridge/config.json`
+7. Add `teamrc login` command (device auth flow with browser open)
+8. Add inline account linking prompt to `teamrc join` and `teamrc init`
+9. Add account info to `~/.teamrc/config.json`
 10. Add machine name auto-detection (`os.hostname()`) with `--name` override
 
 ### Phase 3: Web
@@ -436,7 +436,7 @@ No Clerk SDK needed. The CLI just:
 ## Decisions
 
 1. **Clerk pricing** — Free tier allows 10K MAU. Sufficient for launch.
-2. **Machine naming** — Auto-detect OS hostname (`os.hostname()`), allow override via `teambridge login --name "work laptop"`.
+2. **Machine naming** — Auto-detect OS hostname (`os.hostname()`), allow override via `teamrc login --name "work laptop"`.
 3. **Team ownership** — Deferred. No owner/member distinction for now. Teams are collaborative, anyone who joined can use them. Add ownership and permissions later when needed.
 4. **Revocation propagation** — Delete `token_teams` rows in DB + send message to GenServer for immediate in-memory removal.
 5. **Multi-user teams** — Supported naturally via invite codes. No special handling needed. Privacy boundary: machines are private to accounts, team participants are visible to each other.

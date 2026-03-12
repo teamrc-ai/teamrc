@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { watch } from "chokidar";
 import { hashContent, validateAgentName, type PlatformAdapter } from "./adapters/base.js";
-import type { TeamBridgeClient, SyncChange } from "./client.js";
+import type { TeamrcClient, SyncChange } from "./client.js";
 import { resolveChange } from "./merge.js";
 import { readTeamYaml } from "./team-yaml.js";
 
@@ -10,19 +10,24 @@ const POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_CONTENT_SIZE = 1024 * 1024; // 1 MB per file
 const MAX_CHANGES_PER_SYNC = 100;
 
+export type SyncMode = "all" | "knowledge" | "none";
+
 export interface DaemonOptions {
   adapter: PlatformAdapter;
-  client: TeamBridgeClient;
+  client: TeamrcClient;
   platform: string;
   pollInterval?: number;
+  syncMode?: SyncMode;
 }
 
 export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   const { adapter, client, platform } = opts;
   const pollInterval = opts.pollInterval ?? POLL_INTERVAL_MS;
+  const syncMode: SyncMode = opts.syncMode ?? "knowledge";
 
   // Cache of hashes for files we've written ourselves (self-trigger prevention)
-  const selfWrittenHashes = new Set<string>();
+  // Maps hash → write timestamp for lazy age-based expiry
+  const selfWrittenHashes = new Map<string, number>();
 
   // Last known hashes for change detection
   let lastHashes: Record<string, string> = adapter.getHashes();
@@ -77,12 +82,22 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   }
 
   async function doPushChanges(): Promise<void> {
+    // Clean up stale self-written hashes (older than 60s)
+    const cleanupThreshold = Date.now() - 60_000;
+    for (const [hash, time] of selfWrittenHashes) {
+      if (time < cleanupThreshold) selfWrittenHashes.delete(hash);
+    }
+
     const currentHashes = adapter.getHashes();
     const changedFiles: Record<string, string> = {};
     const now = Math.floor(Date.now() / 1000);
 
     for (const [key, hash] of Object.entries(currentHashes)) {
       if (lastHashes[key] !== hash) {
+        // Filter by syncMode
+        if (syncMode === "knowledge" && !key.startsWith("knowledge:")) continue;
+        if (syncMode === "none") continue;
+
         const content = adapter.readFile(key);
         if (content !== null) {
           changedFiles[key] = content;
@@ -100,7 +115,11 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       const result = await client.sync(platform, currentHashes, changedFiles);
       lastSyncTimestamp = Math.floor(Date.now() / 1000);
       lastHashes = currentHashes;
-      applyRemoteChanges(result.changes);
+      try {
+        applyRemoteChanges(result.changes);
+      } catch (err) {
+        warn(`Failed to apply remote changes: ${(err as Error).message}`);
+      }
       log(`Pushed ${Object.keys(changedFiles).length} file(s), received ${Object.keys(result.changes).length} change(s).`);
     } catch (err) {
       warn(`Push failed: ${(err as Error).message}`);
@@ -117,6 +136,16 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
     for (const [key, remoteChange] of entries.slice(0, MAX_CHANGES_PER_SYNC)) {
       if (remoteChange.content.length > MAX_CONTENT_SIZE) {
         warn(`Skipping ${key}: content exceeds ${MAX_CONTENT_SIZE} bytes.`);
+        continue;
+      }
+
+      // Filter by syncMode
+      if (syncMode === "knowledge" && !key.startsWith("knowledge:")) {
+        log(`Skipping ${key} (sync mode: knowledge)`);
+        continue;
+      }
+      if (syncMode === "none") {
+        log(`Remote change: ${key} (sync mode: none, not applying)`);
         continue;
       }
 
@@ -145,7 +174,7 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       // Write the resolved content
       adapter.writeFile(key, result.content);
       const hash = hashContent(result.content);
-      selfWrittenHashes.add(hash);
+      selfWrittenHashes.set(hash, Date.now());
       lastHashes[key] = hash;
 
       // Update local mod time to match remote after accepting
@@ -174,7 +203,11 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
 
       const changeCount = Object.keys(result.changes).length;
       if (changeCount > 0) {
-        applyRemoteChanges(result.changes);
+        try {
+          applyRemoteChanges(result.changes);
+        } catch (err) {
+          warn(`Failed to apply remote changes: ${(err as Error).message}`);
+        }
         log(`Applied ${changeCount} remote change(s).`);
       }
     } catch (err) {
@@ -214,8 +247,9 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
     const file = readAndHash(filePath);
     if (!file) return;
 
-    // Check if this was a self-triggered write
-    if (selfWrittenHashes.has(file.hash)) {
+    // Check if this was a self-triggered write (generous 30s window for slow filesystems)
+    const writeTime = selfWrittenHashes.get(file.hash);
+    if (writeTime !== undefined && Date.now() - writeTime < 30_000) {
       selfWrittenHashes.delete(file.hash);
       return;
     }

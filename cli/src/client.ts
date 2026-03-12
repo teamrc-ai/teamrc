@@ -2,7 +2,7 @@ import { signMessage } from "./auth.js";
 import type { Rule, Skill, TeamDefinition } from "./adapters/base.js";
 import { validateRuleId } from "./team-yaml.js";
 
-export interface TeamBridgeTeam {
+export interface TeamrcTeam {
   id: string;
   name: string;
   members: Array<{ name: string; role: string; platform?: string; rules?: string[]; skills?: string[] }>;
@@ -11,7 +11,7 @@ export interface TeamBridgeTeam {
   created_at?: string;
 }
 
-export function remoteTeamToDefinition(team: TeamBridgeTeam): TeamDefinition {
+export function remoteTeamToDefinition(team: TeamrcTeam): TeamDefinition {
   // Validate rule/skill IDs from the relay to prevent path traversal
   const rules = team.rules?.filter((r) => {
     try { validateRuleId(r.id); return true; } catch { return false; }
@@ -36,13 +36,14 @@ export function remoteTeamToDefinition(team: TeamBridgeTeam): TeamDefinition {
 export interface SyncChange {
   content: string;
   updated_at: number; // unix timestamp
+  pushed_by?: string;
 }
 
 export interface SyncResult {
   changes: Record<string, SyncChange>;
 }
 
-export class TeamBridgeClient {
+export class TeamrcClient {
   private baseUrl: string;
   private privateKey: Uint8Array;
   private token: string;
@@ -53,6 +54,15 @@ export class TeamBridgeClient {
     this.token = token;
   }
 
+  /** Extract a short, safe error message from a response */
+  private async errorMessage(res: Response, context: string): Promise<string> {
+    try {
+      const body = await res.json() as { error?: string };
+      if (body.error) return `${context}: ${res.status} ${body.error}`;
+    } catch { /* not JSON */ }
+    return `${context}: ${res.status}`;
+  }
+
   private async signedHeaders(
     body: string,
   ): Promise<Record<string, string>> {
@@ -61,8 +71,8 @@ export class TeamBridgeClient {
     const signature = await signMessage(this.privateKey, message);
     return {
       "Content-Type": "application/json",
-      "x-tb-signature": signature,
-      "x-tb-timestamp": timestamp,
+      "x-trc-signature": signature,
+      "x-trc-timestamp": timestamp,
     };
   }
 
@@ -73,12 +83,12 @@ export class TeamBridgeClient {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: "GET",
       headers: {
-        "x-tb-signature": signature,
-        "x-tb-timestamp": timestamp,
+        "x-trc-signature": signature,
+        "x-trc-timestamp": timestamp,
       },
     });
     if (!res.ok) {
-      throw new Error(`GET ${path} failed: ${res.status} ${await res.text()}`);
+      throw new Error(await this.errorMessage(res, `GET ${path} failed`));
     }
     return (await res.json()) as T;
   }
@@ -86,7 +96,7 @@ export class TeamBridgeClient {
   async createTeam(
     name: string,
     members: Array<{ name: string; role: string; platform: string }>,
-  ): Promise<TeamBridgeTeam> {
+  ): Promise<TeamrcTeam> {
     const body = JSON.stringify({
       token: this.token,
       team: { name, members },
@@ -98,18 +108,18 @@ export class TeamBridgeClient {
       body,
     });
     if (!res.ok) {
-      throw new Error(`createTeam failed: ${res.status} ${await res.text()}`);
+      throw new Error(await this.errorMessage(res, "createTeam failed"));
     }
-    const data = (await res.json()) as { team: TeamBridgeTeam };
+    const data = (await res.json()) as { team: TeamrcTeam };
     return data.team;
   }
 
-  async getTeam(token: string): Promise<TeamBridgeTeam> {
-    const data = await this.signedGet<{ team: TeamBridgeTeam }>(`/api/teams/${token}`);
+  async getTeam(token: string): Promise<TeamrcTeam> {
+    const data = await this.signedGet<{ team: TeamrcTeam }>(`/api/teams/${token}`);
     return data.team;
   }
 
-  async joinByInvite(inviteCode: string): Promise<TeamBridgeTeam> {
+  async joinByInvite(inviteCode: string): Promise<TeamrcTeam> {
     const body = JSON.stringify({ invite_code: inviteCode, token: this.token });
     const headers = await this.signedHeaders(body);
     const res = await fetch(`${this.baseUrl}/api/join`, {
@@ -118,9 +128,9 @@ export class TeamBridgeClient {
       body,
     });
     if (!res.ok) {
-      throw new Error(`join failed: ${res.status} ${await res.text()}`);
+      throw new Error(await this.errorMessage(res, "join failed"));
     }
-    const data = (await res.json()) as { team: TeamBridgeTeam };
+    const data = (await res.json()) as { team: TeamrcTeam };
     return data.team;
   }
 
@@ -142,7 +152,7 @@ export class TeamBridgeClient {
       body,
     });
     if (!res.ok) {
-      throw new Error(`sync failed: ${res.status} ${await res.text()}`);
+      throw new Error(await this.errorMessage(res, "sync failed"));
     }
     return (await res.json()) as SyncResult;
   }
@@ -165,7 +175,7 @@ export class TeamBridgeClient {
       body,
     });
     if (!res.ok) {
-      throw new Error(`push failed: ${res.status} ${await res.text()}`);
+      throw new Error(await this.errorMessage(res, "push failed"));
     }
   }
 
@@ -184,7 +194,7 @@ export class TeamBridgeClient {
       body,
     });
     if (!res.ok) {
-      throw new Error(`createDeviceAuth failed: ${res.status} ${await res.text()}`);
+      throw new Error(await this.errorMessage(res, "createDeviceAuth failed"));
     }
     return (await res.json()) as {
       device_code: string;
@@ -209,11 +219,34 @@ export class TeamBridgeClient {
     }>(`/api/auth/device/${encodeURIComponent(deviceCode)}`);
   }
 
-  async pull(
-    platform: string,
-  ): Promise<Array<{ key: string; value: string; author: string }>> {
-    const params = `token=${encodeURIComponent(this.token)}&platform=${encodeURIComponent(platform)}`;
-    const data = await this.signedGet<{ data: Array<{ key: string; value: string; author: string }> }>(`/api/pull?${params}`);
-    return data.data;
+  async previewByInvite(inviteCode: string): Promise<TeamrcTeam> {
+    const body = JSON.stringify({ invite_code: inviteCode, token: this.token });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/teams/preview`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (!res.ok) throw new Error(await this.errorMessage(res, "preview failed"));
+    const data = (await res.json()) as { team: TeamrcTeam };
+    return data.team;
   }
+
+  async getLog(): Promise<Array<{ type: string; content: string; source_platform: string; pushed_by?: string; timestamp: string }>> {
+    const data = await this.signedGet<{ entries: Array<{ type: string; content: string; source_platform: string; pushed_by?: string; timestamp: string }> }>(`/api/log?token=${encodeURIComponent(this.token)}`);
+    return data.entries;
+  }
+
+  async createInvite(ttlHours: number = 24): Promise<{ invite_code: string; expires_at: string }> {
+    const body = JSON.stringify({ token: this.token, ttl_hours: ttlHours });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/teams/invite`, {
+      method: "POST",
+      headers,
+      body,
+    });
+    if (!res.ok) throw new Error(await this.errorMessage(res, "createInvite failed"));
+    return (await res.json()) as { invite_code: string; expires_at: string };
+  }
+
 }

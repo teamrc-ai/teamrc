@@ -3,6 +3,8 @@ import * as path from "node:path";
 import {
   validateAgentName,
   sanitizeMarkerContent,
+  sanitizeText,
+  slugify,
   writeSkillDir,
   cleanupSkillDirs,
   type PlatformAdapter,
@@ -11,19 +13,8 @@ import {
 } from "./base.js";
 import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
 
-function sanitizeText(s: string): string {
-  return s.replace(/[\n\r]/g, " ").trim();
-}
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
 export class CodexAdapter implements PlatformAdapter {
+  readonly supportsSync = false;
   private codexDir(): string {
     return path.join(process.cwd(), ".codex");
   }
@@ -43,7 +34,7 @@ export class CodexAdapter implements PlatformAdapter {
   private listTbAgentFiles(): string[] {
     const dir = this.agentsConfigDir();
     if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir).filter((f) => f.startsWith("tb-") && f.endsWith(".toml"));
+    return fs.readdirSync(dir).filter((f) => f.startsWith("trc-") && f.endsWith(".toml"));
   }
 
   readTeam(): TeamDefinition | null { return null; }
@@ -76,7 +67,7 @@ export class CodexAdapter implements PlatformAdapter {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     const slug = slugify(member.name);
-    const filePath = path.join(dir, `tb-${slug}.toml`);
+    const filePath = path.join(dir, `trc-${slug}.toml`);
 
     const safeName = sanitizeText(member.name);
     const safeRole = sanitizeText(member.role);
@@ -136,11 +127,11 @@ export class CodexAdapter implements PlatformAdapter {
       instructionParts.push("");
     }
 
-    const instructions = instructionParts.join("\n").trim();
+    // Escape triple quotes to prevent TOML injection
+    const instructions = instructionParts.join("\n").trim().replace(/"""/g, '"\\""');
 
-    // Escape for TOML multi-line string
     const tomlContent = [
-      `# TeamBridge subagent: ${safeName}`,
+      `# teamrc agent: ${safeName}`,
       `# Role: ${safeRole}`,
       "",
       `developer_instructions = """`,
@@ -158,8 +149,8 @@ export class CodexAdapter implements PlatformAdapter {
     if (!fs.existsSync(codexDir)) fs.mkdirSync(codexDir, { recursive: true });
 
     const configPath = path.join(codexDir, "config.toml");
-    const marker = "# --- teambridge start ---";
-    const markerEnd = "# --- teambridge end ---";
+    const marker = "# --- teamrc start ---";
+    const markerEnd = "# --- teamrc end ---";
 
     const lines: string[] = [marker, ""];
 
@@ -173,9 +164,9 @@ export class CodexAdapter implements PlatformAdapter {
     for (const member of team.members) {
       const slug = slugify(member.name);
       const safeRole = sanitizeText(member.role);
-      lines.push(`[agents.tb-${slug}]`);
+      lines.push(`[agents.trc-${slug}]`);
       lines.push(`description = ${JSON.stringify(safeRole)}`);
-      lines.push(`config_file = "agents/tb-${slug}.toml"`);
+      lines.push(`config_file = "agents/trc-${slug}.toml"`);
       lines.push("");
     }
 
@@ -196,15 +187,15 @@ export class CodexAdapter implements PlatformAdapter {
 
   /** Write AGENTS.md with team context for the main agent */
   private writeAgentsMd(team: TeamDefinition): void {
-    const marker = "<!-- teambridge -->";
-    const markerEnd = "<!-- /teambridge -->";
+    const marker = "<!-- teamrc -->";
+    const markerEnd = "<!-- /teamrc -->";
 
     const sections = [`# Team: ${sanitizeMarkerContent(team.name)}`, ""];
     sections.push("You have access to specialized subagents. Delegate tasks to the right specialist.", "");
 
     for (const member of team.members) {
       const slug = slugify(member.name);
-      sections.push(`## ${sanitizeMarkerContent(member.name)} (\`tb-${slug}\`)`, "");
+      sections.push(`## ${sanitizeMarkerContent(member.name)} (\`trc-${slug}\`)`, "");
       sections.push(`**Role:** ${sanitizeMarkerContent(member.role)}`, "");
 
       const agentRules = resolveAgentRules(member, team);
@@ -248,6 +239,7 @@ export class CodexAdapter implements PlatformAdapter {
   watchPaths(): string[] { return []; }
   writeFile(_key: string, _content: string): void {}
   readFile(_key: string): string | null { return null; }
+  getFileMtime(_key: string): number { return 0; }
   uninstall(): string[] {
     const actions: string[] = [];
 
@@ -260,41 +252,41 @@ export class CodexAdapter implements PlatformAdapter {
       actions.push(`Deleted ${agentFiles.length} Codex subagent config(s)`);
     }
 
-    // Clean up config.toml teambridge section
+    // Clean up config.toml teamrc section
     const configPath = path.join(this.codexDir(), "config.toml");
     if (fs.existsSync(configPath)) {
       const content = fs.readFileSync(configPath, "utf-8");
-      const marker = "# --- teambridge start ---";
-      const markerEnd = "# --- teambridge end ---";
+      const marker = "# --- teamrc start ---";
+      const markerEnd = "# --- teamrc end ---";
       const regex = new RegExp(
         `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
       );
       const cleaned = content.replace(regex, "\n");
       if (cleaned !== content) {
         fs.writeFileSync(configPath, cleaned.trimEnd() + "\n");
-        actions.push("Removed TeamBridge section from .codex/config.toml");
+        actions.push("Removed teamrc section from .codex/config.toml");
       }
     }
 
     // Clean up skill directories
     const skillCount = cleanupSkillDirs(this.skillsDir());
     if (skillCount > 0) {
-      actions.push(`Deleted ${skillCount} TeamBridge codex skill(s)`);
+      actions.push(`Deleted ${skillCount} teamrc codex skill(s)`);
     }
 
     // Clean up AGENTS.md marker block
     const filePath = this.agentsMdPath();
     if (fs.existsSync(filePath)) {
       const content = fs.readFileSync(filePath, "utf-8");
-      const marker = "<!-- teambridge -->";
-      const markerEnd = "<!-- /teambridge -->";
+      const marker = "<!-- teamrc -->";
+      const markerEnd = "<!-- /teamrc -->";
       const regex = new RegExp(
         `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
       );
       const cleaned = content.replace(regex, "\n");
       if (cleaned !== content) {
         fs.writeFileSync(filePath, cleaned.trimEnd() + "\n");
-        actions.push("Removed TeamBridge section from AGENTS.md");
+        actions.push("Removed teamrc section from AGENTS.md");
       }
     }
 

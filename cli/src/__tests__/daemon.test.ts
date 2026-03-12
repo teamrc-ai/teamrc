@@ -5,7 +5,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { startDaemon } from "../daemon.js";
 import type { PlatformAdapter } from "../adapters/base.js";
-import type { TeamBridgeClient } from "../client.js";
+import type { TeamrcClient } from "../client.js";
 
 function makeTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "daemon-test-"));
@@ -51,7 +51,7 @@ function createMockAdapter(tmpDir: string): PlatformAdapter {
 function createMockClient(responses: {
   syncCheck?: boolean;
   sync?: { changes: Record<string, { content: string; updated_at: number }> };
-}): TeamBridgeClient & { calls: { method: string; args: unknown[] }[] } {
+}): TeamrcClient & { calls: { method: string; args: unknown[] }[] } {
   const calls: { method: string; args: unknown[] }[] = [];
 
   return {
@@ -123,6 +123,7 @@ describe("daemon", () => {
       client,
       platform: "claude-code",
       pollInterval: 60000,
+      syncMode: "all",
     });
 
     await new Promise((r) => setTimeout(r, 200));

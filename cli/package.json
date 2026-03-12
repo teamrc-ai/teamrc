@@ -1,10 +1,10 @@
 {
-  "name": "teambridge",
+  "name": "teamrc",
   "version": "0.1.0",
-  "description": "TeamBridge CLI - sync multi-agent teams across platforms",
+  "description": "teamrc CLI - sync multi-agent teams across platforms",
   "main": "dist/index.js",
   "bin": {
-    "teambridge": "./dist/index.js"
+    "teamrc": "./dist/index.js"
   },
   "type": "module",
   "scripts": {

@@ -69,18 +69,22 @@ export interface PlatformAdapter {
   watchPaths(): string[];
   writeFile(key: string, content: string): void;
   readFile(key: string): string | null;
-  /** Remove everything TeamBridge installed for this platform. Returns list of actions taken. */
+  /** Remove everything teamrc installed for this platform. Returns list of actions taken. */
   uninstall(): string[];
+  /** Whether this adapter supports real-time sync (daemon, sync command). */
+  readonly supportsSync: boolean;
+  /** Get the modification time (Unix seconds) of the file backing a sync key. */
+  getFileMtime(key: string): number;
 }
 
 /** Write a native SKILL.md file for a skill in the given base directory */
 export function writeSkillDir(baseDir: string, skill: Skill): void {
   if (skill.body && typeof skill.body !== "string") return; // skip source-referenced skills
-  const skillDir = path.join(baseDir, `tb-${skill.id}`);
+  const skillDir = path.join(baseDir, `trc-${skill.id}`);
   if (!fs.existsSync(skillDir)) fs.mkdirSync(skillDir, { recursive: true });
 
   const lines: string[] = ["---"];
-  lines.push(`name: tb-${skill.id}`);
+  lines.push(`name: trc-${skill.id}`);
   if (skill.description) lines.push(`description: ${JSON.stringify(skill.description)}`);
   lines.push("---", "");
   if (skill.body && typeof skill.body === "string") lines.push(skill.body);
@@ -88,14 +92,33 @@ export function writeSkillDir(baseDir: string, skill: Skill): void {
   fs.writeFileSync(path.join(skillDir, "SKILL.md"), lines.join("\n") + "\n");
 }
 
-/** Remove all tb-* skill directories under a base directory */
+/** Remove all trc-* skill directories under a base directory */
 export function cleanupSkillDirs(baseDir: string): number {
   if (!fs.existsSync(baseDir)) return 0;
-  const dirs = fs.readdirSync(baseDir).filter((d) => d.startsWith("tb-"));
+  const dirs = fs.readdirSync(baseDir).filter((d) => d.startsWith("trc-"));
   for (const d of dirs) {
     fs.rmSync(path.join(baseDir, d), { recursive: true, force: true });
   }
   return dirs.length;
+}
+
+/** Strip newlines from text for safe inline use */
+export function sanitizeText(s: string): string {
+  return s.replace(/[\n\r]/g, " ").trim();
+}
+
+/** Slugify a name for use in file paths */
+export function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/** Escape a string for use in YAML double-quoted values */
+export function escapeYamlString(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
 }
 
 export function getAdapter(platform: string): PlatformAdapter {

@@ -4,6 +4,7 @@ import { sanitizeMarkerContent, writeSkillDir, cleanupSkillDirs, type PlatformAd
 import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
 
 export class GeminiAdapter implements PlatformAdapter {
+  readonly supportsSync = false;
   private geminiMdPath(): string {
     return path.join(process.cwd(), "GEMINI.md");
   }
@@ -23,8 +24,8 @@ export class GeminiAdapter implements PlatformAdapter {
       }
     }
 
-    const marker = "<!-- teambridge -->";
-    const markerEnd = "<!-- /teambridge -->";
+    const marker = "<!-- teamrc -->";
+    const markerEnd = "<!-- /teamrc -->";
 
     const sections = [`# Team: ${sanitizeMarkerContent(team.name)}`, ""];
 
@@ -76,27 +77,28 @@ export class GeminiAdapter implements PlatformAdapter {
   watchPaths(): string[] { return []; }
   writeFile(_key: string, _content: string): void {}
   readFile(_key: string): string | null { return null; }
+  getFileMtime(_key: string): number { return 0; }
   uninstall(): string[] {
     const actions: string[] = [];
 
     // Clean up skill directories
     const skillCount = cleanupSkillDirs(this.skillsDir());
     if (skillCount > 0) {
-      actions.push(`Deleted ${skillCount} TeamBridge gemini skill(s)`);
+      actions.push(`Deleted ${skillCount} teamrc gemini skill(s)`);
     }
 
     const filePath = this.geminiMdPath();
     if (!fs.existsSync(filePath)) return actions;
     const content = fs.readFileSync(filePath, "utf-8");
-    const marker = "<!-- teambridge -->";
-    const markerEnd = "<!-- /teambridge -->";
+    const marker = "<!-- teamrc -->";
+    const markerEnd = "<!-- /teamrc -->";
     const regex = new RegExp(
       `\\n?${marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${markerEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n?`,
     );
     const cleaned = content.replace(regex, "\n");
     if (cleaned !== content) {
       fs.writeFileSync(filePath, cleaned.trimEnd() + "\n");
-      actions.push("Removed TeamBridge section from GEMINI.md");
+      actions.push("Removed teamrc section from GEMINI.md");
     }
     return actions;
   }

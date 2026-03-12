@@ -1,9 +1,9 @@
 #!/bin/bash
-# test/e2e.sh — End-to-end test for TeamBridge
+# test/e2e.sh — End-to-end test for teamrc
 # Tests the relay API with curl (auth skipped in test mode)
 set -e
 
-echo "=== TeamBridge E2E Test ==="
+echo "=== teamrc E2E Test ==="
 
 cd "$(dirname "$0")/.."
 
@@ -23,7 +23,7 @@ trap cleanup EXIT
 # Wait for server to be ready
 echo "Waiting for relay to start..."
 for i in $(seq 1 10); do
-  if curl -s http://localhost:4002/api/teams/tb_ak_nonexistent -H "x-tb-signature: test" > /dev/null 2>&1; then
+  if curl -s http://localhost:4002/api/teams/trc_ak_nonexistent -H "x-trc-signature: test" > /dev/null 2>&1; then
     break
   fi
   sleep 1
@@ -48,9 +48,9 @@ echo ""
 echo "--- Test: Create team ---"
 RESPONSE=$(curl -s -X POST "$RELAY_URL/api/teams" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "team": {
       "name": "test-project",
       "members": [
@@ -69,8 +69,8 @@ fi
 # 3. Get team
 echo ""
 echo "--- Test: Get team ---"
-TEAM=$(curl -s "$RELAY_URL/api/teams/tb_ak_testtoken123" \
-  -H "x-tb-signature: test")
+TEAM=$(curl -s "$RELAY_URL/api/teams/trc_ak_testtoken123" \
+  -H "x-trc-signature: test")
 
 if echo "$TEAM" | grep -q "test-project"; then
   pass "Team retrieved"
@@ -87,8 +87,8 @@ fi
 # 4. Get nonexistent team
 echo ""
 echo "--- Test: Get nonexistent team ---"
-NOT_FOUND=$(curl -s -o /dev/null -w "%{http_code}" "$RELAY_URL/api/teams/tb_ak_doesnotexist" \
-  -H "x-tb-signature: test")
+NOT_FOUND=$(curl -s -o /dev/null -w "%{http_code}" "$RELAY_URL/api/teams/trc_ak_doesnotexist" \
+  -H "x-trc-signature: test")
 
 if [ "$NOT_FOUND" = "404" ]; then
   pass "Nonexistent team returns 404"
@@ -101,9 +101,9 @@ echo ""
 echo "--- Test: Push memory ---"
 PUSH_RESP=$(curl -s -X POST "$RELAY_URL/api/push" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "claude-code",
     "entry": {
       "type": "memory",
@@ -123,9 +123,9 @@ echo ""
 echo "--- Test: Pull memory from other platform ---"
 PULL=$(curl -s -X POST "$RELAY_URL/api/pull" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "openclaw"
   }')
 
@@ -140,9 +140,9 @@ echo ""
 echo "--- Test: Second pull is empty ---"
 PULL2=$(curl -s -X POST "$RELAY_URL/api/pull" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "openclaw"
   }')
 
@@ -158,18 +158,18 @@ echo "--- Test: Self-filtering (no echo) ---"
 # Push another entry
 curl -s -X POST "$RELAY_URL/api/push" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "openclaw",
     "entry": {"type": "memory", "content": "OpenClaw finding", "timestamp": "2026-03-05T12:01:00Z"}
   }' > /dev/null
 
 SELF_PULL=$(curl -s -X POST "$RELAY_URL/api/pull" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "openclaw"
   }')
 
@@ -185,9 +185,9 @@ echo "--- Test: Sync detects changes ---"
 # Set hashes for openclaw
 curl -s -X POST "$RELAY_URL/api/sync" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "openclaw",
     "hashes": {"memory.md": "hash_aaa", "team.json": "hash_bbb"}
   }' > /dev/null
@@ -195,9 +195,9 @@ curl -s -X POST "$RELAY_URL/api/sync" \
 # Sync from claude-code with different hash
 SYNC_RESP=$(curl -s -X POST "$RELAY_URL/api/sync" \
   -H "Content-Type: application/json" \
-  -H "x-tb-signature: test" \
+  -H "x-trc-signature: test" \
   -d '{
-    "token": "tb_ak_testtoken123",
+    "token": "trc_ak_testtoken123",
     "platform": "claude-code",
     "hashes": {"memory.md": "hash_aaa", "team.json": "hash_ccc"}
   }')
@@ -212,7 +212,7 @@ fi
 echo ""
 echo "--- Test: LiveView renders ---"
 HTML=$(curl -s "$RELAY_URL/")
-if echo "$HTML" | grep -q "TeamBridge\|Create a Team\|team"; then
+if echo "$HTML" | grep -q "teamrc\|Create a Team\|team"; then
   pass "LiveView renders"
 else
   fail "LiveView not rendering"

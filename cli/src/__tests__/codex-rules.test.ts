@@ -9,7 +9,7 @@ describe("Codex adapter", () => {
   let origCwd: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tb-codex-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-codex-"));
     origCwd = process.cwd();
     process.chdir(tmpDir);
   });
@@ -31,11 +31,11 @@ describe("Codex adapter", () => {
 
     adapter.writeTeam(team);
 
-    const skillFile = path.join(tmpDir, "skills", "tb-skill_search", "SKILL.md");
+    const skillFile = path.join(tmpDir, "skills", "trc-skill_search", "SKILL.md");
     assert.ok(fs.existsSync(skillFile), "SKILL.md should exist");
 
     const content = fs.readFileSync(skillFile, "utf-8");
-    assert.ok(content.includes("name: tb-skill_search"));
+    assert.ok(content.includes("name: trc-skill_search"));
     assert.ok(content.includes("Search code"));
   });
 
@@ -55,7 +55,7 @@ describe("Codex adapter", () => {
     adapter.writeTeam(team);
 
     // Check TOML agent file
-    const tomlFile = path.join(tmpDir, ".codex", "agents", "tb-architect.toml");
+    const tomlFile = path.join(tmpDir, ".codex", "agents", "trc-architect.toml");
     assert.ok(fs.existsSync(tomlFile), "TOML agent file should exist");
 
     const content = fs.readFileSync(tomlFile, "utf-8");
@@ -81,8 +81,8 @@ describe("Codex adapter", () => {
     assert.ok(fs.existsSync(configPath), "config.toml should exist");
 
     const content = fs.readFileSync(configPath, "utf-8");
-    assert.ok(content.includes("[agents.tb-architect]"));
-    assert.ok(content.includes('config_file = "agents/tb-architect.toml"'));
+    assert.ok(content.includes("[agents.trc-architect]"));
+    assert.ok(content.includes('config_file = "agents/trc-architect.toml"'));
   });
 
   it("writes routing AGENTS.md", async () => {
@@ -101,7 +101,7 @@ describe("Codex adapter", () => {
 
     const content = fs.readFileSync(agentsMd, "utf-8");
     assert.ok(content.includes("test-team"));
-    assert.ok(content.includes("tb-architect"));
+    assert.ok(content.includes("trc-architect"));
   });
 
   it("cleans up on uninstall", async () => {
@@ -117,12 +117,12 @@ describe("Codex adapter", () => {
     adapter.writeTeam(team);
 
     // Verify files exist
-    assert.ok(fs.existsSync(path.join(tmpDir, ".codex", "agents", "tb-architect.toml")));
+    assert.ok(fs.existsSync(path.join(tmpDir, ".codex", "agents", "trc-architect.toml")));
     assert.ok(fs.existsSync(path.join(tmpDir, ".codex", "config.toml")));
     assert.ok(fs.existsSync(path.join(tmpDir, "AGENTS.md")));
 
     const actions = adapter.uninstall();
     assert.ok(actions.length > 0);
-    assert.ok(!fs.existsSync(path.join(tmpDir, ".codex", "agents", "tb-architect.toml")));
+    assert.ok(!fs.existsSync(path.join(tmpDir, ".codex", "agents", "trc-architect.toml")));
   });
 });
