@@ -37,9 +37,8 @@ defmodule TeamrcWeb.UserSessionControllerTest do
 
       {:ok, user} =
         Teamrc.Accounts.register_user(%{
-          email: email,
-          accepted_terms_at: DateTime.utc_now(:second),
-          terms_version_accepted: "2026-03-11"
+          "email" => email,
+          "terms_accepted" => "true"
         })
 
       {:ok, user} =
@@ -133,20 +132,20 @@ defmodule TeamrcWeb.UserSessionControllerTest do
     end
   end
 
-  describe "GET /users/complete-login" do
+  describe "POST /users/complete-login" do
     test "creates session for authenticated user who accepted terms", %{conn: conn} do
       user = user_fixture()
       {:ok, user} = Teamrc.Accounts.accept_terms(user, "2026-03-11")
       conn = log_in_user(conn, user)
 
-      conn = get(conn, ~p"/users/complete-login")
+      conn = post(conn, ~p"/users/complete-login")
 
       # Should redirect (log_in_user issues a redirect)
       assert redirected_to(conn)
     end
 
     test "redirects to login without authentication", %{conn: conn} do
-      conn = get(conn, ~p"/users/complete-login")
+      conn = post(conn, ~p"/users/complete-login")
 
       assert redirected_to(conn) == ~p"/users/log-in"
       assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Please log in again"

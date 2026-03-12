@@ -1,23 +1,24 @@
 # Deploying teamrc to Production with Coolify
 
-This guide walks you through deploying the teamrc relay server from zero to a working production instance. Every step is explained — no prior Coolify or server admin experience required.
+This guide walks you through deploying the teamrc relay server from zero to a working production instance. No prior Coolify or server admin experience required.
 
 **What you'll end up with**: teamrc running at `https://your-domain.com` with automatic SSL, database backups, and health monitoring.
 
-**How long it takes**: About 30 minutes for a basic deploy (Steps 1–7). The rest is optional optimization.
+**Time**: ~30 minutes for a basic deploy (Steps 1-7). The rest is optional.
 
 **Which steps are required?**
 
 | Step | What | Required? |
 |------|------|-----------|
-| 1–7 | Server, DNS, Coolify, database, app, verify | **Yes** — the minimum to get running |
-| 5b | Database tuning | Recommended but not required |
-| 5c | Database backups | **Strongly recommended** |
-| 8 | Server/kernel tuning | Optional — for performance under load |
-| 9 | Auto-deploy | Optional — quality of life |
-| 10 | Monitoring | Optional — ongoing maintenance |
-| Replication | Database read replicas | Optional — you won't need this unless you have thousands of users |
-| Horizontal scaling | Multiple app instances | Optional — a single instance handles massive concurrency already |
+| 1-7 | Server, DNS, Coolify, Git, database, app, verify | **Yes** |
+| 5b | Database backups | **Strongly recommended** |
+| 5c | Database tuning | Recommended |
+| 8 | Database access (SSH tunnel + DBeaver) | **Recommended** |
+| 9 | Server/kernel tuning | Optional, for performance under load |
+| 10 | Auto-deploy | Optional, quality of life |
+| 11 | Monitoring | Optional |
+| Replication | Database read replicas | Optional, not needed until thousands of users |
+| Horizontal scaling | Multiple app instances | Optional, a single instance handles massive concurrency |
 
 **How it works**: Coolify sits on your server and acts as a mini-Heroku. It pulls your code from Git, builds a Docker image, runs it, and puts a reverse proxy (Traefik) in front that handles SSL certificates automatically.
 
@@ -29,7 +30,7 @@ Internet → Traefik (SSL, port 443) → teamrc container (port 4000) → Postgr
 
 ## Step 1. Get a Server
 
-You need a Linux VPS. Any provider works — Hetzner, DigitalOcean, Linode, Vultr, etc.
+You need a Linux VPS. Any provider works: Hetzner, DigitalOcean, Linode, Vultr, etc.
 
 **Minimum specs:**
 - 1 vCPU, 2 GB RAM (fine for small teams)
@@ -40,7 +41,7 @@ You need a Linux VPS. Any provider works — Hetzner, DigitalOcean, Linode, Vult
 - 2 vCPU, 4 GB RAM
 - SSD storage
 
-Once your server is running, note its **IP address** — you'll need it in the next step.
+Once your server is running, note its **IP address**. You'll need it in the next step.
 
 ---
 
@@ -58,7 +59,7 @@ For example, if your domain is `teamrc.ai` and your server IP is `5.78.100.42`:
 A   teamrc.ai   →   5.78.100.42
 ```
 
-**Wait 5–10 minutes** for DNS to propagate before continuing. You can check with:
+**Wait 5-10 minutes** for DNS to propagate. You can verify with:
 
 ```bash
 dig teamrc.ai +short
@@ -104,74 +105,48 @@ Coolify needs access to the teamrc repo to pull and build the code.
 
 ## Step 5. Create the Database
 
-teamrc needs PostgreSQL to store teams, tokens, and invites.
+Create PostgreSQL as a standalone Coolify resource. This gives you Coolify's built-in backup UI, monitoring, and independent scaling.
 
 1. In Coolify, go to **Projects** → click your project (or create one)
 2. Click **+ New Resource** → **Database** → **PostgreSQL**
 3. Fill in the settings:
    - **Name**: `teamrc-db`
-   - **Version**: `18` (default in Coolify — latest stable)
+   - **Version**: `18`
    - **Default Database**: `teamrc`
-   - **Username**: `teamrc` (or anything you like)
-   - **Password**: click **Generate** to create a strong password
-   - **Public Port**: leave **disabled** (the app connects internally, no need to expose it)
-4. Click **Deploy**
-
-Wait for the green "Running" status.
+   - **Username**: `teamrc`
+   - **Password**: click **Generate**
+   - **Public Port**: leave **disabled**
+4. Click **Deploy** and wait for the green "Running" status
 
 ### 5a. Find Your Database Connection String
 
-After the database is running:
-
-1. Click on the `teamrc-db` resource
-2. Go to the **Connection** tab
-3. Copy the **Internal URL** — it looks something like:
-
-```
-postgresql://teamrc:generated-password@teamrc-db-abcd1234:5432/teamrc
-```
-
-You need to convert this to **Ecto format** for Phoenix. Just change `postgresql://` to `ecto://`:
+1. Click on the `teamrc-db` resource → **Connection** tab
+2. Copy the **Internal URL**. It looks like: `postgresql://teamrc:generated-password@teamrc-db-abcd1234:5432/teamrc`
+3. Convert to Ecto format by changing `postgresql://` to `ecto://`:
 
 ```
 ecto://teamrc:generated-password@teamrc-db-abcd1234:5432/teamrc
 ```
 
-**Save this string** — you'll paste it into the app's environment variables in Step 6.
+Save this. You'll need it in Step 6.
 
-### 5b. Tune the Database (Optional but Recommended)
+### 5b. Set Up Backups (to S3)
 
-PostgreSQL's defaults are very conservative. For a 2–4 GB RAM server, paste this into the **Custom PostgreSQL Configuration** field in the database's **Advanced** settings:
+Don't skip this. If your database dies and you have no backup, you lose all your teams. Backups should go off-server because a local backup dies with the server.
 
-```ini
-# Memory — give Postgres ~25% of your server's RAM
-shared_buffers = 512MB
-effective_cache_size = 1536MB
-work_mem = 4MB
-maintenance_work_mem = 128MB
+1. Click on your `teamrc-db` resource → **Backups** tab
+2. **Connect an S3 destination first**: go to **Settings** → **S3 Storages** → **+ Add** and configure an S3-compatible bucket:
+   - **Backblaze B2**: cheapest option (~$0.005/GB/month)
+   - **Cloudflare R2**: no egress fees
+   - **AWS S3**: most features, higher cost
+3. Back in the database **Backups** tab, configure:
+   - **Schedule**: `0 3 * * *` (daily at 3 AM)
+   - **Retention**: `7` (keep the last 7 backups)
+   - **S3 Storage**: select the S3 destination you just configured
 
-# Connections — Phoenix uses a pool of 10 by default
-# Set this higher to leave room for migrations, backups, admin tools
-max_connections = 50
+### 5c. Tune PostgreSQL (Optional but Recommended)
 
-# Write performance
-checkpoint_completion_target = 0.9
-wal_buffers = 16MB
-
-# SSD optimization (almost all VPS providers use SSDs)
-random_page_cost = 1.1
-effective_io_concurrency = 200
-
-# Replication — enable now so you can add replicas later without downtime
-wal_level = replica
-max_wal_senders = 3
-max_replication_slots = 3
-
-# Logging — log any query that takes more than 500ms
-log_min_duration_statement = 500
-```
-
-If you're not sure which values to use, here's a quick reference:
+Paste this into the **Custom PostgreSQL Configuration** in the database's **Advanced** settings:
 
 | Your Server RAM | shared_buffers | effective_cache_size | work_mem | max_connections |
 |-----------------|---------------|---------------------|----------|----------------|
@@ -180,75 +155,47 @@ If you're not sure which values to use, here's a quick reference:
 | 4 GB            | 1 GB          | 3 GB                | 8 MB     | 100            |
 | 8 GB            | 2 GB          | 6 GB                | 16 MB    | 200            |
 
-After pasting, **redeploy the database** for the changes to take effect.
-
-### 5c. Set Up Backups
-
-Don't skip this. If your database dies and you have no backup, you lose all your teams.
-
-1. Click on your `teamrc-db` resource
-2. Go to the **Backups** tab
-3. Configure:
-   - **Schedule**: `0 3 * * *` (daily at 3 AM — this is a cron expression)
-   - **Retention**: `7` (keep the last 7 backups)
-   - **S3 Storage** (optional but recommended): connect an S3-compatible bucket (Backblaze B2, Cloudflare R2, AWS S3) so backups survive even if the whole server dies
-
 ---
 
 ## Step 6. Deploy the teamrc Application
 
-### 6a. Create the Application in Coolify
+The `docker-compose.coolify.yml` file deploys just the Phoenix app. It connects to the Postgres database you created in Step 5. Coolify auto-generates all secrets.
 
-1. Go to **Projects** → your project → **+ New Resource** → **Application**
+### 6a. Create the Resource
+
+1. In Coolify, go to **Projects** → your project → **+ New Resource** → **Docker Compose**
 2. Select your Git source and pick the teamrc repository
-3. Configure the build settings:
-   - **Build Pack**: select **Dockerfile** (not Nixpacks — teamrc has its own Dockerfile)
-   - **Branch**: `main` (or whichever branch you deploy from)
-   - **Dockerfile Location**: `Dockerfile` (it's at the repo root)
-   - **Port Exposes**: `4000`
-4. Set your domain:
-   - **Domain**: enter your domain with the `https://` prefix, e.g., `https://teamrc.ai`
-   - Coolify will automatically provision a Let's Encrypt SSL certificate
+3. Set the **Docker Compose file** path to `docker-compose.coolify.yml`
+4. Set the **branch** to `main` (or whichever branch you deploy from)
 
-### 6b. Generate Your Secrets
+### 6b. Set Your Domain
 
-You need 4 secret values. These are random strings used to sign cookies, sessions, and LiveView connections. **Each one must be different.**
+In the service settings for the `app` service:
 
-If you have Elixir installed locally, run this 4 times:
-
-```bash
-mix phx.gen.secret
-```
-
-If you don't have Elixir, use OpenSSL instead (works on any machine):
-
-```bash
-openssl rand -base64 64 | tr -d '\n'
-```
-
-Run it 4 times and save each output. Label them:
-1. `SECRET_KEY_BASE`
-2. `SESSION_SIGNING_SALT`
-3. `LIVE_VIEW_SIGNING_SALT`
-4. `SESSION_ENCRYPTION_SALT`
+1. Set the **Domain** to your domain with `https://`, e.g., `https://teamrc.ai`
+2. Coolify will automatically provision a Let's Encrypt SSL certificate
 
 ### 6c. Set Environment Variables
 
-Go to the **Environment Variables** tab in your Coolify application and add each of these:
+Set `DATABASE_URL` manually in the **Environment Variables** tab. This points to your Postgres from Step 5:
 
-| Variable | Value | Notes |
-|----------|-------|-------|
-| `DATABASE_URL` | `ecto://teamrc:...@teamrc-db-xxxx:5432/teamrc` | The connection string from Step 5a |
-| `DATABASE_SSL` | `false` | The database is on the same server, no SSL needed internally |
-| `PHX_HOST` | `teamrc.ai` | Your actual domain, **without** `https://` |
-| `PHX_SERVER` | `true` | Tells Phoenix to start the web server |
-| `SECRET_KEY_BASE` | _(your generated secret)_ | From Step 6b |
-| `SESSION_SIGNING_SALT` | _(your generated secret)_ | From Step 6b |
-| `LIVE_VIEW_SIGNING_SALT` | _(your generated secret)_ | From Step 6b |
-| `SESSION_ENCRYPTION_SALT` | _(your generated secret)_ | From Step 6b |
-| `POOL_SIZE` | `10` | How many database connections to keep open |
+```env
+DATABASE_URL=ecto://teamrc:generated-password@teamrc-db-abcd1234:5432/teamrc
+```
 
-**Optional** — only needed if you want OAuth-based user accounts (dashboard, machine management, account recovery):
+The remaining secrets are auto-generated by Coolify:
+
+| Variable | Generated by |
+|----------|-------------|
+| `SERVICE_PASSWORD_64_SECRETKEY` | Coolify, 64-char random string |
+| `SERVICE_PASSWORD_64_SESSIONSALT` | Coolify, 64-char random string |
+| `SERVICE_PASSWORD_64_LVSALT` | Coolify, 64-char random string |
+| `SERVICE_PASSWORD_64_ENCSALT` | Coolify, 64-char random string |
+| `SERVICE_FQDN_APP` | Coolify, set from your domain config |
+
+These are stable across redeploys. You can view/override them in the **Environment Variables** tab.
+
+**Optional**: for GitHub/Google sign-in on the web dashboard:
 
 | Variable | Value |
 |----------|-------|
@@ -257,33 +204,28 @@ Go to the **Environment Variables** tab in your Coolify application and add each
 | `GOOGLE_CLIENT_ID` | From your Google Cloud Console OAuth credentials |
 | `GOOGLE_CLIENT_SECRET` | From your Google Cloud Console OAuth credentials |
 
-### 6d. Configure Health Checks
+### 6d. Networking
 
-Health checks tell Coolify whether your app is alive. If it stops responding, Coolify will restart it automatically.
+Both the app and database must be on the same Docker network to communicate. The compose file explicitly joins the `app` service to the `coolify` external network, but you also need to connect your Postgres resource to this network.
 
-In the application settings, go to **Health Checks** and set:
+**For the app** (handled automatically): the compose file includes `networks: coolify: external: true`, which joins the app to the `coolify` network.
 
-| Setting | Value |
-|---------|-------|
-| **Path** | `/health` |
-| **Port** | `4000` |
-| **Interval** | `30` seconds |
-| **Timeout** | `10` seconds |
-| **Retries** | `3` |
-| **Start Period** | `30` seconds (gives the app time to boot and run database migrations) |
+**For the database** (manual step): go to your `teamrc-db` resource in Coolify → **Settings** → enable **"Connect to Predefined Network"**. This puts Postgres on the same `coolify` network so the app can reach it.
+
+> **Note**: The "Connect to Predefined Network" toggle is known to be unreliable for Docker Compose resources, which is why we handle it explicitly in the compose file. For standalone database resources, the toggle generally works fine.
 
 ### 6e. Deploy
 
 Click **Deploy**. Coolify will:
 
 1. Pull the code from Git
-2. Build a Docker image using the `Dockerfile`
-3. Start the container
+2. Build the app Docker image using the `Dockerfile`
+3. Start the app container with auto-generated secrets
 4. Run database migrations automatically (the `docker-entrypoint` script handles this)
 5. Wait for the health check to pass
-6. Route traffic to the new container
+6. Route traffic via Traefik to the app container
 
-Watch the **Build Logs** tab. A successful build takes 2–5 minutes. Once you see "Container is healthy", you're live.
+Watch the **Build Logs** tab. A successful build takes 2-5 minutes. Once you see "Container is healthy", you're live.
 
 ---
 
@@ -339,13 +281,82 @@ If this completes without errors, your deployment is fully working.
 
 ---
 
-## Step 8. Tune the Server (Optional — Skip If You're Just Getting Started)
+## Step 8. Access Your Database (SSH Tunnel + DBeaver)
 
-> **You can skip this entire step.** The defaults work fine for small teams. Come back to this when you have real traffic or notice performance issues.
+Your Postgres database should **never** be exposed to the internet. Don't deploy pgAdmin or other database GUIs as public Coolify services. They break behind reverse proxies and add unnecessary attack surface.
 
-teamrc runs on the BEAM (Erlang VM), which is built for massive concurrency — but Linux's default limits are too conservative for it. These tweaks unlock the BEAM's full potential.
+Use [DBeaver Community](https://dbeaver.io/) instead (free, open source, Mac/Linux/Windows). It has a built-in SSH tunnel, so no terminal commands are needed.
 
-### 8a. Tune the Linux Kernel
+### 8a. Gather Your Connection Details
+
+You need three things from Coolify:
+
+1. **Server SSH access**: your server IP and SSH key/password
+2. **Postgres container name and IP**: SSH into your server and find your Postgres container. Coolify may have multiple Postgres instances running (its own internal DB, plus yours), so identify yours by the version you deployed:
+   ```bash
+   # List all Postgres containers with their image versions
+   docker ps | grep -i postgres
+
+   # Example output:
+   # abc123def456  postgres:18-alpine  ...  example-container-name       <- your DB (v18)
+   # fed654cba321  postgres:15-alpine  ...  coolify-db                     <- Coolify internal DB
+   ```
+   Once you've identified your container name, get its internal IP:
+   ```bash
+   docker inspect <container-name> --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
+   ```
+   Note the IP (e.g., `10.0.3.2`).
+3. **Database credentials**: verify the actual credentials on the container:
+   ```bash
+   docker inspect <container-name> --format '{{range .Config.Env}}{{println .}}{{end}}' | grep POSTGRES
+   ```
+   This shows `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`. You can also find these in Coolify under your Postgres resource's **Connection** tab.
+
+### 8b. Create the Connection in DBeaver
+
+1. Open DBeaver → **Database** → **New Database Connection** → select **PostgreSQL** → **Next**
+
+2. **Main tab**: fill in the database details:
+
+   | Field | Value |
+   |-------|-------|
+   | **Host** | the container IP from step 8a (e.g., `172.x.x.x`) |
+   | **Port** | `5432` |
+   | **Database** | `teamrc` |
+   | **Username** | your Postgres user |
+   | **Password** | your Postgres password |
+
+3. **SSH tab**: check **Use SSH Tunnel** and configure:
+
+   | Field | Value |
+   |-------|-------|
+   | **Host/IP** | your Coolify server IP (e.g., `5.78.100.42`) |
+   | **Port** | `22` |
+   | **Username** | `root` (or your SSH user) |
+   | **Authentication Method** | **Public Key** (recommended) or **Password** |
+   | **Private Key** | path to your SSH private key (e.g., `~/.ssh/id_ed25519`) |
+
+4. Click **Test Connection**. DBeaver opens the SSH tunnel automatically and connects through it.
+
+5. Click **Finish** to save. The connection is reusable; just double-click it next time.
+
+> **How it works**: DBeaver SSHs into your server, then connects to the Postgres container's internal IP from inside the server. Your database port never touches the internet.
+
+> **Why this beats pgAdmin on Coolify:**
+> - No public attack surface. The database port never touches the internet.
+> - No reverse proxy headaches. SSH handles encryption and auth natively.
+> - Better tool. DBeaver is more capable than pgAdmin's web UI.
+> - Simpler. No extra containers to deploy, no domain/SSL to manage.
+
+---
+
+## Step 9. Tune the Server (Optional)
+
+> You can skip this. The defaults work fine for small teams. Come back when you have real traffic or notice performance issues.
+
+teamrc runs on the BEAM (Erlang VM), which is built for massive concurrency, but Linux's default limits are too conservative for it.
+
+### 9a. Tune the Linux Kernel
 
 SSH into your server and create a config file:
 
@@ -374,7 +385,7 @@ net.ipv4.tcp_keepalive_time = 300
 net.ipv4.tcp_keepalive_intvl = 30
 net.ipv4.tcp_keepalive_probes = 5
 
-# Prefer RAM over swap — the BEAM manages its own memory and swap causes latency spikes
+# Prefer RAM over swap. The BEAM manages its own memory and swap causes latency spikes.
 vm.swappiness = 1
 ```
 
@@ -386,7 +397,7 @@ sudo sysctl --system
 
 This takes effect immediately, no reboot needed.
 
-### 8b. Raise Container File Descriptor Limits
+### 9b. Raise Container File Descriptor Limits
 
 Docker containers have a default limit on how many files/connections they can open. You need to raise this.
 
@@ -418,9 +429,9 @@ sudo systemctl restart docker
 
 > **Warning**: This briefly stops all containers. Do this during a maintenance window.
 
-**Option B: Per-app in Coolify (if your Coolify version supports Docker Compose overrides)**
+**Option B: In the compose file**
 
-In the application's **Docker Compose** override field:
+Add `ulimits` to the `app` service in `docker-compose.coolify.yml`:
 
 ```yaml
 services:
@@ -431,7 +442,7 @@ services:
         hard: 65536
 ```
 
-### 8c. BEAM VM Flags (Advanced)
+### 9c. BEAM VM Flags (Advanced)
 
 These flags optimize how the Erlang VM runs inside a container. They're optional but helpful.
 
@@ -455,7 +466,7 @@ What these do:
 
 ---
 
-## Step 9. Set Up Auto-Deploy (Optional)
+## Step 10. Set Up Auto-Deploy (Optional)
 
 Coolify can automatically redeploy when you push to your branch.
 
@@ -463,11 +474,11 @@ Coolify can automatically redeploy when you push to your branch.
 2. Find **Auto Deploy** and enable it
 3. Set the **branch** to watch (e.g., `main`)
 
-Now every `git push origin main` triggers a new deployment. Coolify does rolling deploys — it starts the new container, waits for the health check, then stops the old one. Zero downtime.
+Now every `git push origin main` triggers a new deployment. Coolify does rolling deploys: it starts the new container, waits for the health check, then stops the old one. Zero downtime.
 
 ---
 
-## Step 10. Monitor and Maintain
+## Step 11. Monitor and Maintain
 
 ### Viewing Logs
 
@@ -479,7 +490,7 @@ To increase log detail temporarily, add this environment variable:
 |----------|-------|
 | `LOGGER_LEVEL` | `debug` |
 
-Change it back to `info` (or remove it) when done — debug logs are very verbose.
+Change it back to `info` (or remove it) when done. Debug logs are very verbose.
 
 ### Redeploying
 
@@ -493,9 +504,9 @@ If the server feels slow, the simplest fix is a bigger VPS:
 
 | Team Size | Recommended Server | POOL_SIZE |
 |-----------|--------------------|-----------|
-| 1–100 users | 1 vCPU, 2 GB RAM | 10 |
-| 100–500 users | 2 vCPU, 4 GB RAM | 15 |
-| 500–2,000 users | 4 vCPU, 8 GB RAM | 20 |
+| 1-100 users | 1 vCPU, 2 GB RAM | 10 |
+| 100-500 users | 2 vCPU, 4 GB RAM | 15 |
+| 500-2,000 users | 4 vCPU, 8 GB RAM | 20 |
 | 2,000+ users | 4+ vCPU, 8+ GB RAM | 30 |
 
 Remember to also update `POOL_SIZE` and the Postgres `max_connections` if you scale up. Rule of thumb: `max_connections` should be at least `POOL_SIZE * 2 + 20`.
@@ -509,7 +520,7 @@ You don't need to configure SSL manually. Here's what happens:
 1. You set your domain in Coolify with `https://`
 2. Coolify's Traefik proxy requests a free SSL certificate from Let's Encrypt
 3. All HTTPS traffic hits Traefik on port 443, which terminates SSL
-4. Traefik forwards the request to your Phoenix container on port 4000 over plain HTTP (internal Docker network — safe)
+4. Traefik forwards the request to your Phoenix container on port 4000 over plain HTTP (internal Docker network, safe)
 5. Traefik adds a header `X-Forwarded-Proto: https` so Phoenix knows the original request was HTTPS
 6. Phoenix uses this header to generate correct `https://` URLs for invites, device auth, etc.
 
@@ -521,18 +532,18 @@ If someone visits `http://teamrc.ai`, Phoenix automatically redirects them to `h
 
 ### "database connection refused"
 
-**Cause**: The `DATABASE_URL` is wrong, or the database isn't running.
+**Cause**: The `app` container can't reach the `db` container.
 
 **Fix**:
-1. Check that the database resource shows "Running" in Coolify
-2. Double-check the internal hostname — go to the database's **Connection** tab and copy the Internal URL
-3. Make sure you converted `postgresql://` to `ecto://`
+1. Check that both containers are running in Coolify's UI
+2. Look at the `db` container logs. Is Postgres healthy?
+3. Verify the compose file has `depends_on` with `condition: service_healthy`
 
 ### "SECRET_KEY_BASE is missing"
 
-**Cause**: You forgot to set an environment variable.
+**Cause**: Coolify hasn't generated the `SERVICE_PASSWORD_64_*` variables.
 
-**Fix**: Go to the app's **Environment Variables** tab and make sure all 6 required variables are set (DATABASE_URL, PHX_HOST, SECRET_KEY_BASE, and the 3 salts).
+**Fix**: Check the **Environment Variables** tab in Coolify. The `SERVICE_PASSWORD_*` variables should be auto-generated on first deploy. If they're missing, try redeploying. If still missing, add them manually with `openssl rand -base64 64 | tr -d '\n'`.
 
 ### Infinite redirect loop / page won't load
 
@@ -542,9 +553,9 @@ If someone visits `http://teamrc.ai`, Phoenix automatically redirects them to `h
 
 ### "certificate verify failed"
 
-**Cause**: `DATABASE_SSL` is set to `true`, but the database is on the same Coolify server (no SSL between containers).
+**Cause**: `DATABASE_SSL` is set to `true`, but the database is on the same Coolify server (no SSL needed between containers on the same Docker network).
 
-**Fix**: Set `DATABASE_SSL=false` in your environment variables.
+**Fix**: The compose file already sets `DATABASE_SSL=false`. If you've overridden it, remove the override.
 
 ### Invite URLs show "example.com" instead of your domain
 
@@ -574,13 +585,13 @@ teamrc init  # and follow the prompts
 
 **Cause**: The BEAM VM's scheduler busy-wait is spinning.
 
-**Fix**: Add the `ERL_FLAGS` environment variable from Step 8c. The key flag is `+sbwt none`.
+**Fix**: Add the `ERL_FLAGS` environment variable from Step 9c. The key flag is `+sbwt none`.
 
 ### "emfile" error / BEAM crashes
 
 **Cause**: The container hit its file descriptor limit.
 
-**Fix**: Follow Step 8a and 8b to raise the kernel and container limits.
+**Fix**: Follow Step 9a and 9b to raise the kernel and container limits.
 
 ### LiveView pages disconnect or feel laggy
 
@@ -590,24 +601,30 @@ teamrc init  # and follow the prompts
 
 ---
 
-## Advanced: PostgreSQL Replication
+## Advanced: Database High Availability
 
-> You probably don't need this. A single Postgres instance handles thousands of users easily. Only set this up if you need high availability or read scaling.
+> A single Postgres instance on one server handles thousands of users easily. For most teamrc deployments, the setup in Step 5 (standalone Postgres + S3 backups) is all you need.
 
-Coolify doesn't manage replicas automatically, but you can set it up manually:
+### Why Not Replicate on the Same Server?
 
-1. The tuning config from Step 5b already enables `wal_level = replica` — so your primary database is replication-ready
-2. Create a second PostgreSQL resource in Coolify (`teamrc-db-replica`)
-3. Configure it as a streaming replica pointing to the primary's internal hostname
-4. In your Phoenix app, add a read-only Repo module:
+Same-server replication doesn't provide real HA. If the server dies, both primary and replica die together. The only thing it protects against is the Postgres process crashing, and Coolify already auto-restarts containers for that. It doubles your RAM and disk usage for no real benefit.
 
-```elixir
-defmodule Teamrc.ReadRepo do
-  use Ecto.Repo, otp_app: :teamrc, adapter: Ecto.Adapters.Postgres, read_only: true
-end
-```
+### What Actually Protects You (Single Server)
 
-For most deployments, a simpler alternative is to use a managed database service (Supabase, Neon, or your VPS provider's managed Postgres) and point `DATABASE_URL` at it.
+1. **Coolify auto-restart**: if Postgres crashes, the container restarts automatically
+2. **S3 backups** (Step 5b): if the server dies, restore from backup onto a new server in minutes
+3. **WAL archiving to S3** (optional): for point-in-time recovery between daily backups
+
+### When You Need Real HA
+
+If you need automatic failover and zero downtime, you have two options:
+
+**Option A: Managed Postgres.** Simplest path. Point `DATABASE_URL` at an external provider:
+- **Neon**: serverless, scales to zero, generous free tier
+- **Crunchy Bridge**: traditional managed Postgres with HA replicas
+- **Your VPS provider**: Hetzner, DigitalOcean, Vultr all offer managed Postgres ($15-30/mo)
+
+**Option B: Autobase.** Self-hosted DBaaS. Deploy the [Autobase console](https://autobase.tech/) to manage HA Postgres clusters across multiple servers. Requires 3+ VMs for a proper HA cluster (Patroni + etcd), but gives you full control with automatic failover, backups, and scaling. The console can run as a Docker Compose resource in Coolify. The Postgres cluster runs on separate machines managed via Ansible.
 
 ---
 
@@ -644,3 +661,4 @@ Phoenix supports clustering via DNS-based service discovery. If you need multipl
 | `GITHUB_CLIENT_SECRET` | No | _(from GitHub OAuth App)_ | GitHub OAuth login |
 | `GOOGLE_CLIENT_ID` | No | _(from Google Cloud Console)_ | Google OAuth login |
 | `GOOGLE_CLIENT_SECRET` | No | _(from Google Cloud Console)_ | Google OAuth login |
+| `RESEND_API_KEY` | No | `re_xxxxx` | Transactional email (password reset, verification) |

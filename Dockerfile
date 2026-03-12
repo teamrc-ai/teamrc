@@ -4,17 +4,10 @@
 # Build:  docker build -t teamrc .
 # Run:    docker run -p 4000:4000 --env-file .env teamrc
 
-ARG ELIXIR_VERSION=1.18.2
-ARG OTP_VERSION=27.2.4
-ARG DEBIAN_VERSION=bookworm-20250428-slim
-
-ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
-ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
-
 # =============================================================================
 # Build stage
 # =============================================================================
-FROM ${BUILDER_IMAGE} AS builder
+FROM hexpm/elixir:1.18.3-erlang-27.3.3-debian-bookworm-20250407-slim AS builder
 
 RUN apt-get update -y && \
     apt-get install -y build-essential git && \
@@ -33,25 +26,28 @@ RUN mix deps.get --only $MIX_ENV
 COPY teamrc/config/config.exs teamrc/config/prod.exs config/
 RUN mix deps.compile
 
+# Install tailwind and esbuild binaries for asset compilation
+RUN mix tailwind.install --if-missing && mix esbuild.install --if-missing
+
 # Copy templates (compile-time path resolves to /app/templates)
 COPY templates /app/templates
 
-# Copy app source and build assets
+# Copy app source
 COPY teamrc/priv priv
 COPY teamrc/lib lib
 COPY teamrc/assets assets
 COPY teamrc/rel rel
-RUN mix assets.deploy
-
-# Compile and build release
 COPY teamrc/config/runtime.exs config/
+
+# Compile first (generates phoenix-colocated hooks), then build assets
 RUN mix compile
+RUN mix assets.deploy
 RUN mix release
 
 # =============================================================================
 # Runtime stage — minimal image with just the release
 # =============================================================================
-FROM ${RUNNER_IMAGE}
+FROM debian:bookworm-20250407-slim
 
 RUN apt-get update -y && \
     apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates curl && \

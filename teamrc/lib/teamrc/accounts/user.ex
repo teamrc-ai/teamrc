@@ -145,13 +145,21 @@ defmodule Teamrc.Accounts.User do
   @doc """
   Validates that terms of service have been accepted during registration.
   Designed to be piped after `email_changeset/2` in the registration flow.
+
+  Stamps `accepted_terms_at` and `terms_version_accepted` server-side only —
+  these values are never cast from user input to prevent bypass attacks.
+  Expects `"terms_accepted" => "true"` in attrs.
   """
-  def registration_terms_changeset(changeset, attrs) do
+  def registration_terms_changeset(changeset, %{"terms_accepted" => "true"}) do
+    now = DateTime.utc_now(:second)
+
     changeset
-    |> cast(attrs, [:accepted_terms_at, :terms_version_accepted])
-    |> validate_required([:accepted_terms_at, :terms_version_accepted],
-      message: "terms of service must be accepted to register"
-    )
+    |> put_change(:accepted_terms_at, now)
+    |> put_change(:terms_version_accepted, Teamrc.Accounts.current_terms_version())
+  end
+
+  def registration_terms_changeset(changeset, _attrs) do
+    add_error(changeset, :terms_accepted, "terms of service must be accepted to register")
   end
 
   @doc """

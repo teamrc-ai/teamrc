@@ -11,20 +11,21 @@ defmodule Teamrc.AccountsTest do
     test "creates user with valid attrs including ToS" do
       attrs = valid_user_attributes()
       assert {:ok, %User{} = user} = Accounts.register_user(attrs)
-      assert user.email == attrs.email
+      assert user.email == attrs["email"]
       assert user.accepted_terms_at
       assert user.terms_version_accepted
     end
 
     test "fails without ToS fields" do
       assert {:error, changeset} =
-               Accounts.register_user(%{email: unique_user_email()})
+               Accounts.register_user(%{"email" => unique_user_email()})
 
-      assert "terms of service must be accepted to register" in errors_on(changeset).accepted_terms_at
+      assert "terms of service must be accepted to register" in errors_on(changeset).terms_accepted
     end
 
     test "fails with duplicate email" do
-      attrs = valid_user_attributes()
+      email = unique_user_email()
+      attrs = %{"email" => email, "terms_accepted" => "true"}
       {:ok, _user} = Accounts.register_user(attrs)
       assert {:error, changeset} = Accounts.register_user(attrs)
       assert errors_on(changeset).email != []

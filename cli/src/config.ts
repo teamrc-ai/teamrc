@@ -4,7 +4,6 @@ import * as os from "node:os";
 
 export interface TeamrcConfig {
   token: string;
-  relay: string;
   account?: {
     email: string;
   };
@@ -26,7 +25,12 @@ export function loadConfig(): TeamrcConfig | null {
   }
   try {
     const raw = fs.readFileSync(configPath, "utf-8");
-    return JSON.parse(raw) as TeamrcConfig;
+    const parsed = JSON.parse(raw);
+    // Strip legacy `relay` field — relay is no longer persisted in global config
+    if (parsed && typeof parsed === "object") {
+      delete parsed.relay;
+    }
+    return parsed as TeamrcConfig;
   } catch (e) {
     // File exists but couldn't be parsed — warn the user
     console.warn(`Warning: Could not parse config file at ${configPath}: ${e instanceof Error ? e.message : e}`);
@@ -40,7 +44,9 @@ export function saveConfig(config: TeamrcConfig): void {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
   fs.chmodSync(dir, 0o700);
-  fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2), { mode: 0o600 });
+  // Strip relay — it must never be persisted in global config
+  const { relay: _relay, ...clean } = config as TeamrcConfig & { relay?: unknown };
+  fs.writeFileSync(getConfigPath(), JSON.stringify(clean, null, 2), { mode: 0o600 });
 }
 
 export function detectPlatforms(): string[] {
@@ -96,7 +102,7 @@ export function validateRelayUrl(url: string): void {
   }
 }
 
-export function getRelayUrl(overrideUrl?: string): string {
+export function getRelayUrl(overrideUrl?: string, yamlRelay?: string): string {
   if (overrideUrl) {
     validateRelayUrl(overrideUrl);
     return overrideUrl;
@@ -106,10 +112,9 @@ export function getRelayUrl(overrideUrl?: string): string {
     validateRelayUrl(envUrl);
     return envUrl;
   }
-  const config = loadConfig();
-  if (config?.relay) {
-    validateRelayUrl(config.relay);
-    return config.relay;
+  if (yamlRelay) {
+    validateRelayUrl(yamlRelay);
+    return yamlRelay;
   }
   return "https://teamrc.ai";
 }

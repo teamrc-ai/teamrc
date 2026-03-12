@@ -50,16 +50,24 @@ describe("loadConfig", () => {
   it("loads a valid config", () => {
     const dir = path.join(tmpDir, ".teamrc");
     fs.mkdirSync(dir, { recursive: true });
-    const config: TeamrcConfig = {
-      token: "trc_ak_test123",
-      relay: "https://relay.teamrc.dev",
-    };
+    const config = { token: "trc_ak_test123" };
     fs.writeFileSync(path.join(dir, "config.json"), JSON.stringify(config));
 
     const result = loadConfig();
     assert.ok(result);
     assert.equal(result.token, "trc_ak_test123");
-    assert.equal(result.relay, "https://relay.teamrc.dev");
+  });
+
+  it("strips legacy relay field from config", () => {
+    const dir = path.join(tmpDir, ".teamrc");
+    fs.mkdirSync(dir, { recursive: true });
+    const legacy = { token: "trc_ak_legacy", relay: "http://localhost:4000" };
+    fs.writeFileSync(path.join(dir, "config.json"), JSON.stringify(legacy));
+
+    const result = loadConfig();
+    assert.ok(result);
+    assert.equal(result.token, "trc_ak_legacy");
+    assert.equal((result as Record<string, unknown>).relay, undefined);
   });
 });
 
@@ -85,7 +93,6 @@ describe("saveConfig + loadConfig roundtrip", () => {
   it("saves and loads a basic config", () => {
     const config: TeamrcConfig = {
       token: "trc_ak_roundtrip",
-      relay: "http://localhost:4000",
     };
 
     saveConfig(config);
@@ -93,13 +100,19 @@ describe("saveConfig + loadConfig roundtrip", () => {
 
     assert.ok(loaded);
     assert.equal(loaded.token, config.token);
-    assert.equal(loaded.relay, config.relay);
+  });
+
+  it("does not persist relay field", () => {
+    // Even if relay is passed (e.g. from legacy code), it must not be persisted
+    saveConfig({ token: "trc_ak_norelay" } as TeamrcConfig);
+    const raw = fs.readFileSync(path.join(tmpDir, ".teamrc", "config.json"), "utf-8");
+    const parsed = JSON.parse(raw);
+    assert.equal(parsed.relay, undefined);
   });
 
   it("saves and loads config with account info", () => {
     const config: TeamrcConfig = {
       token: "trc_ak_acct",
-      relay: "https://relay.example.com",
       account: { email: "user@example.com" },
       machineName: "dev-laptop",
     };
@@ -113,7 +126,7 @@ describe("saveConfig + loadConfig roundtrip", () => {
   });
 
   it("creates .teamrc directory with correct permissions", () => {
-    saveConfig({ token: "trc_ak_perms", relay: "http://localhost:4000" });
+    saveConfig({ token: "trc_ak_perms" });
 
     const dir = path.join(tmpDir, ".teamrc");
     assert.ok(fs.existsSync(dir));
@@ -122,7 +135,7 @@ describe("saveConfig + loadConfig roundtrip", () => {
   });
 
   it("creates config file with restricted permissions", () => {
-    saveConfig({ token: "trc_ak_perms2", relay: "http://localhost:4000" });
+    saveConfig({ token: "trc_ak_perms2" });
 
     const configPath = path.join(tmpDir, ".teamrc", "config.json");
     assert.ok(fs.existsSync(configPath));
@@ -131,13 +144,12 @@ describe("saveConfig + loadConfig roundtrip", () => {
   });
 
   it("overwrites existing config", () => {
-    saveConfig({ token: "trc_ak_first", relay: "http://localhost:4000" });
-    saveConfig({ token: "trc_ak_second", relay: "https://relay.example.com" });
+    saveConfig({ token: "trc_ak_first" });
+    saveConfig({ token: "trc_ak_second" });
 
     const loaded = loadConfig();
     assert.ok(loaded);
     assert.equal(loaded.token, "trc_ak_second");
-    assert.equal(loaded.relay, "https://relay.example.com");
   });
 });
 
@@ -182,6 +194,22 @@ describe("getRelayUrl", () => {
   it("override takes precedence over env var", () => {
     process.env["TEAMRC_RELAY"] = "https://env.example.com";
     const result = getRelayUrl("https://override.example.com");
+    assert.equal(result, "https://override.example.com");
+  });
+
+  it("returns yamlRelay when no override or env var", () => {
+    const result = getRelayUrl(undefined, "https://yaml-relay.example.com");
+    assert.equal(result, "https://yaml-relay.example.com");
+  });
+
+  it("env var takes precedence over yamlRelay", () => {
+    process.env["TEAMRC_RELAY"] = "https://env.example.com";
+    const result = getRelayUrl(undefined, "https://yaml-relay.example.com");
+    assert.equal(result, "https://env.example.com");
+  });
+
+  it("override takes precedence over yamlRelay", () => {
+    const result = getRelayUrl("https://override.example.com", "https://yaml-relay.example.com");
     assert.equal(result, "https://override.example.com");
   });
 

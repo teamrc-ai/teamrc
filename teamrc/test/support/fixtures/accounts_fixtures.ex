@@ -8,11 +8,13 @@ defmodule Teamrc.AccountsFixtures do
   def valid_user_password, do: "hello_world_1234"
 
   def valid_user_attributes(attrs \\ %{}) do
-    Enum.into(attrs, %{
-      email: unique_user_email(),
-      accepted_terms_at: DateTime.utc_now(:second),
-      terms_version_accepted: "2026-03-11"
-    })
+    # Convert atom keys to string keys for Ecto cast compatibility
+    string_attrs = for {k, v} <- attrs, into: %{}, do: {to_string(k), v}
+
+    Map.merge(%{
+      "email" => unique_user_email(),
+      "terms_accepted" => "true"
+    }, string_attrs)
   end
 
   def user_fixture(attrs \\ %{}) do
@@ -29,21 +31,11 @@ defmodule Teamrc.AccountsFixtures do
     password = attrs[:password] || valid_user_password()
 
     {:ok, user} =
-      Teamrc.Accounts.register_user(%{
-        email: email,
-        accepted_terms_at: DateTime.utc_now(:second),
-        terms_version_accepted: "2026-03-11"
+      Teamrc.Accounts.register_user_with_password(%{
+        "email" => email,
+        "password" => password,
+        "terms_accepted" => "true"
       })
-
-    # Set password directly
-    {:ok, {user, _tokens}} =
-      user
-      |> Teamrc.Accounts.User.password_changeset(%{password: password})
-      |> Teamrc.Repo.update()
-      |> case do
-        {:ok, user} -> {:ok, {user, []}}
-        error -> error
-      end
 
     %{user | password: password}
   end

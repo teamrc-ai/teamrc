@@ -16,9 +16,8 @@ defmodule Teamrc.SecurityAuditTest do
   # Helper to create a user and link a machine token
   defp create_user_with_token(email, machine_token, machine_name \\ "test-machine") do
     {:ok, user} = Accounts.register_user(%{
-      email: email,
-      accepted_terms_at: DateTime.utc_now(:second),
-      terms_version_accepted: "2026-03-11"
+      "email" => email,
+      "terms_accepted" => "true"
     })
     {:ok, _mt} = Accounts.link_machine_token(user.id, machine_token, machine_name)
     {:ok, user}

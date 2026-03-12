@@ -4,6 +4,26 @@ defmodule TeamrcWeb.UserSessionController do
   alias Teamrc.Accounts
   alias TeamrcWeb.UserAuth
 
+  def register(conn, %{"user" => user_params}) do
+    attrs = %{
+      "email" => user_params["email"],
+      "password" => user_params["password"],
+      "terms_accepted" => user_params["terms_accepted"]
+    }
+
+    case Accounts.register_user_with_password(attrs) do
+      {:ok, user} ->
+        conn
+        |> put_flash(:info, "Account created successfully!")
+        |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+
+      {:error, _changeset} ->
+        conn
+        |> put_flash(:error, "Registration failed. Please check your information and try again.")
+        |> redirect(to: ~p"/users/register")
+    end
+  end
+
   def create(conn, %{"_action" => "confirmed"} = params) do
     create(conn, params, "User confirmed successfully.")
   end

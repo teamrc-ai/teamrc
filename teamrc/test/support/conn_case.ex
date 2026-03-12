@@ -27,6 +27,11 @@ defmodule TeamrcWeb.ConnCase do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Teamrc.Repo)
     Ecto.Adapters.SQL.Sandbox.mode(Teamrc.Repo, {:shared, self()})
 
+    # Clear rate limiter between tests
+    if :ets.whereis(:trc_rate_limiter) != :undefined do
+      :ets.delete_all_objects(:trc_rate_limiter)
+    end
+
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 

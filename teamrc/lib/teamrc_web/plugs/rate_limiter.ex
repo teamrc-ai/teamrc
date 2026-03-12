@@ -24,7 +24,6 @@ defmodule TeamrcWeb.Plugs.RateLimiter do
   @cleanup_interval_ms 300_000
 
   def init(opts) do
-    ensure_table()
     %{
       limit: Keyword.get(opts, :limit, @default_limit),
       ip_limit: Keyword.get(opts, :ip_limit, @default_ip_limit),
@@ -96,11 +95,8 @@ defmodule TeamrcWeb.Plugs.RateLimiter do
     |> halt()
   end
 
-  defp ensure_table do
-    if :ets.whereis(@table) == :undefined do
-      :ets.new(@table, [:named_table, :public, :set, read_concurrency: true])
-      :timer.apply_interval(@cleanup_interval_ms, __MODULE__, :purge_expired, [])
-    end
+  def setup_cleanup_timer do
+    :timer.apply_interval(@cleanup_interval_ms, __MODULE__, :purge_expired, [])
   end
 
   @doc false

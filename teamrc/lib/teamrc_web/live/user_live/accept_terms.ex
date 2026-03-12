@@ -32,6 +32,15 @@ defmodule TeamrcWeb.UserLive.AcceptTerms do
           Continue
         </button>
       </form>
+      <%!-- Hidden form for CSRF-protected POST redirect to complete login --%>
+      <.form
+        :if={@trigger_submit}
+        for={%{}}
+        action={~p"/users/complete-login"}
+        id="complete-login-form"
+        phx-trigger-action={@trigger_submit}
+      >
+      </.form>
     </div>
     """
   end
@@ -42,7 +51,8 @@ defmodule TeamrcWeb.UserLive.AcceptTerms do
 
     {:ok,
      socket
-     |> assign(:pending_user_id, pending_user_id)}
+     |> assign(:pending_user_id, pending_user_id)
+     |> assign(:trigger_submit, false)}
   end
 
   @impl true
@@ -63,13 +73,13 @@ defmodule TeamrcWeb.UserLive.AcceptTerms do
            |> redirect(to: ~p"/users/log-in")}
         else
           user = Accounts.get_user!(user_id)
-          {:ok, _user} = Accounts.accept_terms(user, "2026-03-11")
+          {:ok, _user} = Accounts.accept_terms(user)
 
-          # Redirect through controller to renew session (LiveView can't set cookies)
+          # Trigger a CSRF-protected POST to the controller to renew session
           {:noreply,
            socket
            |> put_flash(:info, "Terms accepted. Welcome!")
-           |> redirect(to: ~p"/users/complete-login")}
+           |> assign(:trigger_submit, true)}
         end
     end
   end

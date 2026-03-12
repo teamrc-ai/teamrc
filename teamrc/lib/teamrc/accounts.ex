@@ -12,6 +12,11 @@ defmodule Teamrc.Accounts do
   alias Teamrc.Schema.{Team, TokenTeam}
   import Ecto.Query
 
+  @terms_version "2026-03-11"
+
+  @doc "Returns the current terms of service version string."
+  def current_terms_version, do: @terms_version
+
   ## ──────────────────────────────────────────────────────────
   ## Database getters (phx.gen.auth)
   ## ──────────────────────────────────────────────────────────
@@ -55,6 +60,18 @@ defmodule Teamrc.Accounts do
   def register_user(attrs) do
     %User{}
     |> User.email_changeset(attrs)
+    |> User.registration_terms_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Registers a user with email and password.
+  Requires terms of service acceptance.
+  """
+  def register_user_with_password(attrs) do
+    %User{}
+    |> User.email_changeset(attrs)
+    |> User.password_changeset(attrs)
     |> User.registration_terms_changeset(attrs)
     |> Repo.insert()
   end
@@ -142,7 +159,7 @@ defmodule Teamrc.Accounts do
   Records the user's acceptance of terms of service.
   Requires a User struct (not raw user_id) to prevent type confusion.
   """
-  def accept_terms(%User{} = user, version) when is_binary(version) do
+  def accept_terms(%User{} = user, version \\ @terms_version) when is_binary(version) do
     user
     |> User.terms_changeset(%{
       accepted_terms_at: DateTime.utc_now(:second),

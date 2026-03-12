@@ -64,7 +64,10 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "teamrc.ai"
+  host =
+    (System.get_env("PHX_HOST") || "teamrc.ai")
+    |> String.replace(~r{^https?://}, "")
+    |> String.trim_trailing("/")
 
   config :teamrc, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
@@ -91,8 +94,7 @@ if config_env() == :prod do
     ],
     secret_key_base: secret_key_base,
     session_options: [signing_salt: session_signing_salt, encryption_salt: session_encryption_salt],
-    live_view: [signing_salt: live_view_signing_salt],
-    force_ssl: [hsts: true, rewrite_on: [:x_forwarded_proto]]
+    live_view: [signing_salt: live_view_signing_salt]
 
   # Swoosh mailer for production
   config :teamrc, Teamrc.Mailer,

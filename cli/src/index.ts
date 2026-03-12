@@ -178,7 +178,7 @@ function requireTeamContext(): TeamContext {
     process.exit(1);
   }
   if (yamlTeam?.teamId) {
-    const relay = yamlTeam.relay ?? config.relay;
+    const relay = getRelayUrl(undefined, yamlTeam.relay);
     const platforms = yamlTeam.platforms ?? detectPlatforms();
     const client = new TeamrcClient(relay, kp.privateKey, config.token, yamlTeam.teamId);
     return {
@@ -200,7 +200,7 @@ function requireTeamContext(): TeamContext {
     process.exit(1);
   }
   if (globalTeam?.teamId) {
-    const relay = globalTeam.relay ?? config.relay;
+    const relay = getRelayUrl(undefined, globalTeam.relay);
     const platforms = globalTeam.platforms ?? detectPlatforms();
     const client = new TeamrcClient(relay, kp.privateKey, config.token, globalTeam.teamId);
     return {
@@ -478,7 +478,7 @@ program
       const yamlPath = scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
       writeTeamYaml(yamlPath, team);
       p.log.step(`Wrote ${yamlPath}`);
-      saveConfig({ relay: relayUrl, token });
+      saveConfig({ token });
 
       // Show ownership token and offer to claim now
       if (relayTeam.owner_claim_secret) {
@@ -626,14 +626,14 @@ program
         teamDef.relay = relayUrl;
         writeTeamYaml(GLOBAL_TEAM_YAML, teamDef);
         p.log.step(`Wrote ${GLOBAL_TEAM_YAML}`);
-        saveConfig({ relay: relayUrl, token });
+        saveConfig({ token });
       } else {
         teamDef.teamId = joinedTeam.id;
         teamDef.platforms = platforms;
         teamDef.relay = relayUrl;
         writeTeamYaml(TEAM_YAML, teamDef);
         p.log.step(`Wrote ${TEAM_YAML}`);
-        saveConfig({ relay: relayUrl, token });
+        saveConfig({ token });
       }
 
       if (!isNonInteractive()) {
@@ -1217,6 +1217,7 @@ program
     const activePlatform = platformStr.split(",")[0];
     const adapter = getAdapter(activePlatform);
     const localTeam = activeTeam;
+    const statusRelayUrl = getRelayUrl(undefined, activeTeam?.relay);
 
     // Check relay state and compute sync status
     let relayConnected = false;
@@ -1226,7 +1227,7 @@ program
     if (teamId && localTeam) {
       const kp = loadKeypair();
       if (kp) {
-        const client = new TeamrcClient(config.relay, kp.privateKey, config.token, teamId);
+        const client = new TeamrcClient(statusRelayUrl, kp.privateKey, config.token, teamId);
 
         // Compute local hashes
         const knowledge = adapter.readKnowledge();
@@ -1260,7 +1261,7 @@ program
       jsonOutput({
         machine: config.machineName ?? os.hostname(),
         token: config.token.slice(0, 12) + "...",
-        relay: { url: config.relay, connected: relayConnected },
+        relay: { url: statusRelayUrl, connected: relayConnected },
         account: config.account?.email ?? null,
         platform: platformStr,
         teamId,
@@ -1278,7 +1279,7 @@ program
     const identityLines = [
       `Machine   ${config.machineName ?? os.hostname()}`,
       `Identity  ${config.token.slice(0, 12)}...`,
-      `Relay     ${config.relay}  ${relayConnected ? "connected" : "unreachable"}`,
+      `Relay     ${statusRelayUrl}  ${relayConnected ? "connected" : "unreachable"}`,
     ];
     if (config.account?.email) {
       identityLines.push(`Account   ${config.account.email}`);
@@ -1394,7 +1395,7 @@ program
       // Clone pull: read-only fetch via clone token, no knowledge
       const scope = await selectScope(opts);
       const platforms = await requirePlatforms(opts.platform, scope);
-      const relayUrl = localYaml!.relay ?? getRelayUrl();
+      const relayUrl = getRelayUrl(undefined, localYaml!.relay);
       const kp = await requireKeypair();
       const client = new TeamrcClient(relayUrl, kp.privateKey, toToken(kp.publicKey));
 
@@ -1503,7 +1504,7 @@ program
     const kp = await requireKeypair();
     const token = toToken(kp.publicKey);
     const config = loadConfig();
-    const relayUrl = config?.relay ?? getRelayUrl();
+    const relayUrl = getRelayUrl();
     const client = new TeamrcClient(relayUrl, kp.privateKey, token);
     const machineName = opts.name ?? os.hostname();
 
@@ -1604,7 +1605,7 @@ program
     try {
       s.start("Creating dashboard link...");
       const result = await ctx.client.createInvite(ttlHours);
-      const relayUrl = ctx.team.relay ?? ctx.config.relay;
+      const relayUrl = getRelayUrl(undefined, ctx.team.relay);
       const dashboardUrl = buildInviteUrl(relayUrl, result.invite_code);
       const opened = openBrowser(dashboardUrl);
       s.stop("Dashboard link ready.");
@@ -1766,6 +1767,7 @@ program
     }
     const whoamiTeamId = whoamiYaml?.teamId ?? "none";
     const whoamiPlatform = whoamiYaml?.platforms?.join(",") ?? "none";
+    const whoamiRelayUrl = getRelayUrl(undefined, whoamiYaml?.relay);
 
     if (useJson) {
       jsonOutput({
@@ -1773,7 +1775,7 @@ program
         machine: config.machineName ?? "unknown",
         account: config.account?.email ?? "not linked",
         teamId: whoamiTeamId,
-        relay: config.relay,
+        relay: whoamiRelayUrl,
         platform: whoamiPlatform,
       });
       return;
@@ -1784,7 +1786,7 @@ program
       `Machine:  ${config.machineName ?? "unknown"}`,
       `Account:  ${config.account?.email ?? "not linked"}`,
       `Team ID:  ${whoamiTeamId}`,
-      `Relay:    ${config.relay}`,
+      `Relay:    ${whoamiRelayUrl}`,
       `Platform: ${whoamiPlatform}`,
     ].join("\n"));
   });
@@ -1822,9 +1824,10 @@ program
 
     // 3. Relay reachable
     if (config) {
+      const doctorRelayUrl = getRelayUrl();
       try {
         const start = Date.now();
-        await fetch(`${config.relay}/api/teams/${encodeURIComponent(config.token)}`);
+        await fetch(`${doctorRelayUrl}/api/teams/${encodeURIComponent(config.token)}`);
         const ms = Date.now() - start;
         p.log.success(`Relay reachable (${ms}ms)`);
         passed++;
@@ -2256,7 +2259,14 @@ program
       process.exit(1);
     }
 
-    const relayUrl = config.relay;
+    // Read YAML early so we can use its relay field
+    let eraseYaml;
+    try {
+      eraseYaml = readTeamYaml(TEAM_YAML) ?? readTeamYaml(GLOBAL_TEAM_YAML);
+    } catch {
+      // ignore parse errors
+    }
+    const relayUrl = getRelayUrl(undefined, eraseYaml?.relay);
     const client = new TeamrcClient(relayUrl, kp.privateKey, token);
 
     // Fetch current status to show what will be erased
@@ -2272,12 +2282,7 @@ program
 
     // Also try YAML for team name
     if (!teamName) {
-      try {
-        const yamlTeam = readTeamYaml(TEAM_YAML) ?? readTeamYaml(GLOBAL_TEAM_YAML);
-        teamName = yamlTeam?.name ?? null;
-      } catch {
-        // ignore parse errors
-      }
+      teamName = eraseYaml?.name ?? null;
     }
 
     p.log.warn(

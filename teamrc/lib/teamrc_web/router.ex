@@ -2,6 +2,7 @@ defmodule TeamrcWeb.Router do
   use TeamrcWeb, :router
 
   import TeamrcWeb.UserAuth
+  import Phoenix.LiveDashboard.Router
 
   pipeline :browser do
     plug :accepts, ["html"]
@@ -56,6 +57,11 @@ defmodule TeamrcWeb.Router do
     plug TeamrcWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
   end
 
+  # Stricter rate limiting for auth endpoints (Bcrypt is CPU-expensive)
+  pipeline :auth_rate_limit do
+    plug TeamrcWeb.Plugs.RateLimiter, limit: 10, window_ms: 60_000, unauth_ip_limit: 10
+  end
+
   # Health check — no auth, no SSL redirect, no pipelines
   scope "/", TeamrcWeb do
     get "/health", PageController, :health
@@ -103,6 +109,23 @@ defmodule TeamrcWeb.Router do
     end
   end
 
+  # Live dashboard — open in dev, admin-only in prod
+  scope "/admin" do
+    pipe_through :browser
+
+    live_dashboard "/dashboard",
+      metrics: TeamrcWeb.Telemetry,
+      on_mount: [{TeamrcWeb.AdminAuth, :admin}]
+  end
+
+  if Application.compile_env(:teamrc, :dev_routes) do
+    scope "/dev" do
+      pipe_through :browser
+
+      forward "/mailbox", Plug.Swoosh.MailboxPreview
+    end
+  end
+
   ## ──────────────────────────────────────────────────────────
   ## phx.gen.auth routes
   ## ──────────────────────────────────────────────────────────
@@ -132,11 +155,18 @@ defmodule TeamrcWeb.Router do
       live "/users/accept-terms", UserLive.AcceptTerms, :new
     end
 
+    delete "/users/log-out", UserSessionController, :delete
+  end
+
+  # Auth actions with stricter rate limiting (Bcrypt is CPU-expensive)
+  scope "/", TeamrcWeb do
+    pipe_through [:browser, :auth_rate_limit]
+
+    post "/users/register", UserSessionController, :register
     post "/users/log-in", UserSessionController, :create
-    get "/users/complete-login", UserSessionController, :terms_accepted
+    post "/users/complete-login", UserSessionController, :terms_accepted
     post "/users/forgot-password", UserSessionController, :forgot_password
     post "/users/reset-password/:token", UserSessionController, :reset_password
-    delete "/users/log-out", UserSessionController, :delete
   end
 
   ## ──────────────────────────────────────────────────────────

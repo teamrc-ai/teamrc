@@ -183,7 +183,7 @@ defmodule TeamrcWeb.LegalLive do
       <.legal_section title="12. Contact">
         <p>
           For questions about these Terms, open an issue on the <a
-            href="https://github.com/teamrc-app/teamrc"
+            href="https://github.com/teamrc-ai/teamrc"
             class="text-primary hover:underline"
             target="_blank"
             rel="noopener"
@@ -357,7 +357,7 @@ defmodule TeamrcWeb.LegalLive do
       <.legal_section title="10. Contact">
         <p>
           For general privacy concerns, open an issue on the <a
-            href="https://github.com/teamrc-app/teamrc"
+            href="https://github.com/teamrc-ai/teamrc"
             class="text-primary hover:underline"
             target="_blank"
             rel="noopener"

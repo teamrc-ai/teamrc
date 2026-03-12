@@ -21,7 +21,7 @@ defmodule Teamrc.MixProject do
   def application do
     [
       mod: {Teamrc.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger, :runtime_tools, :os_mon]
     ]
   end
 
@@ -54,6 +54,7 @@ defmodule Teamrc.MixProject do
        app: false,
        compile: false,
        depth: 1},
+      {:phoenix_live_dashboard, "~> 0.8"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0"},
