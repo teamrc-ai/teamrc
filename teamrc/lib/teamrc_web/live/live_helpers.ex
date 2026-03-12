@@ -12,11 +12,23 @@ defmodule TeamrcWeb.LiveHelpers do
     if socket.assigns.can_edit do
       case socket.assigns[:invite_access] do
         nil ->
-          fun.()
+          # Re-validate participant status against the database to catch
+          # revocations that occurred after mount (stale can_edit fix)
+          current_user = socket.assigns[:current_scope] && socket.assigns.current_scope.user
+          team = socket.assigns[:team]
 
-        invite ->
+          if team && Teamrc.Accounts.is_team_participant?(current_user && current_user.id, team.id) do
+            fun.()
+          else
+            {:noreply,
+             socket
+             |> assign(can_edit: false)
+             |> put_flash(:error, "You are no longer a participant in this team.")}
+          end
+
+        _invite ->
           # Re-validate invite against the database to catch revocations
-          case Teamrc.Teams.get_valid_invite(invite.team_id, socket.assigns[:invite_code]) do
+          case Teamrc.Teams.get_valid_invite(socket.assigns.team.id, socket.assigns[:invite_code]) do
             nil ->
               {:noreply,
                socket
