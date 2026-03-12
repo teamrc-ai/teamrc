@@ -64,6 +64,13 @@ defmodule Teamrc.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:yaml_elixir, "~> 2.11"},
+      # OpenTelemetry
+      {:opentelemetry, "~> 1.7"},
+      {:opentelemetry_api, "~> 1.5"},
+      {:opentelemetry_exporter, "~> 1.10"},
+      {:opentelemetry_bandit, "~> 0.3"},
+      {:opentelemetry_phoenix, "~> 2.0"},
+      {:opentelemetry_ecto, "~> 1.2"},
       # Auth
       {:bcrypt_elixir, "~> 3.0"},
       {:ueberauth, "~> 0.10"},

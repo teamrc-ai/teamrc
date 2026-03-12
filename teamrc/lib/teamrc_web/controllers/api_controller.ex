@@ -165,9 +165,6 @@ defmodule TeamrcWeb.ApiController do
       {:error, :no_account} ->
         conn |> put_status(:forbidden) |> json(%{error: "link your account first with `teamrc login`"})
 
-      {:error, :not_member} ->
-        conn |> put_status(:forbidden) |> json(%{error: "you must be a team member to claim ownership"})
-
       {:error, :already_claimed} ->
         conn |> put_status(:conflict) |> json(%{error: "team already has an owner"})
     end

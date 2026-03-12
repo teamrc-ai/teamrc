@@ -1,8 +1,8 @@
 #!/bin/bash
 # Section 1: Fresh Install — verify state after init
 # Usage: bash scripts/verify/section-01-fresh-install.sh [single|multi]
-#   single — verify after: npx teamrc init --platform claude-code
-#   multi  — verify after: npx teamrc init --platform claude-code,cursor,codex,gemini
+#   single — verify after: npx @teamrc/cli init --platform claude-code
+#   multi  — verify after: npx @teamrc/cli init --platform claude-code,cursor,codex,gemini
 set -euo pipefail
 source "$(dirname "$0")/helpers.sh"
 
@@ -15,7 +15,7 @@ subsection "Config & YAML"
 check_file "$HOME/.teamrc/config.json" "~/.teamrc/config.json exists"
 check_valid_json "$HOME/.teamrc/config.json" "~/.teamrc/config.json is valid JSON"
 check_contains "$HOME/.teamrc/config.json" '"token"' "config has token"
-check_contains "$HOME/.teamrc/config.json" '"relay"' "config has relay"
+check_not_contains "$HOME/.teamrc/config.json" '"relay"' "config has NO relay (relay stripped from global config)"
 check_not_contains "$HOME/.teamrc/config.json" '"teamId"' "config has NO top-level teamId"
 
 check_file ".teamrc.yaml" ".teamrc.yaml exists"
@@ -23,6 +23,12 @@ check_contains ".teamrc.yaml" "name:" ".teamrc.yaml has name"
 check_contains ".teamrc.yaml" "members:" ".teamrc.yaml has members"
 check_contains ".teamrc.yaml" "teamId:" ".teamrc.yaml has teamId"
 check_contains ".teamrc.yaml" "platforms:" ".teamrc.yaml has platforms"
+check_not_contains ".teamrc.yaml" "syncHash" ".teamrc.yaml has no syncHash fields (moved to state.json)"
+
+subsection "State Directory"
+check_dir ".teamrc" ".teamrc/ state directory created"
+check_file ".gitignore" ".gitignore exists"
+check_contains ".gitignore" ".teamrc/" ".gitignore includes .teamrc/"
 
 subsection "Keypair"
 check_file "$HOME/.teamrc/key" "~/.teamrc/key exists"
@@ -72,11 +78,11 @@ fi
 
 # --- 1.4: Status checks ---
 subsection "Status & Doctor"
-check_cmd "teamrc status exits cleanly" npx teamrc status
-check_cmd "teamrc doctor exits cleanly" npx teamrc doctor
+check_cmd "teamrc status exits cleanly" npx @teamrc/cli status
+check_cmd "teamrc doctor exits cleanly" npx @teamrc/cli doctor
 
 # Check --json output is valid
-STATUS_JSON=$(npx teamrc status --json 2>/dev/null || echo "")
+STATUS_JSON=$(npx @teamrc/cli status --json 2>/dev/null || echo "")
 if echo "$STATUS_JSON" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
   check "teamrc status --json is valid JSON" 0
 else

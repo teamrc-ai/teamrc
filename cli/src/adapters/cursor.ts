@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { parse as parseYaml } from "yaml";
 import {
   sanitizeMarkerContent,
   sanitizeText,
@@ -37,7 +38,50 @@ export class CursorAdapter implements PlatformAdapter {
   }
 
   readTeam(): TeamDefinition | null {
-    return null;
+    const dir = this.agentsDir();
+    const files = listTrcFiles(dir);
+    if (files.length === 0) return null;
+
+    let teamName = "my-team";
+    const members: TeamMember[] = [];
+
+    for (const file of files) {
+      const content = fs.readFileSync(path.join(dir, file), "utf-8");
+      const parsed = parseAgentFile(content);
+      if (!parsed) continue;
+      if (parsed.teamName) teamName = parsed.teamName;
+      members.push({
+        name: parsed.agentName,
+        role: parsed.role,
+        ...(parsed.soul ? { soul: parsed.soul } : {}),
+      });
+    }
+
+    if (members.length === 0) return null;
+
+    // Read skills from .mdc rule files (alwaysApply / glob skills)
+    const skills: Skill[] = [];
+    const mdcFiles = listTrcFiles(this.rulesDir(), ".mdc");
+    for (const file of mdcFiles) {
+      const content = fs.readFileSync(path.join(this.rulesDir(), file), "utf-8");
+      const skill = parseMdcFile(file, content);
+      if (skill) skills.push(skill);
+    }
+
+    // Read skills from skill directories (on-demand skills)
+    const skillsBase = this.skillsDir();
+    if (fs.existsSync(skillsBase)) {
+      const skillDirs = fs.readdirSync(skillsBase).filter((d) => d.startsWith("trc-"));
+      for (const dirName of skillDirs) {
+        const skillMdPath = path.join(skillsBase, dirName, "SKILL.md");
+        if (!fs.existsSync(skillMdPath)) continue;
+        const content = fs.readFileSync(skillMdPath, "utf-8");
+        const skill = parseSkillMd(dirName, content);
+        if (skill) skills.push(skill);
+      }
+    }
+
+    return { name: teamName, members, ...(skills.length > 0 ? { skills } : {}) };
   }
 
   planWrite(team: TeamDefinition): FileAction[] {
@@ -307,4 +351,111 @@ ${body}
 
     return actions;
   }
+}
+
+// --- Helpers ---
+
+interface ParsedAgent {
+  agentName: string;
+  role: string;
+  soul?: string;
+  teamName: string;
+}
+
+/** Parse a trc-*.mdc rule file back into a Skill (alwaysApply / glob skills) */
+function parseMdcFile(fileName: string, content: string): Skill | null {
+  const id = fileName.replace(/^trc-/, "").replace(/\.mdc$/, "");
+  const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  if (!match) return null;
+
+  let frontmatter: Record<string, unknown>;
+  try {
+    frontmatter = parseYaml(match[1]) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const body = match[2].trim();
+  const description = typeof frontmatter.description === "string" ? frontmatter.description : undefined;
+  const alwaysApply = frontmatter.alwaysApply === true;
+  const globs = Array.isArray(frontmatter.globs)
+    ? (frontmatter.globs as unknown[]).map(String)
+    : undefined;
+
+  return {
+    id,
+    ...(description ? { description } : {}),
+    ...(alwaysApply ? { alwaysApply } : {}),
+    ...(globs && globs.length > 0 ? { globs } : {}),
+    body,
+  };
+}
+
+/** Parse a SKILL.md file from a trc-* skill directory back into a Skill (on-demand skills) */
+function parseSkillMd(dirName: string, content: string): Skill | null {
+  const id = dirName.replace(/^trc-/, "");
+  const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  if (!match) {
+    // No frontmatter — treat entire content as body
+    return { id, body: content.trim() };
+  }
+
+  let frontmatter: Record<string, unknown>;
+  try {
+    frontmatter = parseYaml(match[1]) as Record<string, unknown>;
+  } catch {
+    return { id, body: content.trim() };
+  }
+
+  const body = match[2].trim();
+  const description = typeof frontmatter.description === "string" ? frontmatter.description : undefined;
+  const title = typeof frontmatter.title === "string" ? frontmatter.title : undefined;
+
+  return {
+    id,
+    ...(title ? { title } : {}),
+    ...(description ? { description } : {}),
+    body,
+  };
+}
+
+/** Parse a trc-*.md agent file back into structured data */
+function parseAgentFile(content: string): ParsedAgent | null {
+  const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  if (!match) return null;
+
+  let frontmatter: Record<string, unknown>;
+  try {
+    frontmatter = parseYaml(match[1]) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const name = String(frontmatter.name ?? "");
+  const description = String(frontmatter.description ?? "");
+  const body = match[2].trim();
+
+  // Extract agent name: strip trc- prefix
+  const agentName = name.startsWith("trc-") ? name.slice(4) : name;
+
+  // Extract role from description: "Role on the teamName team. Use when..."
+  const roleMatch = description.match(/^(.+?)\s+on the\s+/);
+  const role = roleMatch ? roleMatch[1] : description;
+
+  // Extract team name from body: "# Team: teamName"
+  const teamMatch = body.match(/^# Team:\s*(.+)$/m);
+  const teamName = teamMatch ? teamMatch[1].trim() : "my-team";
+
+  // Extract soul: everything between team header and ## Skills / ## Teammates / ## Team Knowledge (or end)
+  const bodyAfterHeader = body.replace(/^# Team:.*\n+/, "");
+  const sectionIdx = bodyAfterHeader.search(/^## (Skills|Teammates|Team Knowledge)/m);
+  const soulRaw = sectionIdx >= 0
+    ? bodyAfterHeader.slice(0, sectionIdx).trim()
+    : bodyAfterHeader.trim();
+
+  // Only set soul if it's not the default generated text
+  const isDefault = soulRaw.startsWith(`You are ${agentName},`);
+  const soul = isDefault ? undefined : soulRaw || undefined;
+
+  return { agentName, role, soul, teamName };
 }

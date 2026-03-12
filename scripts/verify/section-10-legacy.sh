@@ -103,7 +103,7 @@ case "$MODE" in
     check_no_glob ".cursor/agents/tb-*.md" "No tb- prefixed Cursor agents"
     check_no_glob ".codex/agents/tb-*.toml" "No tb- prefixed Codex agents"
 
-    check_cmd "doctor passes" npx teamrc doctor
+    check_cmd "doctor passes" npx @teamrc/cli doctor
     ;;
 
   *)

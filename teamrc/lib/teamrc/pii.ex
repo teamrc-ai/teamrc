@@ -24,18 +24,7 @@ defmodule Teamrc.PII do
   Returns a map with only the fields appropriate for the access level.
   """
   @spec sanitized_participant(map(), access_level()) :: map()
-  def sanitized_participant(participant_data, :self) do
-    email = get_field(participant_data, :email)
-    display_name = get_field(participant_data, :display_name) || email_to_display_name(email)
-
-    %{
-      "email" => email,
-      "display_name" => display_name,
-      "email_hash" => email_hash(email)
-    }
-  end
-
-  def sanitized_participant(participant_data, :owner) do
+  def sanitized_participant(participant_data, level) when level in [:self, :owner] do
     email = get_field(participant_data, :email)
     display_name = get_field(participant_data, :display_name) || email_to_display_name(email)
 

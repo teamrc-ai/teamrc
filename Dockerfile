@@ -72,8 +72,9 @@ USER nobody
 
 EXPOSE 4000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD curl -f http://localhost:4000/health || exit 1
+# Healthcheck defined in docker-compose.coolify.yml (not here) so Coolify/Traefik
+# picks up a single, consistent health status. Duplicate HEALTHCHECKs can cause
+# Traefik to route based on the wrong one, delaying traffic after deploys.
 
 # Runs migrations then starts the server
 CMD ["/app/bin/docker-entrypoint"]

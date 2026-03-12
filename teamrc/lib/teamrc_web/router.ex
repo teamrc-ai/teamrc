@@ -22,6 +22,7 @@ defmodule TeamrcWeb.Router do
   pipeline :api do
     plug :accepts, ["json"]
     plug TeamrcWeb.Plugs.CORS
+    plug TeamrcWeb.Plugs.ApiVersion
     plug TeamrcWeb.Plugs.VerifySignature
     plug TeamrcWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
   end
@@ -29,6 +30,7 @@ defmodule TeamrcWeb.Router do
   pipeline :public_api do
     plug :accepts, ["json"]
     plug TeamrcWeb.Plugs.CORS
+    plug TeamrcWeb.Plugs.ApiVersion
     plug TeamrcWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
   end
 
@@ -62,13 +64,18 @@ defmodule TeamrcWeb.Router do
     plug TeamrcWeb.Plugs.RateLimiter, limit: 10, window_ms: 60_000, unauth_ip_limit: 10
   end
 
+  # Store redirect_to query param in session for post-login return (used by OAuth)
+  pipeline :store_redirect do
+    plug :persist_redirect_to
+  end
+
   # Health check — no auth, no SSL redirect, no pipelines
   scope "/", TeamrcWeb do
     get "/health", PageController, :health
   end
 
   scope "/auth", TeamrcWeb do
-    pipe_through :browser
+    pipe_through [:browser, :store_redirect]
 
     get "/github", OAuthController, :request
     get "/github/callback", OAuthController, :callback
@@ -101,6 +108,12 @@ defmodule TeamrcWeb.Router do
       live "/terms", LegalLive, :terms
       live "/privacy", LegalLive, :privacy
     end
+  end
+
+  # Authenticated LiveView routes — Plug handles initial HTTP redirect + return-to
+  # storage, LiveView on_mount handles websocket reconnection
+  scope "/", TeamrcWeb do
+    pipe_through [:browser, :require_authenticated_user]
 
     live_session :authenticated,
       layout: {TeamrcWeb.Layouts, :app},
@@ -160,13 +173,28 @@ defmodule TeamrcWeb.Router do
 
   # Auth actions with stricter rate limiting (Bcrypt is CPU-expensive)
   scope "/", TeamrcWeb do
-    pipe_through [:browser, :auth_rate_limit]
+    pipe_through [:browser, :auth_rate_limit, :store_redirect]
 
     post "/users/register", UserSessionController, :register
     post "/users/log-in", UserSessionController, :create
     post "/users/complete-login", UserSessionController, :terms_accepted
     post "/users/forgot-password", UserSessionController, :forgot_password
     post "/users/reset-password/:token", UserSessionController, :reset_password
+  end
+
+  # Store redirect_to query param in session for post-login return
+  defp persist_redirect_to(conn, _opts) do
+    case conn.params["redirect_to"] do
+      path when is_binary(path) and byte_size(path) > 0 ->
+        if String.starts_with?(path, "/") and not String.starts_with?(path, "//") do
+          Plug.Conn.put_session(conn, :user_return_to, path)
+        else
+          conn
+        end
+
+      _ ->
+        conn
+    end
   end
 
   ## ──────────────────────────────────────────────────────────

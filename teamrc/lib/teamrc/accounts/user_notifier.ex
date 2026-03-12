@@ -146,7 +146,7 @@ defmodule Teamrc.Accounts.UserNotifier do
 
       Get started by initializing teamrc in your project:
 
-          npx teamrc init
+          npx @teamrc/cli init
 
       Or visit the guide for a full walkthrough:
 
@@ -157,7 +157,7 @@ defmodule Teamrc.Accounts.UserNotifier do
       html_layout(
         html_paragraph("Welcome to teamrc. Your account is ready.") <>
           html_paragraph("Get started by initializing teamrc in your project:") <>
-          html_code_block("npx teamrc init") <>
+          html_code_block("npx @teamrc/cli init") <>
           html_paragraph("Or visit the guide for a full walkthrough.") <>
           html_button("Get started", guide_url) <>
           html_fallback_url(guide_url)

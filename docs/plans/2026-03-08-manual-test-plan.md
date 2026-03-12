@@ -1,6 +1,6 @@
 # Manual Test Plan — teamrc
 
-**Date:** 2026-03-08 (updated 2026-03-11)
+**Date:** 2026-03-08 (updated 2026-03-12)
 **Platforms:** Claude Code, Cursor, Codex, Gemini, OpenClaw, Claude Desktop
 
 ---
@@ -8,8 +8,10 @@
 ## Prerequisites
 
 - PostgreSQL running (`pg_isready`)
+- Database migrations applied (`cd teamrc && mix ecto.migrate`) — DeviceAuth is now Postgres-backed
 - Relay running (`cd teamrc && mix phx.server`)
 - CLI built (`cd cli && npm run build`)
+- **Note:** Catalog template changes require a server restart (ETS cache is loaded at boot)
 
 ```bash
 bash scripts/verify/prereqs.sh
@@ -52,7 +54,7 @@ bash scripts/verify/section-01-fresh-install.sh single|multi
 bash scripts/verify/section-02-collaboration.sh join|clone
 bash scripts/verify/section-03-platforms.sh claude-code|cursor|codex|gemini|openclaw|all
 bash scripts/verify/section-04-sync.sh
-bash scripts/verify/section-05-rollback.sh post-delete|post-reinit|post-uninstall|corrupt-config|missing-keypair
+bash scripts/verify/section-05-rollback.sh post-delete|post-reinit|post-uninstall|corrupt-config|missing-keypair|scope-project|scope-global
 bash scripts/verify/section-06-catalog.sh
 bash scripts/verify/section-07-cross-sync.sh
 bash scripts/verify/section-08-errors.sh             # Standalone, no setup needed
@@ -103,28 +105,31 @@ bash scripts/test/e2e.sh --role primary --phase 3
 bash scripts/clean-slate.sh
 ```
 
-Removes all teamrc/TeamBridge state: config dirs, agent files, rules, skills, routing sections from `CLAUDE.md`/`AGENTS.md`/`GEMINI.md`/`.codex/config.toml`, entries from `openclaw.json`, and Claude settings hooks. See `scripts/clean-slate.sh` for details.
+Removes all teamrc/TeamBridge state: config dirs, agent files, rules, skills, routing sections from `CLAUDE.md`/`AGENTS.md`/`GEMINI.md`/`.codex/config.toml`, entries from `openclaw.json`, Claude settings hooks, and the `.teamrc/` project-level state directory. See `scripts/clean-slate.sh` for details.
 
-Verify: `ls ~/.teamrc` → "No such file or directory"
+Verify: `ls ~/.teamrc` → "No such file or directory", `ls .teamrc` → "No such file or directory"
 
 ### 1.2 Init — Single Platform
 
 ```bash
-npx teamrc init --platform claude-code
+npx @teamrc/cli init --platform claude-code
 ```
 
 - [ ] Keypair generated, team created on relay
 - [ ] `.teamrc.yaml` created with `name`, `members`, `teamId`, `platforms`
-- [ ] `~/.teamrc/config.json` has `token`, `relay` (no `teamId` at top level)
+- [ ] `.teamrc.yaml` does NOT contain `syncHash` fields (sync hashes are in `.teamrc/state.json`)
+- [ ] `~/.teamrc/config.json` has `token` (no `relay` — relay is stripped from global config, no `teamId` at top level)
+- [ ] `.teamrc/` state directory created in project dir
+- [ ] `.gitignore` updated with `.teamrc/` entry
 - [ ] `.claude/agents/trc-agent.md` created
 - [ ] Invite code shown
-- [ ] Ownership token shown (`trc_ocs_...`) with "save this somewhere safe" note
+- [ ] Ownership token shown (`trc_ocs_...`) with "save this somewhere safe" note — plaintext shown to user, bcrypt hash stored in DB
 - [ ] Prompted "Claim ownership now?" — choosing `y` runs device auth + claim, `n` shows `teamrc claim <token>` hint
 
 ### 1.3 Init — Already Initialized
 
 ```bash
-npx teamrc init --platform claude-code
+npx @teamrc/cli init --platform claude-code
 ```
 
 - [ ] Error: `Already initialized: "product-team" (.teamrc.yaml).`
@@ -135,7 +140,7 @@ npx teamrc init --platform claude-code
 
 ```bash
 bash scripts/clean-slate.sh
-npx teamrc init --platform claude-code,cursor,codex,gemini
+npx @teamrc/cli init --platform claude-code,cursor,codex,gemini
 ```
 
 - [ ] `.teamrc.yaml` lists all 4 in `platforms:`
@@ -144,9 +149,9 @@ npx teamrc init --platform claude-code,cursor,codex,gemini
 ### 1.5 Status & Doctor
 
 ```bash
-npx teamrc status            # Shows platform, relay, token, team
-npx teamrc status --json     # Valid JSON
-npx teamrc doctor            # All checks passing
+npx @teamrc/cli status            # Shows platform, relay, token, team
+npx @teamrc/cli status --json     # Valid JSON
+npx @teamrc/cli doctor            # All checks passing
 ```
 
 ---
@@ -156,18 +161,18 @@ npx teamrc doctor            # All checks passing
 ### 2.1 Create Invite
 
 ```bash
-npx teamrc invite
+npx @teamrc/cli invite
 ```
 
 - [ ] Invite code shown (`trc_inv_...`) with expiry time
-- [ ] `npx teamrc status` confirms team exists on relay (no auth errors)
+- [ ] `npx @teamrc/cli status` confirms team exists on relay (no auth errors)
 
 ### 2.2 Join from Another Machine
 
 ```bash
 mkdir /tmp/teamrc-test-b && cd /tmp/teamrc-test-b
 rm -rf ~/.teamrc
-npx teamrc join <invite-code> --platform cursor,gemini
+npx @teamrc/cli join <invite-code> --platform cursor,gemini
 ```
 
 - [ ] "Joined team" message, `.teamrc.yaml` created with `teamId`
@@ -176,7 +181,7 @@ npx teamrc join <invite-code> --platform cursor,gemini
 ### 2.3 Clone via Invite (Preview Only)
 
 ```bash
-npx teamrc clone <invite-code> --platform claude-code
+npx @teamrc/cli clone <invite-code> --platform claude-code
 ```
 
 - [ ] `.teamrc.yaml` created (no `teamId`, no `cloneToken` — local copy only)
@@ -186,7 +191,7 @@ npx teamrc clone <invite-code> --platform claude-code
 ### 2.4 Clone via Clone Token (Public Team)
 
 ```bash
-npx teamrc clone <clone-token> --platform claude-code
+npx @teamrc/cli clone <clone-token> --platform claude-code
 ```
 
 - [ ] `.teamrc.yaml` has `cloneToken` (`trc_cl_...`) and `relay`, no `teamId`
@@ -196,7 +201,7 @@ npx teamrc clone <clone-token> --platform claude-code
 ### 2.5 Pull for Clone-Only Teams
 
 ```bash
-npx teamrc pull
+npx @teamrc/cli pull
 ```
 
 - [ ] Updates local `.teamrc.yaml` and agent files from relay
@@ -226,6 +231,11 @@ After `init` or `join` on a platform, verify the correct file formats.
 | Routing | `.cursor/AGENTS.md` — `<!-- teamrc -->` markers |
 | Rules | `.cursor/rules/trc-*.mdc` |
 | Skills | `.cursor/skills/trc-*/SKILL.md` |
+
+**Cursor readTeam:** The Cursor adapter's `readTeam()` is now fully implemented. Verify:
+- [ ] `teamrc status` with Cursor platform shows team members (not empty)
+- [ ] `teamrc diff` with Cursor platform compares against relay correctly
+- [ ] `teamrc import --platform cursor` reads existing Cursor agent files
 
 ### 3.3 Codex
 
@@ -263,20 +273,29 @@ Shares `.claude/agents/` with Claude Code. Global scope agents go in `~/.claude/
 ### 4.1 Manual Sync — Already In Sync
 
 ```bash
-npx teamrc sync
+npx @teamrc/cli sync
 ```
 
 - [ ] "Already in sync." when local and server hashes match
+
+### 4.1b Sync State File
+
+Sync hashes are now stored in `.teamrc/state.json` (not in `.teamrc.yaml`):
+
+- [ ] After sync: `.teamrc/state.json` exists and is valid JSON
+- [ ] `state.json` contains `syncHash`, `syncHashMembers`, `syncHashSkills`, `syncHashKnowledge`
+- [ ] `.teamrc.yaml` does NOT contain any `syncHash*` fields
+- [ ] `state.json` persists `lastKnownHash` across daemon restarts
 
 ### 4.2 Push Knowledge
 
 ```bash
 echo "new team insight" >> teamrc-knowledge.md
-npx teamrc push
+npx @teamrc/cli push
 ```
 
 - [ ] "Pushed to relay." message
-- [ ] `.teamrc.yaml` `syncHash*` fields updated to match server
+- [ ] `.teamrc/state.json` `syncHash*` fields updated to match server (NOT in `.teamrc.yaml`)
 - [ ] Local `teamrc-knowledge.md` has merged content (relay lines + new local line)
 - [ ] Knowledge is append-only: relay content preserved, new line appended at bottom
 
@@ -285,7 +304,7 @@ npx teamrc push
 Edit `.teamrc.yaml` members/skills locally (no pull since last sync):
 
 ```bash
-npx teamrc sync
+npx @teamrc/cli sync
 ```
 
 - [ ] Detects local-only changes, pushes to server
@@ -297,7 +316,7 @@ npx teamrc sync
 Push from another machine, then on this machine:
 
 ```bash
-npx teamrc sync
+npx @teamrc/cli sync
 ```
 
 - [ ] Detects server-only changes, pulls from server
@@ -318,7 +337,7 @@ Both machines edit members/skills differently, Machine A pushes first:
 
 **Machine B:**
 ```bash
-npx teamrc sync
+npx @teamrc/cli sync
 ```
 
 - [ ] Detects conflict, pulls server version first
@@ -328,7 +347,7 @@ npx teamrc sync
 ### 4.7 Status — Hash Display
 
 ```bash
-npx teamrc status
+npx @teamrc/cli status
 ```
 
 - [ ] Shows sync status: "In sync", "Local changes", "Remote changes", "Diverged", or "Never synced"
@@ -336,8 +355,8 @@ npx teamrc status
 ### 4.8 Diff (Hash-Based)
 
 ```bash
-npx teamrc diff              # Human-readable differences
-npx teamrc diff --json       # Valid JSON
+npx @teamrc/cli diff              # Human-readable differences
+npx @teamrc/cli diff --json       # Valid JSON
 ```
 
 - [ ] Uses HEAD endpoint first (single lightweight request)
@@ -348,7 +367,7 @@ npx teamrc diff --json       # Valid JSON
 ### 4.9 Daemon — Start/Stop
 
 ```bash
-npx teamrc daemon --poll-interval 5000 --sync-mode knowledge
+npx @teamrc/cli daemon --poll-interval 5000 --sync-mode knowledge
 # Wait 10s, then Ctrl+C
 ```
 
@@ -361,14 +380,15 @@ npx teamrc daemon --poll-interval 5000 --sync-mode knowledge
 
 ```bash
 # Terminal 1:
-npx teamrc daemon --poll-interval 60000 --sync-mode all
+npx @teamrc/cli daemon --poll-interval 60000 --sync-mode all
 
 # Terminal 2:
 echo "# Updated knowledge" >> teamrc-knowledge.md
 ```
 
 - [ ] Daemon detects change within ~1s and pushes to relay
-- [ ] `syncHash*` fields in `.teamrc.yaml` updated after push/pull
+- [ ] `syncHash*` fields in `.teamrc/state.json` updated after push/pull (not in `.teamrc.yaml`)
+- [ ] `lastKnownHash` persisted in `.teamrc/state.json` across daemon restarts
 
 ---
 
@@ -377,15 +397,15 @@ echo "# Updated knowledge" >> teamrc-knowledge.md
 ### 5.1 List Templates
 
 ```bash
-npx teamrc list-templates            # Label, description, agent/skill count
-npx teamrc list-templates --json     # JSON array with id, label, description, agents, skills, members
+npx @teamrc/cli list-templates            # Label, description, agent/skill count
+npx @teamrc/cli list-templates --json     # JSON array with id, label, description, agents, skills, members
 ```
 
 ### 5.2 List Agents
 
 ```bash
-npx teamrc list-agents               # Grouped by category, shows name + role
-npx teamrc list-agents --json        # JSON array with category, label, agents
+npx @teamrc/cli list-agents               # Grouped by category, shows name + role
+npx @teamrc/cli list-agents --json        # JSON array with category, label, agents
 ```
 
 - [ ] ~68 agents across categories (Core Development, Language Specialists, Infrastructure, etc.)
@@ -393,7 +413,7 @@ npx teamrc list-agents --json        # JSON array with category, label, agents
 ### 5.3 Add Member — By Name
 
 ```bash
-npx teamrc add-member backend-dev
+npx @teamrc/cli add-member backend-dev
 ```
 
 - [ ] "Added backend-dev (Backend developer)" with recommended skills
@@ -402,7 +422,7 @@ npx teamrc add-member backend-dev
 ### 5.4 Add Member — Duplicate
 
 ```bash
-npx teamrc add-member backend-dev    # Already added
+npx @teamrc/cli add-member backend-dev    # Already added
 ```
 
 - [ ] "Agent 'backend-dev' is already on this team" warning, no changes
@@ -410,7 +430,7 @@ npx teamrc add-member backend-dev    # Already added
 ### 5.5 Add Member — Invalid Name
 
 ```bash
-npx teamrc add-member nonexistent-agent-xyz
+npx @teamrc/cli add-member nonexistent-agent-xyz
 ```
 
 - [ ] "Agent not found in catalog" error, exit code 1
@@ -418,7 +438,7 @@ npx teamrc add-member nonexistent-agent-xyz
 ### 5.6 Add Member — Interactive Picker
 
 ```bash
-npx teamrc add-member               # No name arg
+npx @teamrc/cli add-member               # No name arg
 ```
 
 - [ ] Selectable list grouped by category, already-added agents filtered out
@@ -427,7 +447,7 @@ npx teamrc add-member               # No name arg
 ### 5.7 Add Member — Non-Interactive
 
 ```bash
-echo "" | npx teamrc add-member 2>&1
+echo "" | npx @teamrc/cli add-member 2>&1
 ```
 
 - [ ] Error about requiring agent name in non-interactive mode
@@ -439,7 +459,7 @@ echo "" | npx teamrc add-member 2>&1
 ### 6.1 Init All Platforms
 
 ```bash
-npx teamrc init --platform claude-code,cursor,codex,gemini,openclaw
+npx @teamrc/cli init --platform claude-code,cursor,codex,gemini,openclaw
 ```
 
 Verify each platform has agents (see [Section 3](#3-per-platform-file-verification)).
@@ -468,7 +488,7 @@ skills:
     description: Search the codebase
     body: "Use grep and find."
 EOF
-npx teamrc apply --platform claude-code,cursor,gemini
+npx @teamrc/cli apply --platform claude-code,cursor,gemini
 ```
 
 - [ ] 2 agents on each platform
@@ -479,9 +499,9 @@ npx teamrc apply --platform claude-code,cursor,gemini
 ### 6.3 Export → Apply Roundtrip
 
 ```bash
-npx teamrc export
-npx teamrc apply --platform claude-code
-npx teamrc diff                      # "No differences"
+npx @teamrc/cli export
+npx @teamrc/cli apply --platform claude-code
+npx @teamrc/cli diff                      # "No differences"
 ```
 
 ---
@@ -492,25 +512,53 @@ npx teamrc diff                      # "No differences"
 
 ### 7.1 Delete and Re-Init
 
+The `delete` command now supports a `--scope` flag:
+- `--scope project` — removes `.teamrc.yaml` + `.teamrc/` state dir + platform agent files, keeps `~/.teamrc/`
+- `--scope global` — removes `~/.teamrc/team.yaml`, keeps project files and `~/.teamrc/config.json`
+- `--scope all` (default with `--yes`) — removes everything
+
 ```bash
-npx teamrc delete                    # Confirm with "y"
+npx @teamrc/cli delete                    # Shows scope picker (project/global/everything)
 ```
 
-- [ ] All agent files removed, `~/.teamrc/` deleted, `.teamrc.yaml` deleted
+- [ ] Scope picker shown when no `--scope` flag provided
+- [ ] All agent files removed, `~/.teamrc/` deleted, `.teamrc.yaml` deleted, `.teamrc/` state dir deleted
 
 ```bash
-npx teamrc init --platform claude-code
+npx @teamrc/cli init --platform claude-code
 ```
 
 - [ ] Fresh keypair, new team, everything works as Section 1
 
+### 7.1b Scoped Delete — Project Only
+
+```bash
+npx @teamrc/cli delete --scope project
+```
+
+- [ ] `.teamrc.yaml` removed
+- [ ] `.teamrc/` state directory removed
+- [ ] Platform agent files removed
+- [ ] `~/.teamrc/` still exists (config.json, keypair preserved)
+
+### 7.1c Scoped Delete — Global Only
+
+```bash
+npx @teamrc/cli delete --scope global
+```
+
+- [ ] `~/.teamrc/team.yaml` removed
+- [ ] `~/.teamrc/config.json` still exists
+- [ ] `.teamrc.yaml` still exists
+- [ ] `.teamrc/` state dir still exists
+
 ### 7.2 Re-Join After Delete
 
 ```bash
-npx teamrc init --platform claude-code
-npx teamrc invite                    # Save invite code
-npx teamrc delete
-npx teamrc join <saved-invite> --platform claude-code,cursor
+npx @teamrc/cli init --platform claude-code
+npx @teamrc/cli invite                    # Save invite code
+npx @teamrc/cli delete
+npx @teamrc/cli join <saved-invite> --platform claude-code,cursor
 ```
 
 - [ ] New keypair (different token), joined existing team, agent files recreated
@@ -529,8 +577,8 @@ bash scripts/uninstall.sh
 
 ```bash
 echo "{invalid json" > ~/.teamrc/config.json
-npx teamrc status                   # "teamrc is not initialized"
-npx teamrc init --platform claude-code
+npx @teamrc/cli status                   # "teamrc is not initialized"
+npx @teamrc/cli init --platform claude-code
 ```
 
 - [ ] Re-initializes cleanly, corrupt config overwritten
@@ -539,7 +587,7 @@ npx teamrc init --platform claude-code
 
 ```bash
 rm -f ~/.teamrc/key
-npx teamrc init --platform claude-code
+npx @teamrc/cli init --platform claude-code
 ```
 
 - [ ] "Generated new keypair." — new token, everything works
@@ -547,9 +595,9 @@ npx teamrc init --platform claude-code
 ### 7.6 Switch Project ↔ Global
 
 ```bash
-npx teamrc init --platform claude-code           # Project: .teamrc.yaml + .claude/agents/
-npx teamrc delete
-npx teamrc init --platform claude-code --global   # Global: ~/.teamrc/config.json globalTeam + ~/.claude/agents/
+npx @teamrc/cli init --platform claude-code           # Project: .teamrc.yaml + .claude/agents/
+npx @teamrc/cli delete
+npx @teamrc/cli init --platform claude-code --global   # Global: ~/.teamrc/config.json globalTeam + ~/.claude/agents/
 ```
 
 ---
@@ -558,11 +606,19 @@ npx teamrc init --platform claude-code --global   # Global: ~/.teamrc/config.jso
 
 | Test | Command | Expected |
 |------|---------|----------|
-| Invalid platform | `npx teamrc init --platform invalid-platform` | "Unknown platform" error |
-| Invalid invite | `npx teamrc join trc_inv_invalid123` | "invalid_invite" error |
-| Relay unreachable | `TEAMRC_RELAY=http://localhost:9999 npx teamrc sync` | "Sync failed" (no crash) |
-| Too many members | YAML with 200 members → `npx teamrc apply` | "max members (100)" error |
-| Path traversal | Member name `../../etc/passwd` → `npx teamrc apply` | "Invalid agent name" error |
+| Invalid platform | `npx @teamrc/cli init --platform invalid-platform` | "Unknown platform" error |
+| Invalid invite | `npx @teamrc/cli join trc_inv_invalid123` | "invalid_invite" error |
+| Relay unreachable | `TEAMRC_RELAY=http://localhost:9999 npx @teamrc/cli sync` | "Sync failed" (no crash) |
+| Too many members | YAML with 200 members → `npx @teamrc/cli apply` | "max members (100)" error |
+| Path traversal | Member name `../../etc/passwd` → `npx @teamrc/cli apply` | "Invalid agent name" error |
+
+### 8.1 API Version Header
+
+All CLI requests include `X-Teamrc-Version` header. The server enforces a minimum version.
+
+- [ ] All CLI HTTP requests include the `X-Teamrc-Version` header
+- [ ] Server returns 426 (Upgrade Required) when CLI version is below the minimum supported version
+- [ ] 426 response includes a clear message telling the user to update the CLI
 
 ---
 
@@ -572,20 +628,24 @@ Run the full sequence end-to-end:
 
 ```bash
 bash scripts/clean-slate.sh                              # 1. Clean slate
-npx teamrc init --platform claude-code,cursor           # 2. Init
-npx teamrc doctor                                       # 3. Health check
-INVITE=$(npx teamrc invite 2>&1 | grep trc_inv_)        # 4. Create invite
-npx teamrc delete                                       # 5. Delete
-npx teamrc join $INVITE --platform claude-code,cursor    # 6. Re-join
-npx teamrc status && npx teamrc diff                     # 7. Verify
-npx teamrc sync                                          # 8. Sync
-npx teamrc export                                        # 9. Export
-npx teamrc delete                                        # 10. Delete again
-npx teamrc init --platform claude-code                   # 11. Re-init fresh
-npx teamrc doctor && npx teamrc status --json            # 12. Final verify
+npx @teamrc/cli init --platform claude-code,cursor           # 2. Init
+# Verify: .teamrc/ state dir created, .gitignore has .teamrc/
+npx @teamrc/cli doctor                                       # 3. Health check
+INVITE=$(npx @teamrc/cli invite 2>&1 | grep trc_inv_)        # 4. Create invite
+npx @teamrc/cli delete --scope all -y                         # 5. Delete (explicit scope)
+# Verify: .teamrc/ state dir removed
+npx @teamrc/cli join $INVITE --platform claude-code,cursor    # 6. Re-join
+npx @teamrc/cli status && npx @teamrc/cli diff                     # 7. Verify
+npx @teamrc/cli sync                                          # 8. Sync
+# Verify: .teamrc/state.json exists with syncHash
+npx @teamrc/cli export                                        # 9. Export
+npx @teamrc/cli delete --scope all -y                         # 10. Delete again
+# Verify: .teamrc/ state dir removed
+npx @teamrc/cli init --platform claude-code                   # 11. Re-init fresh
+npx @teamrc/cli doctor && npx @teamrc/cli status --json            # 12. Final verify
 ```
 
-**Pass:** All commands complete without errors.
+**Pass:** All commands complete without errors. `.teamrc/state.json` present after sync, absent after delete.
 
 ---
 
@@ -630,8 +690,8 @@ If flagged, open `CLAUDE.md` and `.codex/config.toml` and remove any `## TeamBri
 grep -r "TeamBridge\|teambridge\|tb-" .claude/ .cursor/ .codex/ .gemini/ .agents/ CLAUDE.md AGENTS.md GEMINI.md 2>/dev/null
 # → Zero results
 
-npx teamrc init --platform claude-code,cursor
-npx teamrc doctor                    # All checks pass
+npx @teamrc/cli init --platform claude-code,cursor
+npx @teamrc/cli doctor                    # All checks pass
 ```
 
 - [ ] All new files use `trc-` prefix, `.teamrc.yaml`, `~/.teamrc/`
@@ -641,7 +701,7 @@ npx teamrc doctor                    # All checks pass
 ```bash
 echo "legacy" > .claude/agents/tb-old-agent.md
 echo "legacy" > .cursor/agents/tb-old-agent.md
-npx teamrc delete
+npx @teamrc/cli delete
 ```
 
 - [ ] Both `tb-*` and `trc-*` files removed
@@ -658,31 +718,31 @@ Requires 2+ separate machines (or VMs/containers). Both must reach the relay.
 
 **Machine A:**
 ```bash
-npx teamrc init --platform claude-code,cursor
-npx teamrc invite --ttl 1
+npx @teamrc/cli init --platform claude-code,cursor
+npx @teamrc/cli invite --ttl 1
 ```
 
 **Machine B:**
 ```bash
-npx teamrc join <invite-code> --platform claude-code
+npx @teamrc/cli join <invite-code> --platform claude-code
 ```
 
 - [ ] Same `teamId` on both machines, agent files created on B
 
 ### 11.2 Push from A, Sync on B
 
-**A:** Push knowledge → **B:** `npx teamrc sync`
+**A:** Push knowledge → **B:** `npx @teamrc/cli sync`
 - [ ] Knowledge file updated on B
 
 ### 11.3 Bidirectional Sync
 
-**B:** Append to knowledge + push → **A:** `npx teamrc sync`
+**B:** Append to knowledge + push → **A:** `npx @teamrc/cli sync`
 - [ ] B's changes appear on A, no data loss
 
 ### 11.4 Daemon Cross-Machine
 
-**A:** `npx teamrc daemon --poll-interval 5000 --sync-mode knowledge`
-**B:** `npx teamrc push`
+**A:** `npx @teamrc/cli daemon --poll-interval 5000 --sync-mode knowledge`
+**B:** `npx @teamrc/cli push`
 - [ ] A detects change within ~10s, knowledge file updated automatically
 
 ### 11.5 Concurrent Edits — Knowledge Merge
@@ -708,23 +768,23 @@ Both machines edit members differently + push simultaneously:
 
 ### 11.7 Delete on B Doesn't Affect A
 
-**B:** `npx teamrc delete` → **A:** `npx teamrc sync && npx teamrc status`
+**B:** `npx @teamrc/cli delete` → **A:** `npx @teamrc/cli sync && npx @teamrc/cli status`
 - [ ] A still functional, team still on relay
 
 ### 11.8 Re-Join After Delete
 
-**B:** `npx teamrc join <new-invite> --platform gemini`
+**B:** `npx @teamrc/cli join <new-invite> --platform gemini`
 - [ ] New keypair, joined same team, old files gone, new ones created
 
 ### 11.9 Machine Revocation
 
-**A:** Link account + revoke B's token via dashboard → **B:** `npx teamrc sync`
+**A:** Link account + revoke B's token via dashboard → **B:** `npx @teamrc/cli sync`
 - [ ] B gets 401/403 with clear revocation error
 
 ### 11.10 Three-Machine Scenario
 
-Add Machine C: `npx teamrc join <invite> --platform openclaw`
-- [ ] All three push/receive knowledge, `npx teamrc log` shows all three tokens
+Add Machine C: `npx @teamrc/cli join <invite> --platform openclaw`
+- [ ] All three push/receive knowledge, `npx @teamrc/cli log` shows all three tokens
 
 ---
 
@@ -732,11 +792,13 @@ Add Machine C: `npx teamrc join <invite> --platform openclaw`
 
 ## 12. Account Linking & Device Auth
 
+> **Architecture note:** DeviceAuth is now Postgres-backed (was GenServer/in-memory). The UX is unchanged, but `mix ecto.migrate` must be run before testing. Device auth codes now survive server restarts.
+
 ### 12.1 Account Linking Prompt on Init
 
 ```bash
 rm -rf ~/.teamrc
-npx teamrc init --platform claude-code
+npx @teamrc/cli init --platform claude-code
 # Prompted: "Link your account for recovery and dashboard access?"
 ```
 
@@ -746,12 +808,12 @@ npx teamrc init --platform claude-code
 
 ### 12.2 Account Linking on Join
 
-Same prompt after `npx teamrc join`, same flow.
+Same prompt after `npx @teamrc/cli join`, same flow.
 
 ### 12.3 Standalone `teamrc login`
 
 ```bash
-npx teamrc login                     # Already initialized but not linked
+npx @teamrc/cli login                     # Already initialized but not linked
 ```
 
 - [ ] Shows URL + user code, polls for approval
@@ -762,7 +824,7 @@ npx teamrc login                     # Already initialized but not linked
 ### 12.4 Login When Already Linked
 
 ```bash
-npx teamrc login                     # Already linked
+npx @teamrc/cli login                     # Already linked
 ```
 
 - [ ] Either re-links cleanly or shows "Already linked to \<email\>"
@@ -778,7 +840,7 @@ Open the URL from `teamrc login`:
 ### 12.6 Timeout (Manual)
 
 ```bash
-npx teamrc login                     # Don't approve in browser
+npx @teamrc/cli login                     # Don't approve in browser
 ```
 
 - [ ] CLI times out (not infinite), shows expiry message, exits cleanly
@@ -786,9 +848,9 @@ npx teamrc login                     # Don't approve in browser
 ### 12.7 Account Recovery
 
 ```bash
-npx teamrc init --platform claude-code    # Init + link account
-npx teamrc delete && rm -rf ~/.teamrc     # Lose everything
-npx teamrc init --platform claude-code    # Re-init + re-link same email account
+npx @teamrc/cli init --platform claude-code    # Init + link account
+npx @teamrc/cli delete && rm -rf ~/.teamrc     # Lose everything
+npx @teamrc/cli init --platform claude-code    # Re-init + re-link same email account
 ```
 
 - [ ] New keypair, account re-linked via same email address, previous machines visible in dashboard
@@ -801,20 +863,22 @@ npx teamrc init --platform claude-code    # Re-init + re-link same email account
 
 ### 12.9 Ownership Claim via Secret
 
+The claim secret shown during `init` is the plaintext value; the database stores a bcrypt hash. The plaintext cannot be recovered from the DB.
+
 ```bash
-npx teamrc init --platform claude-code
-# Note the trc_ocs_... token shown during init
-npx teamrc claim <trc_ocs_token>     # Requires linked account
+npx @teamrc/cli init --platform claude-code
+# Note the trc_ocs_... token shown during init (plaintext, DB stores bcrypt hash)
+npx @teamrc/cli claim <trc_ocs_token>     # Requires linked account
 ```
 
 - [ ] Without `teamrc login` first → error: "link your account first"
 - [ ] After `teamrc login` + `teamrc claim <secret>` → "Ownership claimed."
-- [ ] `npx teamrc share` now works (sets visibility to public)
+- [ ] `npx @teamrc/cli share` now works (sets visibility to public)
 
 ### 12.10 Claim Secret Cannot Be Reused
 
 ```bash
-npx teamrc claim <same-secret>       # Second attempt
+npx @teamrc/cli claim <same-secret>       # Second attempt
 ```
 
 - [ ] Error: secret is invalid (it was cleared after first claim)
@@ -826,7 +890,7 @@ npx teamrc claim <same-secret>       # Second attempt
 
 **On B:**
 ```bash
-npx teamrc claim <A's-secret>
+npx @teamrc/cli claim <A's-secret>
 ```
 
 - [ ] B becomes owner (the secret is a bearer token — whoever has it can claim)
@@ -839,7 +903,7 @@ npx teamrc claim <A's-secret>
 
 **On C:**
 ```bash
-npx teamrc claim <A's-secret>
+npx @teamrc/cli claim <A's-secret>
 ```
 
 - [ ] Error: "you must be a team member to claim ownership"
@@ -897,7 +961,7 @@ Same flow as 12.15 but using "Sign in with Google":
 ### 13.1 Default Visibility
 
 ```bash
-npx teamrc status --json             # visibility: "private", no clone token
+npx @teamrc/cli status --json             # visibility: "private", no clone token
 ```
 
 ### 13.2 Toggle to Public (Web UI — Owner)
@@ -922,11 +986,11 @@ As owner, click "Make private":
 
 ```bash
 # When public:
-npx teamrc clone <clone-token> --platform claude-code
+npx @teamrc/cli clone <clone-token> --platform claude-code
 # → .teamrc.yaml with cloneToken + relay, no teamId
 
 # When private (old token):
-npx teamrc clone <old-clone-token> --platform claude-code
+npx @teamrc/cli clone <old-clone-token> --platform claude-code
 # → Error: not found / not public
 ```
 
@@ -968,8 +1032,8 @@ curl -X POST http://localhost:4000/api/teams/visibility \
 ### 13b.1 Share Without Linked Account
 
 ```bash
-npx teamrc init --platform claude-code    # No teamrc login
-npx teamrc share
+npx @teamrc/cli init --platform claude-code    # No teamrc login
+npx @teamrc/cli share
 ```
 
 - [ ] Error: account must be linked (suggests `teamrc login`)
@@ -982,7 +1046,7 @@ npx teamrc share
 
 **On B:**
 ```bash
-npx teamrc share
+npx @teamrc/cli share
 ```
 
 - [ ] Error: only the team owner can share
@@ -991,51 +1055,51 @@ npx teamrc share
 ### 13b.3 Share as Owner
 
 ```bash
-npx teamrc init --platform claude-code    # Note trc_ocs_... token
-npx teamrc login
-npx teamrc claim <trc_ocs_token>          # Claim ownership
-npx teamrc share
+npx @teamrc/cli init --platform claude-code    # Note trc_ocs_... token
+npx @teamrc/cli login
+npx @teamrc/cli claim <trc_ocs_token>          # Claim ownership
+npx @teamrc/cli share
 ```
 
 - [ ] Team visibility set to "public"
 - [ ] Clone token displayed (`trc_cl_...`) with copy-friendly format
 - [ ] Shows `teamrc clone <clone-token>` command for sharing
-- [ ] `npx teamrc status --json` confirms `visibility: "public"` and `cloneToken` present
+- [ ] `npx @teamrc/cli status --json` confirms `visibility: "public"` and `cloneToken` present
 
 ### 13b.4 Share Off (Make Private)
 
 ```bash
-npx teamrc share --off
+npx @teamrc/cli share --off
 ```
 
 - [ ] Team visibility set to "private"
 - [ ] Confirmation message shown
-- [ ] `npx teamrc status --json` confirms `visibility: "private"`, no `cloneToken`
+- [ ] `npx @teamrc/cli status --json` confirms `visibility: "private"`, no `cloneToken`
 
 ### 13b.5 Clone Token Lifecycle
 
 ```bash
-npx teamrc share                          # Get clone token
+npx @teamrc/cli share                          # Get clone token
 # On another machine:
-npx teamrc clone <clone-token> --platform claude-code
+npx @teamrc/cli clone <clone-token> --platform claude-code
 # → Success: .teamrc.yaml with cloneToken, agent files created
 
-npx teamrc share --off                    # Revoke
+npx @teamrc/cli share --off                    # Revoke
 # On another machine:
-npx teamrc clone <clone-token> --platform claude-code
+npx @teamrc/cli clone <clone-token> --platform claude-code
 # → Error: not found / not public
 ```
 
 - [ ] Clone token works immediately after `teamrc share`
 - [ ] Clone token stops working after `teamrc share --off`
 - [ ] Previously cloned copies remain functional (local files persist)
-- [ ] `npx teamrc pull` on a clone after `--off` returns error
+- [ ] `npx @teamrc/cli pull` on a clone after `--off` returns error
 
 ### 13b.6 Share Idempotency
 
 ```bash
-npx teamrc share                          # Already public
-npx teamrc share                          # Run again
+npx @teamrc/cli share                          # Already public
+npx @teamrc/cli share                          # Run again
 ```
 
 - [ ] No error, same clone token returned
@@ -1048,8 +1112,8 @@ npx teamrc share                          # Run again
 ### 13c.1 Claim Without Account
 
 ```bash
-npx teamrc init --platform claude-code     # Note the trc_ocs_... token
-npx teamrc claim <trc_ocs_token>
+npx @teamrc/cli init --platform claude-code     # Note the trc_ocs_... token
+npx @teamrc/cli claim <trc_ocs_token>
 ```
 
 - [ ] Error: "link your account first with `teamrc login`"
@@ -1058,8 +1122,8 @@ npx teamrc claim <trc_ocs_token>
 ### 13c.2 Claim with Invalid Secret
 
 ```bash
-npx teamrc login
-npx teamrc claim trc_ocs_invalid123
+npx @teamrc/cli login
+npx @teamrc/cli claim trc_ocs_invalid123
 ```
 
 - [ ] Error: "invalid or already-claimed ownership token"
@@ -1068,7 +1132,7 @@ npx teamrc claim trc_ocs_invalid123
 ### 13c.3 Claim with Wrong Format
 
 ```bash
-npx teamrc claim not-a-trc-ocs-token
+npx @teamrc/cli claim not-a-trc-ocs-token
 ```
 
 - [ ] Error: "Invalid ownership token. Expected format: trc_ocs_..."
@@ -1077,9 +1141,9 @@ npx teamrc claim not-a-trc-ocs-token
 ### 13c.4 Successful Claim
 
 ```bash
-npx teamrc init --platform claude-code     # Save the trc_ocs_... token
-npx teamrc login                           # Link account
-npx teamrc claim <trc_ocs_token>
+npx @teamrc/cli init --platform claude-code     # Save the trc_ocs_... token
+npx @teamrc/cli login                           # Link account
+npx @teamrc/cli claim <trc_ocs_token>
 ```
 
 - [ ] "Ownership claimed."
@@ -1090,7 +1154,7 @@ npx teamrc claim <trc_ocs_token>
 
 ```bash
 bash scripts/clean-slate.sh
-npx teamrc init --platform claude-code
+npx @teamrc/cli init --platform claude-code
 # At "Claim ownership now?" prompt, choose yes
 ```
 
@@ -1103,10 +1167,10 @@ npx teamrc init --platform claude-code
 ## 14. Dashboard Command
 
 ```bash
-npx teamrc dashboard                 # Creates temp invite link, opens browser (24h TTL)
-npx teamrc dashboard --ttl 1         # 1-hour expiry
-npx teamrc dashboard --ttl 0         # Error: TTL must be positive
-cd /tmp && npx teamrc dashboard      # Error: no team context
+npx @teamrc/cli dashboard                 # Creates temp invite link, opens browser (24h TTL)
+npx @teamrc/cli dashboard --ttl 1         # 1-hour expiry
+npx @teamrc/cli dashboard --ttl 0         # Error: TTL must be positive
+cd /tmp && npx @teamrc/cli dashboard      # Error: no team context
 ```
 
 Verify the printed URL loads the team page in browser.
@@ -1286,7 +1350,7 @@ Navigate to /users/forgot-password
 
 ### 15b.10 Device Auth Full Flow
 
-1. `npx teamrc login` → CLI shows URL + user code
+1. `npx @teamrc/cli login` → CLI shows URL + user code
 2. Open URL in browser → redirected to `/users/log-in` if not authenticated
 3. Sign in (email/password or OAuth) → consent screen with user code
 4. Approve → CLI receives confirmation
@@ -1358,7 +1422,7 @@ These tests verify agents actually work inside each IDE — not just that files 
 
 ### Per-Platform Checklist
 
-For each platform, after `npx teamrc init --platform <platform>`:
+For each platform, after `npx @teamrc/cli init --platform <platform>`:
 
 1. **Agent visible** — appears in agent list/picker
 2. **Persona works** — responds with defined role/soul personality
@@ -1387,8 +1451,8 @@ Ask the same question to the same agent on 3+ platforms:
 
 ```bash
 echo "# Team Knowledge\n\n## Bug Found\nAuth tokens expire silently after 24h." > teamrc-knowledge.md
-npx teamrc push
-npx teamrc sync                      # On another platform
+npx @teamrc/cli push
+npx @teamrc/cli sync                      # On another platform
 ```
 
 - [ ] Agents reference shared knowledge when relevant

@@ -31,9 +31,18 @@ defmodule TeamrcWeb.OAuthController do
     case Accounts.find_or_create_oauth_user(provider, uid, info) do
       {:ok, user} ->
         if is_nil(user.accepted_terms_at) do
-          # User needs to accept ToS before getting a session
+          # User needs to accept ToS before getting a session.
+          # Preserve any redirect_to from session under :post_tos_return_to
+          # so it survives the ToS acceptance flow.
+          original_return = get_session(conn, :user_return_to)
+
           conn
           |> put_session(:pending_oauth_user_id, user.id)
+          |> then(fn c ->
+            if original_return,
+              do: put_session(c, :post_tos_return_to, original_return),
+              else: c
+          end)
           |> redirect(to: ~p"/users/accept-terms")
         else
           conn

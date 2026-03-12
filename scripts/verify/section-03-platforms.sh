@@ -4,7 +4,7 @@
 #   e.g.: bash scripts/verify/section-03-platforms.sh claude-code
 #         bash scripts/verify/section-03-platforms.sh all
 #
-# Run AFTER: npx teamrc init --platform <platform>
+# Run AFTER: npx @teamrc/cli init --platform <platform>
 set -euo pipefail
 source "$(dirname "$0")/helpers.sh"
 
@@ -45,6 +45,22 @@ verify_cursor() {
     check_contains ".cursor/AGENTS.md" "<!-- /teamrc -->" "AGENTS.md has <!-- /teamrc --> marker"
   else
     skip "Cursor AGENTS.md" "not created by adapter"
+  fi
+
+  # Verify Cursor readTeam works (status --json should show members)
+  subsection "3.2b: Cursor readTeam"
+  STATUS_JSON=$(npx @teamrc/cli status --json 2>/dev/null || echo "")
+  if [ -n "$STATUS_JSON" ] && echo "$STATUS_JSON" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+members = data.get('members') or data.get('team', {}).get('members')
+if members and len(members) > 0:
+    sys.exit(0)
+sys.exit(1)
+" 2>/dev/null; then
+    check "Cursor: status --json shows team members (readTeam works)" 0
+  else
+    check "Cursor: status --json shows team members (readTeam works)" 1
   fi
 }
 

@@ -1,15 +1,14 @@
 defmodule TeamrcWeb.InviteLive do
   use TeamrcWeb, :live_view
 
-  alias Teamrc.Repo
+  alias Teamrc.Teams
   alias Teamrc.Schema.Invite
-  import Ecto.Query
 
   @impl true
   def mount(%{"code" => code}, _session, socket) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    case Repo.one(from(i in Invite, where: i.code == ^code)) do
+    case Teams.get_invite_by_code(code) do
       nil ->
         {:ok, assign(socket, page_title: "Invalid Invite", error: :not_found)}
 

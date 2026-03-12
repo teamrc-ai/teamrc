@@ -191,7 +191,7 @@ defmodule TeamrcWeb.GuideLive do
 
     <.callout title="Shortest possible version">
       <p class="text-sm text-base-content/70">
-        Run <.code_inline>npx teamrc init</.code_inline>. If the generated team looks good, you are already done.
+        Run <.code_inline>npx @teamrc/cli init</.code_inline>. If the generated team looks good, you are already done.
         The rest of this page is for editing, syncing, or sharing it.
       </p>
     </.callout>
@@ -202,7 +202,7 @@ defmodule TeamrcWeb.GuideLive do
         Start in your project directory:
       </p>
       <.terminal_block title="terminal">
-        <.cmd_line cmd="npx teamrc init" />
+        <.cmd_line cmd="npx @teamrc/cli init" />
       </.terminal_block>
       <p class="text-sm text-base-content/70 leading-relaxed">
         This creates the team on the relay, generates your machine keypair, writes <.code_inline>.teamrc.yaml</.code_inline>, and applies the generated platform files locally.
@@ -215,7 +215,7 @@ defmodule TeamrcWeb.GuideLive do
         Open the current team directly from the CLI. No account is required.
       </p>
       <.terminal_block title="terminal">
-        <.cmd_line cmd="npx teamrc dashboard" />
+        <.cmd_line cmd="npx @teamrc/cli dashboard" />
       </.terminal_block>
       <p class="text-sm text-base-content/70 leading-relaxed">
         This opens your team in the browser and prints the underlying invite-backed URL as a fallback.
@@ -229,7 +229,7 @@ defmodule TeamrcWeb.GuideLive do
         After editing in the browser, sync locally:
       </p>
       <.terminal_block title="terminal">
-        <.cmd_line cmd="npx teamrc sync" />
+        <.cmd_line cmd="npx @teamrc/cli sync" />
       </.terminal_block>
       <p class="text-sm text-base-content/70 leading-relaxed">
         That fetches the latest team definition from the relay and regenerates platform-native files.
@@ -242,13 +242,13 @@ defmodule TeamrcWeb.GuideLive do
         On the first machine, create an invite:
       </p>
       <.terminal_block title="terminal">
-        <.cmd_line cmd="npx teamrc invite" />
+        <.cmd_line cmd="npx @teamrc/cli invite" />
       </.terminal_block>
       <p class="text-sm text-base-content/70 leading-relaxed">
         Then on the second machine, or in another repo that should use the same team:
       </p>
       <.terminal_block title="terminal">
-        <.cmd_line cmd="npx teamrc join trc_inv_..." />
+        <.cmd_line cmd="npx @teamrc/cli join trc_inv_..." />
       </.terminal_block>
       <p class="text-sm text-base-content/70 leading-relaxed">
         That machine becomes part of the same sync loop and will receive future updates.
@@ -707,7 +707,7 @@ defmodule TeamrcWeb.GuideLive do
         No install needed. Run via <.code_inline>npx</.code_inline>:
       </p>
       <.terminal_block title="terminal">
-        <.cmd_line cmd="npx teamrc <command>" />
+        <.cmd_line cmd="npx @teamrc/cli <command>" />
       </.terminal_block>
       <p class="text-sm text-base-content/70 leading-relaxed">
         Or install globally:
@@ -961,8 +961,8 @@ defmodule TeamrcWeb.GuideLive do
       <.sub_heading title="Set up a new project with a template" />
       <.terminal_block title="terminal">
         <div class="space-y-1.5">
-          <.cmd_line cmd="npx teamrc init --team fullstack" />
-          <.cmd_line cmd="npx teamrc dashboard" comment="# opens the team in your browser" />
+          <.cmd_line cmd="npx @teamrc/cli init --team fullstack" />
+          <.cmd_line cmd="npx @teamrc/cli dashboard" comment="# opens the team in your browser" />
         </div>
       </.terminal_block>
       <p class="text-sm text-base-content/70 leading-relaxed">
@@ -986,8 +986,8 @@ defmodule TeamrcWeb.GuideLive do
       <.sub_heading title="Connect another machine, VM, or project" />
       <.terminal_block title="terminal">
         <div class="space-y-1.5">
-          <.cmd_line cmd="npx teamrc invite" comment="# run on the first machine" />
-          <.cmd_line cmd="npx teamrc join trc_inv_abc123..." comment="# run on the second machine" />
+          <.cmd_line cmd="npx @teamrc/cli invite" comment="# run on the first machine" />
+          <.cmd_line cmd="npx @teamrc/cli join trc_inv_abc123..." comment="# run on the second machine" />
         </div>
       </.terminal_block>
 
@@ -996,23 +996,23 @@ defmodule TeamrcWeb.GuideLive do
         Make your changes in the browser, then pull them down:
       </p>
       <.terminal_block title="terminal">
-        <.cmd_line cmd="npx teamrc pull" comment="# fetch latest from relay" />
+        <.cmd_line cmd="npx @teamrc/cli pull" comment="# fetch latest from relay" />
       </.terminal_block>
 
       <.sub_heading title="Edit .teamrc.yaml directly, then push" />
       <.terminal_block title="terminal">
         <div class="space-y-1.5">
           <.cmd_line cmd="vim .teamrc.yaml" comment="# make your changes" />
-          <.cmd_line cmd="npx teamrc push" comment="# send to relay" />
-          <.cmd_line cmd="npx teamrc apply" comment="# regenerate local files" />
+          <.cmd_line cmd="npx @teamrc/cli push" comment="# send to relay" />
+          <.cmd_line cmd="npx @teamrc/cli apply" comment="# regenerate local files" />
         </div>
       </.terminal_block>
 
       <.sub_heading title="Check what's different before syncing" />
       <.terminal_block title="terminal">
         <div class="space-y-1.5">
-          <.cmd_line cmd="npx teamrc diff" comment="# compare local vs relay" />
-          <.cmd_line cmd="npx teamrc sync" comment="# if it looks good" />
+          <.cmd_line cmd="npx @teamrc/cli diff" comment="# compare local vs relay" />
+          <.cmd_line cmd="npx @teamrc/cli sync" comment="# if it looks good" />
         </div>
       </.terminal_block>
     </section>
@@ -1529,8 +1529,8 @@ defmodule TeamrcWeb.GuideLive do
       </ul>
       <.terminal_block title="terminal">
         <div class="space-y-1.5">
-          <.cmd_line cmd="npx teamrc daemon" comment="# default 2-minute poll" />
-          <.cmd_line cmd="npx teamrc daemon --poll-interval 30000" comment="# poll every 30 seconds" />
+          <.cmd_line cmd="npx @teamrc/cli daemon" comment="# default 2-minute poll" />
+          <.cmd_line cmd="npx @teamrc/cli daemon --poll-interval 30000" comment="# poll every 30 seconds" />
         </div>
       </.terminal_block>
       <p class="text-sm text-base-content/70 leading-relaxed">
@@ -1741,7 +1741,7 @@ defmodule TeamrcWeb.GuideLive do
               <span class="text-[10px] font-mono text-white/30">copy</span>
             </div>
             <div class="px-3 py-2">
-              <code class="text-emerald-400 text-xs font-mono">npx teamrc join trc_inv_a1b2c3</code>
+              <code class="text-emerald-400 text-xs font-mono">npx @teamrc/cli join trc_inv_a1b2c3</code>
             </div>
           </div>
 
@@ -2120,7 +2120,7 @@ defmodule TeamrcWeb.GuideLive do
           <div class="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
             <div class="terminal-block rounded-lg overflow-hidden">
               <div class="px-3 py-2 flex items-center justify-between">
-                <code class="text-emerald-400 text-xs font-mono">npx teamrc join trc_inv_x7y8z9</code>
+                <code class="text-emerald-400 text-xs font-mono">npx @teamrc/cli join trc_inv_x7y8z9</code>
                 <span class="text-[10px] font-mono text-white/30">copy</span>
               </div>
             </div>
@@ -2160,7 +2160,7 @@ defmodule TeamrcWeb.GuideLive do
           </div>
           <div class="terminal-block rounded-lg overflow-hidden">
             <div class="px-3 py-2 flex items-center justify-between">
-              <code class="text-emerald-400 text-xs font-mono">npx teamrc clone trc_cl_r4s5t6</code>
+              <code class="text-emerald-400 text-xs font-mono">npx @teamrc/cli clone trc_cl_r4s5t6</code>
               <span class="text-[10px] font-mono text-white/30">copy</span>
             </div>
           </div>

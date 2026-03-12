@@ -229,42 +229,53 @@ defmodule Teamrc.Teams do
 
   @doc "Claim ownership of a team using the claim secret. Requires the token to have a linked account."
   def claim_ownership(token, claim_secret) do
-    # Resolve the team by the claim secret
-    team =
-      from(t in Team, where: t.owner_claim_secret == ^claim_secret and is_nil(t.owner_user_id))
-      |> Repo.one()
+    # Verify the token has a linked account
+    user_id = resolve_owner_from_token(token)
 
-    case team do
-      nil ->
-        {:error, :invalid_secret}
+    if is_nil(user_id) do
+      {:error, :no_account}
+    else
+      # Find unclaimed teams this token belongs to (with a non-nil claim secret hash)
+      candidate_teams =
+        from(t in Team,
+          join: tt in TokenTeam, on: tt.team_id == t.id,
+          where: tt.token == ^token and is_nil(t.owner_user_id) and not is_nil(t.owner_claim_secret),
+          select: t
+        )
+        |> Repo.all()
 
-      %Team{} = team ->
-        # Verify the token has a linked account
-        user_id = resolve_owner_from_token(token)
+      # Verify the claim secret against each candidate's bcrypt hash.
+      # When candidates is empty, call no_user_verify() to maintain constant
+      # timing — otherwise an attacker can detect whether a token has any
+      # unclaimed teams by measuring response time.
+      matching_team =
+        case candidate_teams do
+          [] ->
+            Bcrypt.no_user_verify()
+            nil
 
-        if is_nil(user_id) do
-          {:error, :no_account}
-        else
-          # Verify the token belongs to this team
-          is_member =
-            from(tt in TokenTeam, where: tt.token == ^token and tt.team_id == ^team.id, select: tt.id, limit: 1)
-            |> Repo.one()
-
-          if is_nil(is_member) do
-            {:error, :not_member}
-          else
-            # Atomic claim — only succeeds if still unclaimed
-            {count, _} =
-              from(t in Team, where: t.id == ^team.id and is_nil(t.owner_user_id))
-              |> Repo.update_all(set: [owner_user_id: user_id, owner_claim_secret: nil])
-
-            if count == 1 do
-              {:ok, :claimed}
-            else
-              {:error, :already_claimed}
-            end
-          end
+          teams ->
+            Enum.find(teams, fn team ->
+              Bcrypt.verify_pass(claim_secret, team.owner_claim_secret)
+            end)
         end
+
+      case matching_team do
+        nil ->
+          {:error, :invalid_secret}
+
+        %Team{} = team ->
+          # Atomic claim — only succeeds if still unclaimed
+          {count, _} =
+            from(t in Team, where: t.id == ^team.id and is_nil(t.owner_user_id))
+            |> Repo.update_all(set: [owner_user_id: user_id, owner_claim_secret: nil])
+
+          if count == 1 do
+            {:ok, :claimed}
+          else
+            {:error, :already_claimed}
+          end
+      end
     end
   end
 
@@ -275,6 +286,150 @@ defmodule Teamrc.Teams do
       |> Repo.delete_all()
 
     {:ok, count}
+  end
+
+  # --- LiveView-facing query functions ---
+
+  @doc "Get a team by ID with members preloaded. Returns nil if not found."
+  def get_team_by_id(team_id) do
+    Team
+    |> where(id: ^team_id)
+    |> preload(:members)
+    |> Repo.one()
+  end
+
+  @doc "Look up an invite by its code. Returns the invite or nil."
+  def get_invite_by_code(code) do
+    Repo.one(from(i in Invite, where: i.code == ^code))
+  end
+
+  @doc "Validate an invite code for a team. Returns the invite or nil."
+  def get_valid_invite(team_id, invite_code) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    from(i in Invite,
+      where: i.code == ^invite_code and i.team_id == ^team_id and i.expires_at > ^now
+    )
+    |> Repo.one()
+  end
+
+  @doc "Validate an invite code for a team and preload team with members. Returns the invite (with team preloaded) or nil."
+  def get_valid_invite_with_team(team_id, invite_code) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    from(i in Invite,
+      where: i.code == ^invite_code and i.team_id == ^team_id and i.expires_at > ^now,
+      preload: [team: :members]
+    )
+    |> Repo.one()
+  end
+
+  @doc "List active (non-expired) invites for a team."
+  def list_active_invites(team_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    from(i in Invite,
+      where: i.team_id == ^team_id and i.expires_at > ^now,
+      order_by: [desc: :inserted_at],
+      select: %{code: i.code, expires_at: i.expires_at}
+    )
+    |> Repo.all()
+  end
+
+  @doc "Update a team's name. Returns {:ok, team_with_members} or {:error, changeset}."
+  def update_team_name(team, new_name) do
+    case team |> Team.changeset(%{name: new_name}) |> Repo.update() do
+      {:ok, updated_team} -> {:ok, Repo.preload(updated_team, :members, force: true)}
+      {:error, changeset} -> {:error, changeset}
+    end
+  end
+
+  @doc "Update a team's skills list. Returns {:ok, team_with_members} or {:error, changeset}."
+  def update_team_skills(team, skills) do
+    case team |> Team.changeset(%{skills: skills}) |> Repo.update() do
+      {:ok, updated_team} -> {:ok, Repo.preload(updated_team, :members, force: true)}
+      {:error, changeset} -> {:error, changeset}
+    end
+  end
+
+  @doc "Add a member to a team. Returns {:ok, member} or {:error, changeset}."
+  def add_member(team_id, attrs) do
+    %Member{team_id: team_id}
+    |> Member.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc "Get a member by ID. Returns nil if not found."
+  def get_member(member_id) do
+    Repo.get(Member, member_id)
+  end
+
+  @doc "Update a member. Returns {:ok, member} or {:error, changeset}."
+  def update_member(member, changes) do
+    member
+    |> Member.changeset(changes)
+    |> Repo.update()
+  end
+
+  @doc "Delete a member. Returns {:ok, member} or {:error, changeset}."
+  def delete_member(member) do
+    Repo.delete(member)
+  end
+
+  @doc "Reload a team with members preloaded (force)."
+  def reload_team_with_members(team) do
+    Repo.preload(team, :members, force: true)
+  end
+
+  @doc "Delete a skill from a team and remove it from all members. Returns {:ok, team_with_members} or {:error, reason}."
+  def delete_skill(team, skill_id) do
+    updated_skills = Enum.reject(team.skills, &(&1["id"] == skill_id))
+
+    result =
+      Repo.transaction(fn ->
+        # Remove the skill from any members that have it
+        team.members
+        |> Enum.filter(fn m -> skill_id in (m.skills || []) end)
+        |> Enum.each(fn m ->
+          new_skills = List.delete(m.skills || [], skill_id)
+
+          case m |> Member.changeset(%{skills: new_skills}) |> Repo.update() do
+            {:ok, _} -> :ok
+            {:error, changeset} -> Repo.rollback(changeset)
+          end
+        end)
+
+        case team |> Team.changeset(%{skills: updated_skills}) |> Repo.update() do
+          {:ok, updated_team} -> updated_team
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+      end)
+
+    case result do
+      {:ok, updated_team} -> {:ok, Repo.preload(updated_team, :members, force: true)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc "Find a token string that connects a user to a team. Returns the token string or nil."
+  def find_user_token_for_team(user_id, team_id) do
+    user_data = Teamrc.Accounts.get_user_with_machine_tokens(user_id)
+
+    if user_data do
+      tokens =
+        user_data.machine_tokens
+        |> Enum.reject(& &1.revoked_at)
+        |> Enum.map(& &1.token)
+
+      from(tt in TokenTeam,
+        where: tt.team_id == ^team_id and tt.token in ^tokens,
+        select: tt.token,
+        limit: 1
+      )
+      |> Repo.one()
+    else
+      nil
+    end
   end
 
   # --- Private helpers ---
@@ -326,11 +481,13 @@ defmodule Teamrc.Teams do
 
     # Generate a claim secret only when there is no owner yet (CLI flow).
     # Web wizard sets owner_user_id directly, so no secret needed.
-    claim_secret = if is_nil(resolved_owner), do: generate_claim_secret()
+    # Store the bcrypt hash in DB but return plaintext to caller (shown once).
+    plaintext_secret = if is_nil(resolved_owner), do: generate_claim_secret()
+    hashed_secret = if plaintext_secret, do: Bcrypt.hash_pwd_salt(plaintext_secret)
 
     team_attrs =
       %{name: team_data.name, skills: team_data.skills, platforms: team_data.platforms, knowledge: team_data.knowledge}
-      |> put_non_nil(:owner_claim_secret, claim_secret)
+      |> put_non_nil(:owner_claim_secret, hashed_secret)
       |> put_non_nil(:owner_user_id, resolved_owner)
 
     case %Team{}
@@ -338,9 +495,12 @@ defmodule Teamrc.Teams do
          |> Repo.insert() do
       {:ok, team} ->
         Enum.each(team_data.members, fn m ->
-          %Member{team_id: team.id}
-          |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], skills: m.skills})
-          |> Repo.insert!()
+          case %Member{team_id: team.id}
+               |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], skills: m.skills})
+               |> Repo.insert() do
+            {:ok, _member} -> :ok
+            {:error, changeset} -> Repo.rollback(changeset)
+          end
         end)
 
         team = Repo.preload(team, :members)
@@ -355,7 +515,9 @@ defmodule Teamrc.Teams do
           })
           |> Repo.update()
 
-        {:ok, Repo.preload(team, :members)}
+        # Return plaintext secret (not the bcrypt hash stored in DB) for one-time display
+        team_with_plaintext = %{team | owner_claim_secret: plaintext_secret}
+        {:ok, Repo.preload(team_with_plaintext, :members)}
 
       {:error, changeset} ->
         {:error, changeset}

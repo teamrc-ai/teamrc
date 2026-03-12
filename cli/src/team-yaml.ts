@@ -103,12 +103,6 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
       });
   }
 
-  // Parse sync hash metadata
-  const syncHash = data.syncHash ? String(data.syncHash) : undefined;
-  const syncHashMembers = data.syncHashMembers ? String(data.syncHashMembers) : undefined;
-  const syncHashSkills = data.syncHashSkills ? String(data.syncHashSkills) : undefined;
-  const syncHashKnowledge = data.syncHashKnowledge ? String(data.syncHashKnowledge) : undefined;
-
   return {
     name: teamName,
     members,
@@ -117,10 +111,6 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
     ...(cloneToken ? { cloneToken } : {}),
     ...(relay ? { relay } : {}),
     ...(platforms ? { platforms } : {}),
-    ...(syncHash ? { syncHash } : {}),
-    ...(syncHashMembers ? { syncHashMembers } : {}),
-    ...(syncHashSkills ? { syncHashSkills } : {}),
-    ...(syncHashKnowledge ? { syncHashKnowledge } : {}),
   };
 }
 
@@ -131,10 +121,6 @@ export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
     ...(team.cloneToken ? { cloneToken: team.cloneToken } : {}),
     ...(team.relay ? { relay: team.relay } : {}),
     ...(team.platforms ? { platforms: team.platforms } : {}),
-    ...(team.syncHash ? { syncHash: team.syncHash } : {}),
-    ...(team.syncHashMembers ? { syncHashMembers: team.syncHashMembers } : {}),
-    ...(team.syncHashSkills ? { syncHashSkills: team.syncHashSkills } : {}),
-    ...(team.syncHashKnowledge ? { syncHashKnowledge: team.syncHashKnowledge } : {}),
     members: team.members.map((m) => {
       const entry: Record<string, unknown> = { name: m.name, role: m.role };
       if (m.soul) entry.soul = m.soul;

@@ -104,6 +104,40 @@ describe("writeTeamYaml", () => {
     assert.equal(result.members[0].soul, undefined);
     assert.equal(result.members[1].soul, "soul text");
   });
+
+  it("does not write syncHash fields to YAML", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    writeTeamYaml(filePath, {
+      name: "no-hash-team",
+      members: [{ name: "agent", role: "helper" }],
+    });
+
+    const content = fs.readFileSync(filePath, "utf-8");
+    assert.ok(!content.includes("syncHash"), "YAML should not contain syncHash");
+    assert.ok(!content.includes("syncHashMembers"), "YAML should not contain syncHashMembers");
+    assert.ok(!content.includes("syncHashSkills"), "YAML should not contain syncHashSkills");
+    assert.ok(!content.includes("syncHashKnowledge"), "YAML should not contain syncHashKnowledge");
+  });
+
+  it("ignores legacy syncHash fields in YAML when reading", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    fs.writeFileSync(filePath, `name: legacy-team
+syncHash: old-hash
+syncHashMembers: old-m
+syncHashSkills: old-s
+syncHashKnowledge: old-k
+members:
+  - name: agent
+    role: helper
+`);
+
+    const result = readTeamYaml(filePath);
+    assert.ok(result);
+    assert.equal(result.name, "legacy-team");
+    // syncHash fields should not be on the TeamDefinition
+    assert.equal((result as Record<string, unknown>).syncHash, undefined);
+    assert.equal((result as Record<string, unknown>).syncHashMembers, undefined);
+  });
 });
 
 describe("readTeamYaml with skills", () => {

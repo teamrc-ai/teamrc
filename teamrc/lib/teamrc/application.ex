@@ -7,11 +7,12 @@ defmodule Teamrc.Application do
 
   @impl true
   def start(_type, _args) do
-    # Create ETS table for rate limiter before starting the endpoint
-    if :ets.whereis(:trc_rate_limiter) == :undefined do
-      :ets.new(:trc_rate_limiter, [:named_table, :public, :set, read_concurrency: true])
-    end
-    TeamrcWeb.Plugs.RateLimiter.setup_cleanup_timer()
+    OpentelemetryBandit.setup()
+    OpentelemetryPhoenix.setup(adapter: :bandit)
+    OpentelemetryEcto.setup([:teamrc, :repo])
+
+    # Eagerly populate the template catalog ETS cache
+    Teamrc.Catalog.reload()
 
     children = [
       TeamrcWeb.Telemetry,
@@ -20,7 +21,8 @@ defmodule Teamrc.Application do
       {Phoenix.PubSub, name: Teamrc.PubSub},
 
       {Finch, name: Swoosh.Finch},
-      {Teamrc.DeviceAuth, name: Teamrc.DeviceAuth},
+      TeamrcWeb.Plugs.RateLimiter.Server,
+      Teamrc.DeviceAuth.CleanupTask,
       # Start to serve requests, typically the last entry
       TeamrcWeb.Endpoint
     ]

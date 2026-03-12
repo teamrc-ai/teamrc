@@ -2,8 +2,8 @@
 # Section 2: Team Collaboration — verify state after join
 # Usage: bash scripts/verify/section-02-collaboration.sh [join|clone]
 #
-# For "join" mode: run AFTER npx teamrc join <invite> --platform cursor,gemini
-# For "clone" mode: run AFTER npx teamrc clone <invite> --platform claude-code
+# For "join" mode: run AFTER npx @teamrc/cli join <invite> --platform cursor,gemini
+# For "clone" mode: run AFTER npx @teamrc/cli clone <invite> --platform claude-code
 set -euo pipefail
 source "$(dirname "$0")/helpers.sh"
 
@@ -34,12 +34,12 @@ if [ "$MODE" = "join" ]; then
   if [ -n "$TEAM_ID" ]; then
     subsection "2.1: Team on relay"
     # Use teamrc status --json which makes a signed API call
-    STATUS_OUT=$(npx teamrc status --json 2>/dev/null || echo "")
+    STATUS_OUT=$(npx @teamrc/cli status --json 2>/dev/null || echo "")
     if echo "$STATUS_OUT" | grep -q "$TEAM_ID"; then
       check "Relay confirms team $TEAM_ID" 0
     else
       # Fallback: just check status runs without auth errors
-      if npx teamrc status 2>&1 | grep -qi "team\|relay\|connected"; then
+      if npx @teamrc/cli status 2>&1 | grep -qi "team\|relay\|connected"; then
         check "Relay confirms team (via status)" 0
       else
         check "Relay confirms team" 1

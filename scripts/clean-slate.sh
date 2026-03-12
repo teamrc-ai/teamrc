@@ -30,6 +30,10 @@ remove_if_exists ".teamrc.yaml"
 remove_if_exists "agent-team.yaml"
 remove_if_exists ".claude/teamrc-knowledge.md"
 
+# --- Project state directory ---
+echo "Project state..."
+remove_if_exists ".teamrc"
+
 # --- Claude Code ---
 echo "Claude Code..."
 for f in .claude/agents/trc-*.md .claude/agents/tb-*.md; do

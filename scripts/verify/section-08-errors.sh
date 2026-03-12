@@ -7,7 +7,7 @@ source "$(dirname "$0")/helpers.sh"
 section "Section 8: Error Cases"
 
 subsection "8.1: Invalid platform"
-OUTPUT=$(npx teamrc init --platform invalid-platform 2>&1 || true)
+OUTPUT=$(npx @teamrc/cli init --platform invalid-platform 2>&1 || true)
 if echo "$OUTPUT" | grep -qi "unknown platform\|invalid.*platform"; then
   check "Invalid platform gives clear error" 0
 else
@@ -15,7 +15,7 @@ else
 fi
 
 subsection "8.2: Invalid invite code"
-OUTPUT=$(npx teamrc join trc_inv_invalid123 2>&1 || true)
+OUTPUT=$(npx @teamrc/cli join trc_inv_invalid123 2>&1 || true)
 if echo "$OUTPUT" | grep -qi "invalid\|error\|fail"; then
   check "Invalid invite code gives error" 0
 else
@@ -23,7 +23,7 @@ else
 fi
 
 subsection "8.3: Relay unreachable"
-OUTPUT=$(TEAMRC_RELAY=http://localhost:9999 npx teamrc sync 2>&1 || true)
+OUTPUT=$(TEAMRC_RELAY=http://localhost:9999 npx @teamrc/cli sync 2>&1 || true)
 if echo "$OUTPUT" | grep -qi "fail\|error\|ECONNREFUSED\|fetch"; then
   check "Unreachable relay gives error (not crash)" 0
 else
@@ -35,7 +35,7 @@ subsection "8.4: Oversized YAML"
 python3 -c "print('name: big-team\nmembers:\n' + '\n'.join(f'  - name: agent{i}\n    role: role {i}' for i in range(200)))" > /tmp/teamrc-test-oversized.yaml
 cp .teamrc.yaml .teamrc.yaml.bak 2>/dev/null || true
 cp /tmp/teamrc-test-oversized.yaml .teamrc.yaml
-OUTPUT=$(npx teamrc apply --platform claude-code 2>&1 || true)
+OUTPUT=$(npx @teamrc/cli apply --platform claude-code 2>&1 || true)
 # Restore
 if [ -f ".teamrc.yaml.bak" ]; then
   mv .teamrc.yaml.bak .teamrc.yaml
@@ -58,7 +58,7 @@ members:
 EOF
 cp .teamrc.yaml .teamrc.yaml.bak 2>/dev/null || true
 cp /tmp/teamrc-test-badname.yaml .teamrc.yaml
-OUTPUT=$(npx teamrc apply --platform claude-code 2>&1 || true)
+OUTPUT=$(npx @teamrc/cli apply --platform claude-code 2>&1 || true)
 # Restore
 if [ -f ".teamrc.yaml.bak" ]; then
   mv .teamrc.yaml.bak .teamrc.yaml

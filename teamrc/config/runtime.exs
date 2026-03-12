@@ -20,9 +20,6 @@ if System.get_env("PHX_SERVER") do
   config :teamrc, TeamrcWeb.Endpoint, server: true
 end
 
-config :teamrc, TeamrcWeb.Endpoint,
-  http: [port: String.to_integer(System.get_env("PORT", "4000")), ip: {0, 0, 0, 0}]
-
 config :teamrc, env: config_env()
 
 # GitHub OAuth
@@ -39,7 +36,23 @@ if google_client_id = System.get_env("GOOGLE_CLIENT_ID") do
     client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
 end
 
+if otel_endpoint = System.get_env("OTEL_ENDPOINT") do
+  config :opentelemetry, :resource, service: %{name: "teamrc"}
+  config :opentelemetry, sampler: {Teamrc.OtelSampler, ["/health"]}
+
+  config :opentelemetry, :processors,
+    otel_batch_processor: %{
+      exporter: {
+        :opentelemetry_exporter,
+        %{endpoints: [otel_endpoint]}
+      }
+    }
+end
+
 if config_env() == :prod do
+  config :teamrc, TeamrcWeb.Endpoint,
+    http: [port: String.to_integer(System.get_env("PORT", "4000")), ip: {0, 0, 0, 0}]
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

@@ -202,7 +202,7 @@ describe("daemon", () => {
     daemon.stop();
   });
 
-  it("writes sync hashes to YAML after pull", async () => {
+  it("writes sync hashes to state.json after pull", async () => {
     const adapter = createMockAdapter(tmpDir);
     const head: TeamHeadResponse = {
       hash: "sync-hash-abc",
@@ -228,10 +228,18 @@ describe("daemon", () => {
 
     await new Promise((r) => setTimeout(r, 200));
 
-    // Read YAML and check sync hashes were written
+    // Read state.json and check sync hashes were written
+    const stateContent = fs.readFileSync(path.join(tmpDir, ".teamrc", "state.json"), "utf-8");
+    const state = JSON.parse(stateContent);
+    assert.equal(state.syncHash, "sync-hash-abc", "state.json should contain the actual hash value");
+    assert.equal(state.syncHashMembers, "m_abc");
+    assert.equal(state.syncHashSkills, "s_abc");
+    assert.equal(state.syncHashKnowledge, "k_abc");
+    assert.ok(state.lastPollAt, "state.json should contain lastPollAt");
+
+    // YAML should NOT contain syncHash fields
     const yamlContent = fs.readFileSync(path.join(tmpDir, ".teamrc.yaml"), "utf-8");
-    assert.ok(yamlContent.includes("syncHash"), "YAML should contain syncHash");
-    assert.ok(yamlContent.includes("sync-hash-abc"), "YAML should contain the actual hash value");
+    assert.ok(!yamlContent.includes("syncHash"), "YAML should NOT contain syncHash");
 
     daemon.stop();
   });

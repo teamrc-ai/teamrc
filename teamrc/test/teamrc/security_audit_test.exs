@@ -169,27 +169,17 @@ defmodule Teamrc.SecurityAuditTest do
 
   describe "device auth user code format" do
     test "user codes still match expected format after rejection sampling fix" do
-      {:ok, pid} =
-        Teamrc.DeviceAuth.start_link(
-          name: :"device_auth_bias_#{:erlang.unique_integer([:positive])}"
-        )
-
       token = "trc_ak_bias_#{:erlang.unique_integer([:positive])}"
-      {:ok, result} = Teamrc.DeviceAuth.create_request(pid, token)
+      {:ok, result} = Teamrc.DeviceAuth.create_request(token)
 
       assert Regex.match?(~r/^[A-Z2-9]{4}-[A-Z2-9]{4}$/, result.user_code)
     end
 
     test "generates unique codes across multiple requests" do
-      {:ok, pid} =
-        Teamrc.DeviceAuth.start_link(
-          name: :"device_auth_uniq_#{:erlang.unique_integer([:positive])}"
-        )
-
       codes =
         for i <- 1..3 do
           token = "trc_ak_uniq_#{i}_#{:erlang.unique_integer([:positive])}"
-          {:ok, result} = Teamrc.DeviceAuth.create_request(pid, token)
+          {:ok, result} = Teamrc.DeviceAuth.create_request(token)
           result.user_code
         end
 
@@ -298,14 +288,16 @@ defmodule Teamrc.SecurityAuditTest do
       token = "trc_ak_claim_sec_#{:erlang.unique_integer([:positive])}"
       {:ok, team_data} = Teams.put_team(token, %{"name" => "claim-secret-team", "members" => []})
 
-      # Team should have a claim secret since creator has no linked user
+      # Team should have a bcrypt-hashed claim secret in DB
       team = Repo.get(Team, team_data["id"])
       assert team.owner_claim_secret
-      assert String.starts_with?(team.owner_claim_secret, "trc_ocs_")
+      assert String.starts_with?(team.owner_claim_secret, "$2b$")
       assert is_nil(team.owner_user_id)
 
-      # Claim secret should also be in the API response
-      assert team_data["owner_claim_secret"] == team.owner_claim_secret
+      # API response has the plaintext secret (shown once to user)
+      assert String.starts_with?(team_data["owner_claim_secret"], "trc_ocs_")
+      # DB stores hash, not plaintext
+      refute team_data["owner_claim_secret"] == team.owner_claim_secret
     end
 
     test "claim secret is NOT leaked in get_team or join responses" do
@@ -366,7 +358,7 @@ defmodule Teamrc.SecurityAuditTest do
       other_token = "trc_ak_other2_#{:erlang.unique_integer([:positive])}"
       {:ok, _user} = create_user_with_token("other2@test.com", other_token, "other-machine")
 
-      assert {:error, :not_member} = Teams.claim_ownership(other_token, team_data["owner_claim_secret"])
+      assert {:error, :invalid_secret} = Teams.claim_ownership(other_token, team_data["owner_claim_secret"])
     end
 
     test "double claim fails" do

@@ -1,0 +1,61 @@
+import type { Command } from "commander";
+import * as p from "@clack/prompts";
+import { getAdapter } from "../adapters/base.js";
+import { readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
+import {
+  requirePlatforms,
+  selectScope,
+  effectiveScope,
+} from "../utils.js";
+
+export function registerApply(program: Command): void {
+  program
+    .command("apply")
+    .description("Re-apply team agents to local platform native format")
+    .option("--platform <platform>", "Override platform detection")
+    .option("--scope <scope>", "Team scope: project or global")
+    .option("--global", "Install as global team")
+    .action(async (opts: { platform?: string; scope?: string; global?: boolean }) => {
+      p.intro("teamrc");
+
+      const scope = await selectScope(opts);
+      const platforms = await requirePlatforms(opts.platform, scope);
+      let team;
+      try {
+        team = readTeamYaml(TEAM_YAML);
+      } catch (e) {
+        p.log.error(`Failed to parse .teamrc.yaml: ${e instanceof Error ? e.message : e}`);
+        process.exit(1);
+      }
+      if (!team) {
+        // Fall back to global YAML
+        try {
+          team = readTeamYaml(GLOBAL_TEAM_YAML);
+        } catch (e) {
+          p.log.error(`Failed to parse global team.yaml: ${e instanceof Error ? e.message : e}`);
+          process.exit(1);
+        }
+      }
+      if (!team) {
+        p.log.error("No .teamrc.yaml found. Run `teamrc init` or `teamrc import <platform>` first.");
+        process.exit(1);
+      }
+
+      const s = p.spinner();
+      s.start(`Applying "${team.name}" to ${platforms.length} platform(s)...`);
+
+      const appliedLines: string[] = [];
+      for (const pl of platforms) {
+        const adapter = getAdapter(pl);
+        adapter.writeTeam(team, effectiveScope(pl, scope));
+        const skillCount = team.skills?.length ?? 0;
+        const parts = [`${team.members.length} agents`];
+        if (skillCount > 0) parts.push(`${skillCount} skills`);
+        appliedLines.push(`  ${pl.padEnd(14)} ${parts.join(", ")}`);
+      }
+      s.stop("Applied.");
+
+      p.log.info(appliedLines.join("\n"));
+      p.outro(`Done. ${team.members.length} agents across ${platforms.length} platform(s).`);
+    });
+}

@@ -2,7 +2,7 @@
 # Section 7: Multi-Platform Cross-Sync
 # Usage: bash scripts/verify/section-07-cross-sync.sh
 #
-# Run AFTER: npx teamrc init --platform claude-code,cursor,codex,gemini,openclaw
+# Run AFTER: npx @teamrc/cli init --platform claude-code,cursor,codex,gemini,openclaw
 set -euo pipefail
 source "$(dirname "$0")/helpers.sh"
 

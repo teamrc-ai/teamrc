@@ -4,6 +4,7 @@ import type { PlatformAdapter, TeamDefinition } from "./adapters/base.js";
 import type { TeamrcClient, TeamrcTeam } from "./client.js";
 import { remoteTeamToDefinition } from "./client.js";
 import { readTeamYaml, writeTeamYaml, TEAM_YAML, validateTeamName, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "./team-yaml.js";
+import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "./sync-state.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 
@@ -20,7 +21,13 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
   const pollInterval = opts.pollInterval ?? DEFAULT_POLL_INTERVAL_MS;
   const watchYaml = opts.watchYaml ?? true;
 
-  let lastKnownHash: string | null = null;
+  // Migrate legacy syncHash fields from YAML to state.json before reading
+  migrateLegacyYamlHashes(TEAM_YAML);
+
+  // Initialize lastKnownHash from persisted state so daemon restarts
+  // don't trigger unnecessary full pulls
+  const initialState = readSyncState();
+  let lastKnownHash: string | null = initialState.syncHash ?? null;
   let stopped = false;
 
   function log(msg: string): void {
@@ -77,25 +84,43 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       remoteDef.relay = localYaml.relay;
       remoteDef.platforms = localYaml.platforms;
 
-      // Store sync hashes so sync/push/pull know the last-synced state
-      remoteDef.syncHash = head.hash;
-      remoteDef.syncHashMembers = head.members_hash;
-      remoteDef.syncHashSkills = head.skills_hash;
-      remoteDef.syncHashKnowledge = head.knowledge_hash;
-
-      // Merge knowledge
+      // Merge knowledge from ALL adapters
       if (remoteTeam.knowledge && adapters.length > 0) {
-        const localKnowledge = adapters[0].readKnowledge();
-        const merged = mergeKnowledge(remoteTeam.knowledge, localKnowledge);
+        let merged = remoteTeam.knowledge;
+        for (const adapter of adapters) {
+          try {
+            const localKnowledge = adapter.readKnowledge();
+            if (localKnowledge) {
+              merged = mergeKnowledge(merged, localKnowledge);
+            }
+          } catch {
+            // Skip adapters that fail to read
+          }
+        }
+
         if (merged.length <= MAX_KNOWLEDGE_SIZE) {
-          adapters[0].writeKnowledge(merged);
+          // Write merged knowledge back to ALL adapters
+          for (let i = 0; i < adapters.length; i++) {
+            try {
+              adapters[i].writeKnowledge(merged);
+            } catch (err) {
+              warn(`Failed to write knowledge to ${platforms[i]}: ${(err as Error).message}`);
+            }
+          }
         } else {
-          warn("Remote knowledge exceeds maximum size, skipping merge.");
+          warn("Merged knowledge exceeds maximum size, skipping write.");
         }
       }
 
-      // Write YAML and apply — only update hash after successful write
+      // Write YAML and sync state — only update hash after successful write
       writeTeamYaml(TEAM_YAML, remoteDef);
+      writeSyncState({
+        syncHash: head.hash,
+        syncHashMembers: head.members_hash,
+        syncHashSkills: head.skills_hash,
+        syncHashKnowledge: head.knowledge_hash,
+        lastPollAt: new Date().toISOString(),
+      });
       applyToAllPlatforms(remoteDef);
       lastKnownHash = head.hash;
 

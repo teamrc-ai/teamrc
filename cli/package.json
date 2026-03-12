@@ -1,18 +1,38 @@
 {
-  "name": "teamrc",
-  "version": "0.1.0",
+  "name": "@teamrc/cli",
+  "version": "0.1.2",
   "description": "teamrc CLI - sync multi-agent teams across platforms",
   "main": "dist/index.js",
   "bin": {
     "teamrc": "./dist/index.js"
   },
   "type": "module",
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/teamrc-ai/teamrc.git",
+    "directory": "cli"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "cli",
+    "claude",
+    "cursor",
+    "codex",
+    "gemini",
+    "team",
+    "sync"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "test": "tsx --test src/__tests__/*.test.ts",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run clean && npm run build && npm test"
+    "prepublishOnly": "npm run clean && npm run build && chmod +x dist/index.js && npm test"
   },
   "dependencies": {
     "@clack/prompts": "^1.1.0",

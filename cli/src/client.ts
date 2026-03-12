@@ -2,6 +2,10 @@ import { signMessage } from "./auth.js";
 import type { Skill, TeamDefinition } from "./adapters/base.js";
 
 import { validateSkillId, resolveBody } from "./team-yaml.js";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const { version: CLI_VERSION } = require("../package.json") as { version: string };
 
 export interface TeamrcTeam {
   id: string;
@@ -31,6 +35,16 @@ export class SyncConflictError extends Error {
     this.serverHash = serverHash;
   }
 }
+
+export class UpgradeRequiredError extends Error {
+  constructor() {
+    super("Your teamrc CLI is outdated. Please update: npm install -g teamrc");
+    this.name = "UpgradeRequiredError";
+  }
+}
+
+/** API version sent with every request. Uses major version from package.json. */
+const API_VERSION = String(parseInt(CLI_VERSION, 10) || 1);
 
 // Size caps for relay-sourced content to prevent resource exhaustion
 const MAX_NAME_LEN = 64;
@@ -99,6 +113,13 @@ export class TeamrcClient {
     return `${context}: ${res.status}`;
   }
 
+  /** Check for 426 Upgrade Required and throw a user-facing error */
+  private checkUpgradeRequired(res: Response): void {
+    if (res.status === 426) {
+      throw new UpgradeRequiredError();
+    }
+  }
+
   private async signedHeaders(
     body: string,
   ): Promise<Record<string, string>> {
@@ -107,6 +128,7 @@ export class TeamrcClient {
     const signature = await signMessage(this.privateKey, message);
     return {
       "Content-Type": "application/json",
+      "X-Teamrc-Version": API_VERSION,
       "x-trc-signature": signature,
       "x-trc-timestamp": timestamp,
     };
@@ -119,11 +141,13 @@ export class TeamrcClient {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: "GET",
       headers: {
+        "X-Teamrc-Version": API_VERSION,
         "x-trc-signature": signature,
         "x-trc-timestamp": timestamp,
       },
       signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
+    this.checkUpgradeRequired(res);
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, `GET ${path} failed`));
     }
@@ -152,6 +176,7 @@ export class TeamrcClient {
       body,
       signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
+    this.checkUpgradeRequired(res);
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "createTeam failed"));
     }
@@ -176,6 +201,7 @@ export class TeamrcClient {
       body,
       signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
+    this.checkUpgradeRequired(res);
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "join failed"));
     }
@@ -218,6 +244,7 @@ export class TeamrcClient {
       body,
       signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
+    this.checkUpgradeRequired(res);
     if (res.status === 409) {
       let serverHash = "";
       try {
@@ -258,6 +285,7 @@ export class TeamrcClient {
       body,
       signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
+    this.checkUpgradeRequired(res);
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "createDeviceAuth failed"));
     }
@@ -293,6 +321,7 @@ export class TeamrcClient {
       body,
       signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
+    this.checkUpgradeRequired(res);
     if (!res.ok) throw new Error(await this.errorMessage(res, "preview failed"));
     const data = (await res.json()) as { team: TeamrcTeam };
     return data.team;
@@ -300,8 +329,10 @@ export class TeamrcClient {
 
   async cloneByToken(cloneToken: string): Promise<TeamrcTeam> {
     const res = await fetch(`${this.baseUrl}/api/teams/clone/${encodeURIComponent(cloneToken)}`, {
+      headers: { "X-Teamrc-Version": API_VERSION },
       signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
+    this.checkUpgradeRequired(res);
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, "clone failed"));
     }
@@ -316,11 +347,13 @@ export class TeamrcClient {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: "DELETE",
       headers: {
+        "X-Teamrc-Version": API_VERSION,
         "x-trc-signature": signature,
         "x-trc-timestamp": timestamp,
       },
       signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
+    this.checkUpgradeRequired(res);
     if (!res.ok) {
       throw new Error(await this.errorMessage(res, `DELETE ${path} failed`));
     }
@@ -346,6 +379,7 @@ export class TeamrcClient {
       body,
       signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
+    this.checkUpgradeRequired(res);
     if (!res.ok) throw new Error(await this.errorMessage(res, "claimOwnership failed"));
     return (await res.json()) as { status: string };
   }
@@ -363,6 +397,7 @@ export class TeamrcClient {
       body,
       signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
+    this.checkUpgradeRequired(res);
     if (!res.ok) throw new Error(await this.errorMessage(res, "setVisibility failed"));
     return (await res.json()) as { visibility: string; clone_token: string | null };
   }
@@ -380,6 +415,7 @@ export class TeamrcClient {
       body,
       signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
     });
+    this.checkUpgradeRequired(res);
     if (!res.ok) throw new Error(await this.errorMessage(res, "createInvite failed"));
     return (await res.json()) as { invite_code: string; expires_at: string };
   }

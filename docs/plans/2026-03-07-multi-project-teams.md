@@ -451,7 +451,7 @@ $ teamrc init
 
   Share with teammates:
   ┌──────────────────────────────────────────┐
-  │  npx teamrc join trc_inv_a8f3c9e21b     │
+  │  npx @teamrc/cli join trc_inv_a8f3c9e21b     │
   │  Expires in 24 hours.                    │
   └──────────────────────────────────────────┘
 ```
@@ -669,7 +669,7 @@ $ teamrc invite
 
   ┌──────────────────────────────────────────┐
   │                                          │
-  │  npx teamrc join trc_inv_a8f3c9e21b     │
+  │  npx @teamrc/cli join trc_inv_a8f3c9e21b     │
   │                                          │
   │  Team:    frontend-crew                  │
   │  Expires: 24 hours                       │
@@ -835,7 +835,7 @@ Show platform-specific instructions after team creation:
 Your team is ready!
 
   ┌──────────────────────────────────────────────┐
-  │  npx teamrc join trc_inv_a8f3c9e21b         │
+  │  npx @teamrc/cli join trc_inv_a8f3c9e21b         │
   └──────────────────────────────────────────────┘
 
   This will:
@@ -844,7 +844,7 @@ Your team is ready!
   3. Start syncing team knowledge
 
   Or clone without syncing:
-  npx teamrc clone trc_inv_a8f3c9e21b
+  npx @teamrc/cli clone trc_inv_a8f3c9e21b
 ```
 
 #### Template updates
@@ -957,7 +957,7 @@ Currently `/` redirects to `/new` or `/dashboard`. Consider a proper landing pag
 
 - Hero: "Sync your AI agent teams across every platform"
 - Platform logos: Claude Code, Cursor, Codex, Gemini, OpenClaw, Copilot, Amazon Q, Windsurf, Cline
-- Quick start: `npx teamrc init`
+- Quick start: `npx @teamrc/cli init`
 - Feature highlights: multi-platform sync, team templates, live sync daemon
 - Link to docs
 

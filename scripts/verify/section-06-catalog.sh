@@ -5,7 +5,7 @@
 set -euo pipefail
 source "$(dirname "$0")/helpers.sh"
 
-CLI="npx teamrc"
+CLI="npx @teamrc/cli"
 
 section "Section 6: Catalog & Team Management"
 

@@ -28,12 +28,21 @@ defmodule TeamrcWeb.UserAuth do
   Redirects to the session's `:user_return_to` path
   or falls back to the `signed_in_path/1`.
   """
-  def log_in_user(conn, user, params \\ %{}) do
+  def log_in_user(conn, user, params \\ %{}, persist_session \\ []) do
     user_return_to = get_session(conn, :user_return_to)
 
     conn
     |> create_or_extend_session(user, params)
+    |> persist_session_values(persist_session)
     |> redirect(to: user_return_to || signed_in_path(conn))
+  end
+
+  defp persist_session_values(conn, []), do: conn
+
+  defp persist_session_values(conn, [{key, value} | rest]) do
+    conn
+    |> put_session(key, value)
+    |> persist_session_values(rest)
   end
 
   @doc """

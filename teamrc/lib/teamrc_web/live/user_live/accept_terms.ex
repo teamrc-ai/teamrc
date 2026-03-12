@@ -15,6 +15,12 @@ defmodule TeamrcWeb.UserLive.AcceptTerms do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-md mt-16">
+      <div :if={Phoenix.Flash.get(@flash, :info)} class="rounded-md border border-info/30 bg-info/5 px-4 py-3 mb-4">
+        <p class="text-sm text-info">{Phoenix.Flash.get(@flash, :info)}</p>
+      </div>
+      <div :if={Phoenix.Flash.get(@flash, :error)} class="rounded-md border border-error/30 bg-error/5 px-4 py-3 mb-4">
+        <p class="text-sm text-error">{Phoenix.Flash.get(@flash, :error)}</p>
+      </div>
       <h1 class="text-2xl font-bold mb-4">Accept Terms of Service</h1>
       <p class="mb-4 text-zinc-600">
         Please review and accept our

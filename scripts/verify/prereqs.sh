@@ -20,6 +20,19 @@ else
   check "Relay running at localhost:4000" 1
 fi
 
+# Database migrations (DeviceAuth is now Postgres-backed, requires migration)
+if command -v mix >/dev/null 2>&1; then
+  if cd teamrc && mix ecto.migrations 2>/dev/null | grep -q "down"; then
+    check "Database migrations up to date" 1
+    echo "    Run: cd teamrc && mix ecto.migrate"
+  else
+    check "Database migrations up to date" 0
+  fi
+  cd - >/dev/null 2>&1
+else
+  skip "Database migration check" "mix not available"
+fi
+
 # CLI built
 if [ -f "cli/dist/index.js" ]; then
   check "CLI built (cli/dist/index.js)" 0

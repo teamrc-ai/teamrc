@@ -57,11 +57,6 @@ defmodule TeamrcWeb.AuthController do
         conn
         |> put_status(:not_found)
         |> json(%{error: "not_found"})
-
-      {:error, :token_mismatch} ->
-        conn
-        |> put_status(403)
-        |> json(%{error: "token_mismatch"})
     end
   end
 

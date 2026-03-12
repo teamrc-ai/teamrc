@@ -1,16 +1,14 @@
 defmodule TeamrcWeb.MemberDetailLive do
   use TeamrcWeb, :live_view
 
-  alias Teamrc.{Accounts, Repo}
-  alias Teamrc.Schema.{Team, Invite, Member}
-  import Ecto.Query
+  alias Teamrc.{Accounts, Teams}
   import TeamrcWeb.LiveHelpers
 
   # --- Mount ---
 
   @impl true
   def mount(%{"team_id" => team_id, "member_id" => member_id} = params, _session, socket) do
-    team = Repo.get(Team, team_id) |> maybe_preload()
+    team = Teams.get_team_by_id(team_id)
     member = team && Enum.find(team.members, &(&1.id == member_id))
     invite_code = params["invite"]
 
@@ -59,16 +57,10 @@ defmodule TeamrcWeb.MemberDetailLive do
     end
   end
 
-  defp maybe_preload(nil), do: nil
-  defp maybe_preload(team), do: Repo.preload(team, :members)
-
   @impl true
-  def handle_params(_params, uri, socket) do
-    query = URI.parse(uri).query
-    query_params = if query, do: URI.decode_query(query), else: %{}
-
+  def handle_params(params, _uri, socket) do
     socket =
-      case query_params["invite"] do
+      case params["invite"] do
         nil ->
           socket
 
@@ -94,13 +86,7 @@ defmodule TeamrcWeb.MemberDetailLive do
   defp load_valid_invite(_team_id, nil), do: nil
 
   defp load_valid_invite(team_id, invite_code) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-
-    Repo.one(
-      from(i in Invite,
-        where: i.code == ^invite_code and i.team_id == ^team_id and i.expires_at > ^now
-      )
-    )
+    Teams.get_valid_invite(team_id, invite_code)
   end
 
   # --- Events ---
@@ -124,7 +110,7 @@ defmodule TeamrcWeb.MemberDetailLive do
       team = socket.assigns.team
 
       # IDOR protection: re-verify member belongs to this team
-      case Repo.get(Member, member.id) do
+      case Teams.get_member(member.id) do
         nil ->
           {:noreply, put_flash(socket, :error, "Member no longer exists.")}
 
@@ -143,9 +129,9 @@ defmodule TeamrcWeb.MemberDetailLive do
               soul: if(soul != "", do: soul, else: nil)
             }
 
-            case db_member |> Member.changeset(changes) |> Repo.update() do
+            case Teams.update_member(db_member, changes) do
               {:ok, updated_member} ->
-                updated_team = Repo.preload(team, :members, force: true)
+                updated_team = Teams.reload_team_with_members(team)
 
                 {:noreply,
                  assign(socket,
@@ -172,7 +158,7 @@ defmodule TeamrcWeb.MemberDetailLive do
       team = socket.assigns.team
 
       # IDOR protection: re-verify member belongs to this team
-      case Repo.get(Member, member.id) do
+      case Teams.get_member(member.id) do
         nil ->
           {:noreply, put_flash(socket, :error, "Member no longer exists.")}
 
@@ -195,9 +181,9 @@ defmodule TeamrcWeb.MemberDetailLive do
                 current_skills ++ [skill_id]
               end
 
-            case db_member |> Member.changeset(%{skills: new_skills}) |> Repo.update() do
+            case Teams.update_member(db_member, %{skills: new_skills}) do
               {:ok, updated_member} ->
-                updated_team = Repo.preload(team, :members, force: true)
+                updated_team = Teams.reload_team_with_members(team)
                 {:noreply, assign(socket, member: updated_member, team: updated_team)}
 
               {:error, _} ->
@@ -214,7 +200,7 @@ defmodule TeamrcWeb.MemberDetailLive do
       team = socket.assigns.team
 
       # IDOR protection: re-verify member belongs to this team
-      case Repo.get(Member, member.id) do
+      case Teams.get_member(member.id) do
         nil ->
           {:noreply, put_flash(socket, :error, "Member no longer exists.")}
 
@@ -222,7 +208,7 @@ defmodule TeamrcWeb.MemberDetailLive do
           {:noreply, put_flash(socket, :error, "Access denied.")}
 
         db_member ->
-          Repo.delete(db_member)
+          Teams.delete_member(db_member)
           back = team_path(team.id, socket.assigns.invite_code)
           {:noreply, socket |> put_flash(:info, "Member removed.") |> redirect(to: back)}
       end

@@ -61,14 +61,21 @@ defmodule TeamrcWeb.UserSessionController do
     end
   end
 
-  # Gate login on ToS acceptance — if not accepted, log in but redirect to accept-terms
+  # Gate login on ToS acceptance — if not accepted, log in but redirect to accept-terms.
+  # Extra session values are passed to log_in_user/4 to persist through session renewal,
+  # since create_or_extend_session may call clear_session for new logins.
   defp log_in_with_tos_check(conn, user, user_params, info) do
     if is_nil(user.accepted_terms_at) do
+      original_return = get_session(conn, :user_return_to)
+
+      persist =
+        [{:pending_oauth_user_id, user.id}] ++
+          if(original_return, do: [{:post_tos_return_to, original_return}], else: [])
+
       conn
-      |> put_session(:pending_oauth_user_id, user.id)
       |> put_session(:user_return_to, ~p"/users/accept-terms")
       |> put_flash(:info, "Please accept the Terms of Service to continue.")
-      |> UserAuth.log_in_user(user, user_params)
+      |> UserAuth.log_in_user(user, user_params, persist)
     else
       conn
       |> put_flash(:info, info)
@@ -93,6 +100,18 @@ defmodule TeamrcWeb.UserSessionController do
   def terms_accepted(conn, _params) do
     case conn.assigns[:current_scope] do
       %{user: %{accepted_terms_at: at} = user} when not is_nil(at) ->
+        # Restore the original return destination saved before the ToS detour
+        conn =
+          case get_session(conn, :post_tos_return_to) do
+            nil ->
+              conn
+
+            path ->
+              conn
+              |> put_session(:user_return_to, path)
+              |> delete_session(:post_tos_return_to)
+          end
+
         conn
         |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
 

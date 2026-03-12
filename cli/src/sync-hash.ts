@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { TeamMember, Skill, TeamDefinition } from "./adapters/base.js";
 
-export interface SyncState {
+export interface TeamHashes {
   hash: string;
   membersHash: string;
   skillsHash: string;
@@ -127,7 +127,7 @@ export function computeFullHash(
   return sha256(`${membersHash}:${skillsHash}:${knowledgeHash}`);
 }
 
-export function computeTeamHashes(team: TeamDefinition, knowledge?: string): SyncState {
+export function computeTeamHashes(team: TeamDefinition, knowledge?: string): TeamHashes {
   const membersHash = computeMembersHash(team.members);
   const skillsHash = computeSkillsHash(team.skills ?? []);
   const knowledgeHash = computeKnowledgeHash(knowledge);

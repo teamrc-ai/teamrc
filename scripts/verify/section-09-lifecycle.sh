@@ -7,7 +7,7 @@
 set -euo pipefail
 source "$(dirname "$0")/helpers.sh"
 
-CLI="npx teamrc"
+CLI="npx @teamrc/cli"
 
 section "Section 9: Full Reset Sequence"
 
@@ -27,6 +27,7 @@ check_file ".teamrc.yaml" ".teamrc.yaml created"
 check_file "$HOME/.teamrc/config.json" "config created"
 check_file ".claude/agents/trc-agent.md" "Claude Code agent created"
 check_file ".cursor/agents/trc-agent.md" "Cursor agent created"
+check_dir ".teamrc" ".teamrc/ state dir created"
 
 # Doctor
 $CLI doctor >/dev/null 2>&1
@@ -43,9 +44,10 @@ else
   exit 1
 fi
 
-subsection "Step 4: Delete everything"
-$CLI delete -y 2>/dev/null || true
+subsection "Step 4: Delete everything (--scope all)"
+$CLI delete --scope all -y 2>/dev/null || true
 check_no_file ".teamrc.yaml" ".teamrc.yaml deleted"
+check_no_dir ".teamrc" ".teamrc/ state dir removed"
 check_no_dir "$HOME/.teamrc" "~/.teamrc deleted"
 check_no_glob ".claude/agents/trc-*.md" "Claude agents removed"
 check_no_glob ".cursor/agents/trc-*.md" "Cursor agents removed"
@@ -71,14 +73,16 @@ if echo "$SYNC_OUTPUT" | grep -qi "sync\|up to date\|applied\|change"; then
 else
   check "Sync completes" 1
 fi
+check_file ".teamrc/state.json" "state.json exists after sync"
 
 subsection "Step 8: Export"
 check_cmd "export exits cleanly" $CLI export
 check_file ".teamrc.yaml" ".teamrc.yaml exists after export"
 
 subsection "Step 9: Delete again"
-$CLI delete -y 2>/dev/null || true
+$CLI delete --scope all -y 2>/dev/null || true
 check_no_file ".teamrc.yaml" ".teamrc.yaml deleted (round 2)"
+check_no_dir ".teamrc" ".teamrc/ state dir removed (round 2)"
 
 subsection "Step 10: Re-init fresh"
 $CLI init --platform claude-code -y >/dev/null 2>&1 || true

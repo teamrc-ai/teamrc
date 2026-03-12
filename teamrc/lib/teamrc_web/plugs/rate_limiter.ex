@@ -95,10 +95,6 @@ defmodule TeamrcWeb.Plugs.RateLimiter do
     |> halt()
   end
 
-  def setup_cleanup_timer do
-    :timer.apply_interval(@cleanup_interval_ms, __MODULE__, :purge_expired, [])
-  end
-
   @doc false
   def purge_expired do
     cutoff = System.system_time(:millisecond) - @cleanup_interval_ms

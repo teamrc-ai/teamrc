@@ -60,7 +60,7 @@ defmodule TeamrcWeb.InviteLiveTest do
 
     assert html =~ "test-team"
     assert html =~ "dev"
-    assert html =~ "npx teamrc join #{code}"
+    assert html =~ "npx @teamrc/cli join #{code}"
     assert html =~ "copy"
     assert html =~ "Expires in"
   end

@@ -71,7 +71,7 @@ defmodule TeamrcWeb.AuthControllerTest do
       assert json_response(conn, 404) == %{"error" => "not_found"}
     end
 
-    test "returns 403 for token mismatch", %{conn: conn} do
+    test "returns 404 for token mismatch (prevents device code enumeration)", %{conn: conn} do
       token = "trc_ak_test_#{:erlang.unique_integer([:positive])}"
 
       create_conn =
@@ -81,9 +81,9 @@ defmodule TeamrcWeb.AuthControllerTest do
 
       %{"device_code" => device_code} = json_response(create_conn, 200)
 
-      # Poll with wrong token
+      # Poll with wrong token — returns 404 (not 403) to avoid leaking code existence
       conn = get(conn, "/api/auth/device/#{device_code}", %{"token" => "trc_ak_wrong_token"})
-      assert json_response(conn, 403) == %{"error" => "token_mismatch"}
+      assert json_response(conn, 404) == %{"error" => "not_found"}
     end
   end
 end

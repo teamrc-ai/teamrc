@@ -38,6 +38,12 @@ defmodule TeamrcWeb.UserLive.ForgotPassword do
 
       <%!-- Card --%>
       <div class="rounded-lg border border-base-300 bg-base-100 p-6">
+        <div :if={Phoenix.Flash.get(@flash, :info)} class="rounded-md border border-info/30 bg-info/5 px-4 py-3 mb-4">
+          <p class="text-sm text-info">{Phoenix.Flash.get(@flash, :info)}</p>
+        </div>
+        <div :if={Phoenix.Flash.get(@flash, :error)} class="rounded-md border border-error/30 bg-error/5 px-4 py-3 mb-4">
+          <p class="text-sm text-error">{Phoenix.Flash.get(@flash, :error)}</p>
+        </div>
         <.form
           for={@form}
           id="reset_password_form"

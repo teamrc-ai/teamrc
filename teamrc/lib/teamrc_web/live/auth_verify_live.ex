@@ -63,11 +63,11 @@ defmodule TeamrcWeb.AuthVerifyLive do
 
       true ->
         case DeviceAuth.confirm_request(code, current_user.id, current_user.email) do
-          :ok ->
-            with {:ok, request} <- DeviceAuth.get_request_by_user_code(code),
-                 {:ok, _at} <- Accounts.link_machine_token(current_user.id, request.token, nil) do
-              {:noreply, assign(socket, step: :success, error: nil)}
-            else
+          {:ok, confirmed_req} ->
+            case Accounts.link_machine_token(current_user.id, confirmed_req.token, nil) do
+              {:ok, _at} ->
+                {:noreply, assign(socket, step: :success, error: nil)}
+
               _ ->
                 {:noreply, assign(socket, error: "Failed to link account. Please try again.")}
             end
@@ -87,13 +87,6 @@ defmodule TeamrcWeb.AuthVerifyLive do
                error: "This code has already been confirmed."
              )}
 
-          {:error, :code_invalidated} ->
-            {:noreply,
-             assign(socket,
-               step: :enter_code,
-               error: "Too many failed attempts. Please run `teamrc login` again.",
-               user_code: ""
-             )}
         end
     end
   end

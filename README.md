@@ -6,13 +6,13 @@ Sync multi-agent teams across platforms with a shared, version-controllable sour
 
 ```bash
 # Create a new team
-npx teamrc init
+npx @teamrc/cli init
 
 # Join an existing team
-npx teamrc join <invite-token>
+npx @teamrc/cli join <invite-token>
 
 # Edit .teamrc.yaml, then apply
-npx teamrc apply
+npx @teamrc/cli apply
 ```
 
 ## Architecture

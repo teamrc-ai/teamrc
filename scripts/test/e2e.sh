@@ -30,7 +30,7 @@ INVITE=""
 RELAY="${TEAMRC_RELAY:-http://localhost:4000}"
 PLATFORMS=""
 PHASE=""
-CLI="npx teamrc"
+CLI="npx @teamrc/cli"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

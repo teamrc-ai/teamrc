@@ -7,16 +7,29 @@ defmodule TeamrcWeb.UserLive.Registration do
   use TeamrcWeb, :live_view
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     form = to_form(%{"email" => "", "password" => "", "terms_accepted" => "false"}, as: "user")
+    redirect_to = sanitize_redirect(Map.get(params, "redirect_to"))
 
     {:ok,
      assign(socket,
        page_title: "Register",
        form: form,
        check_errors: false,
-       trigger_submit: false
+       trigger_submit: false,
+       redirect_to: redirect_to
      ), temporary_assigns: [form: form]}
+  end
+
+  defp sanitize_redirect(nil), do: nil
+  defp sanitize_redirect(""), do: nil
+
+  defp sanitize_redirect(path) do
+    if String.starts_with?(path, "/") and not String.starts_with?(path, "//") do
+      path
+    else
+      nil
+    end
   end
 
   @impl true
@@ -83,10 +96,17 @@ defmodule TeamrcWeb.UserLive.Registration do
 
       <%!-- Auth card --%>
       <div class="rounded-lg border border-base-300 bg-base-100 p-6">
+        <%!-- Inline flash messages --%>
+        <div :if={Phoenix.Flash.get(@flash, :info)} class="rounded-md border border-info/30 bg-info/5 px-4 py-3 mb-4">
+          <p class="text-sm text-info">{Phoenix.Flash.get(@flash, :info)}</p>
+        </div>
+        <div :if={Phoenix.Flash.get(@flash, :error)} class="rounded-md border border-error/30 bg-error/5 px-4 py-3 mb-4">
+          <p class="text-sm text-error">{Phoenix.Flash.get(@flash, :error)}</p>
+        </div>
         <%!-- OAuth buttons --%>
         <div class="space-y-2.5">
           <a
-            href={~p"/auth/github?action=register"}
+            href={if @redirect_to, do: ~p"/auth/github?action=register&redirect_to=#{@redirect_to}", else: ~p"/auth/github?action=register"}
             class="trc-focus flex w-full items-center justify-center gap-2.5 rounded-md bg-base-content px-4 py-2.5 text-sm font-medium text-base-100 transition-colors hover:bg-base-content/90 active:scale-[0.99]"
           >
             <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -95,7 +115,7 @@ defmodule TeamrcWeb.UserLive.Registration do
             Continue with GitHub
           </a>
           <a
-            href={~p"/auth/google?action=register"}
+            href={if @redirect_to, do: ~p"/auth/google?action=register&redirect_to=#{@redirect_to}", else: ~p"/auth/google?action=register"}
             class="trc-focus flex w-full items-center justify-center gap-2.5 rounded-md border border-base-300 bg-base-100 px-4 py-2.5 text-sm font-medium text-base-content transition-colors hover:bg-base-200/60 active:scale-[0.99]"
           >
             <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" aria-hidden="true">
@@ -130,7 +150,7 @@ defmodule TeamrcWeb.UserLive.Registration do
         <.form
           for={@form}
           id="registration_form"
-          action={~p"/users/register"}
+          action={if @redirect_to, do: ~p"/users/register?redirect_to=#{@redirect_to}", else: ~p"/users/register"}
           phx-change="validate"
           phx-submit="save"
           phx-trigger-action={@trigger_submit}
@@ -195,7 +215,7 @@ defmodule TeamrcWeb.UserLive.Registration do
       <%!-- Footer link --%>
       <p class="mt-6 text-center text-xs text-base-content/50">
         Already have an account?
-        <a href={~p"/users/log-in"} class="font-medium text-primary/80 hover:text-primary transition-colors">
+        <a href={if @redirect_to, do: ~p"/users/log-in?redirect_to=#{@redirect_to}", else: ~p"/users/log-in"} class="font-medium text-primary/80 hover:text-primary transition-colors">
           Log in
         </a>
       </p>

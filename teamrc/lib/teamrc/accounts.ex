@@ -447,29 +447,18 @@ defmodule Teamrc.Accounts do
   def is_team_participant?(nil, _team_id), do: false
 
   def is_team_participant?(user_id, team_id) do
-    user = get_user_with_machine_tokens(user_id)
-
-    if user do
-      tokens =
-        user.machine_tokens
-        |> Enum.reject(& &1.revoked_at)
-        |> Enum.map(& &1.token)
-
-      if tokens == [] do
-        false
-      else
-        from(tt in TokenTeam,
-          where: tt.team_id == ^team_id and tt.token in ^tokens,
-          select: tt.token,
-          limit: 1
-        )
-        |> Repo.one()
-        |> is_binary()
-      end
-    else
-      false
-    end
+    from(tt in TokenTeam,
+      join: mt in MachineToken, on: mt.token == tt.token,
+      where: mt.user_id == ^user_id and tt.team_id == ^team_id and is_nil(mt.revoked_at),
+      select: true,
+      limit: 1
+    )
+    |> Repo.one()
+    |> is_not_nil()
   end
+
+  defp is_not_nil(nil), do: false
+  defp is_not_nil(_), do: true
 
   @doc "Resolve participants for a single team."
   def resolve_participants(team_id) do
@@ -577,6 +566,7 @@ defmodule Teamrc.Accounts do
                 id: Ecto.UUID.generate(),
                 token: new_token,
                 team_id: team_id,
+                scope: "project",
                 inserted_at: now,
                 updated_at: now
               }

@@ -34,10 +34,6 @@ export interface TeamDefinition {
   relay?: string;
   platforms?: string[];
   cloneToken?: string;
-  syncHash?: string;
-  syncHashMembers?: string;
-  syncHashSkills?: string;
-  syncHashKnowledge?: string;
 }
 
 export const VALID_PLATFORMS = [

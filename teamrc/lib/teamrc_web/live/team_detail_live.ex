@@ -3,9 +3,6 @@ defmodule TeamrcWeb.TeamDetailLive do
 
   alias Phoenix.LiveView.JS
   alias Teamrc.{Accounts, Catalog, Teams}
-  alias Teamrc.Repo
-  alias Teamrc.Schema.{Team, Invite, Member, TokenTeam}
-  import Ecto.Query
   import TeamrcWeb.LiveHelpers
 
   @max_members 20
@@ -87,11 +84,9 @@ defmodule TeamrcWeb.TeamDetailLive do
   end
 
   @impl true
-  def handle_params(_params, uri, socket) do
+  def handle_params(params, _uri, socket) do
     # Check for invite code in query params (e.g. /teams/:id?invite=CODE) or flash
-    query = URI.parse(uri).query
-    query_params = if query, do: URI.decode_query(query), else: %{}
-    invite_code = query_params["invite"] || socket.assigns.flash["invite_code"]
+    invite_code = params["invite"] || socket.assigns.flash["invite_code"]
 
     socket =
       case invite_code do
@@ -99,8 +94,6 @@ defmodule TeamrcWeb.TeamDetailLive do
           socket
 
         invite_code ->
-          now = DateTime.utc_now() |> DateTime.truncate(:second)
-
           case socket.assigns.access_level do
             :private_gate ->
               # Private team with invite code - validate and load team
@@ -110,12 +103,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               # Public or owner - just validate the invite for the banner
               team = socket.assigns.team
 
-              case Repo.one(
-                     from(i in Invite,
-                       where:
-                         i.code == ^invite_code and i.team_id == ^team.id and i.expires_at > ^now
-                     )
-                   ) do
+              case Teams.get_valid_invite(team.id, invite_code) do
                 nil ->
                   socket
 
@@ -129,18 +117,11 @@ defmodule TeamrcWeb.TeamDetailLive do
   end
 
   defp reload_with_invite(socket, invite_code, team_id) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-
-    case Repo.one(
-           from(i in Invite,
-             where: i.code == ^invite_code and i.team_id == ^team_id and i.expires_at > ^now,
-             preload: [team: :members]
-           )
-         ) do
+    case Teams.get_valid_invite_with_team(team_id, invite_code) do
       nil ->
         socket
 
-      %Invite{team: team} = invite ->
+      %{team: team} = invite ->
         assign(socket,
           team: team,
           page_title: team.name,
@@ -160,11 +141,7 @@ defmodule TeamrcWeb.TeamDetailLive do
   # --- Data loading ---
 
   defp load_team(team_id, assigns) do
-    team =
-      Team
-      |> where(id: ^team_id)
-      |> preload(:members)
-      |> Repo.one()
+    team = Teams.get_team_by_id(team_id)
 
     case team do
       nil ->
@@ -199,7 +176,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                 email -> Teamrc.PII.email_hash(email) || "anonymous"
               end)
 
-            invites = if is_participant, do: load_active_invites(team.id), else: []
+            invites = if is_participant, do: Teams.list_active_invites(team.id), else: []
             clone_token = if is_participant, do: team.clone_token, else: nil
 
             {:ok,
@@ -212,17 +189,6 @@ defmodule TeamrcWeb.TeamDetailLive do
              }}
         end
     end
-  end
-
-  defp load_active_invites(team_id) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-
-    from(i in Invite,
-      where: i.team_id == ^team_id and i.expires_at > ^now,
-      order_by: [desc: :inserted_at],
-      select: %{code: i.code, expires_at: i.expires_at}
-    )
-    |> Repo.all()
   end
 
   # --- Team name editing ---
@@ -243,14 +209,12 @@ defmodule TeamrcWeb.TeamDetailLive do
       new_name = String.trim(socket.assigns.edit_team_name)
 
       if new_name != "" and new_name != team.name do
-        case team
-             |> Team.changeset(%{name: new_name})
-             |> Repo.update() do
+        case Teams.update_team_name(team, new_name) do
           {:ok, updated_team} ->
             {:noreply,
              socket
              |> assign(
-               team: Repo.preload(updated_team, :members, force: true),
+               team: updated_team,
                editing_section: nil,
                page_title: new_name
              )}
@@ -369,10 +333,8 @@ defmodule TeamrcWeb.TeamDetailLive do
 
           team =
             if new_team_skills != [] do
-              case team
-                   |> Team.changeset(%{skills: team.skills ++ new_team_skills})
-                   |> Repo.update() do
-                {:ok, t} -> Repo.preload(t, :members, force: true)
+              case Teams.update_team_skills(team, team.skills ++ new_team_skills) do
+                {:ok, t} -> t
                 {:error, _} -> team
               end
             else
@@ -386,11 +348,9 @@ defmodule TeamrcWeb.TeamDetailLive do
           attrs = %{name: name, role: role, skills: member_skills}
           attrs = if soul != "", do: Map.put(attrs, :soul, soul), else: attrs
 
-          case %Member{team_id: team.id}
-               |> Member.changeset(attrs)
-               |> Repo.insert() do
+          case Teams.add_member(team.id, attrs) do
             {:ok, _member} ->
-              updated_team = Repo.preload(team, :members, force: true)
+              updated_team = Teams.reload_team_with_members(team)
 
               {:noreply,
                assign(socket,
@@ -541,11 +501,11 @@ defmodule TeamrcWeb.TeamDetailLive do
                 existing_skills ++ [new_skill]
               end
 
-            case team |> Team.changeset(%{skills: updated_skills}) |> Repo.update() do
+            case Teams.update_team_skills(team, updated_skills) do
               {:ok, updated_team} ->
                 {:noreply,
                  reset_skill_form(
-                   assign(socket, team: Repo.preload(updated_team, :members, force: true))
+                   assign(socket, team: updated_team)
                  )}
 
               {:error, _} ->
@@ -559,33 +519,12 @@ defmodule TeamrcWeb.TeamDetailLive do
   def handle_event("delete_skill", %{"skill-id" => skill_id}, socket) do
     require_edit_access(socket, fn ->
       team = socket.assigns.team
-      updated_skills = Enum.reject(team.skills, &(&1["id"] == skill_id))
 
-      result =
-        Repo.transaction(fn ->
-          # Remove the skill from any members that have it
-          team.members
-          |> Enum.filter(fn m -> skill_id in (m.skills || []) end)
-          |> Enum.each(fn m ->
-            new_skills = List.delete(m.skills || [], skill_id)
-
-            case m |> Member.changeset(%{skills: new_skills}) |> Repo.update() do
-              {:ok, _} -> :ok
-              {:error, changeset} -> Repo.rollback(changeset)
-            end
-          end)
-
-          case team |> Team.changeset(%{skills: updated_skills}) |> Repo.update() do
-            {:ok, updated_team} -> updated_team
-            {:error, changeset} -> Repo.rollback(changeset)
-          end
-        end)
-
-      case result do
+      case Teams.delete_skill(team, skill_id) do
         {:ok, updated_team} ->
           {:noreply,
            reset_skill_form(
-             assign(socket, team: Repo.preload(updated_team, :members, force: true))
+             assign(socket, team: updated_team)
            )}
 
         {:error, _} ->
@@ -612,7 +551,7 @@ defmodule TeamrcWeb.TeamDetailLive do
         token ->
           case Teams.create_invite(token, 24, team.id) do
             {:ok, code, expires_at} ->
-              invites = load_active_invites(team.id)
+              invites = Teams.list_active_invites(team.id)
 
               {:noreply,
                assign(socket,
@@ -645,7 +584,7 @@ defmodule TeamrcWeb.TeamDetailLive do
       else
         case Teams.set_visibility(token, team.id, new_visibility) do
           {:ok, updated_team} ->
-            updated_team = Repo.preload(updated_team, :members, force: true)
+            updated_team = Teams.reload_team_with_members(updated_team)
             clone_token = if new_visibility == "public", do: updated_team.clone_token, else: nil
 
             {:noreply,
@@ -667,27 +606,7 @@ defmodule TeamrcWeb.TeamDetailLive do
   defp find_user_token_for_team(assigns, team_id) do
     current_scope = assigns[:current_scope]
     current_user = current_scope && current_scope.user
-    if is_nil(current_user), do: nil, else: do_find_token(current_user.id, team_id)
-  end
-
-  defp do_find_token(user_id, team_id) do
-    user_data = Accounts.get_user_with_machine_tokens(user_id)
-
-    if user_data do
-      tokens =
-        user_data.machine_tokens
-        |> Enum.reject(& &1.revoked_at)
-        |> Enum.map(& &1.token)
-
-      from(tt in TokenTeam,
-        where: tt.team_id == ^team_id and tt.token in ^tokens,
-        select: tt.token,
-        limit: 1
-      )
-      |> Repo.one()
-    else
-      nil
-    end
+    if is_nil(current_user), do: nil, else: Teams.find_user_token_for_team(current_user.id, team_id)
   end
 
   # --- Helpers ---
@@ -916,7 +835,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               <button
                 id="copy-btn"
                 phx-click={
-                  JS.dispatch("trc:copy", detail: %{text: "npx teamrc join #{@invite_code}"})
+                  JS.dispatch("trc:copy", detail: %{text: "npx @teamrc/cli join #{@invite_code}"})
                 }
                 class="trc-focus text-[10px] font-mono text-white/30 hover:text-white/60 transition-colors rounded px-1.5 py-0.5 hover:bg-white/5"
                 aria-label="Copy join command"
@@ -928,7 +847,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               <div class="flex items-start gap-2">
                 <span class="text-white/30 font-mono text-sm select-none">$</span>
                 <code class="text-emerald-400 text-sm font-mono break-all select-all">
-                  npx teamrc join {@invite_code}
+                  npx @teamrc/cli join {@invite_code}
                 </code>
               </div>
             </div>
@@ -942,7 +861,7 @@ defmodule TeamrcWeb.TeamDetailLive do
             <div class="terminal-block rounded-lg overflow-hidden">
               <div class="px-3 py-2">
                 <code class="text-emerald-400 text-xs font-mono">
-                  npx teamrc clone {@team.clone_token}
+                  npx @teamrc/cli clone {@team.clone_token}
                 </code>
               </div>
             </div>
@@ -1634,12 +1553,12 @@ defmodule TeamrcWeb.TeamDetailLive do
             <div class="terminal-block rounded-md overflow-hidden">
               <div class="flex items-center justify-between px-3 py-2">
                 <code class="text-emerald-400 text-sm font-mono">
-                  npx teamrc join {@generated_invite.code}
+                  npx @teamrc/cli join {@generated_invite.code}
                 </code>
                 <button
                   phx-click={
                     JS.dispatch("trc:copy",
-                      detail: %{text: "npx teamrc join #{@generated_invite.code}"}
+                      detail: %{text: "npx @teamrc/cli join #{@generated_invite.code}"}
                     )
                   }
                   class="trc-focus text-[10px] font-mono text-white/30 hover:text-white/60 transition-colors rounded px-1.5 py-0.5 hover:bg-white/5"
@@ -1688,7 +1607,7 @@ defmodule TeamrcWeb.TeamDetailLive do
             <div class="terminal-block rounded-lg overflow-hidden">
               <div class="px-3 py-2">
                 <code class="text-emerald-400 text-xs font-mono">
-                  npx teamrc clone {@clone_token}
+                  npx @teamrc/cli clone {@clone_token}
                 </code>
               </div>
             </div>
