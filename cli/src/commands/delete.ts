@@ -87,18 +87,20 @@ export function registerDelete(program: Command): void {
       }
 
       // Build deletion plan based on scope
+      // Merge explicit platforms with scope-aware detection so we clean up
+      // everything installed (e.g. openclaw detected via ~/.openclaw for global)
       const planLines: string[] = [];
       let platforms: string[];
 
       if (deleteScope === "project") {
-        platforms = projectTeam?.platforms ?? detectPlatforms();
+        platforms = [...new Set([...(projectTeam?.platforms ?? []), ...detectPlatforms("project")])];
         for (const pl of platforms) {
           planLines.push(`Remove ${pl} project agents and skills`);
         }
         if (fs.existsSync(TEAM_YAML)) planLines.push(`Delete ${TEAM_YAML}`);
         if (fs.existsSync(projectStateDir)) planLines.push(`Delete ${projectStateDir}/`);
       } else if (deleteScope === "global") {
-        platforms = globalTeam?.platforms ?? detectPlatforms();
+        platforms = [...new Set([...(globalTeam?.platforms ?? []), ...detectPlatforms("global")])];
         for (const pl of platforms) {
           planLines.push(`Remove ${pl} global agents and skills`);
         }
@@ -106,7 +108,8 @@ export function registerDelete(program: Command): void {
       } else {
         const allPlatforms = new Set<string>([
           ...(projectTeam?.platforms ?? []),
-          ...(globalTeam?.platforms ?? detectPlatforms()),
+          ...(globalTeam?.platforms ?? []),
+          ...detectPlatforms(),
         ]);
         platforms = [...allPlatforms];
         for (const pl of platforms) {

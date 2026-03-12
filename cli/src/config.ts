@@ -49,26 +49,45 @@ export function saveConfig(config: TeamrcConfig): void {
   fs.writeFileSync(getConfigPath(), JSON.stringify(clean, null, 2), { mode: 0o600 });
 }
 
-export function detectPlatforms(): string[] {
+export function detectPlatforms(scope?: "project" | "global"): string[] {
   const home = os.homedir();
   const cwd = process.cwd();
   const platforms: string[] = [];
 
-  const signals: Record<string, () => boolean> = {
+  // Signals split by where they detect: home dir (global) vs cwd (project)
+  const globalSignals: Record<string, () => boolean> = {
     "claude-code": () => fs.existsSync(path.join(home, ".claude")),
-    "cursor": () => fs.existsSync(path.join(cwd, ".cursor")),
-    "codex": () => fs.existsSync(path.join(home, ".codex")) || fs.existsSync(path.join(cwd, ".codex")),
-    "gemini": () => fs.existsSync(path.join(cwd, ".gemini")) || fs.existsSync(path.join(home, ".gemini")),
+    "codex": () => fs.existsSync(path.join(home, ".codex")),
+    "gemini": () => fs.existsSync(path.join(home, ".gemini")),
     "openclaw": () => fs.existsSync(path.join(home, ".openclaw")),
+    "amazon-q": () => fs.existsSync(path.join(home, ".amazonq")),
+  };
+
+  const projectSignals: Record<string, () => boolean> = {
+    "cursor": () => fs.existsSync(path.join(cwd, ".cursor")),
+    "codex": () => fs.existsSync(path.join(cwd, ".codex")),
+    "gemini": () => fs.existsSync(path.join(cwd, ".gemini")),
     "copilot": () => fs.existsSync(path.join(cwd, ".github")),
-    "amazon-q": () => fs.existsSync(path.join(home, ".amazonq")) || fs.existsSync(path.join(cwd, ".amazonq")),
+    "amazon-q": () => fs.existsSync(path.join(cwd, ".amazonq")),
     "windsurf": () => fs.existsSync(path.join(cwd, ".windsurf")),
     "cline": () => fs.existsSync(path.join(cwd, ".clinerules")) || fs.existsSync(path.join(cwd, ".cline")),
   };
 
-  for (const [name, check] of Object.entries(signals)) {
-    if (check()) platforms.push(name);
+  const found = new Set<string>();
+
+  if (scope !== "project") {
+    for (const [name, check] of Object.entries(globalSignals)) {
+      if (check()) found.add(name);
+    }
   }
+
+  if (scope !== "global") {
+    for (const [name, check] of Object.entries(projectSignals)) {
+      if (check()) found.add(name);
+    }
+  }
+
+  platforms.push(...found);
   return platforms;
 }
 
