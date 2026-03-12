@@ -1,0 +1,29 @@
+{
+  "name": "teambridge",
+  "version": "0.1.0",
+  "description": "TeamBridge CLI - sync multi-agent teams across platforms",
+  "main": "dist/index.js",
+  "bin": {
+    "teambridge": "./dist/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "test": "tsx --test src/__tests__/*.test.ts",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build && npm test"
+  },
+  "dependencies": {
+    "@noble/ed25519": "^2.2.0",
+    "@noble/hashes": "^1.7.0",
+    "chokidar": "^5.0.0",
+    "commander": "^13.0.0",
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}

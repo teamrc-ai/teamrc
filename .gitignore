@@ -1,0 +1,15 @@
+# Elixir
+teambridge/_build/
+teambridge/deps/
+teambridge/.elixir_ls/
+teambridge/priv/static/assets/
+
+# Node
+cli/node_modules/
+cli/dist/
+
+# TeamBridge
+.teambridge/
+
+# OS
+.DS_Store

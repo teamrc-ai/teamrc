@@ -1,0 +1,66 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
+
+export interface TeambridgeConfig {
+  platform: string;
+  relay: string;
+  token: string;
+  teamId?: string;
+}
+
+function getConfigDir(): string {
+  return path.join(os.homedir(), ".teambridge");
+}
+
+function getConfigPath(): string {
+  return path.join(getConfigDir(), "config.json");
+}
+
+export function loadConfig(): TeambridgeConfig | null {
+  const configPath = getConfigPath();
+  if (!fs.existsSync(configPath)) {
+    return null;
+  }
+  try {
+    const raw = fs.readFileSync(configPath, "utf-8");
+    return JSON.parse(raw) as TeambridgeConfig;
+  } catch {
+    return null;
+  }
+}
+
+export function saveConfig(config: TeambridgeConfig): void {
+  const dir = getConfigDir();
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  }
+  fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2), { mode: 0o600 });
+}
+
+export function detectPlatforms(): string[] {
+  const home = os.homedir();
+  const platforms: string[] = [];
+  if (fs.existsSync(path.join(home, ".claude"))) {
+    platforms.push("claude-code");
+  }
+  if (fs.existsSync(path.join(home, ".openclaw"))) {
+    platforms.push("openclaw");
+  }
+  return platforms;
+}
+
+export function getRelayUrl(overrideUrl?: string): string {
+  if (overrideUrl) {
+    return overrideUrl;
+  }
+  const envUrl = process.env["TEAMBRIDGE_RELAY"];
+  if (envUrl) {
+    return envUrl;
+  }
+  const config = loadConfig();
+  if (config?.relay) {
+    return config.relay;
+  }
+  return "http://localhost:4000";
+}
