@@ -47,6 +47,15 @@ export function detectPlatforms(): string[] {
   if (fs.existsSync(path.join(home, ".openclaw"))) {
     platforms.push("openclaw");
   }
+  if (fs.existsSync(path.join(process.cwd(), ".cursor"))) {
+    platforms.push("cursor");
+  }
+  if (fs.existsSync(path.join(home, ".codex")) || fs.existsSync(path.join(process.cwd(), ".codex"))) {
+    platforms.push("codex");
+  }
+  if (fs.existsSync(path.join(process.cwd(), ".gemini")) || fs.existsSync(path.join(home, ".gemini"))) {
+    platforms.push("gemini");
+  }
   return platforms;
 }
 

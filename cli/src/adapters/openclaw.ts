@@ -10,6 +10,7 @@ import {
   type TeamDefinition,
   type TeamMember,
 } from "./base.js";
+import { resolveAgentRules, resolveAgentSkills } from "../resolve-rules.js";
 
 function sanitizeText(text: string): string {
   return text.replace(/[\n\r]/g, " ").trim();
@@ -102,6 +103,7 @@ export class OpenClawAdapter implements PlatformAdapter {
     const agentIds: string[] = [];
 
     for (const member of team.members) {
+      validateAgentName(member.name);
       const agentName = `tb-${member.name}`;
       agentIds.push(agentName);
       const workspaceDir = this.agentWorkspace(member.name);
@@ -109,7 +111,7 @@ export class OpenClawAdapter implements PlatformAdapter {
         fs.mkdirSync(workspaceDir, { recursive: true });
       }
 
-      this.writeNativeAgentFiles(workspaceDir, team.name, member, team.members);
+      this.writeNativeAgentFiles(workspaceDir, team.name, member, team.members, team);
 
       // Register agent with OpenClaw via CLI
       try {
@@ -130,7 +132,7 @@ export class OpenClawAdapter implements PlatformAdapter {
     this.wireRouting(team, agentIds);
   }
 
-  private writeNativeAgentFiles(wsDir: string, teamName: string, member: TeamMember, allMembers: TeamMember[]): void {
+  private writeNativeAgentFiles(wsDir: string, teamName: string, member: TeamMember, allMembers: TeamMember[], team?: TeamDefinition): void {
     const safeName = sanitizeText(member.name);
     const safeRole = sanitizeText(member.role);
 
@@ -146,6 +148,31 @@ export class OpenClawAdapter implements PlatformAdapter {
     const teammatesList = allMembers
       .map((m) => `- **${sanitizeText(m.name)}** — ${sanitizeText(m.role)}`)
       .join("\n");
+
+    let extraSections = "";
+    if (team) {
+      const resolvedRules = resolveAgentRules(member, team);
+      if (resolvedRules.length > 0) {
+        const ruleBlocks = resolvedRules.map((r) => {
+          const title = r.title || r.id;
+          const body = typeof r.body === "string" ? r.body : "";
+          return `### ${title}\n\n${body}`;
+        }).join("\n\n");
+        extraSections += `## Rules\n\n${ruleBlocks}\n\n`;
+      }
+
+      const resolvedSkills = resolveAgentSkills(member, team);
+      if (resolvedSkills.length > 0) {
+        const skillBlocks = resolvedSkills.map((s) => {
+          const title = s.title || s.id;
+          const desc = s.description ? `${s.description}\n\n` : "";
+          const body = s.body ? (typeof s.body === "string" ? s.body : "") : "";
+          return `### ${title}\n\n${desc}${body}`;
+        }).join("\n\n");
+        extraSections += `## Skills\n\n${skillBlocks}\n\n`;
+      }
+    }
+
     const agentsContent = [
       `# Team: ${teamName}`,
       "",
@@ -155,6 +182,7 @@ export class OpenClawAdapter implements PlatformAdapter {
       "",
       teammatesList,
       "",
+      ...(extraSections ? [extraSections] : []),
       "## Team Knowledge",
       "",
       "Shared findings and decisions are stored in `TEAM-KNOWLEDGE.md` in the default workspace. Read it at the start of every session for context from other agents and machines. When you discover something important, append it to that file.",
