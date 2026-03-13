@@ -1,6 +1,6 @@
 # teamrc Architecture
 
-**Last updated:** 2026-03-10
+**Last updated:** 2026-03-13
 
 ## Overview
 
@@ -68,6 +68,19 @@ Primary files:
 3. CLI updates local `.teamrc.yaml`
 4. CLI applies resulting state to platform adapters
 5. CLI merges knowledge append-only with dedup
+
+### `teamrc clone` → `teamrc init` (fork flow)
+
+1. `clone` fetches team definition via `GET /api/teams/clone/:clone_token`
+2. CLI writes `.teamrc.yaml` with `cloneToken` but no `teamId`
+3. Cloned teams support read-only `pull` (via `cloneByToken`), but `sync`/`push` are blocked (`requireTeamContext` requires `teamId`)
+4. User runs `init` in the same directory
+5. `init` detects existing `.teamrc.yaml` without `teamId`, adopts it
+6. Strips `cloneToken`, sanitizes content (`sanitizeTeamDefinition`)
+7. Creates a new independent team on relay via `POST /api/teams` (new `teamId`)
+8. Sets `client.setTeamId()` so subsequent calls (knowledge push, invite) target the correct team
+9. Proceeds with normal init flow: knowledge, ownership, invites
+10. All future `pull`/`push`/`sync` operate on the new team — no connection to the original
 
 ### `teamrc diff`
 

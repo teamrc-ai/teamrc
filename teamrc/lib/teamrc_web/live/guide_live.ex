@@ -757,7 +757,7 @@ defmodule TeamrcWeb.GuideLive do
           {"--name <name>", "Team name"},
           {"--team <id>", "Start from a catalog template (e.g. fullstack, backend)"}
         ]}
-        details="Generates an ed25519 keypair (stored in ~/.teamrc/key), creates a team on the relay, writes .teamrc.yaml to your project, and applies config to detected platforms. The interactive wizard lets you pick a catalog template or build a custom team."
+        details="Generates an ed25519 keypair (stored in ~/.teamrc/key), creates a team on the relay, writes .teamrc.yaml to your project, and applies config to detected platforms. The interactive wizard lets you pick a catalog template or build a custom team. If a .teamrc.yaml already exists without a team ID (e.g. from clone), init adopts it and creates your own team on the relay — no template selection needed. When using --global, init also checks the current directory for a .teamrc.yaml to offer as the global team definition."
       />
 
       <.cli_command
@@ -782,7 +782,7 @@ defmodule TeamrcWeb.GuideLive do
           {"--name <name>", "Override team name"},
           {"--global", "Apply as global team"}
         ]}
-        details="Like join, but doesn't register this machine with the relay. You get a local copy of the team that won't receive future updates. Useful for one-off use or forking a team."
+        details="Like join, but doesn't register this machine with the relay. You get a local copy of the team definition. Cloned teams support read-only pull (to fetch updates from the original) but not push or sync. To fork a cloned team into your own, run teamrc init — it will adopt the existing definition, create a new team on the relay, and give you full ownership."
       />
     </section>
 
@@ -2139,9 +2139,11 @@ defmodule TeamrcWeb.GuideLive do
       <.sub_heading id="clone-tokens" title="Clone tokens (read-only copy)" />
       <p class="text-sm text-base-content/70 leading-relaxed">
         Clone tokens let someone
-        <span class="font-semibold">copy your team config as a snapshot</span>. They do not create a sync connection.
+        <span class="font-semibold">copy your team config</span>. The clone supports read-only pull to fetch updates,
+        but does not grant push or sync access.
         Clone tokens are only available for public teams. Unlike invite codes,
-        they do not expire and do not grant write access or ongoing updates.
+        they do not expire. To fork a cloned team into their own, the user runs
+        <.code_inline>teamrc init</.code_inline> which creates a new independent team on the relay.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
         When your team is public, the clone token and command appear on the dashboard. Visitors to
@@ -3048,8 +3050,9 @@ defmodule TeamrcWeb.GuideLive do
         <p class="text-sm text-base-content/70 leading-relaxed">
           <span class="font-semibold">Cloning</span>
           (<.code_inline>teamrc clone trc_cl_...</.code_inline>)
-          copies the current team config as a one-time snapshot. You get the YAML and generated files,
-          but there is no ongoing connection to the original team. Clone tokens do not expire.
+          copies the current team config locally. You get the YAML and generated files.
+          Cloned teams support read-only pull (<.code_inline>teamrc pull</.code_inline>) to fetch
+          updates from the original, but you cannot push changes or use sync. Clone tokens do not expire.
         </p>
         <p class="text-sm text-base-content/70 leading-relaxed mt-2">
           <span class="font-semibold">Joining</span>
@@ -3058,7 +3061,13 @@ defmodule TeamrcWeb.GuideLive do
           whenever the team changes. You can also push changes back. Invite codes expire after 24 hours.
         </p>
         <p class="text-sm text-base-content/70 leading-relaxed mt-2">
-          Use clone to try out someone's setup or use it as a starting point for your own team.
+          <span class="font-semibold">Forking:</span> to turn a cloned team into your own,
+          run <.code_inline>teamrc init</.code_inline> in the same directory. It will adopt the
+          existing definition, create a new team on the relay, and give you full ownership.
+          The original team is not affected.
+        </p>
+        <p class="text-sm text-base-content/70 leading-relaxed mt-2">
+          Use clone to try out someone's setup or as a starting point for your own team.
           Use join when you want to stay in sync with collaborators.
         </p>
       </.faq_item>
