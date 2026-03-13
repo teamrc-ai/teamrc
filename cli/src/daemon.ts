@@ -3,7 +3,7 @@ import { watch } from "chokidar";
 import type { PlatformAdapter, TeamDefinition, TeamScope } from "./adapters/base.js";
 import { effectiveScope } from "./utils.js";
 import type { TeamrcClient, TeamrcTeam } from "./client.js";
-import { remoteTeamToDefinition } from "./client.js";
+import { remoteTeamToDefinition, TeamNotFoundError } from "./client.js";
 import { readTeamYaml, writeTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, validateTeamName, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "./team-yaml.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "./sync-state.js";
 
@@ -134,7 +134,11 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
 
       log(`Applied remote changes (${remoteDef.members.length} agents).`);
     } catch (err) {
-      warn(`Poll failed: ${(err as Error).message}`);
+      if (err instanceof TeamNotFoundError) {
+        warn("Team no longer exists on the relay. Run `teamrc sync` or `teamrc push` to re-create it.");
+      } else {
+        warn(`Poll failed: ${(err as Error).message}`);
+      }
     } finally {
       polling = false;
     }

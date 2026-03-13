@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
-import { TeamrcClient, remoteTeamToDefinition } from "../client.js";
+import { TeamrcClient, remoteTeamToDefinition, TeamNotFoundError } from "../client.js";
 import { toToken } from "../auth.js";
 import { getRelayUrl } from "../config.js";
 import { getAdapter, slugify, type TeamScope } from "../adapters/base.js";
@@ -12,6 +12,8 @@ import {
   requireTeamContext,
   selectScope,
   effectiveScope,
+  handleTeamNotFound,
+  cliCmd,
 } from "../utils.js";
 
 export function registerPull(program: Command): void {
@@ -130,6 +132,16 @@ export function registerPull(program: Command): void {
 
           p.outro("Done.");
         } catch (err) {
+          if (err instanceof TeamNotFoundError) {
+            s.stop("Team not found.");
+            const recreated = await handleTeamNotFound(ctx);
+            if (recreated) {
+              p.outro(`Team re-created. Run \`${cliCmd("pull")}\` again to pull.`);
+            } else {
+              p.outro("Done.");
+            }
+            return;
+          }
           s.error("Pull failed.");
           p.log.error((err as Error).message);
           process.exit(1);

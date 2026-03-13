@@ -8,7 +8,7 @@ import {
   loadKeypair,
   toToken,
 } from "./auth.js";
-import { TeamrcClient } from "./client.js";
+import { TeamrcClient, TeamNotFoundError } from "./client.js";
 import {
   loadConfig,
   saveConfig,
@@ -18,7 +18,8 @@ import {
 } from "./config.js";
 import { getAdapter, slugify, VALID_PLATFORMS, SUPPORTED_PLATFORMS, UNIMPLEMENTED_PLATFORMS, GLOBAL_ONLY_PLATFORMS, PROJECT_ONLY_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
 import { resolveTeam, listTeams, type TeamTemplate } from "./catalog.js";
-import { readTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML } from "./team-yaml.js";
+import { readTeamYaml, writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML } from "./team-yaml.js";
+import { writeSyncState } from "./sync-state.js";
 import type { TeamrcConfig } from "./config.js";
 import { openBrowserIfSameOrigin } from "./browser.js";
 
@@ -440,4 +441,59 @@ export async function promptTeamName(defaultName: string): Promise<string> {
   });
   handleCancel(name);
   return (name as string).trim();
+}
+
+// ---------------------------------------------------------------------------
+// Team not found recovery — re-create team on relay
+// ---------------------------------------------------------------------------
+
+/**
+ * Handle a TeamNotFoundError by offering to re-create the team on the relay.
+ * Returns true if the team was re-created, false if the user declined.
+ */
+export async function handleTeamNotFound(ctx: TeamContext): Promise<boolean> {
+  p.log.warn("This team no longer exists on the relay.");
+
+  if (isNonInteractive()) {
+    p.log.info(`Run \`${cliCmd("init")}\` to re-create it, or \`${cliCmd("delete")}\` to clean up.`);
+    return false;
+  }
+
+  const shouldRecreate = await p.confirm({
+    message: "Re-create this team on the relay?",
+    initialValue: true,
+  });
+  handleCancel(shouldRecreate);
+  if (!shouldRecreate) {
+    p.log.info(`Run \`${cliCmd("delete")}\` to clean up local files.`);
+    return false;
+  }
+
+  const { client, team, adapters } = ctx;
+  const adapter = adapters[0];
+  const knowledge = adapter.readKnowledge();
+
+  const s = p.spinner();
+  s.start("Re-creating team on relay...");
+  const relayTeam = await client.createTeam(
+    team.name,
+    team.members.map((m) => ({
+      name: m.name,
+      role: m.role,
+      ...(m.skills?.length ? { skills: m.skills } : {}),
+    })),
+    team.skills,
+    knowledge || undefined,
+  );
+  s.stop("Team re-created.");
+
+  // Update local state with new team ID
+  team.teamId = relayTeam.id;
+  client.setTeamId(relayTeam.id);
+
+  const yamlPath = ctx.scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
+  writeTeamYaml(yamlPath, team);
+  writeSyncState({});
+
+  return true;
 }

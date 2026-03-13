@@ -508,6 +508,26 @@ defmodule Teamrc.Teams do
 
   def set_visibility_by_creator(_team_id, _creator_token, _visibility), do: {:error, :invalid_visibility}
 
+  @doc "Delete a team and all associated data (members, invites, token_teams). Returns :ok or {:error, reason}."
+  def delete_team(team_id) do
+    case Repo.get(Team, team_id) do
+      nil ->
+        {:error, :not_found}
+
+      team ->
+        Repo.transaction(fn ->
+          from(tt in TokenTeam, where: tt.team_id == ^team_id) |> Repo.delete_all()
+          from(i in Invite, where: i.team_id == ^team_id) |> Repo.delete_all()
+          from(m in Member, where: m.team_id == ^team_id) |> Repo.delete_all()
+          Repo.delete!(team)
+        end)
+        |> case do
+          {:ok, _} -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  end
+
   @doc "Delete a skill from a team and remove it from all members. Returns {:ok, team_with_members} or {:error, reason}."
   def delete_skill(team, skill_id) do
     updated_skills = Enum.reject(team.skills, &(&1["id"] == skill_id))

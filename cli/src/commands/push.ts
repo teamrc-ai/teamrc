@@ -1,10 +1,11 @@
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
-import { SyncConflictError } from "../client.js";
+import { SyncConflictError, TeamNotFoundError } from "../client.js";
 import { TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
 import {
   requireTeamContext,
+  handleTeamNotFound,
   cliCmd,
 } from "../utils.js";
 
@@ -55,6 +56,16 @@ export function registerPush(program: Command): void {
         s.stop("Pushed team definition and knowledge.");
         p.outro("Done.");
       } catch (err) {
+        if (err instanceof TeamNotFoundError) {
+          s.stop("Team not found.");
+          const recreated = await handleTeamNotFound(ctx);
+          if (recreated) {
+            p.outro("Team re-created and pushed.");
+          } else {
+            p.outro("Done.");
+          }
+          return;
+        }
         s.error("Push failed.");
         if (err instanceof SyncConflictError) {
           p.log.error(`Remote has changes. Run \`${cliCmd("pull")}\` first.`);

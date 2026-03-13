@@ -44,6 +44,13 @@ export class UpgradeRequiredError extends Error {
   }
 }
 
+export class TeamNotFoundError extends Error {
+  constructor() {
+    super("This team no longer exists on the relay.");
+    this.name = "TeamNotFoundError";
+  }
+}
+
 /** API version sent with every request. Uses major version from package.json. */
 const API_VERSION = String(parseInt(CLI_VERSION, 10) || 1);
 
@@ -227,8 +234,13 @@ export class TeamrcClient {
     const url = this.teamId
       ? `/api/teams/${this.token}?team_id=${encodeURIComponent(this.teamId)}`
       : `/api/teams/${this.token}`;
-    const data = await this.signedGet<{ team: TeamrcTeam }>(url);
-    return data.team;
+    try {
+      const data = await this.signedGet<{ team: TeamrcTeam }>(url);
+      return data.team;
+    } catch (err) {
+      if (err instanceof Error && err.message.includes(": 404")) throw new TeamNotFoundError();
+      throw err;
+    }
   }
 
   async joinByInvite(inviteCode: string): Promise<TeamrcTeam> {
@@ -306,7 +318,12 @@ export class TeamrcClient {
     const url = this.teamId
       ? `/api/teams/${this.token}/head?team_id=${encodeURIComponent(this.teamId)}`
       : `/api/teams/${this.token}/head`;
-    return this.signedGet<TeamHeadResponse>(url);
+    try {
+      return await this.signedGet<TeamHeadResponse>(url);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes(": 404")) throw new TeamNotFoundError();
+      throw err;
+    }
   }
 
   async createDeviceAuth(): Promise<{

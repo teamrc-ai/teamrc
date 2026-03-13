@@ -671,6 +671,23 @@ defmodule TeamrcWeb.TeamDetailLive do
     end
   end
 
+  def handle_event("delete_team", _params, socket) do
+    if not socket.assigns.is_owner do
+      {:noreply, put_flash(socket, :error, "Only the team owner can delete this team.")}
+    else
+      case Teams.delete_team(socket.assigns.team.id) do
+        :ok ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "Team deleted.")
+           |> push_navigate(to: ~p"/dashboard")}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to delete team.")}
+      end
+    end
+  end
+
   defp find_user_token_for_team(assigns, team_id) do
     current_scope = assigns[:current_scope]
     current_user = current_scope && current_scope.user
@@ -1773,6 +1790,30 @@ defmodule TeamrcWeb.TeamDetailLive do
                   npx @teamrc/cli clone {@clone_token}
                 </code>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <%!-- Delete team (owner only) --%>
+        <section :if={@is_owner} class="pt-4 border-t border-error/20">
+          <p class="text-xs font-medium text-error/70 uppercase tracking-wider mb-2">
+            Danger zone
+          </p>
+          <div class="rounded-lg border border-error/20 bg-error/5 p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-base-content">Delete this team</p>
+                <p class="text-xs text-base-content/60 mt-0.5">
+                  Permanently removes the team, all members, skills, and invites from the relay. Connected machines will need to re-initialize.
+                </p>
+              </div>
+              <button
+                phx-click="delete_team"
+                data-confirm={"Permanently delete \"#{@team.name}\"? This cannot be undone."}
+                class="trc-focus shrink-0 ml-4 rounded-md border border-error/30 bg-error/10 px-3 py-1.5 text-xs font-semibold text-error hover:bg-error/20 transition-colors"
+              >
+                Delete team
+              </button>
             </div>
           </div>
         </section>

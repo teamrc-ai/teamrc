@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
-import { remoteTeamToDefinition, SyncConflictError } from "../client.js";
+import { remoteTeamToDefinition, SyncConflictError, TeamNotFoundError } from "../client.js";
 import { computeTeamHashes } from "../sync-hash.js";
 import { getAdapter, slugify, type TeamScope } from "../adapters/base.js";
 import { writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
@@ -8,6 +8,7 @@ import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-
 import {
   requireTeamContext,
   effectiveScope,
+  handleTeamNotFound,
   cliCmd,
 } from "../utils.js";
 
@@ -224,6 +225,16 @@ export function registerSync(program: Command): void {
         s.stop("Pulled remote changes.");
         p.outro(`Synced. Run \`${cliCmd("push")}\` to push local changes.`);
       } catch (err) {
+        if (err instanceof TeamNotFoundError) {
+          s.stop("Team not found.");
+          const recreated = await handleTeamNotFound(ctx);
+          if (recreated) {
+            p.outro(`Team re-created. Run \`${cliCmd("sync")}\` again to sync.`);
+          } else {
+            p.outro("Done.");
+          }
+          return;
+        }
         s.error("Sync failed.");
         p.log.error((err as Error).message);
         process.exit(1);
