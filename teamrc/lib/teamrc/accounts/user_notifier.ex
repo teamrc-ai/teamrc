@@ -135,32 +135,54 @@ defmodule Teamrc.Accounts.UserNotifier do
   end
 
   @doc """
-  Delivers a welcome email after first OAuth login and terms acceptance.
+  Delivers a welcome email after sign-up with getting started instructions.
   """
   def deliver_welcome(user) do
-    guide_url = "https://teamrc.dev/guide"
+    guide_url = "https://teamrc.dev/guide/get-started"
+    new_team_url = "https://teamrc.dev/new"
 
     text =
       text_layout("""
-      Welcome to teamrc. Your account is ready.
+      Welcome to teamrc! Your account is ready.
 
-      Get started by initializing teamrc in your project:
+      Here's how to get started:
+
+      1. Create your first team
+         Visit #{new_team_url} or run:
 
           npx @teamrc/cli init
 
-      Or visit the guide for a full walkthrough:
+      2. Invite your teammates
+         After creating a team, share the invite command:
+
+          npx @teamrc/cli join <invite-code>
+
+      3. Sync across platforms
+         teamrc works with Claude Code, Cursor, Codex, Gemini,
+         and more. Run `npx @teamrc/cli sync` to push your team
+         config to all connected platforms.
+
+      For a full walkthrough, visit the guide:
 
       #{guide_url}\
       """)
 
     html =
       html_layout(
-        html_paragraph("Welcome to teamrc. Your account is ready.") <>
-          html_paragraph("Get started by initializing teamrc in your project:") <>
+        html_paragraph("Welcome to teamrc! Your account is ready.") <>
+          html_paragraph("Here's how to get started:") <>
+          html_step("1", "Create your first team",
+            "Visit the web UI or run the CLI to set up your team with agents and skills.") <>
           html_code_block("npx @teamrc/cli init") <>
-          html_paragraph("Or visit the guide for a full walkthrough.") <>
+          html_step("2", "Invite your teammates",
+            "After creating a team, share the invite command with your team.") <>
+          html_code_block("npx @teamrc/cli join &lt;invite-code&gt;") <>
+          html_step("3", "Sync across platforms",
+            "teamrc works with Claude Code, Cursor, Codex, Gemini, and more. " <>
+            "Run <code style=\"font-family: monospace; font-size: 13px; background-color: #f4f4f5; padding: 1px 4px; border-radius: 3px;\">teamrc sync</code> to push your team config to all connected platforms.") <>
           html_button("Get started", guide_url) <>
-          html_fallback_url(guide_url)
+          html_fallback_url(guide_url) <>
+          html_muted_paragraph("Or <a href=\"#{new_team_url}\" style=\"color: #4f46e5; text-decoration: underline;\">create a team</a> directly from the web.")
       )
 
     deliver(user.email, "Welcome to teamrc", text, html)
@@ -308,6 +330,24 @@ defmodule Teamrc.Accounts.UserNotifier do
         <td style="font-family: #{@font_body}; font-size: 12px; line-height: 18px; color: #{@color_text_muted}; padding-bottom: 16px;">
           Or copy this link:<br />
           <a href="#{url}" style="font-family: #{@font_mono}; font-size: 12px; color: #{@color_primary}; text-decoration: underline; word-break: break-all;">#{url}</a>
+        </td>
+      </tr>
+    </table>
+    """
+  end
+
+  defp html_step(number, title, description) do
+    """
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="padding-bottom: 8px;">
+      <tr>
+        <td width="28" valign="top" style="padding-top: 2px;">
+          <div style="width: 22px; height: 22px; border-radius: 50%; background-color: #{@color_primary}; color: #ffffff; font-family: #{@font_body}; font-size: 12px; font-weight: 700; line-height: 22px; text-align: center;">
+            #{number}
+          </div>
+        </td>
+        <td style="padding-left: 10px; font-family: #{@font_body}; font-size: 15px; line-height: 24px; color: #{@color_text};">
+          <strong style="color: #18181b;">#{title}</strong><br />
+          <span style="font-size: 14px; color: #{@color_text};">#{description}</span>
         </td>
       </tr>
     </table>

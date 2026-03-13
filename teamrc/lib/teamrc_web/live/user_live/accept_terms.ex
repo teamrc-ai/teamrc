@@ -10,6 +10,7 @@ defmodule TeamrcWeb.UserLive.AcceptTerms do
   use TeamrcWeb, :live_view
 
   alias Teamrc.Accounts
+  alias Teamrc.Accounts.UserNotifier
 
   @impl true
   def render(assigns) do
@@ -69,13 +70,19 @@ defmodule TeamrcWeb.UserLive.AcceptTerms do
 
       user_id ->
         user = Accounts.get_user!(user_id)
-        {:ok, _user} = Accounts.accept_terms(user)
 
-        # Trigger a CSRF-protected POST to the controller to renew session
-        {:noreply,
-         socket
-         |> put_flash(:info, "Terms accepted. Welcome!")
-         |> assign(:trigger_submit, true)}
+        case Accounts.accept_terms(user) do
+          {:ok, user} ->
+            UserNotifier.deliver_welcome(user)
+
+            {:noreply,
+             socket
+             |> put_flash(:info, "Terms accepted. Welcome!")
+             |> assign(:trigger_submit, true)}
+
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, "Something went wrong. Please try again.")}
+        end
     end
   end
 

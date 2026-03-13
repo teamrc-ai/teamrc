@@ -2,6 +2,7 @@ defmodule TeamrcWeb.UserSessionController do
   use TeamrcWeb, :controller
 
   alias Teamrc.Accounts
+  alias Teamrc.Accounts.UserNotifier
   alias TeamrcWeb.UserAuth
 
   def register(conn, %{"user" => user_params}) do
@@ -13,6 +14,8 @@ defmodule TeamrcWeb.UserSessionController do
 
     case Accounts.register_user_with_password(attrs) do
       {:ok, user} ->
+        UserNotifier.deliver_welcome(user)
+
         conn
         |> put_flash(:info, "Account created successfully!")
         |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
@@ -141,6 +144,20 @@ defmodule TeamrcWeb.UserSessionController do
     conn
     |> put_flash(:info, "Logged out successfully.")
     |> UserAuth.log_out_user()
+  end
+
+  def send_magic_link(conn, %{"user" => %{"email" => email}}) do
+    if user = Accounts.get_user_by_email(email) do
+      Accounts.deliver_login_instructions(
+        user,
+        &url(~p"/users/log-in/#{&1}")
+      )
+    end
+
+    # Always return the same response to prevent user enumeration
+    conn
+    |> put_flash(:info, "If your email is in our system, you will receive a login link shortly.")
+    |> redirect(to: ~p"/users/log-in")
   end
 
   def forgot_password(conn, %{"user" => %{"email" => email}}) do
