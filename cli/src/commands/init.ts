@@ -10,7 +10,7 @@ import { getAdapter, slugify } from "../adapters/base.js";
 import { templateToTeamDefinition } from "../catalog.js";
 import { writeTeamYaml, readTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import { sanitizeTeamDefinition } from "../client.js";
-import { saveConfig } from "../config.js";
+import { loadConfig, saveConfig } from "../config.js";
 import { generateTeamName } from "../names.js";
 import {
   globals,
@@ -149,7 +149,7 @@ export function registerInit(program: Command): void {
 
         writeTeamYaml(yamlPath, team);
         p.log.step(`Wrote ${yamlPath}`);
-        saveConfig({ token });
+        saveConfig({ ...loadConfig(), token });
 
         // Ensure .teamrc/ is gitignored for project-level teams
         if (scope !== "global") {
@@ -212,7 +212,7 @@ export function registerInit(program: Command): void {
         // Write YAML
         writeTeamYaml(yamlPath, team);
         p.log.step(`Wrote ${yamlPath}`);
-        saveConfig({ token });
+        saveConfig({ ...loadConfig(), token });
 
         // Ensure .teamrc/ is gitignored for project-level teams
         if (scope !== "global") {

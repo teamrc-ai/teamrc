@@ -130,7 +130,7 @@ Fields:
 | `teamrc list-agents` | List available agent templates |
 | `teamrc whoami` | Show local identity (token, machine, account, team) |
 | `teamrc doctor` | Run health checks on config, relay, auth, and team state |
-| `teamrc daemon` | Start background sync. `--poll-interval <ms>` (default: 120000) |
+| `teamrc daemon` | *(Coming soon)* Start background sync |
 | `teamrc login` | Link this machine to an account via device auth |
 | `teamrc delete` | Remove all teamrc setup from this machine |
 

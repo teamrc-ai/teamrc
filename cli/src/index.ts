@@ -10,7 +10,7 @@ import { registerSync } from "./commands/sync.js";
 import { registerPush } from "./commands/push.js";
 import { registerPull } from "./commands/pull.js";
 import { registerStatus } from "./commands/status.js";
-import { registerDaemon } from "./commands/daemon.js";
+// import { registerDaemon } from "./commands/daemon.js"; // Coming soon
 import { registerExport } from "./commands/export.js";
 import { registerLogin } from "./commands/login.js";
 import { registerClone } from "./commands/clone.js";
@@ -35,7 +35,7 @@ registerSync(program);
 registerPush(program);
 registerPull(program);
 registerStatus(program);
-registerDaemon(program);
+// registerDaemon(program); // Coming soon
 registerExport(program);
 registerLogin(program);
 registerClone(program);

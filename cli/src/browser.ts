@@ -14,6 +14,7 @@ export function hasSameOrigin(url: string, baseUrl: string): boolean {
 }
 
 export function openBrowser(url: string): boolean {
+  if (process.env.NO_BROWSER === "1") return false;
   try {
     if (process.platform === "darwin") {
       execFileSync("open", [url], { stdio: "ignore" });

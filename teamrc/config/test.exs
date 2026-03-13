@@ -18,7 +18,8 @@ config :teamrc, TeamrcWeb.Endpoint,
 
 # Skip signature verification in tests by default.
 # Security-specific tests override this to test the auth plug directly.
-config :teamrc, :skip_auth, true
+# E2E tests set SKIP_AUTH=false to enable real signature verification.
+config :teamrc, :skip_auth, System.get_env("SKIP_AUTH") != "false"
 
 # Reduce bcrypt rounds for faster tests
 config :bcrypt_elixir, log_rounds: 1

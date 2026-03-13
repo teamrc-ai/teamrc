@@ -282,7 +282,7 @@ defmodule TeamrcWeb.GuideLive do
         <.guide_card
           href="/guide/sync"
           title="Understand syncing"
-          desc="Read this if you want to know how the relay, invites, and daemon behave."
+          desc="Read this if you want to know how the relay, invites, and syncing behave."
         />
       </div>
     </section>
@@ -363,7 +363,7 @@ defmodule TeamrcWeb.GuideLive do
             <p class="text-sm text-base-content/70 mt-0.5">
               The shared coordination point. Changes go up through the CLI or web UI, and machines pull
               them back down with <.code_inline>sync</.code_inline>, <.code_inline>pull</.code_inline>,
-              or the background daemon.
+              or background sync (coming soon).
             </p>
           </div>
         </div>
@@ -390,7 +390,7 @@ defmodule TeamrcWeb.GuideLive do
         <.guide_card
           href="/guide/sync"
           title="Syncing"
-          desc="The relay, invites, multi-project teams, daemon mode, and auth."
+          desc="The relay, invites, multi-project teams, and auth."
         />
         <.guide_card
           href="/guide/config"
@@ -1024,12 +1024,12 @@ defmodule TeamrcWeb.GuideLive do
 
       <.cli_command
         name="daemon"
-        desc="Start background sync process"
+        desc="Start background sync process (coming soon)"
         usage="teamrc daemon"
         flags={[
           {"--poll-interval <ms>", "Poll interval in milliseconds (default: 120000, min: 5000)"}
         ]}
-        details="Runs a background process that watches your .teamrc.yaml for local changes and periodically polls the relay for remote updates. When changes are detected, it automatically applies them to all platforms. Useful in long dev sessions, so you never have to manually sync."
+        details="Coming soon. Will run a background process that watches your .teamrc.yaml for local changes and periodically polls the relay for remote updates. In the meantime, use teamrc sync to sync manually."
       />
     </section>
 
@@ -1373,7 +1373,7 @@ defmodule TeamrcWeb.GuideLive do
       {"#conflicts", "Conflict resolution"},
       {"#invites", "Invite codes"},
       {"#multi-project", "Multi-project teams"},
-      {"#daemon", "Daemon mode"},
+      {"#daemon", "Daemon mode (coming soon)"},
       {"#auth", "Authentication"}
     ]} />
 
@@ -1638,32 +1638,14 @@ defmodule TeamrcWeb.GuideLive do
 
     <%!-- Daemon --%>
     <section class="space-y-3">
-      <.section_heading id="daemon" title="Daemon mode" />
+      <.section_heading id="daemon" title="Daemon mode (coming soon)" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        The daemon is a background process that keeps your machine synced automatically.
-        It does two things:
+        Background sync is coming soon. The daemon will be a background process that keeps your machine synced automatically by polling the relay and watching your
+        <.code_inline>.teamrc.yaml</.code_inline>
+        for local changes.
       </p>
-      <ul class="text-sm text-base-content/70 space-y-1.5 list-disc list-inside">
-        <li><span class="font-semibold">Polls the relay</span> on an interval (default: 2 minutes).
-          When the remote team has changed, it pulls and applies locally.</li>
-        <li>
-          <span class="font-semibold">
-            Watches
-            <.code_inline>.teamrc.yaml</.code_inline>
-          </span>
-          for local changes.
-          When you edit the file, it immediately regenerates platform config files.
-        </li>
-      </ul>
-      <.terminal_block title="terminal">
-        <div class="space-y-1.5">
-          <.cmd_line cmd="npx @teamrc/cli daemon" comment="# default 2-minute poll" />
-          <.cmd_line cmd="npx @teamrc/cli daemon --poll-interval 30000" comment="# poll every 30 seconds" />
-        </div>
-      </.terminal_block>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        The daemon merges knowledge on each poll and preserves local metadata (teamId, relay, platforms)
-        when updating <.code_inline>.teamrc.yaml</.code_inline>.
+        In the meantime, use <.code_inline>teamrc sync</.code_inline> to sync manually whenever you need to pull or push changes.
       </p>
     </section>
 
@@ -3495,14 +3477,10 @@ defmodule TeamrcWeb.GuideLive do
       <.faq_item question="What does the daemon do?">
         <p class="text-sm text-base-content/70 leading-relaxed">
           <.code_inline>teamrc daemon</.code_inline>
-          runs a background process that polls the relay for changes (every 2 minutes by default) and watches your
+          is coming soon. It will run a background process that polls the relay for changes and watches your
           <.code_inline>.teamrc.yaml</.code_inline>
-          for local edits. When anything changes,
-          it regenerates platform config files. This saves you from running
-          <.code_inline>teamrc sync</.code_inline>
-          manually.
-          See <a href="/guide/sync#daemon" class="text-primary/80 hover:text-primary">Daemon mode</a>
-          for details.
+          for local edits, automatically regenerating platform config files when anything changes.
+          In the meantime, use <.code_inline>teamrc sync</.code_inline> to sync manually.
         </p>
       </.faq_item>
 

@@ -47,7 +47,15 @@ export function registerSync(program: Command): void {
         const serverHead = await client.getTeamHead();
 
         if (localHashes.hash === serverHead.hash) {
-          // a. Already in sync
+          // a. Already in sync — persist sync state so subsequent syncs have a baseline
+          if (!lastSyncHash) {
+            writeSyncState({
+              syncHash: serverHead.hash,
+              syncHashMembers: serverHead.members_hash,
+              syncHashSkills: serverHead.skills_hash,
+              syncHashKnowledge: serverHead.knowledge_hash,
+            });
+          }
           s.stop("Already in sync.");
           p.outro("Done.");
           return;

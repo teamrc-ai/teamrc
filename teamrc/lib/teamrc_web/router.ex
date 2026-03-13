@@ -201,6 +201,18 @@ defmodule TeamrcWeb.Router do
     end
   end
 
+  # Test-only setup endpoint for E2E tests (compile-time guarded)
+  if Mix.env() == :test do
+    pipeline :test_api do
+      plug :accepts, ["json"]
+    end
+
+    scope "/api/test", TeamrcWeb do
+      pipe_through :test_api
+      post "/setup", TestSetupController, :setup
+    end
+  end
+
   ## ──────────────────────────────────────────────────────────
   ## API routes
   ## ──────────────────────────────────────────────────────────
