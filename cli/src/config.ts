@@ -49,28 +49,36 @@ export function saveConfig(config: TeamrcConfig): void {
   fs.writeFileSync(getConfigPath(), JSON.stringify(clean, null, 2), { mode: 0o600 });
 }
 
+/** Check if a directory contains any trc-* files (teamrc agent files) */
+function hasTrcFiles(dir: string): boolean {
+  try {
+    return fs.readdirSync(dir).some((f) => f.startsWith("trc-"));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Detect platforms that have teamrc agent files written to them.
+ * Used by sync/pull/status/delete/doctor to find where agents actually are.
+ */
 export function detectPlatforms(scope?: "project" | "global"): string[] {
   const home = os.homedir();
   const cwd = process.cwd();
-  const platforms: string[] = [];
 
-  // Signals split by where they detect: home dir (global) vs cwd (project)
+  // Detect by checking for trc-* agent files in each platform's agents directory
   const globalSignals: Record<string, () => boolean> = {
-    "claude-code": () => fs.existsSync(path.join(home, ".claude")),
-    "codex": () => fs.existsSync(path.join(home, ".codex")),
-    "gemini": () => fs.existsSync(path.join(home, ".gemini")),
-    "openclaw": () => fs.existsSync(path.join(home, ".openclaw")),
-    "amazon-q": () => fs.existsSync(path.join(home, ".amazonq")),
+    "claude-code": () => hasTrcFiles(path.join(home, ".claude", "agents")),
+    "codex": () => hasTrcFiles(path.join(home, ".codex", "agents")),
+    "gemini": () => hasTrcFiles(path.join(home, ".gemini", "agents")),
+    "openclaw": () => hasTrcFiles(path.join(home, ".openclaw", "agents")),
   };
 
   const projectSignals: Record<string, () => boolean> = {
-    "cursor": () => fs.existsSync(path.join(cwd, ".cursor")),
-    "codex": () => fs.existsSync(path.join(cwd, ".codex")),
-    "gemini": () => fs.existsSync(path.join(cwd, ".gemini")),
-    "copilot": () => fs.existsSync(path.join(cwd, ".github")),
-    "amazon-q": () => fs.existsSync(path.join(cwd, ".amazonq")),
-    "windsurf": () => fs.existsSync(path.join(cwd, ".windsurf")),
-    "cline": () => fs.existsSync(path.join(cwd, ".clinerules")) || fs.existsSync(path.join(cwd, ".cline")),
+    "claude-code": () => hasTrcFiles(path.join(cwd, ".claude", "agents")),
+    "cursor": () => hasTrcFiles(path.join(cwd, ".cursor", "agents")),
+    "codex": () => hasTrcFiles(path.join(cwd, ".codex", "agents")),
+    "gemini": () => hasTrcFiles(path.join(cwd, ".gemini", "agents")),
   };
 
   const found = new Set<string>();
@@ -87,8 +95,45 @@ export function detectPlatforms(scope?: "project" | "global"): string[] {
     }
   }
 
-  platforms.push(...found);
-  return platforms;
+  return [...found];
+}
+
+/**
+ * Detect platforms that are installed on this machine (config directory exists).
+ * Used by init/join to decide which platforms to write to for the first time.
+ */
+export function detectInstalledPlatforms(scope?: "project" | "global"): string[] {
+  const home = os.homedir();
+  const cwd = process.cwd();
+
+  const globalSignals: Record<string, () => boolean> = {
+    "claude-code": () => fs.existsSync(path.join(home, ".claude")),
+    "codex": () => fs.existsSync(path.join(home, ".codex")),
+    "gemini": () => fs.existsSync(path.join(home, ".gemini")),
+    "openclaw": () => fs.existsSync(path.join(home, ".openclaw")),
+  };
+
+  const projectSignals: Record<string, () => boolean> = {
+    "cursor": () => fs.existsSync(path.join(cwd, ".cursor")),
+    "codex": () => fs.existsSync(path.join(cwd, ".codex")),
+    "gemini": () => fs.existsSync(path.join(cwd, ".gemini")),
+  };
+
+  const found = new Set<string>();
+
+  if (scope !== "project") {
+    for (const [name, check] of Object.entries(globalSignals)) {
+      if (check()) found.add(name);
+    }
+  }
+
+  if (scope !== "global") {
+    for (const [name, check] of Object.entries(projectSignals)) {
+      if (check()) found.add(name);
+    }
+  }
+
+  return [...found];
 }
 
 function isLocalUrl(url: string): boolean {

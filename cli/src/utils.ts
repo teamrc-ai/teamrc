@@ -13,6 +13,7 @@ import {
   loadConfig,
   saveConfig,
   detectPlatforms,
+  detectInstalledPlatforms,
   getRelayUrl,
 } from "./config.js";
 import { getAdapter, VALID_PLATFORMS, SUPPORTED_PLATFORMS, UNIMPLEMENTED_PLATFORMS, GLOBAL_ONLY_PLATFORMS, PROJECT_ONLY_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
@@ -119,7 +120,9 @@ export async function requirePlatforms(override?: string, scope?: TeamScope): Pr
     return requested;
   }
 
-  const detected = detectPlatforms();
+  // Use installed-platform detection (folder exists) so init/join can target
+  // platforms before any trc-* agent files have been written.
+  const detected = detectInstalledPlatforms();
   if (detected.length === 0) {
     p.log.error(
       "Could not detect platform.\n" +
