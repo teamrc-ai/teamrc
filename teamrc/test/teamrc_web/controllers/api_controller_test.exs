@@ -142,6 +142,44 @@ defmodule TeamrcWeb.ApiControllerTest do
       assert diff_seconds < 49 * 3600
     end
 
+    test "clamps negative TTL to 1 hour", %{conn: conn} do
+      token = "trc_ak_inviter_neg_#{:erlang.unique_integer([:positive])}"
+      Teamrc.Teams.put_team(token, %{"name" => "invite-neg-ttl-team", "members" => []})
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/teams/invite", %{"token" => token, "ttl_hours" => -5})
+
+      resp = json_response(conn, 200)
+      assert String.starts_with?(resp["invite_code"], "trc_inv_")
+
+      {:ok, expires_at, _} = DateTime.from_iso8601(resp["expires_at"])
+      diff_seconds = DateTime.diff(expires_at, DateTime.utc_now())
+      # Should be roughly 1 hour (clamped from -5)
+      assert diff_seconds > 0
+      assert diff_seconds <= 3600 + 60
+    end
+
+    test "clamps TTL above 168 to 168 hours", %{conn: conn} do
+      token = "trc_ak_inviter_max_#{:erlang.unique_integer([:positive])}"
+      Teamrc.Teams.put_team(token, %{"name" => "invite-max-ttl-team", "members" => []})
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/teams/invite", %{"token" => token, "ttl_hours" => 500})
+
+      resp = json_response(conn, 200)
+      assert String.starts_with?(resp["invite_code"], "trc_inv_")
+
+      {:ok, expires_at, _} = DateTime.from_iso8601(resp["expires_at"])
+      diff_seconds = DateTime.diff(expires_at, DateTime.utc_now())
+      # Should be clamped to 168 hours (1 week)
+      assert diff_seconds > 167 * 3600
+      assert diff_seconds <= 168 * 3600 + 60
+    end
+
     test "returns 403 for non-member", %{conn: conn} do
       conn =
         conn

@@ -123,7 +123,7 @@ defmodule TeamrcWeb.ApiController do
 
   def create_invite(conn, params) do
     token = conn.assigns[:verified_token]
-    ttl = min(safe_integer(params["ttl_hours"], 24), 168)
+    ttl = params["ttl_hours"] |> safe_integer(24) |> max(1) |> min(168)
     team_id = params["team_id"]
 
     case Teams.create_invite(token, ttl, team_id) do
