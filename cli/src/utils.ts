@@ -251,7 +251,12 @@ export function requireTeamContext(): TeamContext {
     };
   }
 
-  p.log.error(`No team configured. Run \`${cliCmd("init")}\` or \`${cliCmd("join")}\`.`);
+  // Check if this is a clone-only team (has YAML but no teamId)
+  if ((yamlTeam && !yamlTeam.teamId) || (globalTeam && !globalTeam.teamId)) {
+    p.log.error(`This is a cloned team (read-only). Run \`${cliCmd("init")}\` to create your own team, or \`${cliCmd("pull")}\` to fetch updates.`);
+  } else {
+    p.log.error(`No team configured. Run \`${cliCmd("init")}\` or \`${cliCmd("join")}\`.`);
+  }
   process.exit(1);
 }
 

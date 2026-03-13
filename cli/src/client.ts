@@ -89,6 +89,38 @@ export function remoteTeamToDefinition(team: TeamrcTeam): TeamDefinition {
   };
 }
 
+/** Sanitize a locally-sourced TeamDefinition (e.g. from readTeamYaml) before sending to relay.
+ *  Applies the same caps, frontmatter stripping, and skill ID validation as remoteTeamToDefinition.
+ *  Strips source-body skills since they should not be sent unresolved to the relay. */
+export function sanitizeTeamDefinition(team: TeamDefinition): TeamDefinition {
+  const skills = team.skills?.filter((s) => {
+    // Drop source-body skills — they reference local files and must not be sent to relay unresolved
+    if (typeof s.body === "object" && s.body?.source) return false;
+    try { validateSkillId(s.id); return true; } catch { return false; }
+  }).map((s) => ({
+    ...s,
+    body: typeof s.body === "string" ? sanitizeFrontmatter(capString(s.body, MAX_BODY_LEN)!) : s.body,
+    globs: s.globs?.map((g) => g.replace(/[\n\r]/g, "")) ?? [],
+    ...(s.title ? { title: capString(s.title, MAX_NAME_LEN) } : {}),
+    ...(s.description ? { description: capString(s.description, MAX_ROLE_LEN) } : {}),
+  }));
+
+  return {
+    ...team,
+    name: capString(team.name, MAX_NAME_LEN) ?? "",
+    members: team.members.map((m) => ({
+      ...m,
+      name: capString(m.name, MAX_NAME_LEN) ?? "",
+      role: capString(m.role, MAX_ROLE_LEN) ?? "",
+      ...(m.soul ? { soul: sanitizeFrontmatter(capString(m.soul, MAX_SOUL_LEN)!) } : {}),
+      ...(m.skills?.length ? { skills: m.skills.filter((id) => {
+        try { validateSkillId(id); return true; } catch { return false; }
+      }) } : {}),
+    })),
+    ...(skills?.length ? { skills } : { skills: undefined }),
+  };
+}
+
 export class TeamrcClient {
   private baseUrl: string;
   private privateKey: Uint8Array;
@@ -102,6 +134,11 @@ export class TeamrcClient {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.privateKey = privateKey;
     this.token = token;
+    this.teamId = teamId;
+  }
+
+  /** Update the team ID (e.g. after createTeam returns a new ID) */
+  setTeamId(teamId: string): void {
     this.teamId = teamId;
   }
 

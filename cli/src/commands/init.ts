@@ -8,7 +8,8 @@ import { TeamrcClient } from "../client.js";
 import { getRelayUrl } from "../config.js";
 import { getAdapter } from "../adapters/base.js";
 import { templateToTeamDefinition } from "../catalog.js";
-import { writeTeamYaml, readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
+import { writeTeamYaml, readTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
+import { sanitizeTeamDefinition } from "../client.js";
 import { saveConfig } from "../config.js";
 import {
   globals,
@@ -59,14 +60,30 @@ export function registerInit(program: Command): void {
       const token = toToken(kp.publicKey);
       const relayUrl = getRelayUrl(opts.relay);
 
-      // Select a team template
-      const template = await selectTemplate(opts.team);
-      const teamName = opts.name ?? await promptTeamName(template.id === "custom" ? "my-team" : template.teamName);
-      const team = templateToTeamDefinition(template, teamName);
+      // If there's an existing YAML without a teamId (e.g. from clone), adopt it
+      let team;
+      if (existingYaml && !existingYaml.teamId) {
+        if (opts.name) {
+          validateTeamName(opts.name);
+          existingYaml.name = opts.name;
+        }
+        validateTeamName(existingYaml.name);
+        // Strip clone token — this will be a new team
+        delete existingYaml.cloneToken;
+        // Sanitize: cap lengths, strip frontmatter injection, drop source-body skills
+        team = sanitizeTeamDefinition(existingYaml);
+        const memberNames = team.members.map((m) => m.name).join(", ");
+        p.log.info(`Found existing team "${team.name}" (${team.members.length} agents: ${memberNames}).`);
+      } else {
+        // Select a team template
+        const template = await selectTemplate(opts.team);
+        const teamName = opts.name ?? await promptTeamName(template.id === "custom" ? "my-team" : template.teamName);
+        team = templateToTeamDefinition(template, teamName);
 
-      if (template.id !== "custom") {
-        const memberNames = template.members.map((m) => m.name).join(", ");
-        p.log.info(`${template.members.length} agents: ${memberNames}`);
+        if (template.id !== "custom") {
+          const memberNames = template.members.map((m) => m.name).join(", ");
+          p.log.info(`${template.members.length} agents: ${memberNames}`);
+        }
       }
 
       // Create team on relay first — don't write local files until relay succeeds
@@ -86,6 +103,7 @@ export function registerInit(program: Command): void {
         team.teamId = relayTeam.id;
         team.platforms = platforms;
         team.relay = relayUrl;
+        client.setTeamId(relayTeam.id);
 
         // Apply to each platform's native format
         const platformSummary: string[] = [];
