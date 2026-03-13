@@ -621,10 +621,17 @@ defmodule TeamrcWeb.TeamDetailLive do
   end
 
   def handle_event("delete_team", _params, socket) do
-    if not socket.assigns.is_owner do
-      {:noreply, put_flash(socket, :error, "Only the team owner can delete this team.")}
+    current_user = socket.assigns.current_user
+    team = socket.assigns.team
+
+    # Require authenticated owner — creator sessions are not sufficient for deletion
+    is_authenticated_owner =
+      current_user != nil && team.owner_user_id != nil && current_user.id == team.owner_user_id
+
+    if not is_authenticated_owner do
+      {:noreply, put_flash(socket, :error, "Only the team owner can delete this team. Sign in and claim ownership first.")}
     else
-      case Teams.delete_team(socket.assigns.team.id) do
+      case Teams.delete_team(team.id) do
         :ok ->
           {:noreply,
            socket
@@ -1794,8 +1801,8 @@ defmodule TeamrcWeb.TeamDetailLive do
           </div>
         </section>
 
-        <%!-- Delete team (owner only) --%>
-        <section :if={@is_owner} class="pt-4 border-t border-error/20">
+        <%!-- Delete team (authenticated owner only, not creator sessions) --%>
+        <section :if={@is_owner && !@is_creator_session} class="pt-4 border-t border-error/20">
           <p class="text-xs font-medium text-error/70 uppercase tracking-wider mb-2">
             Danger zone
           </p>
