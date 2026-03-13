@@ -497,6 +497,29 @@ defmodule Teamrc.TeamsTest do
     end
   end
 
+  describe "delete_team" do
+    test "deletes team and all associated data" do
+      token = "trc_ak_delteam_#{:erlang.unique_integer([:positive])}"
+      {:ok, team_data} = Teams.put_team(token, %{"name" => "Delete Me", "members" => [%{"name" => "agent", "role" => "dev"}]})
+      team_id = team_data["id"]
+
+      # Create an invite
+      {:ok, _code, _expires} = Teams.create_invite_by_team_id(team_id, 24)
+
+      assert :ok = Teams.delete_team(team_id)
+
+      # Team should be gone
+      assert Teamrc.Repo.get(Teamrc.Schema.Team, team_id) == nil
+
+      # Token should no longer resolve to a team
+      assert :error = Teams.get_team(token, team_id)
+    end
+
+    test "returns error for non-existent team" do
+      assert {:error, :not_found} = Teams.delete_team(Ecto.UUID.generate())
+    end
+  end
+
   describe "web mutations recompute content hashes (BUG 1)" do
     setup do
       token = "trc_ak_webhash_#{:erlang.unique_integer([:positive])}"

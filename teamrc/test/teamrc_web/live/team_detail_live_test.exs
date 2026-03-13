@@ -195,6 +195,68 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
     end
   end
 
+  describe "team deletion" do
+    test "owner can delete team", %{conn: conn} do
+      %{user: user, team_id: team_id} = create_owner_with_team()
+      conn = log_in_user(conn, user)
+
+      {:ok, view, html} = live(conn, "/teams/#{team_id}")
+
+      assert html =~ "Danger zone"
+      assert html =~ "Delete team"
+
+      view |> element("button[phx-click='delete_team']") |> render_click()
+
+      # Should redirect to dashboard
+      assert_redirect(view, "/dashboard")
+
+      # Team should be gone
+      assert Repo.get(Team, team_id) == nil
+    end
+
+    test "non-owner cannot see delete button", %{conn: conn} do
+      {code, team_id} = create_team_with_invite()
+
+      {:ok, _view, html} = live(conn, "/teams/#{team_id}?invite=#{code}")
+
+      refute html =~ "Danger zone"
+      refute html =~ "Delete team"
+    end
+
+    test "non-owner cannot delete team via event", %{conn: conn} do
+      {code, team_id} = create_team_with_invite()
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
+
+      render_click(view, "delete_team", %{})
+
+      # Team should still exist
+      assert Repo.get(Team, team_id) != nil
+    end
+
+    test "participant (non-owner) cannot delete team", %{conn: conn} do
+      # Create team with a different owner
+      %{team_id: team_id, invite_code: invite_code} = create_owner_with_team()
+
+      # Create a second user who joins as participant
+      participant = Teamrc.AccountsFixtures.user_fixture()
+      participant_token = "trc_ak_part_#{System.unique_integer([:positive])}"
+      {:ok, _mt} = Accounts.link_machine_token(participant.id, participant_token, "part-machine")
+      Teams.join_by_invite(invite_code, participant_token)
+
+      conn = log_in_user(conn, participant)
+      {:ok, view, html} = live(conn, "/teams/#{team_id}")
+
+      # Participant can see the team but not the delete button
+      assert html =~ "test-team"
+      refute html =~ "Danger zone"
+
+      # Attempting delete via event should fail
+      render_click(view, "delete_team", %{})
+      assert Repo.get(Team, team_id) != nil
+    end
+  end
+
   describe "member management" do
     test "owner can add a custom member", %{conn: conn} do
       %{user: user, team_id: team_id} = create_owner_with_team()

@@ -620,6 +620,23 @@ defmodule TeamrcWeb.TeamDetailLive do
     set_visibility_result(socket, "private")
   end
 
+  def handle_event("delete_team", _params, socket) do
+    if not socket.assigns.is_owner do
+      {:noreply, put_flash(socket, :error, "Only the team owner can delete this team.")}
+    else
+      case Teams.delete_team(socket.assigns.team.id) do
+        :ok ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "Team deleted.")
+           |> push_navigate(to: ~p"/dashboard")}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to delete team.")}
+      end
+    end
+  end
+
   defp set_visibility_result(socket, new_visibility) do
     if not socket.assigns.is_owner do
       {:noreply, put_flash(socket, :error, "Only the team owner can change visibility.")}
@@ -668,23 +685,6 @@ defmodule TeamrcWeb.TeamDetailLive do
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to update visibility.")}
-    end
-  end
-
-  def handle_event("delete_team", _params, socket) do
-    if not socket.assigns.is_owner do
-      {:noreply, put_flash(socket, :error, "Only the team owner can delete this team.")}
-    else
-      case Teams.delete_team(socket.assigns.team.id) do
-        :ok ->
-          {:noreply,
-           socket
-           |> put_flash(:info, "Team deleted.")
-           |> push_navigate(to: ~p"/dashboard")}
-
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to delete team.")}
-      end
     end
   end
 
