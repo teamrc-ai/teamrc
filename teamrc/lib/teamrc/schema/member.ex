@@ -21,5 +21,6 @@ defmodule Teamrc.Schema.Member do
     |> validate_length(:name, max: 64)
     |> validate_length(:role, min: 1, max: 256)
     |> validate_length(:soul, max: 10_000)
+    |> unique_constraint(:name, name: "members_team_id_name_index")
   end
 end
