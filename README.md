@@ -101,7 +101,7 @@ Fields:
 | `teamrc import <platform>` | Import existing platform config into `.teamrc.yaml` |
 | `teamrc dashboard` | Open the current team in your browser |
 | `teamrc invite` | Generate an invite code for your team |
-| `teamrc share` | Toggle team visibility (public/private) |
+| `teamrc share` | Make team public and get a shareable link. `--off` to make private |
 | `teamrc claim <secret>` | Claim ownership of a team |
 | `teamrc add-member` | Add a member interactively from the catalog |
 | `teamrc list-templates` | List available team templates |
@@ -153,6 +153,25 @@ mix phx.server  # http://localhost:4000
 ```
 
 Point the CLI at your relay with `TEAMRC_RELAY=http://your-host:4000` or set `relay:` in `.teamrc.yaml`.
+
+## Sharing
+
+Make your team public so anyone can view and clone it:
+
+```bash
+teamrc share          # makes team public, outputs share URL
+teamrc share --off    # makes team private again
+```
+
+Public teams get a shareable page at `/t/<clone_token>` showing the team composition, agents, and skills. Anyone with the link can clone it:
+
+```bash
+npx @teamrc/cli clone <clone_token>
+```
+
+Knowledge files are never shared. Skill body content is redacted on public pages.
+
+You can also share from the web UI via the **Share** button on the team dashboard.
 
 ## Security
 
