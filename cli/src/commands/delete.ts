@@ -159,15 +159,9 @@ export function registerDelete(program: Command): void {
       }
 
       // Load keypair BEFORE deleting config (needed for relay disconnect)
-      let client: TeamrcClient | null = null;
+      let kp: { privateKey: Uint8Array; publicKey: Uint8Array } | null = null;
       try {
-        const kp = loadKeypair();
-        if (kp) {
-          const token = toToken(kp.publicKey);
-          const relay = projectTeam?.relay ?? globalTeam?.relay;
-          const relayUrl = getRelayUrl(undefined, relay);
-          client = new TeamrcClient(relayUrl, kp.privateKey, token);
-        }
+        kp = loadKeypair();
       } catch {
         // Can't load keypair — skip relay disconnect
       }
@@ -178,21 +172,27 @@ export function registerDelete(program: Command): void {
       const actionLines: string[] = [];
 
       // Disconnect from relay (scoped to match deletion scope)
-      if (client) {
+      if (kp) {
+        const token = toToken(kp.publicKey);
+        const relay = projectTeam?.relay ?? globalTeam?.relay;
+        const relayUrl = getRelayUrl(undefined, relay);
         try {
           if (deleteScope === "project") {
             const teamId = projectTeam?.teamId;
             if (teamId) {
+              const client = new TeamrcClient(relayUrl, kp.privateKey, token, teamId);
               await client.disconnect(teamId);
               actionLines.push("Disconnected project team from relay");
             }
           } else if (deleteScope === "global") {
             const teamId = globalTeam?.teamId;
             if (teamId) {
+              const client = new TeamrcClient(relayUrl, kp.privateKey, token, teamId);
               await client.disconnect(teamId);
               actionLines.push("Disconnected global team from relay");
             }
           } else {
+            const client = new TeamrcClient(relayUrl, kp.privateKey, token);
             await client.disconnect();
             actionLines.push("Disconnected all teams from relay");
           }

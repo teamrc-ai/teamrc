@@ -28,6 +28,11 @@ defmodule TeamrcWeb.ApiController do
           |> put_status(:created)
           |> json(%{team: team_data})
 
+        {:error, :team_id_required} ->
+          conn
+          |> put_status(:conflict)
+          |> json(%{error: "team_id required: token belongs to multiple teams"})
+
         {:error, :conflict, hashes} ->
           conn
           |> put_status(:conflict)
@@ -56,6 +61,11 @@ defmodule TeamrcWeb.ApiController do
       {:ok, hashes} ->
         json(conn, hashes)
 
+      {:error, :team_id_required} ->
+        conn
+        |> put_status(:conflict)
+        |> json(%{error: "team_id required: token belongs to multiple teams"})
+
       :error ->
         conn
         |> put_status(:not_found)
@@ -67,6 +77,11 @@ defmodule TeamrcWeb.ApiController do
     case Teams.get_team(token, params["team_id"]) do
       {:ok, team} ->
         json(conn, %{team: team})
+
+      {:error, :team_id_required} ->
+        conn
+        |> put_status(:conflict)
+        |> json(%{error: "team_id required: token belongs to multiple teams"})
 
       :error ->
         conn
@@ -115,6 +130,9 @@ defmodule TeamrcWeb.ApiController do
       {:ok, code, expires_at} ->
         json(conn, %{invite_code: code, expires_at: DateTime.to_iso8601(expires_at)})
 
+      {:error, :team_id_required} ->
+        conn |> put_status(:conflict) |> json(%{error: "team_id required: token belongs to multiple teams"})
+
       :error ->
         conn |> put_status(:forbidden) |> json(%{error: "not a team member"})
     end
@@ -137,6 +155,9 @@ defmodule TeamrcWeb.ApiController do
           visibility: team.visibility,
           clone_token: team.clone_token
         })
+
+      {:error, :team_id_required} ->
+        conn |> put_status(:conflict) |> json(%{error: "team_id required: token belongs to multiple teams"})
 
       {:error, :not_authorized} ->
         conn |> put_status(:forbidden) |> json(%{error: "not a team member"})
@@ -181,7 +202,7 @@ defmodule TeamrcWeb.ApiController do
 
   # --- Input Validation ---
 
-  @valid_platforms ~w(claude-code cursor codex gemini openclaw)
+  @valid_platforms ~w(claude-code cursor codex gemini openclaw copilot amazon-q windsurf cline)
 
   defp validate_team(team) do
     with :ok <- validate_team_name(team["name"]),

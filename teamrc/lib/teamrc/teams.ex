@@ -17,6 +17,9 @@ defmodule Teamrc.Teams do
     base_hash = team_attrs["base_hash"] || team_attrs[:base_hash]
 
     case resolve_team_id(token, team_id) do
+      {:error, :team_id_required} ->
+        {:error, :team_id_required}
+
       nil ->
         case create_team_in_db(team_data, token) do
           {:ok, team} ->
@@ -93,6 +96,9 @@ defmodule Teamrc.Teams do
   @doc "Get a team by token. Returns {:ok, team_map} or :error."
   def get_team(token, team_id \\ nil) do
     case resolve_team_id(token, team_id) do
+      {:error, :team_id_required} ->
+        {:error, :team_id_required}
+
       nil ->
         :error
 
@@ -154,6 +160,9 @@ defmodule Teamrc.Teams do
   @doc "Create a new invite code for a team the token belongs to. Returns {:ok, code, expires_at} or :error."
   def create_invite(token, ttl_hours, team_id \\ nil) do
     case resolve_team_id(token, team_id) do
+      {:error, :team_id_required} ->
+        {:error, :team_id_required}
+
       nil ->
         :error
 
@@ -193,6 +202,9 @@ defmodule Teamrc.Teams do
   @doc "Set team visibility. Requires the token to belong to the team's owner account."
   def set_visibility(token, team_id, visibility) when visibility in ["public", "private"] do
     case resolve_team_id(token, team_id) do
+      {:error, :team_id_required} ->
+        {:error, :team_id_required}
+
       nil ->
         {:error, :not_authorized}
 
@@ -513,8 +525,11 @@ defmodule Teamrc.Teams do
   # --- Private helpers ---
 
   defp resolve_team_id(token, nil) do
-    from(tt in TokenTeam, where: tt.token == ^token, select: tt.team_id, limit: 1)
-    |> Repo.one()
+    case from(tt in TokenTeam, where: tt.token == ^token, select: tt.team_id) |> Repo.all() do
+      [] -> nil
+      [single_id] -> single_id
+      _multiple -> {:error, :team_id_required}
+    end
   end
 
   defp resolve_team_id(token, team_id) do
@@ -806,6 +821,9 @@ defmodule Teamrc.Teams do
   @doc "Get just the hashes for a team. Reads stored hash columns, no member preload needed."
   def get_team_hashes(token, team_id \\ nil) do
     case resolve_team_id(token, team_id) do
+      {:error, :team_id_required} ->
+        {:error, :team_id_required}
+
       nil ->
         :error
 
