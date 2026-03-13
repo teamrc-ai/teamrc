@@ -35,20 +35,6 @@ defmodule TeamrcWeb.UserSessionController do
     create(conn, params, "Welcome back!")
   end
 
-  # magic link login
-  defp create(conn, %{"user" => %{"token" => token} = user_params}, info) do
-    case Accounts.login_user_by_magic_link(token) do
-      {:ok, {user, tokens_to_disconnect}} ->
-        UserAuth.disconnect_sessions(tokens_to_disconnect)
-        log_in_with_tos_check(conn, user, user_params, info)
-
-      _ ->
-        conn
-        |> put_flash(:error, "The link is invalid or it has expired.")
-        |> redirect(to: ~p"/users/log-in")
-    end
-  end
-
   # email + password login
   defp create(conn, %{"user" => user_params}, info) do
     %{"email" => email, "password" => password} = user_params
@@ -144,20 +130,6 @@ defmodule TeamrcWeb.UserSessionController do
     conn
     |> put_flash(:info, "Logged out successfully.")
     |> UserAuth.log_out_user()
-  end
-
-  def send_magic_link(conn, %{"user" => %{"email" => email}}) do
-    if user = Accounts.get_user_by_email(email) do
-      Accounts.deliver_login_instructions(
-        user,
-        &url(~p"/users/log-in/#{&1}")
-      )
-    end
-
-    # Always return the same response to prevent user enumeration
-    conn
-    |> put_flash(:info, "If your email is in our system, you will receive a login link shortly.")
-    |> redirect(to: ~p"/users/log-in")
   end
 
   def forgot_password(conn, %{"user" => %{"email" => email}}) do

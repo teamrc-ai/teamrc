@@ -14,11 +14,8 @@ defmodule TeamrcWeb.UserLive.Login do
      assign(socket,
        page_title: "Log in",
        form: form,
-       magic_link_form: to_form(%{"email" => email || ""}, as: "user"),
        check_errors: false,
        trigger_submit: false,
-       trigger_magic_link: false,
-       mode: :password,
        redirect_to: redirect_to
      ), temporary_assigns: [form: form]}
   end
@@ -43,20 +40,6 @@ defmodule TeamrcWeb.UserLive.Login do
   def handle_event("submit", %{"user" => user_params}, socket) do
     form = to_form(user_params, as: "user")
     {:noreply, assign(socket, form: form, check_errors: true, trigger_submit: true)}
-  end
-
-  def handle_event("validate_magic_link", %{"user" => user_params}, socket) do
-    form = to_form(user_params, as: "user")
-    {:noreply, assign(socket, magic_link_form: form)}
-  end
-
-  def handle_event("send_magic_link", %{"user" => _user_params}, socket) do
-    {:noreply, assign(socket, trigger_magic_link: true)}
-  end
-
-  def handle_event("toggle_mode", _params, socket) do
-    new_mode = if socket.assigns.mode == :password, do: :magic_link, else: :password
-    {:noreply, assign(socket, mode: new_mode)}
   end
 
   @impl true
@@ -121,7 +104,6 @@ defmodule TeamrcWeb.UserLive.Login do
 
         <%!-- Email/password form --%>
         <.form
-          :if={@mode == :password}
           for={@form}
           id="login_form"
           action={if @redirect_to, do: ~p"/users/log-in?redirect_to=#{@redirect_to}", else: ~p"/users/log-in"}
@@ -171,45 +153,6 @@ defmodule TeamrcWeb.UserLive.Login do
           </button>
         </.form>
 
-        <%!-- Magic link form --%>
-        <.form
-          :if={@mode == :magic_link}
-          for={@magic_link_form}
-          id="magic_link_form"
-          action={~p"/users/magic-link"}
-          phx-change="validate_magic_link"
-          phx-submit="send_magic_link"
-          phx-trigger-action={@trigger_magic_link}
-          class="space-y-4"
-        >
-          <.input
-            field={@magic_link_form[:email]}
-            type="email"
-            label="Email"
-            placeholder="you@example.com"
-            required
-            class="w-full input input-sm"
-          />
-
-          <button
-            type="submit"
-            phx-disable-with="Sending..."
-            class="trc-focus w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-content shadow-sm hover:brightness-110 active:scale-[0.99] transition-all duration-150"
-          >
-            Send login link
-          </button>
-        </.form>
-
-        <%!-- Mode toggle --%>
-        <div class="mt-4 text-center">
-          <button
-            type="button"
-            phx-click="toggle_mode"
-            class="text-xs font-medium text-primary/80 hover:text-primary transition-colors"
-          >
-            <%= if @mode == :password, do: "Sign in with email link instead", else: "Sign in with password instead" %>
-          </button>
-        </div>
       </div>
 
       <%!-- Footer link --%>

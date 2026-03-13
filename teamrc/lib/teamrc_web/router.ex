@@ -182,7 +182,6 @@ defmodule TeamrcWeb.Router do
     post "/users/register", UserSessionController, :register
     post "/users/log-in", UserSessionController, :create
     post "/users/complete-login", UserSessionController, :terms_accepted
-    post "/users/magic-link", UserSessionController, :send_magic_link
     post "/users/forgot-password", UserSessionController, :forgot_password
     post "/users/reset-password/:token", UserSessionController, :reset_password
   end
