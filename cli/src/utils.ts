@@ -495,12 +495,12 @@ export async function handleTeamNotFound(ctx: TeamContext & { client: TeamrcClie
   p.log.warn("This team no longer exists on the relay.");
 
   if (isNonInteractive()) {
-    p.log.info(`Run \`${cliCmd("init")}\` to re-create it, or \`${cliCmd("delete")}\` to clean up.`);
+    p.log.info(`Run \`${cliCmd("push")}\` to create a new team from your local definition, or \`${cliCmd("delete")}\` to clean up.`);
     return false;
   }
 
   const shouldRecreate = await p.confirm({
-    message: "Re-create this team on the relay?",
+    message: "Create a new team on the relay from your local definition? (new team ID, new invites)",
     initialValue: true,
   });
   handleCancel(shouldRecreate);
@@ -514,7 +514,7 @@ export async function handleTeamNotFound(ctx: TeamContext & { client: TeamrcClie
   const knowledge = adapter.readKnowledge();
 
   const s = p.spinner();
-  s.start("Re-creating team on relay...");
+  s.start("Creating new team on relay...");
   const relayTeam = await client.createTeam(
     team.name,
     team.members.map((m) => ({
@@ -525,7 +525,7 @@ export async function handleTeamNotFound(ctx: TeamContext & { client: TeamrcClie
     team.skills,
     knowledge || undefined,
   );
-  s.stop("Team re-created.");
+  s.stop("New team created.");
 
   // Update local state with new team ID
   team.teamId = relayTeam.id;

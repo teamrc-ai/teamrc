@@ -229,7 +229,7 @@ export function registerSync(program: Command): void {
           s.stop("Team not found.");
           const recreated = await handleTeamNotFound(ctx);
           if (recreated) {
-            p.outro(`Team re-created. Run \`${cliCmd("sync")}\` again to sync.`);
+            p.outro(`New team created. Run \`${cliCmd("sync")}\` again to sync.`);
           } else {
             p.outro("Done.");
           }

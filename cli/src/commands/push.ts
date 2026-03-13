@@ -156,7 +156,7 @@ export function registerPush(program: Command): void {
           s.stop("Team not found.");
           const recreated = await handleTeamNotFound(ctx as typeof ctx & { client: TeamrcClient });
           if (recreated) {
-            p.outro("Team re-created and pushed.");
+            p.outro("New team created and pushed.");
           } else {
             p.outro("Done.");
           }

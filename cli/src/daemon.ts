@@ -135,7 +135,7 @@ export function startDaemon(opts: DaemonOptions): { stop: () => void } {
       log(`Applied remote changes (${remoteDef.members.length} agents).`);
     } catch (err) {
       if (err instanceof TeamNotFoundError) {
-        warn("Team no longer exists on the relay. Run `teamrc sync` or `teamrc push` to re-create it.");
+        warn("Team no longer exists on the relay. Run `teamrc push` to create a new team from your local definition.");
       } else {
         warn(`Poll failed: ${(err as Error).message}`);
       }
