@@ -419,6 +419,27 @@ describe("readTeamYaml limit enforcement", () => {
     assert.ok(result);
     assert.equal(result.members.length, 2);
   });
+
+  it("throws when skill IDs produce slug collisions", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    const yaml = `name: collision-team\nmembers:\n  - name: agent\n    role: helper\nskills:\n  - id: code_review\n    body: "Review code."\n  - id: code-review\n    body: "Also review code."\n`;
+    fs.writeFileSync(filePath, yaml);
+
+    assert.throws(
+      () => readTeamYaml(filePath),
+      /produce the same filename/,
+    );
+  });
+
+  it("allows skills with distinct slugs", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    const yaml = `name: distinct-team\nmembers:\n  - name: agent\n    role: helper\nskills:\n  - id: code-review\n    body: "Review code."\n  - id: deploy-prod\n    body: "Deploy to prod."\n`;
+    fs.writeFileSync(filePath, yaml);
+
+    const result = readTeamYaml(filePath);
+    assert.ok(result);
+    assert.equal(result.skills!.length, 2);
+  });
 });
 
 describe("writeTeamYaml atomic writes", () => {

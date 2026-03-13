@@ -93,6 +93,17 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
       })
     : [];
 
+  // Check for slug collisions among skill IDs (different IDs that map to the same filename)
+  const skillSlugMap = new Map<string, string>();
+  for (const s of parsedSkills) {
+    const slug = slugify(s.id);
+    const existing = skillSlugMap.get(slug);
+    if (existing) {
+      throw new Error(`.teamrc.yaml skills "${existing}" and "${s.id}" produce the same filename (SKILL-${slug}.md). Use more distinct IDs.`);
+    }
+    skillSlugMap.set(slug, s.id);
+  }
+
   const teamName = data.name || "";
   if (teamName) validateTeamName(teamName);
 
