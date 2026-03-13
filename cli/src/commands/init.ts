@@ -11,6 +11,7 @@ import { templateToTeamDefinition } from "../catalog.js";
 import { writeTeamYaml, readTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import { sanitizeTeamDefinition } from "../client.js";
 import { saveConfig } from "../config.js";
+import { generateTeamName } from "../names.js";
 import {
   globals,
   isNonInteractive,
@@ -95,7 +96,10 @@ export function registerInit(program: Command): void {
       } else {
         // Select a team template
         const template = await selectTemplate(opts.team);
-        const teamName = opts.name ?? await promptTeamName(template.id === "custom" ? "my-team" : template.teamName);
+        // Generate a unique default name with Heroku-style suffix
+        const baseName = template.id === "custom" ? "my-team" : template.teamName;
+        const defaultName = opts.name ?? generateTeamName(baseName);
+        const teamName = await promptTeamName(defaultName);
         team = templateToTeamDefinition(template, teamName);
 
         if (template.id !== "custom") {

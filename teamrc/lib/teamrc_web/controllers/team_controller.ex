@@ -72,7 +72,7 @@ defmodule TeamrcWeb.TeamController do
     skill_ids = MapSet.new(skills_clean, & &1.id)
 
     %{
-      name: template.team_name,
+      name: "#{template.team_name}-#{generate_team_suffix()}",
       platforms: template.default_platforms,
       members:
         template.members
@@ -85,6 +85,19 @@ defmodule TeamrcWeb.TeamController do
         end),
       skills: skills_clean
     }
+  end
+
+  defp generate_team_suffix do
+    words = ~w[coral amber slate ivory jade ruby onyx pearl azure crimson bronze cobalt
+      copper silver gold falcon otter raven lynx heron viper crane bison marten osprey puma wolf
+      hawk fox elk cedar flint maple oak pine birch iron stone ember frost dusk dawn ridge brook
+      cove cliff reef mesa vale glen peak sage spark pulse drift flux glyph prism nexus arc bolt
+      core edge node mesh beam ray moss fern thorn ash elm ivy bay dune tide gale mist haze snow
+      rain pixel quartz zinc nova echo delta sigma omega theta kappa zeta]
+
+    word = Enum.random(words)
+    hex = :crypto.strong_rand_bytes(2) |> Base.encode16(case: :lower)
+    "#{word}-#{hex}"
   end
 
   defp put_if(map, nil, _key), do: map
