@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
-import { getAdapter } from "../adapters/base.js";
+import { getAdapter, slugify } from "../adapters/base.js";
 import { listAgentCategories, loadAgent, loadSkill, agentRecommendedSkills } from "../catalog.js";
 import { writeTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import {
@@ -134,7 +134,7 @@ export function registerAddMember(program: Command): void {
       // Write YAML and apply to platforms only after successful push
       writeTeamYaml(yamlPath, team);
       for (const pl of platforms) {
-        const adapter = getAdapter(pl);
+        const adapter = getAdapter(pl, slugify(team.name));
         adapter.writeTeam(team, effectiveScope(pl, scope));
       }
 

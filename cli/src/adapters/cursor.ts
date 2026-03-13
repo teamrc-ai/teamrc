@@ -6,6 +6,7 @@ import {
   sanitizeText,
   slugify,
   escapeYamlString,
+  knowledgeFileName,
   validateAgentName,
   writeSkillDir,
   listTrcFiles,
@@ -22,6 +23,12 @@ import {
 } from "./base.js";
 
 export class CursorAdapter implements PlatformAdapter {
+  private teamSlug: string;
+
+  constructor(teamSlug?: string) {
+    this.teamSlug = teamSlug || "team";
+  }
+
   private cursorDir(): string {
     return path.join(process.cwd(), ".cursor");
   }
@@ -244,7 +251,7 @@ export class CursorAdapter implements PlatformAdapter {
 
     bodyParts.push("## Team Knowledge");
     bodyParts.push("");
-    bodyParts.push("Shared findings and decisions are stored in `teamrc-knowledge.md`. Read this file at the start of every session for context from other agents and machines. When you discover something important, append it to that file.");
+    bodyParts.push(`Before starting work, read \`.teamrc/knowledge-${slugify(teamName)}.md\` for shared context. Before finishing, append any useful findings as a \`## <topic>\` entry (3-5 lines). Do not delete existing entries.`);
     bodyParts.push("");
 
     const body = bodyParts.join("\n").trim();
@@ -312,21 +319,29 @@ ${body}
 
     sections.push("## Team Knowledge");
     sections.push("");
-    sections.push("Shared findings and decisions are stored in `teamrc-knowledge.md`. Read this file at the start of every session for context from other agents and machines. When you discover something important (architecture decisions, gotchas, debugging insights), append it to this file so other team members can benefit.");
+    sections.push(`This team (${sanitizeMarkerContent(team.name)}) shares a knowledge file at \`.teamrc/knowledge-${slugify(team.name)}.md\`.`);
+    sections.push("Read this file at the start of every session for context from prior work.");
+    sections.push("Subagents will also read and write to this file.");
     sections.push("");
 
     const block = [marker, ...sections, markerEnd].join("\n");
     upsertMarkerBlock(agentsMdPath, marker, markerEnd, block);
   }
 
+  private knowledgePath(): string {
+    return path.join(process.cwd(), ".teamrc", knowledgeFileName(this.teamSlug));
+  }
+
   readKnowledge(): string {
-    const p = path.join(process.cwd(), "teamrc-knowledge.md");
+    const p = this.knowledgePath();
     if (fs.existsSync(p)) return fs.readFileSync(p, "utf-8");
     return "";
   }
 
   writeKnowledge(content: string): void {
-    fs.writeFileSync(path.join(process.cwd(), "teamrc-knowledge.md"), content);
+    const p = this.knowledgePath();
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, content);
   }
 
   uninstall(_scope?: TeamScope): string[] {
@@ -354,6 +369,13 @@ ${body}
     const skillCount = cleanupSkillDirs(this.skillsDir());
     if (skillCount > 0) {
       actions.push(`Deleted ${skillCount} teamrc cursor skill(s)`);
+    }
+
+    // Clean up knowledge
+    const kp = this.knowledgePath();
+    if (fs.existsSync(kp)) {
+      fs.unlinkSync(kp);
+      actions.push(`Deleted ${kp}`);
     }
 
     // Clean up AGENTS.md marker block

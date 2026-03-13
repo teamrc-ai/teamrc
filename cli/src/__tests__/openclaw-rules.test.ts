@@ -290,14 +290,14 @@ describe("OpenClaw adapter (file-based agents)", () => {
 
   it("knowledge read/write works", async () => {
     const { OpenClawAdapter } = await import("../adapters/openclaw.js");
-    const adapter = new OpenClawAdapter();
+    const adapter = new OpenClawAdapter("test-team");
 
     assert.equal(adapter.readKnowledge(), "");
 
     adapter.writeKnowledge("# Knowledge\n\nSome content.");
     assert.equal(adapter.readKnowledge(), "# Knowledge\n\nSome content.");
 
-    const knowledgePath = path.join(tmpDir, ".openclaw", "teamrc-knowledge.md");
+    const knowledgePath = path.join(tmpDir, ".openclaw", "knowledge-test-team.md");
     assert.ok(fs.existsSync(knowledgePath), "Knowledge should be in ~/.openclaw/");
   });
 
@@ -354,7 +354,7 @@ describe("OpenClaw adapter (file-based agents)", () => {
 
   it("uninstall removes agent files, skills, config entries, and knowledge", async () => {
     const { OpenClawAdapter } = await import("../adapters/openclaw.js");
-    const adapter = new OpenClawAdapter();
+    const adapter = new OpenClawAdapter("test-team");
 
     const team = {
       name: "test-team",
@@ -390,7 +390,7 @@ describe("OpenClaw adapter (file-based agents)", () => {
     assert.equal(trcAgents.length, 0, "trc- agents should be removed from config");
 
     // Knowledge should be removed
-    assert.ok(!fs.existsSync(path.join(tmpDir, ".openclaw", "teamrc-knowledge.md")), "Knowledge should be removed");
+    assert.ok(!fs.existsSync(path.join(tmpDir, ".openclaw", "knowledge-test-team.md")), "Knowledge should be removed");
   });
 
   it("does not create .agents/ directory in project", async () => {

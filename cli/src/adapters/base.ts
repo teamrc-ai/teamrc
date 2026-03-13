@@ -213,6 +213,11 @@ export function slugify(name: string): string {
     .replace(/^-|-$/g, "");
 }
 
+/** Build the knowledge file name for a given team slug */
+export function knowledgeFileName(teamSlug: string): string {
+  return `knowledge-${teamSlug || "team"}.md`;
+}
+
 /** Escape a string for use in YAML double-quoted values */
 export function escapeYamlString(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
@@ -226,39 +231,39 @@ export function resolveAgentSkills(agent: TeamMember, team: TeamDefinition): Ski
     .filter((s): s is Skill => s !== undefined);
 }
 
-export function getAdapter(platform: string): PlatformAdapter {
+export function getAdapter(platform: string, teamSlug?: string): PlatformAdapter {
   const require = createRequire(import.meta.url);
 
   switch (platform) {
     case "claude-code": {
       const mod = require("./claude-code.js") as {
-        ClaudeCodeAdapter: new () => PlatformAdapter;
+        ClaudeCodeAdapter: new (teamSlug?: string) => PlatformAdapter;
       };
-      return new mod.ClaudeCodeAdapter();
+      return new mod.ClaudeCodeAdapter(teamSlug);
     }
     case "openclaw": {
       const mod = require("./openclaw.js") as {
-        OpenClawAdapter: new () => PlatformAdapter;
+        OpenClawAdapter: new (teamSlug?: string) => PlatformAdapter;
       };
-      return new mod.OpenClawAdapter();
+      return new mod.OpenClawAdapter(teamSlug);
     }
     case "cursor": {
       const mod = require("./cursor.js") as {
-        CursorAdapter: new () => PlatformAdapter;
+        CursorAdapter: new (teamSlug?: string) => PlatformAdapter;
       };
-      return new mod.CursorAdapter();
+      return new mod.CursorAdapter(teamSlug);
     }
     case "codex": {
       const mod = require("./codex.js") as {
-        CodexAdapter: new () => PlatformAdapter;
+        CodexAdapter: new (teamSlug?: string) => PlatformAdapter;
       };
-      return new mod.CodexAdapter();
+      return new mod.CodexAdapter(teamSlug);
     }
     case "gemini": {
       const mod = require("./gemini.js") as {
-        GeminiAdapter: new () => PlatformAdapter;
+        GeminiAdapter: new (teamSlug?: string) => PlatformAdapter;
       };
-      return new mod.GeminiAdapter();
+      return new mod.GeminiAdapter(teamSlug);
     }
     case "copilot":
     case "amazon-q":

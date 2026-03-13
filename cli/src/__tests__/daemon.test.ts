@@ -12,7 +12,7 @@ function makeTmpDir(): string {
 }
 
 function createMockAdapter(tmpDir: string): PlatformAdapter & { writtenTeams: TeamDefinition[] } {
-  const knowledgeFile = path.join(tmpDir, "teamrc-knowledge.md");
+  const knowledgeFile = path.join(tmpDir, ".teamrc", "knowledge-test-team.md");
   const writtenTeams: TeamDefinition[] = [];
 
   return {
@@ -23,7 +23,7 @@ function createMockAdapter(tmpDir: string): PlatformAdapter & { writtenTeams: Te
     readKnowledge: () => {
       try { return fs.readFileSync(knowledgeFile, "utf-8"); } catch { return ""; }
     },
-    writeKnowledge: (content: string) => fs.writeFileSync(knowledgeFile, content),
+    writeKnowledge: (content: string) => { fs.mkdirSync(path.dirname(knowledgeFile), { recursive: true }); fs.writeFileSync(knowledgeFile, content); },
     uninstall: () => [],
   };
 }

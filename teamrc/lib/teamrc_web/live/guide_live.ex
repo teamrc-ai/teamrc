@@ -1116,7 +1116,7 @@ defmodule TeamrcWeb.GuideLive do
             <span class="text-base-content/50">on-demand skills →</span>
             .claude/skills/trc-&#123;id&#125;/SKILL.md
           </div>
-          <div><span class="text-base-content/50">knowledge →</span> teamrc-knowledge.md</div>
+          <div><span class="text-base-content/50">knowledge →</span> .teamrc/knowledge-&#123;slug&#125;.md</div>
           <div><span class="text-base-content/50">team context →</span> updated in CLAUDE.md</div>
         </div>
       </div>
@@ -1153,7 +1153,7 @@ defmodule TeamrcWeb.GuideLive do
             <span class="text-base-content/50">on-demand skills →</span>
             .cursor/skills/trc-&#123;id&#125;/SKILL.md
           </div>
-          <div><span class="text-base-content/50">knowledge →</span> teamrc-knowledge.md</div>
+          <div><span class="text-base-content/50">knowledge →</span> .teamrc/knowledge-&#123;slug&#125;.md</div>
           <div><span class="text-base-content/50">routing →</span> .cursor/AGENTS.md</div>
         </div>
       </div>
@@ -1190,7 +1190,7 @@ defmodule TeamrcWeb.GuideLive do
             <span class="text-base-content/50">on-demand skills →</span>
             .agents/skills/trc-&#123;id&#125;/SKILL.md
           </div>
-          <div><span class="text-base-content/50">knowledge →</span> teamrc-knowledge.md</div>
+          <div><span class="text-base-content/50">knowledge →</span> .teamrc/knowledge-&#123;slug&#125;.md</div>
         </div>
       </div>
       <p class="text-sm text-base-content/70 leading-relaxed">
@@ -1220,7 +1220,7 @@ defmodule TeamrcWeb.GuideLive do
             <span class="text-base-content/50">skills →</span>
             .agents/skills/trc-&#123;id&#125;/SKILL.md
           </div>
-          <div><span class="text-base-content/50">knowledge →</span> teamrc-knowledge.md</div>
+          <div><span class="text-base-content/50">knowledge →</span> .teamrc/knowledge-&#123;slug&#125;.md</div>
           <div><span class="text-base-content/50">team context →</span> GEMINI.md</div>
         </div>
       </div>
@@ -1255,7 +1255,7 @@ defmodule TeamrcWeb.GuideLive do
             <span class="text-base-content/50">skills →</span>
             .agents/skills/trc-&#123;id&#125;/SKILL.md
           </div>
-          <div><span class="text-base-content/50">knowledge →</span> .agents/teamrc-knowledge.md</div>
+          <div><span class="text-base-content/50">knowledge →</span> ~/.openclaw/knowledge-&#123;slug&#125;.md</div>
           <div><span class="text-base-content/50">routing →</span> AGENTS.md</div>
         </div>
       </div>
@@ -2370,7 +2370,7 @@ defmodule TeamrcWeb.GuideLive do
         <p>
           Your agents write to the knowledge file during their work. In your team config,
           tell agents to append findings to
-          <.code_inline>.claude/teamrc-knowledge.md</.code_inline>
+          <.code_inline>.teamrc/knowledge-&lt;team-slug&gt;.md</.code_inline>
           (or wherever your platform stores it).
           On the next <.code_inline>teamrc push</.code_inline>, that content uploads to the relay.
           On <.code_inline>teamrc pull</.code_inline>, every machine gets the merged result.

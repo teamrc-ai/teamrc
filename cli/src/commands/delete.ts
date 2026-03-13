@@ -6,7 +6,7 @@ import * as p from "@clack/prompts";
 import { loadKeypair, toToken } from "../auth.js";
 import { TeamrcClient } from "../client.js";
 import { loadConfig, detectPlatforms, getRelayUrl } from "../config.js";
-import { getAdapter } from "../adapters/base.js";
+import { getAdapter, slugify } from "../adapters/base.js";
 import { readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import {
   globals,
@@ -203,8 +203,10 @@ export function registerDelete(program: Command): void {
 
       // Uninstall from each platform, passing scope when scoped delete
       const uninstallScope = deleteScope === "all" ? undefined : deleteScope;
+      const deleteTeamName = projectTeam?.name ?? globalTeam?.name;
+      const deleteTeamSlug = deleteTeamName ? slugify(deleteTeamName) : undefined;
       for (const pl of platforms) {
-        const adapter = getAdapter(pl);
+        const adapter = getAdapter(pl, deleteTeamSlug);
         const actions = adapter.uninstall(uninstallScope);
         for (const action of actions) {
           actionLines.push(action);

@@ -8,6 +8,7 @@ import {
   sanitizeText,
   slugify,
   escapeYamlString,
+  knowledgeFileName,
   listTrcFiles,
   deleteTrcFiles,
   resolveAgentsDir,
@@ -24,6 +25,12 @@ import {
 } from "./base.js";
 
 export class GeminiAdapter implements PlatformAdapter {
+  private teamSlug: string;
+
+  constructor(teamSlug?: string) {
+    this.teamSlug = teamSlug || "team";
+  }
+
   private baseDir(scope: TeamScope): string {
     if (scope === "global") {
       return path.join(os.homedir(), ".gemini");
@@ -198,7 +205,9 @@ export class GeminiAdapter implements PlatformAdapter {
       "Each member is defined as an agent in `.gemini/agents/`. Delegate tasks to them based on their roles.",
       "",
       "### Team Knowledge",
-      "Shared findings and decisions are stored in `teamrc-knowledge.md`. Read this file at the start of every session for context from other agents and machines. When you discover something important (architecture decisions, gotchas, debugging insights), append it to this file so other team members can benefit.",
+      `This team (${safeName}) shares a knowledge file at \`.teamrc/knowledge-${slugify(team.name)}.md\`.`,
+      "Read this file at the start of every session for context from prior work.",
+      "Subagents will also read and write to this file.",
     ];
 
     // Inline alwaysApply/globs skills (Gemini has no native rules)
@@ -232,9 +241,9 @@ export class GeminiAdapter implements PlatformAdapter {
 
   private knowledgePath(scope: TeamScope = "project"): string {
     if (scope === "project") {
-      return path.join(process.cwd(), "teamrc-knowledge.md");
+      return path.join(process.cwd(), ".teamrc", knowledgeFileName(this.teamSlug));
     }
-    return path.join(this.baseDir("global"), "teamrc-knowledge.md");
+    return path.join(os.homedir(), ".teamrc", knowledgeFileName(this.teamSlug));
   }
 
   readKnowledge(): string {
@@ -248,12 +257,9 @@ export class GeminiAdapter implements PlatformAdapter {
   }
 
   writeKnowledge(content: string): void {
-    const filePath = this.knowledgePath("project");
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(filePath, content);
+    const p = this.knowledgePath();
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, content);
   }
 
   uninstall(requestedScope?: TeamScope): string[] {
@@ -385,6 +391,6 @@ ${soulContent}
 ${skillsSection}
 ## Team Knowledge
 
-Shared findings and decisions are stored in \`teamrc-knowledge.md\`. Read this file at the start of every session for context from other agents and machines. When you discover something important, append it to that file.
+Before starting work, read \`.teamrc/knowledge-${slugify(teamName)}.md\` for shared context. Before finishing, append any useful findings as a \`## <topic>\` entry (3-5 lines). Do not delete existing entries.
 `;
 }

@@ -5,6 +5,7 @@ import {
   validateAgentName,
   sanitizeText,
   slugify,
+  knowledgeFileName,
   writeSkillDir,
   cleanupSkillDirs,
   resolveAgentSkills,
@@ -24,9 +25,15 @@ import {
  *
  * Skills:     ~/.openclaw/skills/trc-<id>/SKILL.md
  * Config:     ~/.openclaw/openclaw.json (agent registry)
- * Knowledge:  ~/.openclaw/teamrc-knowledge.md
+ * Knowledge:  ~/.openclaw/knowledge-<team-slug>.md
  */
 export class OpenClawAdapter implements PlatformAdapter {
+  private teamSlug: string;
+
+  constructor(teamSlug?: string) {
+    this.teamSlug = teamSlug || "team";
+  }
+
   private openclawDir(): string {
     return path.join(os.homedir(), ".openclaw");
   }
@@ -233,7 +240,7 @@ export class OpenClawAdapter implements PlatformAdapter {
   }
 
   private knowledgePath(): string {
-    return path.join(this.openclawDir(), "teamrc-knowledge.md");
+    return path.join(this.openclawDir(), knowledgeFileName(this.teamSlug));
   }
 
   readKnowledge(): string {
@@ -398,7 +405,7 @@ function buildAgentFile(
 
   lines.push("## Team Knowledge");
   lines.push("");
-  lines.push("Shared findings are stored in `~/.openclaw/teamrc-knowledge.md`. Read it at the start of every session. Append important discoveries so other team members benefit.");
+  lines.push(`Before starting work, read \`~/.openclaw/knowledge-${slugify(teamName)}.md\` for shared context. Before finishing, append any useful findings as a \`## <topic>\` entry (3-5 lines). Do not delete existing entries.`);
   lines.push("");
 
   return lines.join("\n");

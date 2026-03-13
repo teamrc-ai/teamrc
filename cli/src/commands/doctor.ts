@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import { loadKeypair } from "../auth.js";
 import { loadConfig, detectPlatforms, getRelayUrl } from "../config.js";
-import { getAdapter } from "../adapters/base.js";
+import { getAdapter, slugify } from "../adapters/base.js";
 import { readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 
 export function registerDoctor(program: Command): void {
@@ -78,7 +78,7 @@ export function registerDoctor(program: Command): void {
           // ignore parse errors for global yaml in doctor
         }
         const doctorPlatform = yamlTeam?.platforms?.[0] ?? doctorGlobal?.platforms?.[0] ?? detectPlatforms()[0] ?? "claude-code";
-        const adapter = getAdapter(doctorPlatform);
+        const adapter = getAdapter(doctorPlatform, yamlTeam?.name ? slugify(yamlTeam.name) : undefined);
         const platformTeam = adapter.readTeam();
         if (platformTeam) {
           const yamlCount = yamlTeam.members.length;

@@ -3,7 +3,7 @@ import * as p from "@clack/prompts";
 import { TeamrcClient, remoteTeamToDefinition } from "../client.js";
 import { toToken } from "../auth.js";
 import { getRelayUrl } from "../config.js";
-import { getAdapter, type TeamScope } from "../adapters/base.js";
+import { getAdapter, slugify, type TeamScope } from "../adapters/base.js";
 import { readTeamYaml, writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
 import {
@@ -55,7 +55,7 @@ export function registerPull(program: Command): void {
           s.stop(`Pulled "${team.name}" (${team.members.length} agents, read-only).`);
 
           for (const pl of platforms) {
-            const a = getAdapter(pl);
+            const a = getAdapter(pl, slugify(team.name));
             a.writeTeam(team, effectiveScope(pl, scope));
             p.log.step(`Applied to ${pl} (${effectiveScope(pl, scope)} scope).`);
           }
@@ -123,7 +123,7 @@ export function registerPull(program: Command): void {
 
           // Apply to platforms
           for (const pl of platforms) {
-            const a = getAdapter(pl);
+            const a = getAdapter(pl, slugify(team.name));
             a.writeTeam(team, effectiveScope(pl, scope));
             p.log.step(`Applied to ${pl} (${effectiveScope(pl, scope)} scope).`);
           }

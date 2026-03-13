@@ -16,7 +16,7 @@ import {
   detectInstalledPlatforms,
   getRelayUrl,
 } from "./config.js";
-import { getAdapter, VALID_PLATFORMS, SUPPORTED_PLATFORMS, UNIMPLEMENTED_PLATFORMS, GLOBAL_ONLY_PLATFORMS, PROJECT_ONLY_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
+import { getAdapter, slugify, VALID_PLATFORMS, SUPPORTED_PLATFORMS, UNIMPLEMENTED_PLATFORMS, GLOBAL_ONLY_PLATFORMS, PROJECT_ONLY_PLATFORMS, type TeamScope, type TeamDefinition, type PlatformAdapter } from "./adapters/base.js";
 import { resolveTeam, listTeams, type TeamTemplate } from "./catalog.js";
 import { readTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML } from "./team-yaml.js";
 import type { TeamrcConfig } from "./config.js";
@@ -225,7 +225,7 @@ export function requireTeamContext(): TeamContext {
       config,
       client,
       platforms,
-      adapters: platforms.map((pl) => getAdapter(pl)),
+      adapters: platforms.map((pl) => getAdapter(pl, slugify(yamlTeam.name))),
     };
   }
 
@@ -247,7 +247,7 @@ export function requireTeamContext(): TeamContext {
       config,
       client,
       platforms,
-      adapters: platforms.map((pl) => getAdapter(pl)),
+      adapters: platforms.map((pl) => getAdapter(pl, slugify(globalTeam.name))),
     };
   }
 

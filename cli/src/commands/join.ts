@@ -4,7 +4,7 @@ import * as p from "@clack/prompts";
 import { toToken } from "../auth.js";
 import { TeamrcClient, remoteTeamToDefinition } from "../client.js";
 import { getRelayUrl, saveConfig } from "../config.js";
-import { getAdapter } from "../adapters/base.js";
+import { getAdapter, slugify } from "../adapters/base.js";
 import { writeTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import {
   isNonInteractive,
@@ -58,7 +58,7 @@ export function registerJoin(program: Command): void {
         s2.start("Applying to detected platforms...");
         const appliedLines: string[] = [];
         for (const pl of platforms) {
-          const adapter = getAdapter(pl);
+          const adapter = getAdapter(pl, slugify(teamDef.name));
           adapter.writeTeam(teamDef, effectiveScope(pl, scope));
           const skillCount = teamDef.skills?.length ?? 0;
           const detail = skillCount > 0
@@ -71,7 +71,7 @@ export function registerJoin(program: Command): void {
 
         // Create team knowledge file and merge from relay (unless --no-knowledge)
         if (opts.knowledge !== false) {
-          const joinAdapter = getAdapter(platforms[0]);
+          const joinAdapter = getAdapter(platforms[0], slugify(teamDef.name));
           if (!joinAdapter.readKnowledge()) {
             joinAdapter.writeKnowledge(`# Team Knowledge\n\nShared findings and decisions across team members.\n`);
           }

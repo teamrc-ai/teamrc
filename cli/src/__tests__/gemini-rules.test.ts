@@ -175,7 +175,7 @@ describe("Gemini CLI adapter", () => {
 
   it("supports knowledge read/write", async () => {
     const { GeminiAdapter } = await import("../adapters/gemini.js");
-    const adapter = new GeminiAdapter();
+    const adapter = new GeminiAdapter("test-team");
 
     // Initially empty
     assert.equal(adapter.readKnowledge(), "");
@@ -187,7 +187,7 @@ describe("Gemini CLI adapter", () => {
 
   it("uninstall cleans agent files, skills, knowledge, and GEMINI.md", async () => {
     const { GeminiAdapter } = await import("../adapters/gemini.js");
-    const adapter = new GeminiAdapter();
+    const adapter = new GeminiAdapter("test-team");
 
     adapter.writeTeam({
       name: "test-team",

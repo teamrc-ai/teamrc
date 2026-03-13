@@ -3,7 +3,7 @@ import * as p from "@clack/prompts";
 import { toToken } from "../auth.js";
 import { TeamrcClient, remoteTeamToDefinition } from "../client.js";
 import { getRelayUrl } from "../config.js";
-import { getAdapter } from "../adapters/base.js";
+import { getAdapter, slugify } from "../adapters/base.js";
 import { writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import {
   requirePlatforms,
@@ -63,7 +63,7 @@ export function registerClone(program: Command): void {
 
         // Apply to each platform
         for (const pl of platforms) {
-          const adapter = getAdapter(pl);
+          const adapter = getAdapter(pl, slugify(teamDef.name));
           adapter.writeTeam(teamDef, effectiveScope(pl, scope));
           p.log.step(`${pl} configured.`);
         }

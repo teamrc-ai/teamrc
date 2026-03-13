@@ -8,6 +8,7 @@ import {
   sanitizeText,
   slugify,
   escapeYamlString,
+  knowledgeFileName,
   listTrcFiles,
   deleteTrcFiles,
   resolveAgentsDir,
@@ -24,9 +25,11 @@ import {
 
 export class ClaudeCodeAdapter implements PlatformAdapter {
   private claudeDir: string;
+  private teamSlug: string;
 
-  constructor() {
+  constructor(teamSlug?: string) {
     this.claudeDir = path.join(os.homedir(), ".claude");
+    this.teamSlug = teamSlug || "team";
   }
 
   private agentsDir(scope: TeamScope): string {
@@ -257,9 +260,9 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
 
   private knowledgePath(scope: TeamScope = "project"): string {
     if (scope === "project") {
-      return path.join(process.cwd(), "teamrc-knowledge.md");
+      return path.join(process.cwd(), ".teamrc", knowledgeFileName(this.teamSlug));
     }
-    return path.join(this.claudeDir, "teamrc-knowledge.md");
+    return path.join(os.homedir(), ".teamrc", knowledgeFileName(this.teamSlug));
   }
 
   readKnowledge(): string {
@@ -273,12 +276,9 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
   }
 
   writeKnowledge(content: string): void {
-    const filePath = this.knowledgePath("project");
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(filePath, content);
+    const p = this.knowledgePath();
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, content);
   }
 
   uninstall(requestedScope?: TeamScope): string[] {
@@ -444,7 +444,7 @@ ${teammates}
 
 ## Team Knowledge
 
-Shared findings and decisions are stored in \`.claude/teamrc-knowledge.md\`. Read this file at the start of every session for context from other agents and machines. When you discover something important, append it to that file.
+Before starting work, read \`.teamrc/knowledge-${slugify(teamName)}.md\` for shared context. Before finishing, append any useful findings as a \`## <topic>\` entry (3-5 lines). Do not delete existing entries.
 `;
 }
 
@@ -465,6 +465,8 @@ ${memberLines}
 Each member is defined as a subagent in \`.claude/agents/\`. Delegate tasks to them based on their roles.
 
 ### Team Knowledge
-Shared findings and decisions are stored in \`.claude/teamrc-knowledge.md\`. Read this file at the start of every session for context from other agents and machines. When you discover something important (architecture decisions, gotchas, debugging insights), append it to this file so other team members can benefit.
+This team (${team.name}) shares a knowledge file at \`.teamrc/knowledge-${slugify(team.name)}.md\`.
+Read this file at the start of every session for context from prior work.
+Subagents will also read and write to this file.
 <!-- /teamrc -->`;
 }

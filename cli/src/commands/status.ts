@@ -5,7 +5,7 @@ import { loadKeypair } from "../auth.js";
 import { TeamrcClient } from "../client.js";
 import { computeTeamHashes } from "../sync-hash.js";
 import { loadConfig, detectPlatforms, getRelayUrl } from "../config.js";
-import { getAdapter } from "../adapters/base.js";
+import { getAdapter, slugify } from "../adapters/base.js";
 import { readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import { readSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
 import {
@@ -54,7 +54,7 @@ export function registerStatus(program: Command): void {
       const teamId = activeTeam?.teamId ?? null;
       const platformStr = activeTeam?.platforms?.join(",") ?? detectPlatforms()[0] ?? "claude-code";
       const activePlatform = platformStr.split(",")[0];
-      const adapter = getAdapter(activePlatform);
+      const adapter = getAdapter(activePlatform, activeTeam?.name ? slugify(activeTeam.name) : undefined);
       const statusRelayUrl = getRelayUrl(undefined, activeTeam?.relay);
 
       // Migrate legacy syncHash fields from YAML to state.json

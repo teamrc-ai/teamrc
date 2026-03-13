@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import { remoteTeamToDefinition, SyncConflictError } from "../client.js";
 import { computeTeamHashes } from "../sync-hash.js";
-import { getAdapter, type TeamScope } from "../adapters/base.js";
+import { getAdapter, slugify, type TeamScope } from "../adapters/base.js";
 import { writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
 import {
@@ -128,7 +128,7 @@ export function registerSync(program: Command): void {
             syncHashKnowledge: serverHead.knowledge_hash,
           });
           for (const pl of platforms) {
-            const a = getAdapter(pl);
+            const a = getAdapter(pl, slugify(remoteDef.name));
             a.writeTeam(remoteDef, effectiveScope(pl, scope));
           }
           s.stop("Pulled and applied remote changes.");
@@ -181,7 +181,7 @@ export function registerSync(program: Command): void {
             syncHashKnowledge: newHead.knowledge_hash,
           });
           for (const pl of platforms) {
-            const a = getAdapter(pl);
+            const a = getAdapter(pl, slugify(remoteDef.name));
             a.writeTeam(remoteDef, effectiveScope(pl, scope));
           }
           s.stop("Synced knowledge and pulled.");
@@ -218,7 +218,7 @@ export function registerSync(program: Command): void {
           syncHashKnowledge: serverHead.knowledge_hash,
         });
         for (const pl of platforms) {
-          const a = getAdapter(pl);
+          const a = getAdapter(pl, slugify(remoteDef.name));
           a.writeTeam(remoteDef, effectiveScope(pl, scope));
         }
         s.stop("Pulled remote changes.");

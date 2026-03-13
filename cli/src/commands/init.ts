@@ -6,7 +6,7 @@ import * as p from "@clack/prompts";
 import { toToken } from "../auth.js";
 import { TeamrcClient } from "../client.js";
 import { getRelayUrl } from "../config.js";
-import { getAdapter } from "../adapters/base.js";
+import { getAdapter, slugify } from "../adapters/base.js";
 import { templateToTeamDefinition } from "../catalog.js";
 import { writeTeamYaml, readTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import { sanitizeTeamDefinition } from "../client.js";
@@ -109,7 +109,7 @@ export function registerInit(program: Command): void {
       }
 
       // Create team on relay first — don't write local files until relay succeeds
-      const firstAdapter = getAdapter(platforms[0]);
+      const firstAdapter = getAdapter(platforms[0], slugify(team.name));
       const s = p.spinner();
       const client = new TeamrcClient(relayUrl, kp.privateKey, token);
       try {
@@ -130,7 +130,7 @@ export function registerInit(program: Command): void {
         // Apply to each platform's native format
         const platformSummary: string[] = [];
         for (const pl of platforms) {
-          const adapter = getAdapter(pl);
+          const adapter = getAdapter(pl, slugify(team.name));
           adapter.writeTeam(team, effectiveScope(pl, scope));
           platformSummary.push(pl);
         }
