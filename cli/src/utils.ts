@@ -362,7 +362,6 @@ export async function deviceAuthFlow(client: TeamrcClient, machineName: string, 
 
           p.log.success(`Signed in as ${result.email}`);
           p.log.info(`Machine "${machineName}" linked.`);
-          p.log.info(`${result.team_count ?? 0} team(s) across ${result.machine_count ?? 0} machine(s).`);
 
           // Save account info to config
           const config = loadConfig();
