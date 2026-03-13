@@ -194,7 +194,13 @@ defmodule Teamrc.Teams do
     case result do
       nil -> :error
       %Team{} = team ->
-        map = team_to_map(team) |> Map.delete("knowledge")
+        map =
+          team_to_map(team)
+          |> Map.delete("knowledge")
+          |> Map.update("skills", [], fn skills ->
+            Enum.map(skills, &Map.drop(&1, ["body"]))
+          end)
+
         {:ok, map}
     end
   end

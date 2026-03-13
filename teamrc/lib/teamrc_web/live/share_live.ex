@@ -30,8 +30,7 @@ defmodule TeamrcWeb.ShareLive do
          assign(socket,
            page_title: "Not Found",
            not_found: true,
-           team: nil,
-           clone_token: clone_token
+           team: nil
          ), layout: false}
     end
   end
