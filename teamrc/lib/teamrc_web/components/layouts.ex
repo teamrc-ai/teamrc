@@ -80,6 +80,12 @@ defmodule TeamrcWeb.Layouts do
                 <%= @current_user.email %>
               </span>
             </div>
+            <a
+              href={~p"/users/settings"}
+              class="trc-focus hidden sm:inline-flex rounded-md px-2 py-1.5 text-xs font-medium text-base-content/50 hover:text-base-content/80 transition-colors"
+            >
+              Settings
+            </a>
             <.link
               href={~p"/users/log-out"}
               method="delete"
@@ -143,6 +149,12 @@ defmodule TeamrcWeb.Layouts do
               <%= @current_user.email %>
             </span>
           </div>
+          <a
+            href={~p"/users/settings"}
+            class="trc-focus block rounded-md px-3 py-2 text-sm font-medium text-base-content/70 hover:text-base-content/90 hover:bg-base-200/60 transition-colors"
+          >
+            Settings
+          </a>
           <.link
             href={~p"/users/log-out"}
             method="delete"
