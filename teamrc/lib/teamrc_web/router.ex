@@ -102,6 +102,7 @@ defmodule TeamrcWeb.Router do
       live "/guide/cli", GuideLive, :cli
       live "/guide/platforms", GuideLive, :platforms
       live "/guide/sync", GuideLive, :sync
+      live "/guide/sharing", GuideLive, :sharing
       live "/guide/config", GuideLive, :config
       live "/guide/web-ui", GuideLive, :web_ui
       live "/guide/faq", GuideLive, :faq
