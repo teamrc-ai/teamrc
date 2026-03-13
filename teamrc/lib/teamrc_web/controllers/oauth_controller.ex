@@ -51,6 +51,11 @@ defmodule TeamrcWeb.OAuthController do
           |> UserAuth.log_in_user(user)
         end
 
+      {:error, :email_already_exists} ->
+        conn
+        |> put_flash(:error, "An account with that email already exists. Please sign in with your original method.")
+        |> redirect(to: ~p"/users/log-in")
+
       {:error, :oauth_provider_mismatch} ->
         conn
         |> put_flash(:error, "That email is already associated with another sign-in method. Please use your original sign-in method.")

@@ -85,6 +85,13 @@ defmodule Teamrc.AccountsTest do
                Accounts.find_or_create_oauth_user("google", "333", %{email: email})
     end
 
+    test "returns error for existing email registered via email/password" do
+      user = user_fixture()
+
+      assert {:error, :email_already_exists} =
+               Accounts.find_or_create_oauth_user("github", "555", %{email: user.email})
+    end
+
     test "returns error for nil email" do
       assert {:error, :missing_email} =
                Accounts.find_or_create_oauth_user("github", "444", %{email: nil})

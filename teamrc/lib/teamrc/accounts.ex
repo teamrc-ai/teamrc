@@ -83,9 +83,9 @@ defmodule Teamrc.Accounts do
   @doc """
   Finds or creates a user from OAuth callback data.
 
-  If a user with the email exists but has a different OAuth provider,
-  the login is rejected to prevent account takeover via email squatting.
-  Only links OAuth if the user has no provider set yet.
+  If a user with the email already exists (whether via email/password
+  or a different OAuth provider), the login is rejected to prevent
+  account takeover via email squatting.
   """
   def find_or_create_oauth_user(provider, uid, info) when is_binary(provider) and is_binary(uid) do
     email = info[:email] || info["email"]
@@ -130,17 +130,8 @@ defmodule Teamrc.Accounts do
               Repo.rollback(changeset)
           end
 
-        %User{provider: nil} = user ->
-          case user
-               |> Ecto.Changeset.change(%{
-                 provider: provider,
-                 provider_uid: uid,
-                 avatar_url: avatar_url
-               })
-               |> Repo.update() do
-            {:ok, user} -> user
-            {:error, changeset} -> Repo.rollback(changeset)
-          end
+        %User{provider: nil} ->
+          Repo.rollback(:email_already_exists)
 
         %User{provider: ^provider, provider_uid: ^uid} = user ->
           user
