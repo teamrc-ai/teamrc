@@ -156,6 +156,4 @@ Point the CLI at your relay with `TEAMRC_RELAY=http://your-host:4000` or set `re
 
 ## Security
 
-Treat `.teamrc.yaml` as a trusted configuration file (like `.env`). The `soul` field controls agent behavior, so review YAML changes in PRs just as you would review code changes.
-
 See the security test suites for coverage of auth, ownership, and input validation.
