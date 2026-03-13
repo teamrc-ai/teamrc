@@ -9,6 +9,7 @@ defmodule TeamrcWeb.GuideLive do
     {:platforms, "Platforms", "/guide/platforms"},
     {:sync, "Syncing", "/guide/sync"},
     {:sharing, "Sharing", "/guide/sharing"},
+    {:access, "Access & Permissions", "/guide/access"},
     {:web_ui, "Web UI Tour", "/guide/web-ui"},
     {:config, "Configuration", "/guide/config"},
     {:faq, "FAQ", "/guide/faq"}
@@ -65,6 +66,8 @@ defmodule TeamrcWeb.GuideLive do
             <.page_sync />
           <% :sharing -> %>
             <.page_sharing />
+          <% :access -> %>
+            <.page_access />
           <% :web_ui -> %>
             <.page_web_ui />
           <% :config -> %>
@@ -418,6 +421,20 @@ defmodule TeamrcWeb.GuideLive do
       </p>
     </div>
 
+    <.callout title="Terminology">
+      <div class="space-y-1.5 text-sm text-base-content/70">
+        <p>
+          <span class="font-semibold">Member</span> = an AI agent on your team (e.g. architect, reviewer, frontend-dev).
+        </p>
+        <p>
+          <span class="font-semibold">Participant</span> = a human user who joined the team via an invite code.
+        </p>
+        <p>
+          <span class="font-semibold">Owner</span> = the human user who created or claimed the team. Controls sharing and visibility.
+        </p>
+      </div>
+    </.callout>
+
     <%!-- Members --%>
     <section id="members" class="scroll-mt-20 space-y-3">
       <.section_heading id="members" title="Members" />
@@ -580,7 +597,8 @@ defmodule TeamrcWeb.GuideLive do
     <section id="instructions" class="scroll-mt-20 space-y-3">
       <.section_heading id="instructions" title="Instructions" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        Each agent can have <span class="font-semibold">instructions</span>:
+        Each agent can have <span class="font-semibold">instructions</span>
+        (the <.code_inline>soul</.code_inline> field in <.code_inline>.teamrc.yaml</.code_inline>):
         a free-form markdown block that tells the agent who it is, how it should behave, and what
         it should focus on. Think of it as the agent's personality and expertise description.
       </p>
@@ -699,6 +717,7 @@ defmodule TeamrcWeb.GuideLive do
       {"#getting-started", "Core setup commands"},
       {"#sync-commands", "Sync commands"},
       {"#team-management", "Team management"},
+      {"#catalog-commands", "Catalog"},
       {"#account-commands", "Account & machine management"},
       {"#background", "Background sync"},
       {"#workflows", "Common workflows"}
@@ -867,7 +886,7 @@ defmodule TeamrcWeb.GuideLive do
         flags={[
           {"--ttl <hours>", "Dashboard link expiry in hours (default: 24)"}
         ]}
-        details="Creates a short-lived URL for the current team and opens it in your browser. Use this to manage the team in the web UI. Use invite instead when you want to share access with another machine or teammate."
+        details="Creates a temporary invite code under the hood and builds a dashboard URL from it, so the link grants join access to the team. Opens the URL in your browser. Use this to manage the team in the web UI. Use invite instead when you want to share access with another machine or teammate."
       />
 
       <.cli_command
@@ -896,6 +915,54 @@ defmodule TeamrcWeb.GuideLive do
         usage="teamrc import <platform>"
         flags={[]}
         details="Reads existing agent configuration from a platform's native files and converts them into a .teamrc.yaml. Supported platforms: claude-code, cursor, codex, gemini, openclaw. Useful when migrating agents you've already set up manually."
+      />
+
+      <.cli_command
+        name="add-member"
+        desc="Add a member to the current team"
+        usage="teamrc add-member"
+        flags={[
+          {"--name <name>", "Member name"},
+          {"--role <role>", "Member role description"},
+          {"--template <id>", "Start from a catalog agent template"}
+        ]}
+        details="Adds a new AI agent to the team. Without flags, launches an interactive wizard that lets you pick from the catalog or create a custom member. The new member is added to .teamrc.yaml and pushed to the relay."
+      />
+
+      <.cli_command
+        name="share"
+        desc="Toggle public sharing for a team"
+        usage="teamrc share"
+        flags={[
+          {"--off", "Make the team private again"}
+        ]}
+        details="Makes the current team publicly visible. Anyone with the share link can view the team composition and clone it. Requires a linked account (run teamrc login first) and team ownership. Run with --off to make the team private again."
+      />
+    </section>
+
+    <%!-- Catalog --%>
+    <section class="space-y-4">
+      <.section_heading id="catalog-commands" title="Catalog" />
+
+      <.cli_command
+        name="list-templates"
+        desc="List available team templates"
+        usage="teamrc list-templates"
+        flags={[
+          {"--json", "Output as JSON"}
+        ]}
+        details="Displays all available team templates from the catalog. Each template includes a name, description, and the agents and skills it contains. Use a template ID with teamrc init --team to start from a template."
+      />
+
+      <.cli_command
+        name="list-agents"
+        desc="List available agent templates"
+        usage="teamrc list-agents"
+        flags={[
+          {"--json", "Output as JSON"},
+          {"--category <category>", "Filter by category (e.g. development, infrastructure, quality)"}
+        ]}
+        details="Displays all available agent templates from the catalog. Each template includes a name, role, category, and pre-configured instructions and skills. Use a template ID with teamrc add-member --template to add a catalog agent."
       />
     </section>
 
@@ -929,6 +996,14 @@ defmodule TeamrcWeb.GuideLive do
         usage="teamrc doctor"
         flags={[]}
         details="Validates your entire setup: checks the keypair exists, config is valid, relay is reachable, and platforms are detected. Run this when something isn't working."
+      />
+
+      <.cli_command
+        name="claim"
+        desc="Claim ownership of a team"
+        usage="teamrc claim <secret>"
+        flags={[]}
+        details="Associates your account as the owner of a team created via the CLI. The ownership token (trc_ocs_...) is displayed once during teamrc init. Save it like a recovery code. Requires a linked account (run teamrc login first). Once claimed, the token is invalidated and cannot be reused."
       />
 
       <.cli_command
@@ -1405,39 +1480,48 @@ defmodule TeamrcWeb.GuideLive do
             <p class="text-base-content/70 text-xs mt-0.5">
               Reads
               <.code_inline>.teamrc.yaml</.code_inline>
-              and the knowledge file from disk.
+              and the knowledge file from disk, then computes content hashes.
             </p>
           </div>
         </div>
         <div class="flex items-start gap-3 text-sm">
           <span class="text-primary/80 font-mono font-bold shrink-0">2</span>
           <div>
-            <p class="font-semibold">Push to relay</p>
+            <p class="font-semibold">Check server state</p>
             <p class="text-base-content/70 text-xs mt-0.5">
-              Sends the team definition and knowledge to the relay server.
+              Fetches the relay's content hashes (members, skills, knowledge).
             </p>
           </div>
         </div>
         <div class="flex items-start gap-3 text-sm">
           <span class="text-primary/80 font-mono font-bold shrink-0">3</span>
           <div>
-            <p class="font-semibold">Pull from relay</p>
+            <p class="font-semibold">Compare</p>
             <p class="text-base-content/70 text-xs mt-0.5">
-              Fetches the latest team state (which may include changes from other machines or the web UI).
+              Determines if local changed, server changed, both, or neither since the last sync.
             </p>
           </div>
         </div>
         <div class="flex items-start gap-3 text-sm">
           <span class="text-primary/80 font-mono font-bold shrink-0">4</span>
           <div>
-            <p class="font-semibold">Merge knowledge</p>
+            <p class="font-semibold">Transfer</p>
             <p class="text-base-content/70 text-xs mt-0.5">
-              Appends any new lines from the remote knowledge to your local copy (deduped).
+              If only local changed, pushes. If only server changed, pulls. If both changed, pulls remote first.
             </p>
           </div>
         </div>
         <div class="flex items-start gap-3 text-sm">
           <span class="text-primary/80 font-mono font-bold shrink-0">5</span>
+          <div>
+            <p class="font-semibold">Merge knowledge</p>
+            <p class="text-base-content/70 text-xs mt-0.5">
+              Append-only dedup of local and remote knowledge, so insights from all machines are combined.
+            </p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3 text-sm">
+          <span class="text-primary/80 font-mono font-bold shrink-0">6</span>
           <div>
             <p class="font-semibold">Apply to platforms</p>
             <p class="text-base-content/70 text-xs mt-0.5">
@@ -1452,21 +1536,29 @@ defmodule TeamrcWeb.GuideLive do
     <section class="space-y-3">
       <.section_heading id="conflicts" title="Conflict resolution" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        We deliberately kept this simple: <span class="font-semibold">last write wins</span>.
-        The relay always stores the most recent version. No three-way merge, no conflict markers.
+        Sync uses <span class="font-semibold">hash-based conflict detection</span>. Each push includes
+        a <.code_inline>base_hash</.code_inline> so the relay can tell whether the server state has
+        changed since your last sync. The CLI compares content hashes for members, skills, and
+        knowledge independently to determine who changed what.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        This works well in practice. Agent config is small, declarative, and changes infrequently.
-        If you're worried about stepping on someone's changes, run
-        <.code_inline>teamrc diff</.code_inline>
-        before pushing.
+        If <span class="font-semibold">only knowledge</span> differs on both sides, the CLI performs a
+        server-side merge using append-only deduplication. Knowledge from different machines is always
+        combined, never overwritten.
+      </p>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        If <span class="font-semibold">members or skills</span> differ on both sides, the CLI pulls the
+        remote version and overwrites your local <.code_inline>.teamrc.yaml</.code_inline>.
+        A warning is printed so you know the remote version took priority. To restore your
+        local changes, edit <.code_inline>.teamrc.yaml</.code_inline> and run
+        <.code_inline>teamrc push</.code_inline>.
+      </p>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        To see what's different before syncing, use
+        <.code_inline>teamrc diff</.code_inline>.
         If something goes wrong,
         <.code_inline>teamrc pull</.code_inline>
         gets you back to the relay's version.
-      </p>
-      <p class="text-sm text-base-content/70 leading-relaxed">
-        <span class="font-semibold">Knowledge</span> is the one exception. It uses append-only merge,
-        so insights from different machines always get combined, never overwritten.
       </p>
     </section>
 
@@ -1603,8 +1695,10 @@ defmodule TeamrcWeb.GuideLive do
     <section class="space-y-3">
       <.section_heading id="make-public" title="Making a team public" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        Sharing requires a linked account. If you haven't already, run
-        <.code_inline>teamrc login</.code_inline> first.
+        Sharing via the CLI requires a linked account. Run
+        <.code_inline>teamrc login</.code_inline> first to link your machine to an account.
+        If you created the team through the web UI, your browser session already has the
+        required ownership, so you can share without a separate account.
       </p>
 
       <.sub_heading id="share-cli" title="From the CLI" />
@@ -1683,13 +1777,152 @@ defmodule TeamrcWeb.GuideLive do
         <li>Skill IDs and descriptions</li>
         <li>Skill assignments per agent</li>
       </ul>
-      <.callout title="Knowledge files are never shared">
+      <.callout title="Knowledge and skill bodies are never shared">
         <p class="text-sm text-base-content/70">
           Knowledge files are private to your team and are not included on the public share page
           or in cloned copies. They often contain project-specific context, so they stay with the
-          machines that created them.
+          machines that created them. Skill bodies (the full instruction text) are also redacted
+          from public previews. Viewers see skill IDs and descriptions only.
         </p>
       </.callout>
+    </section>
+    """
+  end
+
+  # ===========================================================================
+  # Page: Access & Permissions
+  # ===========================================================================
+
+  defp page_access(assigns) do
+    ~H"""
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight mb-1">Access & Permissions</h1>
+      <p class="text-sm text-base-content/60">
+        How ownership, participation, and visibility work in teamrc.
+      </p>
+    </div>
+
+    <.callout title="Terminology">
+      <div class="space-y-1.5 text-sm text-base-content/70">
+        <p>
+          <span class="font-semibold">Member</span>
+          = an AI agent on your team (e.g. architect, reviewer, frontend-dev).
+        </p>
+        <p>
+          <span class="font-semibold">Participant</span>
+          = a human user who joined the team via an invite code.
+        </p>
+        <p>
+          <span class="font-semibold">Owner</span>
+          = the human user who created or claimed the team. Controls sharing and visibility.
+        </p>
+      </div>
+    </.callout>
+
+    <.page_toc items={[
+      {"#access-model", "Access model"},
+      {"#ownership", "Ownership"},
+      {"#creator-sessions", "Creator sessions"}
+    ]} />
+
+    <%!-- Access model --%>
+    <section class="space-y-3">
+      <.section_heading id="access-model" title="Access model" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        There are three roles that determine what a human user can do with a team:
+      </p>
+      <div class="rounded-lg border border-base-300 bg-base-100 overflow-hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-base-300 bg-base-200/30">
+              <th class="text-left px-4 py-2.5 font-semibold text-xs text-base-content/70">Role</th>
+              <th class="text-left px-4 py-2.5 font-semibold text-xs text-base-content/70">
+                How you get it
+              </th>
+              <th class="text-left px-4 py-2.5 font-semibold text-xs text-base-content/70">
+                What you can do
+              </th>
+            </tr>
+          </thead>
+          <tbody class="text-base-content/70">
+            <tr class="border-b border-base-300/60">
+              <td class="px-4 py-2.5 font-semibold whitespace-nowrap">Owner</td>
+              <td class="px-4 py-2.5">
+                Create team via web UI (signed in), or
+                <.code_inline>teamrc claim &lt;secret&gt;</.code_inline>
+              </td>
+              <td class="px-4 py-2.5">
+                Full control: edit agents/skills, share, toggle visibility, manage invites
+              </td>
+            </tr>
+            <tr class="border-b border-base-300/60">
+              <td class="px-4 py-2.5 font-semibold whitespace-nowrap">Participant</td>
+              <td class="px-4 py-2.5">
+                <.code_inline>teamrc join &lt;invite-code&gt;</.code_inline>
+              </td>
+              <td class="px-4 py-2.5">
+                Edit agents/skills, push/pull/sync, generate invites
+              </td>
+            </tr>
+            <tr>
+              <td class="px-4 py-2.5 font-semibold whitespace-nowrap">Viewer</td>
+              <td class="px-4 py-2.5">Visit a public team's share link</td>
+              <td class="px-4 py-2.5">Read-only view, can clone</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <%!-- Ownership --%>
+    <section class="space-y-3">
+      <.section_heading id="ownership" title="Ownership" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        Teams don't require an owner. You can create a team via the CLI, use it across machines,
+        and never claim ownership. Everything works: syncing, invites, editing agents and skills.
+      </p>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        Ownership only matters for <span class="font-semibold">sharing</span>. To make a team public
+        (or private again), you need to be the owner. This prevents participants from accidentally
+        exposing a team they don't control.
+      </p>
+
+      <.sub_heading id="claiming" title="Claiming a CLI-created team" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        When you create a team via <.code_inline>teamrc init</.code_inline>, the CLI displays
+        an ownership claim secret (<.code_inline>trc_ocs_...</.code_inline>) once.
+        Save it like a recovery code. To claim the team later:
+      </p>
+      <.terminal_block title="terminal">
+        <div class="space-y-1.5">
+          <.cmd_line cmd="npx @teamrc/cli login" comment="# link your machine to an account first" />
+          <.cmd_line cmd="npx @teamrc/cli claim trc_ocs_..." comment="# claim ownership" />
+        </div>
+      </.terminal_block>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        Once claimed, the token is invalidated and cannot be reused. The team is now tied to your account.
+      </p>
+
+      <.sub_heading id="web-ownership" title="Web-created teams" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        If you create a team through the web UI while signed in, you are automatically assigned
+        as the owner. No claim step needed.
+      </p>
+    </section>
+
+    <%!-- Creator sessions --%>
+    <section class="space-y-3">
+      <.section_heading id="creator-sessions" title="Creator sessions" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        When you create a team through the web UI without signing in, your browser session
+        gets temporary owner-level access to that team. This lets you edit agents, assign skills,
+        and generate invites immediately after creation, without needing an account.
+      </p>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        This session is tied to your browser. If you clear cookies or switch browsers, you lose
+        access. To get permanent access, either sign in and claim the team, or join it from the
+        CLI with an invite code.
+      </p>
     </section>
     """
   end
@@ -1783,8 +2016,9 @@ defmodule TeamrcWeb.GuideLive do
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
         You can toggle a team to <span class="font-semibold">public</span> if you want anyone with the
-        link to view and clone the config. Public teams show a read-only view of members,
-        skills, and knowledge. Invites, participants, and edit controls stay hidden from non-participants.
+        link to view and clone the config. Public teams show a read-only view of member names, roles,
+        instructions, and skill IDs/descriptions. Knowledge and skill bodies are redacted.
+        Invites, participants, and edit controls stay hidden from non-participants.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
         The visibility toggle lives on the team dashboard, right next to the team name.
@@ -2836,6 +3070,7 @@ defmodule TeamrcWeb.GuideLive do
           <.code_inline>soul</.code_inline>
           <span class="text-base-content/70">
             Optional. Markdown instructions that define the agent's identity and behavior.
+            This is the same concept referred to as "instructions" elsewhere in the guide.
           </span>
         </div>
         <div class="flex items-start gap-3">
@@ -3036,10 +3271,9 @@ defmodule TeamrcWeb.GuideLive do
         <p class="text-sm text-base-content/70 leading-relaxed">
           Your team's source of truth lives on the teamrc relay (a hosted server).
           When you run <.code_inline>teamrc sync</.code_inline>,
-          the CLI pushes your local state, pulls the latest from the relay, merges knowledge,
-          and regenerates platform config files.
-          There is no merge for the team definition. Last write wins. This keeps things
-          simple and predictable.
+          the CLI compares content hashes to detect changes, pushes or pulls as needed,
+          merges knowledge (append-only dedup), and regenerates platform config files.
+          If both sides changed, the CLI pulls remote first and asks you to push manually.
           See the <a href="/guide/sync" class="text-primary/80 hover:text-primary">Syncing page</a>
           for full details.
         </p>
@@ -3059,14 +3293,17 @@ defmodule TeamrcWeb.GuideLive do
 
       <.faq_item question="What happens if two machines push conflicting changes?">
         <p class="text-sm text-base-content/70 leading-relaxed">
-          Last write wins. teamrc does not do three-way merges. The relay always stores the most recent
-          version. Agent config is declarative and small, so conflicts
-          are rare and easy to resolve. To see what changed, use
+          Sync uses hash-based conflict detection. If only one side changed, it pushes or pulls
+          automatically. If both sides changed and only knowledge differs, the CLI merges it
+          (append-only dedup). If members or skills differ on both sides, the CLI pulls the remote
+          version first and warns you to run
+          <.code_inline>teamrc push</.code_inline>
+          manually to override. To see what changed, use
           <.code_inline>teamrc diff</.code_inline>
           to compare your local state against the relay.
         </p>
         <p class="text-sm text-base-content/70 leading-relaxed mt-2">
-          Knowledge is the exception. It uses append-only deduplication, so knowledge from
+          Knowledge always uses append-only deduplication, so knowledge from
           different machines is always combined, never overwritten.
         </p>
       </.faq_item>
@@ -3151,8 +3388,9 @@ defmodule TeamrcWeb.GuideLive do
           <span class="font-semibold">Private</span> teams (the default) are only visible to
           authenticated participants. If someone visits the team page URL without access, they see
           a "This team is private" message. <span class="font-semibold">Public</span> teams can be
-          viewed by anyone with the link. Visitors see a read-only view of the team config (members,
-          skills, knowledge) and can clone it. They still cannot edit anything or see invites.
+          viewed by anyone with the link. Visitors see a read-only view of member names, roles,
+          instructions, and skill IDs/descriptions, and can clone it. Knowledge and skill bodies are redacted from public
+          previews. They still cannot edit anything or see invites.
         </p>
         <p class="text-sm text-base-content/70 leading-relaxed mt-2">
           You can toggle visibility on the team dashboard at any time. Making a team public also

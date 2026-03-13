@@ -99,7 +99,7 @@ Fields:
 | `teamrc status` | Show current config and team state. `--json` for machine-readable output |
 | `teamrc export` | Export team from relay to `.teamrc.yaml` |
 | `teamrc import <platform>` | Import existing platform config into `.teamrc.yaml` |
-| `teamrc dashboard` | Open the current team in your browser |
+| `teamrc dashboard` | Create a temporary invite link and open the team dashboard. `--ttl <hours>` (default: 24) |
 | `teamrc invite` | Generate an invite code for your team |
 | `teamrc share` | Make team public and get a shareable link. `--off` to make private |
 | `teamrc claim <secret>` | Claim ownership of a team |
@@ -108,7 +108,7 @@ Fields:
 | `teamrc list-agents` | List available agent templates |
 | `teamrc whoami` | Show local identity (token, machine, account, team) |
 | `teamrc doctor` | Run health checks on config, relay, auth, and team state |
-| `teamrc daemon` | Start background sync. `--sync-mode <all\|knowledge\|none>` (default: knowledge) |
+| `teamrc daemon` | Start background sync. `--poll-interval <ms>` (default: 120000) |
 | `teamrc login` | Link this machine to an account via device auth |
 | `teamrc delete` | Remove all teamrc setup from this machine |
 
@@ -171,6 +171,20 @@ npx @teamrc/cli clone <clone_token>
 Knowledge files are never shared. Skill body content is redacted on public pages.
 
 You can also share from the web UI via the **Share** button on the team dashboard.
+
+Sharing via the CLI requires a linked account. Run `teamrc login` first.
+
+## Access Model
+
+| Role | How you get it | What you can do |
+|------|---------------|-----------------|
+| **Owner** | Create team via web UI (signed in), or `teamrc claim <secret>` | Full control: edit, share, toggle visibility, manage invites |
+| **Participant** | `teamrc join <invite-code>` | Edit agents/skills, push/pull/sync, generate invites |
+| **Viewer** | Visit a public team's share link | Read-only view, can clone |
+
+Teams are **private by default**. Only participants and owners can see a private team's page.
+
+Ownership is optional for basic usage. To control visibility or share your team, claim ownership with `teamrc claim` (requires `teamrc login` first).
 
 ## Security
 
