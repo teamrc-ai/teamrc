@@ -103,12 +103,21 @@ verify_gemini() {
 
 verify_openclaw() {
   subsection "3.5: OpenClaw"
-  check_glob "$HOME/.openclaw/workspaces/trc-*" "Workspaces exist"
-  WORKSPACE=$(ls -d "$HOME/.openclaw/workspaces/trc-"* 2>/dev/null | head -1 || echo "")
-  if [ -n "$WORKSPACE" ]; then
-    check_file "$WORKSPACE/AGENTS.md" "AGENTS.md exists in workspace"
-    check_contains "$WORKSPACE/AGENTS.md" "teamrc" "AGENTS.md has teamrc routing"
+  check_glob "$HOME/.openclaw/agents/trc-*.md" "Agent files exist (~/.openclaw/agents/trc-*.md)"
+  AGENT=$(ls "$HOME/.openclaw/agents"/trc-*.md 2>/dev/null | head -1 || echo "")
+  if [ -n "$AGENT" ]; then
+    check_contains "$AGENT" "name:" "Agent has YAML frontmatter (name:)"
+    check_contains "$AGENT" "description:" "Agent has YAML frontmatter (description:)"
   fi
+
+  check_file "$HOME/.openclaw/openclaw.json" "openclaw.json exists"
+  if [ -f "$HOME/.openclaw/openclaw.json" ]; then
+    check_valid_json "$HOME/.openclaw/openclaw.json" "openclaw.json is valid JSON"
+    check_contains "$HOME/.openclaw/openclaw.json" '"trc-' "openclaw.json has trc- agent entries"
+  fi
+
+  # Negative: legacy workspace dirs should NOT exist
+  check_no_glob "$HOME/.openclaw/workspaces/trc-*" "No legacy workspace dirs"
 }
 
 section "Section 3: Per-Platform Verification"

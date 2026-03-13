@@ -26,6 +26,7 @@ case "$SCENARIO" in
     check_no_glob ".cursor/agents/trc-*.md" "No Cursor trc-* agents"
     check_no_glob ".codex/agents/trc-*.toml" "No Codex trc-* agents"
     check_no_glob ".gemini/agents/trc-*.md" "No Gemini trc-* agents"
+    check_no_glob "$HOME/.openclaw/agents/trc-*.md" "No OpenClaw trc-* agents"
     ;;
 
   post-reinit)
@@ -49,6 +50,8 @@ case "$SCENARIO" in
     check_no_glob ".cursor/agents/tb-*.md" "No tb-* Cursor agents"
     check_no_glob ".codex/agents/trc-*.toml" "No trc-* Codex agents"
     check_no_glob ".codex/agents/tb-*.toml" "No tb-* Codex agents"
+    check_no_glob "$HOME/.openclaw/agents/trc-*.md" "No trc-* OpenClaw agents"
+    check_no_glob "$HOME/.openclaw/agents/tb-*.md" "No tb-* OpenClaw agents"
     ;;
 
   corrupt-config)
@@ -107,6 +110,7 @@ case "$SCENARIO" in
     check_no_glob ".cursor/agents/trc-*.md" "No Cursor trc-* agents"
     check_no_glob ".codex/agents/trc-*.toml" "No Codex trc-* agents"
     check_no_glob ".gemini/agents/trc-*.md" "No Gemini trc-* agents"
+    check_no_glob "$HOME/.openclaw/agents/trc-*.md" "No OpenClaw trc-* agents"
     # Global config should still exist
     check_dir "$HOME/.teamrc" "~/.teamrc/ still exists"
     check_file "$HOME/.teamrc/config.json" "config.json still exists"

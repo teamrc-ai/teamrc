@@ -6,31 +6,45 @@ source "$(dirname "$0")/helpers.sh"
 
 section "Prerequisites"
 
-# PostgreSQL
-if pg_isready >/dev/null 2>&1; then
-  check "PostgreSQL running" 0
+RELAY_URL="${TEAMRC_RELAY:-http://localhost:4000}"
+IS_LOCAL=false
+if echo "$RELAY_URL" | grep -q "localhost\|127\.0\.0\.1"; then
+  IS_LOCAL=true
+fi
+
+# PostgreSQL (only required for local relay)
+if [ "$IS_LOCAL" = true ]; then
+  if pg_isready >/dev/null 2>&1; then
+    check "PostgreSQL running" 0
+  else
+    check "PostgreSQL running" 1
+  fi
 else
-  check "PostgreSQL running" 1
+  skip "PostgreSQL check" "not needed for cloud relay ($RELAY_URL)"
 fi
 
 # Relay
-if curl -sf "http://localhost:4000" >/dev/null 2>&1; then
-  check "Relay running at localhost:4000" 0
+if curl -sf "$RELAY_URL" >/dev/null 2>&1; then
+  check "Relay running at $RELAY_URL" 0
 else
-  check "Relay running at localhost:4000" 1
+  check "Relay running at $RELAY_URL" 1
 fi
 
-# Database migrations (DeviceAuth is now Postgres-backed, requires migration)
-if command -v mix >/dev/null 2>&1; then
-  if cd teamrc && mix ecto.migrations 2>/dev/null | grep -q "down"; then
-    check "Database migrations up to date" 1
-    echo "    Run: cd teamrc && mix ecto.migrate"
+# Database migrations (only for local relay)
+if [ "$IS_LOCAL" = true ]; then
+  if command -v mix >/dev/null 2>&1; then
+    if cd teamrc && mix ecto.migrations 2>/dev/null | grep -q "down"; then
+      check "Database migrations up to date" 1
+      echo "    Run: cd teamrc && mix ecto.migrate"
+    else
+      check "Database migrations up to date" 0
+    fi
+    cd - >/dev/null 2>&1
   else
-    check "Database migrations up to date" 0
+    skip "Database migration check" "mix not available"
   fi
-  cd - >/dev/null 2>&1
 else
-  skip "Database migration check" "mix not available"
+  skip "Database migration check" "not needed for cloud relay ($RELAY_URL)"
 fi
 
 # CLI built

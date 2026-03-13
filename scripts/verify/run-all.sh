@@ -96,6 +96,7 @@ if [ "$HAS_CONFIG" = true ] && [ "$HAS_YAML" = true ]; then
   grep -q "cursor" .teamrc.yaml 2>/dev/null && PLATFORMS="$PLATFORMS cursor"
   grep -q "codex" .teamrc.yaml 2>/dev/null && PLATFORMS="$PLATFORMS codex"
   grep -q "gemini" .teamrc.yaml 2>/dev/null && PLATFORMS="$PLATFORMS gemini"
+  grep -q "openclaw" .teamrc.yaml 2>/dev/null && PLATFORMS="$PLATFORMS openclaw"
 
   PLATFORM_COUNT=$(echo "$PLATFORMS" | wc -w | tr -d ' ')
 

@@ -33,11 +33,12 @@ case "$MODE" in
     # Codex agents
     check_no_glob ".codex/agents/tb-*.toml" "No tb-*.toml in .codex/agents/"
 
-    # OpenClaw workspaces
+    # OpenClaw (legacy workspaces should not exist; current model uses agents/)
     check_no_glob "$HOME/.openclaw/workspaces/tb-*" "No tb-* OpenClaw workspaces"
+    check_no_glob "$HOME/.openclaw/workspaces/trc-*" "No legacy trc-* OpenClaw workspaces"
 
     # Content references
-    check_not_contains "openclaw.json" "tb-" "openclaw.json has no tb- references"
+    check_not_contains "$HOME/.openclaw/openclaw.json" "tb-" "openclaw.json has no tb- references"
     check_not_contains "CLAUDE.md" "TeamBridge" "CLAUDE.md has no TeamBridge references"
     check_not_contains "CLAUDE.md" "tb-" "CLAUDE.md has no tb- references"
     check_not_contains "$HOME/.claude/settings.json" "teambridge" "~/.claude/settings.json has no teambridge"
@@ -53,7 +54,7 @@ case "$MODE" in
     FOUND=$(grep -rl "TeamBridge\|teambridge\|tb-" \
       .claude/ .cursor/ .codex/ .gemini/ \
       CLAUDE.md AGENTS.md GEMINI.md \
-      openclaw.json .codex/config.toml \
+      "$HOME/.openclaw/openclaw.json" .codex/config.toml \
       "$HOME/.claude/settings.json" \
       2>/dev/null || true)
     if [ -z "$FOUND" ]; then
@@ -76,8 +77,10 @@ case "$MODE" in
     check_no_glob ".cursor/rules/tb-*.mdc" "No tb-*.mdc Cursor rules"
     check_no_glob ".codex/agents/tb-*.toml" "No tb-*.toml Codex agents"
     check_no_glob ".codex/agents/trc-*.toml" "No trc-*.toml Codex agents"
-    check_no_glob "$HOME/.openclaw/workspaces/tb-*" "No tb-* OpenClaw workspaces"
-    check_no_glob "$HOME/.openclaw/workspaces/trc-*" "No trc-* OpenClaw workspaces"
+    check_no_glob "$HOME/.openclaw/workspaces/tb-*" "No tb-* OpenClaw workspaces (legacy)"
+    check_no_glob "$HOME/.openclaw/workspaces/trc-*" "No trc-* OpenClaw workspaces (legacy)"
+    check_no_glob "$HOME/.openclaw/agents/tb-*.md" "No tb-* OpenClaw agents"
+    check_no_glob "$HOME/.openclaw/agents/trc-*.md" "No trc-* OpenClaw agents"
 
     # Check settings.json was cleaned
     check_not_contains "$HOME/.claude/settings.json" "teambridge" "Settings cleaned of teambridge"

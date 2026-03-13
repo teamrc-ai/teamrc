@@ -25,8 +25,8 @@ subsection "Step 2: Init"
 OUTPUT=$($CLI init --platform claude-code,cursor -y 2>&1 || true)
 check_file ".teamrc.yaml" ".teamrc.yaml created"
 check_file "$HOME/.teamrc/config.json" "config created"
-check_file ".claude/agents/trc-agent.md" "Claude Code agent created"
-check_file ".cursor/agents/trc-agent.md" "Cursor agent created"
+check_glob ".claude/agents/trc-*.md" "Claude Code agent(s) created"
+check_glob ".cursor/agents/trc-*.md" "Cursor agent(s) created"
 check_dir ".teamrc" ".teamrc/ state dir created"
 
 # Doctor
@@ -60,7 +60,7 @@ else
   check "Re-join succeeded" 1
 fi
 check_file ".teamrc.yaml" ".teamrc.yaml recreated"
-check_file ".claude/agents/trc-agent.md" "Claude agent recreated"
+check_glob ".claude/agents/trc-*.md" "Claude agent(s) recreated"
 
 subsection "Step 6: Verify"
 check_cmd "status exits cleanly" $CLI status
