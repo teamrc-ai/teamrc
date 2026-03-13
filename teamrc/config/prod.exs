@@ -14,7 +14,7 @@ config :teamrc, TeamrcWeb.Endpoint,
   force_ssl: [
     hsts: true,
     rewrite_on: [:x_forwarded_proto],
-    exclude: [paths: ["/health"]]
+    exclude: [paths: ["/health", "/live/websocket"]]
   ]
 
 # Redirect landing page to /new until it's ready for production
