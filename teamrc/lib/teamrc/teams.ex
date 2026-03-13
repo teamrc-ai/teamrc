@@ -314,7 +314,7 @@ defmodule Teamrc.Teams do
     false
   end
 
-  @doc "Remove token_teams rows for a given token. If team_id is provided, only remove that association. Returns {:ok, count}."
+  @doc "Remove token_teams rows for a given token. If team_id is provided, only remove that association. When removing all associations (no team_id), also revokes the machine token. Returns {:ok, count}."
   def erase_token(token, team_id \\ nil) do
     query = from(tt in TokenTeam, where: tt.token == ^token)
 
@@ -326,6 +326,18 @@ defmodule Teamrc.Teams do
       end
 
     {count, _} = Repo.delete_all(query)
+
+    # Full erase (no team_id) also revokes the machine token so it doesn't
+    # show up as a ghost machine after the user re-initializes with a new keypair.
+    if is_nil(team_id) do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      from(mt in MachineToken,
+        where: mt.token == ^token and is_nil(mt.revoked_at)
+      )
+      |> Repo.update_all(set: [revoked_at: now])
+    end
+
     {:ok, count}
   end
 
