@@ -333,8 +333,8 @@ defmodule TeamrcWeb.LegalLive do
         <p><strong>For machine-token-only users:</strong></p>
         <p>
           You can erase all server-side data associated with your machine by running
-          <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">teamrc erase</code>
-          from that machine. This sends a signed request that deletes all team participations and data associated with that machine's token. Each machine must trigger erasure independently.
+          <code class="font-mono text-sm bg-base-200 px-1.5 py-0.5 rounded">teamrc delete</code>
+          from that machine. This removes all local teamrc files and sends a signed request that deletes all team participations and data associated with that machine's token from the relay. Each machine must trigger erasure independently.
         </p>
         <p>
           You can also delete your local data at any time by removing
