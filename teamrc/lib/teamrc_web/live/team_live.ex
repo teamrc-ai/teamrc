@@ -1,7 +1,6 @@
 defmodule TeamrcWeb.TeamLive do
   use TeamrcWeb, :live_view
 
-  alias Teamrc.Teams
   alias Teamrc.Catalog
 
   @impl true
@@ -63,7 +62,7 @@ defmodule TeamrcWeb.TeamLive do
 
       <div class="grid gap-2">
         <form :for={key <- @template_order} method="post" action={~p"/teams/create-web"}>
-        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
         <input type="hidden" name="template" value={key} />
         <button
           type="submit"

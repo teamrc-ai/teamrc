@@ -102,7 +102,7 @@ defmodule Teamrc.IntegrationTest do
       assert hd(teams)["name"] == "cli-team-a"
 
       # Create Team B via invite (simulating another user's team)
-      {:ok, invite_code, _team_b_id} =
+      {:ok, invite_code, _team_b_id, _} =
         Teams.create_team_with_invite(%{
           "name" => "invited-team-b",
           "members" => [%{"name" => "agent-b", "role" => "ops"}]
@@ -258,7 +258,7 @@ defmodule Teamrc.IntegrationTest do
       team_a_id = team_a["id"]
 
       # Join Team B via invite
-      {:ok, invite_code, _} =
+      {:ok, invite_code, _, _} =
         Teams.create_team_with_invite(%{
           "name" => "remove-team",
           "members" => [%{"name" => "remover", "role" => "ops"}]
@@ -472,7 +472,7 @@ defmodule Teamrc.IntegrationTest do
           "terms_accepted" => "true"
         })
 
-      {:ok, _invite_code, _team_id} =
+      {:ok, _invite_code, _team_id, _} =
         Teams.create_team_with_invite(
           %{
             "name" => "web-only-team",
@@ -497,7 +497,7 @@ defmodule Teamrc.IntegrationTest do
         })
 
       # Web-created team (no token)
-      {:ok, _invite_code, _team_id} =
+      {:ok, _invite_code, _team_id, _} =
         Teams.create_team_with_invite(
           %{"name" => "web-team", "members" => []},
           owner_user_id: user.id
@@ -521,7 +521,7 @@ defmodule Teamrc.IntegrationTest do
           "terms_accepted" => "true"
         })
 
-      {:ok, _invite_code, team_id} =
+      {:ok, _invite_code, team_id, _} =
         Teams.create_team_with_invite(
           %{"name" => "owned-team", "members" => []},
           owner_user_id: user.id
@@ -547,7 +547,7 @@ defmodule Teamrc.IntegrationTest do
       team_a_id = team_a["id"]
 
       # Create Team B via invite
-      {:ok, invite_code, _} =
+      {:ok, invite_code, _, _} =
         Teams.create_team_with_invite(%{
           "name" => "isolated-b",
           "members" => [%{"name" => "agent-b", "role" => "ops"}],

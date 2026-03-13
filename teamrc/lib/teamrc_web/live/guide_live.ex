@@ -1717,8 +1717,9 @@ defmodule TeamrcWeb.GuideLive do
     <section class="space-y-4">
       <.section_heading id="dashboard" title="3. Team dashboard" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        After creating a team or opening one from an invite link, you land on the dashboard.
+        After creating a team, you land on the dashboard.
         This is where you manage members, skills, and invites.
+        Invite links open a read-only preview &mdash; join via the CLI to get edit access.
       </p>
 
       <%!-- Mockup: dashboard --%>
@@ -2097,12 +2098,14 @@ defmodule TeamrcWeb.GuideLive do
 
       <.sub_heading id="invite-codes" title="Invite codes (sync access)" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        Invite codes create an <span class="font-semibold">ongoing sync connection</span>. When someone
-        joins with an invite code, their machine becomes a participant. They receive updates when
-        the team changes and can push changes back. Invite codes expire after 24 hours.
+        Invite codes create an <span class="font-semibold">ongoing sync connection</span> when used via the CLI.
+        Running <code class="text-xs font-mono bg-base-200 px-1 py-0.5 rounded">teamrc join &lt;code&gt;</code>
+        makes a machine a participant that receives updates and can push changes back.
+        Opening an invite link in a browser shows a read-only preview of the team.
+        Invite codes expire after 24 hours.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        Scroll down on the dashboard to find the Invites section. Click "Generate invite" to create a new code.
+        Team owners can find the Invites section on the dashboard. Click "Generate invite" to create a new code.
         Share it as a CLI command or as a URL.
       </p>
 

@@ -9,7 +9,12 @@ defmodule TeamrcWeb.TeamController do
   to the team detail page.
   """
   def create(conn, %{"template" => key}) do
-    template = Catalog.resolve_team(key)
+    template =
+      try do
+        Catalog.resolve_team(key)
+      rescue
+        _ -> nil
+      end
 
     if is_nil(template) do
       conn

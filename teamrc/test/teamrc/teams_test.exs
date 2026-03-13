@@ -589,7 +589,7 @@ defmodule Teamrc.TeamsTest do
 
   describe "create_invite_by_team_id (BUG 2)" do
     test "creates invite without a token" do
-      {:ok, _invite_code, team_id} =
+      {:ok, _invite_code, team_id, _} =
         Teams.create_team_with_invite(%{"name" => "web-only-team", "members" => []})
 
       {:ok, code, expires_at} = Teams.create_invite_by_team_id(team_id, 24)
@@ -602,7 +602,7 @@ defmodule Teamrc.TeamsTest do
       user = user_fixture()
 
       # Create a team via web wizard (no machine token, direct owner_user_id)
-      {:ok, _invite_code, team_id} =
+      {:ok, _invite_code, team_id, _} =
         Teams.create_team_with_invite(
           %{"name" => "web-owner-team", "members" => []},
           owner_user_id: user.id
@@ -622,7 +622,7 @@ defmodule Teamrc.TeamsTest do
     test "web-only owner can toggle visibility" do
       user = user_fixture()
 
-      {:ok, _invite_code, team_id} =
+      {:ok, _invite_code, team_id, _} =
         Teams.create_team_with_invite(
           %{"name" => "visibility-team", "members" => []},
           owner_user_id: user.id
@@ -640,7 +640,7 @@ defmodule Teamrc.TeamsTest do
       user = user_fixture()
       other_user = user_fixture()
 
-      {:ok, _invite_code, team_id} =
+      {:ok, _invite_code, team_id, _} =
         Teams.create_team_with_invite(
           %{"name" => "owned-team", "members" => []},
           owner_user_id: user.id
