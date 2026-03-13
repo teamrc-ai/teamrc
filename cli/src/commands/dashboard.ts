@@ -3,7 +3,7 @@ import * as p from "@clack/prompts";
 import { getRelayUrl } from "../config.js";
 import { buildInviteUrl, openBrowser } from "../browser.js";
 import {
-  requireTeamContext,
+  requireRelayContext,
 } from "../utils.js";
 
 export function registerDashboard(program: Command): void {
@@ -14,7 +14,7 @@ export function registerDashboard(program: Command): void {
     .action(async (opts: { ttl: string }) => {
       p.intro("teamrc");
 
-      const ctx = requireTeamContext();
+      const ctx = requireRelayContext();
       const ttlHours = parseInt(opts.ttl, 10);
 
       if (isNaN(ttlHours) || ttlHours < 1) {

@@ -15,18 +15,39 @@ npx @teamrc/cli join <invite-token>
 npx @teamrc/cli apply
 ```
 
+```bash
+# Or create a local-only team (no server required)
+npx @teamrc/cli init --local
+```
+
+## Local-Only Mode
+
+teamrc works without an internet connection. Use `--local` with init to create a team that lives entirely on your machine:
+
+```bash
+npx @teamrc/cli init --local
+```
+
+Local teams support `apply`, `import`, `status`, `delete`, and all template/catalog commands. To connect a local team to teamrc.ai later for cross-machine sync:
+
+```bash
+teamrc push
+```
+
+This registers the team on the relay and enables `sync`, `pull`, `invite`, and all collaboration features.
+
 ## Architecture
 
 ```
 .teamrc.yaml     (source of truth, version-controlled)
        |
-  CLI commands   (init, apply, export, sync)
-       |
-  relay server   (cross-machine sync)
+  CLI commands   (init, apply, sync, push)
        |
 platform adapters (Claude Code, Cursor, Codex, OpenClaw, Gemini)
        |
 native agent files (.claude/agents/, .cursor/rules/, etc.)
+       |
+  relay server   (optional — cross-machine sync via teamrc.ai)
 ```
 
 **Priority chain:** `.teamrc.yaml` > platform folders
@@ -37,6 +58,7 @@ The canonical team definition. Check this into version control.
 
 ```yaml
 name: my-team
+# teamId and relay are set when connected to teamrc.ai
 teamId: <uuid>          # assigned by relay on init/join
 relay: http://localhost:4000
 platforms:
@@ -67,8 +89,8 @@ skills:
 
 Fields:
 - **name**: Team name (alphanumeric, spaces, hyphens, underscores; max 64 chars)
-- **teamId**: UUID assigned by the relay server
-- **relay**: Relay server URL for cross-machine sync
+- **teamId**: UUID assigned by the relay server (absent for local-only teams)
+- **relay**: Relay server URL for cross-machine sync (absent for local-only teams)
 - **platforms**: Target platforms (`claude-code`, `cursor`, `codex`, `gemini`, `openclaw`)
 - **members**: Array of agents (max 20)
   - **name**: Agent name (alphanumeric, hyphens, underscores; max 64 chars)
@@ -88,12 +110,12 @@ Fields:
 
 | Command | Description |
 |---------|-------------|
-| `teamrc init` | Detect platform, create agents, write `.teamrc.yaml`, connect to relay |
+| `teamrc init` | Create a new team. `--local` to skip relay connection |
 | `teamrc join <token>` | Join an existing team and set up locally |
 | `teamrc clone <token>` | Copy a team locally without joining sync. `--name` to override name |
 | `teamrc apply` | Apply `.teamrc.yaml` to local platform(s) |
 | `teamrc sync` | One-time sync with relay server |
-| `teamrc push` | Push local state and knowledge to relay |
+| `teamrc push` | Push local state to relay. Connects a local-only team on first push |
 | `teamrc pull` | Pull latest team from relay and apply locally |
 | `teamrc diff` | Show differences between local and relay. `--json` for machine-readable output |
 | `teamrc status` | Show current config and team state. `--json` for machine-readable output |

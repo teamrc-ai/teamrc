@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import {
-  requireTeamContext,
+  requireRelayContext,
   cliCmd,
 } from "../utils.js";
 
@@ -13,7 +13,7 @@ export function registerInvite(program: Command): void {
     .action(async (opts: { ttl: string }) => {
       p.intro("teamrc");
 
-      const ctx = requireTeamContext();
+      const ctx = requireRelayContext();
       const { client } = ctx;
       const ttlHours = parseInt(opts.ttl, 10);
 

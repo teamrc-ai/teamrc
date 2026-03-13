@@ -9,7 +9,7 @@ import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-
 import {
   requirePlatforms,
   requireKeypair,
-  requireTeamContext,
+  requireRelayContext,
   selectScope,
   effectiveScope,
   handleTeamNotFound,
@@ -70,7 +70,7 @@ export function registerPull(program: Command): void {
         }
       } else {
         // Full member pull
-        const ctx = requireTeamContext();
+        const ctx = requireRelayContext();
         const { client } = ctx;
         const scope = opts.global ? "global" : (opts.scope as TeamScope) ?? ctx.scope;
         const platforms = opts.platform

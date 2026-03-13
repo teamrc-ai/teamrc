@@ -191,7 +191,7 @@ export interface TeamContext {
   team: TeamDefinition;
   scope: TeamScope;
   config: TeamrcConfig;
-  client: TeamrcClient;
+  client: TeamrcClient | null;
   platforms: string[];
   adapters: PlatformAdapter[];
 }
@@ -252,13 +252,54 @@ export function requireTeamContext(): TeamContext {
     };
   }
 
-  // Check if this is a clone-only team (has YAML but no teamId)
-  if ((yamlTeam && !yamlTeam.teamId) || (globalTeam && !globalTeam.teamId)) {
-    p.log.error(`This is a cloned team (read-only). Run \`${cliCmd("init")}\` to create your own team, or \`${cliCmd("pull")}\` to fetch updates.`);
-  } else {
-    p.log.error(`No team configured. Run \`${cliCmd("init")}\` or \`${cliCmd("join")}\`.`);
+  // Check project YAML: local-only vs cloned
+  if (yamlTeam && !yamlTeam.teamId) {
+    if (yamlTeam.cloneToken) {
+      p.log.error(`This is a cloned team (read-only). Run \`${cliCmd("init")}\` to create your own team, or \`${cliCmd("pull")}\` to fetch updates.`);
+      process.exit(1);
+    }
+    const platforms = yamlTeam.platforms ?? detectPlatforms();
+    return {
+      team: yamlTeam,
+      scope: "project",
+      config,
+      client: null,
+      platforms,
+      adapters: platforms.map((pl) => getAdapter(pl, slugify(yamlTeam.name))),
+    };
   }
+
+  // Check global YAML: local-only vs cloned
+  if (globalTeam && !globalTeam.teamId) {
+    if (globalTeam.cloneToken) {
+      p.log.error(`This is a cloned team (read-only). Run \`${cliCmd("init")}\` to create your own team, or \`${cliCmd("pull")}\` to fetch updates.`);
+      process.exit(1);
+    }
+    const platforms = globalTeam.platforms ?? detectPlatforms();
+    return {
+      team: globalTeam,
+      scope: "global",
+      config,
+      client: null,
+      platforms,
+      adapters: platforms.map((pl) => getAdapter(pl, slugify(globalTeam.name))),
+    };
+  }
+
+  p.log.error(`No team configured. Run \`${cliCmd("init")}\` or \`${cliCmd("join")}\`.`);
   process.exit(1);
+}
+
+export function requireRelayContext(): TeamContext & { client: TeamrcClient } {
+  const ctx = requireTeamContext();
+  if (!ctx.client) {
+    p.log.error(
+      `This team is local-only (not connected to a relay).\n` +
+      `Run \`${cliCmd("push")}\` to connect it to teamrc.ai.`
+    );
+    process.exit(1);
+  }
+  return ctx as TeamContext & { client: TeamrcClient };
 }
 
 // ---------------------------------------------------------------------------
@@ -451,7 +492,7 @@ export async function promptTeamName(defaultName: string): Promise<string> {
  * Handle a TeamNotFoundError by offering to re-create the team on the relay.
  * Returns true if the team was re-created, false if the user declined.
  */
-export async function handleTeamNotFound(ctx: TeamContext): Promise<boolean> {
+export async function handleTeamNotFound(ctx: TeamContext & { client: TeamrcClient }): Promise<boolean> {
   p.log.warn("This team no longer exists on the relay.");
 
   if (isNonInteractive()) {

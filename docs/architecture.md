@@ -9,7 +9,7 @@ teamrc has two primary runtimes:
 1. **CLI** (`cli/`) running on developer machines
 2. **Relay** (`teamrc/`) as an Elixir/Phoenix service backed by PostgreSQL
 
-The local `.teamrc.yaml` file is the canonical team definition on each machine. The relay is the shared source that enables collaboration and distribution across machines.
+The local `.teamrc.yaml` file is the canonical team definition on each machine. The relay is an optional shared source that enables collaboration and distribution across machines. Teams can also run fully local without a relay connection.
 
 ```mermaid
 flowchart TD
@@ -30,6 +30,7 @@ flowchart TD
 - Applies teams to platform-native files via adapters
 - Signs API requests with Ed25519 (`x-trc-signature`, `x-trc-timestamp`)
 - Polls for updates in daemon mode (every 120s by default)
+- Works offline for local teams (`init --local`, `apply`, `import`, `status`)
 
 Primary files:
 - `cli/src/index.ts`
@@ -81,6 +82,31 @@ Primary files:
 8. Sets `client.setTeamId()` so subsequent calls (knowledge push, invite) target the correct team
 9. Proceeds with normal init flow: knowledge, ownership, invites
 10. All future `pull`/`push`/`sync` operate on the new team — no connection to the original
+11. If the user declines the relay prompt (or uses `--local`), the team is created locally without a relay connection. Running `teamrc push` later will register it on the relay.
+
+### Local-only teams
+
+Teams created with `teamrc init --local` or via declining the relay prompt during interactive init have no `teamId` or `relay` fields in `.teamrc.yaml`. They support:
+
+- `apply` — regenerate platform files from YAML
+- `import` — import platform config into YAML
+- `status` — show team state (sync status shows "local-only")
+- `delete` — remove all teamrc files
+- `add-member`, `list-templates`, `list-agents`, `whoami`, `doctor`
+
+Commands that require relay (`sync`, `pull`, `diff`, `export`, `invite`, `share`, `claim`, `dashboard`, `daemon`) show: "This team is local-only. Run `teamrc push` to connect."
+
+### Connecting a local team (`teamrc push`)
+
+When `push` detects a team with no `teamId`, it runs a "connect" flow:
+
+1. CLI creates a new `TeamrcClient` with the machine's keypair
+2. Calls `POST /api/teams` to register the team on the relay
+3. Receives `teamId` and `owner_claim_secret`
+4. Updates `.teamrc.yaml` with `teamId` and `relay` fields
+5. Pushes knowledge if it exists
+6. Offers ownership claim and invite generation
+7. All relay-dependent commands now work
 
 ### `teamrc diff`
 
@@ -200,6 +226,7 @@ Clerk + Signature API:
 2. **GenServer only for ephemeral state.** DeviceAuth uses a GenServer for short-lived auth requests (15-min TTL). This fits because the state is transient and does not need persistence.
 3. **No revision history.** The relay stores current state, not versioned diffs.
 4. **CLI-driven merge semantics.** Knowledge merge and diff logic lives in the CLI for deterministic local behavior.
+5. **Local-first by default.** Teams work fully offline. The relay is opt-in at init time and can be connected later via `push`. This makes `init` non-blocking for users who just want local agent management.
 
 ## Future Evolution
 

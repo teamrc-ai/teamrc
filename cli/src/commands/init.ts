@@ -36,7 +36,8 @@ export function registerInit(program: Command): void {
     .option("--name <name>", "Team name")
     .option("--team <id>", "Team template (fullstack, backend, frontend, security, devops, custom, ...)")
     .option("--no-knowledge", "Skip creating the team knowledge file")
-    .action(async (opts: { relay?: string; platform?: string; global?: boolean; name?: string; team?: string; knowledge?: boolean }) => {
+    .option("--local", "Create team locally without connecting to relay")
+    .action(async (opts: { relay?: string; platform?: string; global?: boolean; name?: string; team?: string; knowledge?: boolean; local?: boolean }) => {
       p.intro("teamrc");
 
       const scope = await selectScope(opts);
@@ -50,7 +51,7 @@ export function registerInit(program: Command): void {
       } catch {
         // Corrupt YAML is treated as not existing — init will overwrite it
       }
-      if (existingYaml?.teamId) {
+      if (existingYaml) {
         p.log.error(`Already initialized: "${existingYaml.name}" (${yamlPath}).`);
         p.log.info(`To add platforms, run: ${cliCmd("apply --platform <platforms>")}`);
         p.log.info(`To start over, run: ${cliCmd("delete")}`);
@@ -108,8 +109,67 @@ export function registerInit(program: Command): void {
         }
       }
 
-      // Create team on relay first — don't write local files until relay succeeds
+      // Determine whether to connect to relay
       const firstAdapter = getAdapter(platforms[0], slugify(team.name));
+      let useRelay: boolean;
+      if (opts.local) {
+        useRelay = false;
+      } else if (opts.relay || isNonInteractive()) {
+        useRelay = true;
+      } else {
+        p.log.message(
+          `teamrc.ai lets you pull this team onto other machines\n` +
+          `and share it with teammates. Your agent names, roles,\n` +
+          `and instructions will be stored on our server.\n\n` +
+          `You can always connect later with ${cliCmd("push")}.`
+        );
+        const syncConfirm = await p.confirm({
+          message: "Connect to teamrc.ai?",
+          initialValue: true,
+        });
+        handleCancel(syncConfirm);
+        useRelay = syncConfirm as boolean;
+      }
+
+      if (!useRelay) {
+        // Local-only: write files without relay
+        team.platforms = platforms;
+
+        for (const pl of platforms) {
+          const adapter = getAdapter(pl, slugify(team.name));
+          adapter.writeTeam(team, effectiveScope(pl, scope));
+        }
+        p.log.step(`Applied to: ${platforms.join(", ")}`);
+
+        if (opts.knowledge !== false) {
+          if (!firstAdapter.readKnowledge()) {
+            firstAdapter.writeKnowledge(`# Team Knowledge\n\nShared findings and decisions across team members.\n`);
+          }
+        }
+
+        writeTeamYaml(yamlPath, team);
+        p.log.step(`Wrote ${yamlPath}`);
+        saveConfig({ token });
+
+        // Ensure .teamrc/ is gitignored for project-level teams
+        if (scope !== "global") {
+          const gitignorePath = path.join(process.cwd(), ".gitignore");
+          const teamrcIgnoreEntry = ".teamrc/";
+          if (fs.existsSync(gitignorePath)) {
+            const gitignoreContent = fs.readFileSync(gitignorePath, "utf-8");
+            if (!gitignoreContent.split("\n").some((line) => line.trim() === teamrcIgnoreEntry)) {
+              fs.appendFileSync(gitignorePath, `\n# teamrc sync state\n${teamrcIgnoreEntry}\n`);
+            }
+          } else {
+            fs.writeFileSync(gitignorePath, `${teamrcIgnoreEntry}\n`);
+          }
+        }
+
+        p.outro("Customize agents and skills in .teamrc.yaml, then run teamrc apply");
+        return;
+      }
+
+      // Create team on relay first — don't write local files until relay succeeds
       const s = p.spinner();
       const client = new TeamrcClient(relayUrl, kp.privateKey, token);
       try {
@@ -150,7 +210,6 @@ export function registerInit(program: Command): void {
         }
 
         // Write YAML
-        const yamlPath = scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
         writeTeamYaml(yamlPath, team);
         p.log.step(`Wrote ${yamlPath}`);
         saveConfig({ token });

@@ -211,7 +211,7 @@ defmodule TeamrcWeb.GuideLive do
         <.cmd_line cmd="npx @teamrc/cli init" />
       </.terminal_block>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        This creates the team on the relay, generates your machine keypair, writes <.code_inline>.teamrc.yaml</.code_inline>, and applies the generated platform files locally.
+        This generates your machine keypair, writes <.code_inline>.teamrc.yaml</.code_inline>, and applies the generated platform files locally. You'll be asked whether to connect to teamrc.ai for cross-machine sync — you can skip this and connect later.
       </p>
     </section>
 
@@ -774,12 +774,13 @@ defmodule TeamrcWeb.GuideLive do
         usage="teamrc init"
         flags={[
           {"--relay <url>", "Relay server URL"},
+          {"--local", "Create a local-only team (skip relay connection)"},
           {"--platform <platform>", "Target platform(s), comma-separated"},
           {"--global", "Create as global team (applies to all projects)"},
           {"--name <name>", "Team name"},
           {"--team <id>", "Start from a catalog template (e.g. fullstack, backend)"}
         ]}
-        details="Generates an ed25519 keypair (stored in ~/.teamrc/key), creates a team on the relay, writes .teamrc.yaml to your project, and applies config to detected platforms. The interactive wizard lets you pick a catalog template or build a custom team. If a .teamrc.yaml already exists without a team ID (e.g. from clone), init adopts it and creates your own team on the relay — no template selection needed. When using --global, init also checks the current directory for a .teamrc.yaml to offer as the global team definition."
+        details="Generates an ed25519 keypair (stored in ~/.teamrc/key), writes .teamrc.yaml to your project, and applies config to detected platforms. In interactive mode, you'll be asked whether to connect to teamrc.ai for cross-machine sync. Use --local to skip the prompt and create a local-only team. Use --relay to skip the prompt and connect immediately. The interactive wizard lets you pick a catalog template or build a custom team. If a .teamrc.yaml already exists without a team ID (e.g. from clone), init adopts it — no template selection needed. When using --global, init also checks the current directory for a .teamrc.yaml to offer as the global team definition."
       />
 
       <.cli_command
@@ -841,7 +842,7 @@ defmodule TeamrcWeb.GuideLive do
         desc="Push local state to the relay"
         usage="teamrc push"
         flags={[]}
-        details="One-way: reads your .teamrc.yaml and knowledge file, and sends them to the relay. Does not pull or apply anything. Use after manually editing .teamrc.yaml."
+        details="One-way: reads your .teamrc.yaml and knowledge file, and sends them to the relay. Does not pull or apply anything. Use after manually editing .teamrc.yaml. If the team is local-only (not yet connected to a relay), push will register it on teamrc.ai first and then push — this is how you connect a local team."
       />
 
       <.cli_command
@@ -1367,6 +1368,7 @@ defmodule TeamrcWeb.GuideLive do
 
     <.page_toc items={[
       {"#relay", "The relay"},
+      {"#local", "Local-only teams"},
       {"#sync-steps", "What sync does"},
       {"#conflicts", "Conflict resolution"},
       {"#invites", "Invite codes"},
@@ -1385,6 +1387,12 @@ defmodule TeamrcWeb.GuideLive do
       <p class="text-sm text-base-content/70 leading-relaxed">
         Machines don't talk to each other directly. They all go through the relay.
         This keeps the sync model simple: there's always one source of truth, and you always know where it is.
+      </p>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        The relay is optional. Teams created with <.code_inline>teamrc init --local</.code_inline> work
+        entirely offline — you can define agents, apply to platforms, and edit your team without any server
+        connection. When you're ready to sync across machines, run <.code_inline>teamrc push</.code_inline>
+        to connect.
       </p>
       <div class="rounded-lg border border-base-300 bg-base-100 p-4">
         <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-3">
@@ -1464,6 +1472,31 @@ defmodule TeamrcWeb.GuideLive do
           </div>
         </div>
       </div>
+    </section>
+
+    <%!-- Local-only teams --%>
+    <section class="space-y-3">
+      <.section_heading id="local" title="Local-only teams" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        Not every team needs a relay. If you're the only person using a team, or you're just trying
+        teamrc out, a local-only team is simpler. Run <.code_inline>teamrc init --local</.code_inline>
+        or decline the relay prompt during interactive init.
+      </p>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        Local teams support <.code_inline>apply</.code_inline>,
+        <.code_inline>import</.code_inline>,
+        <.code_inline>status</.code_inline>,
+        <.code_inline>delete</.code_inline>,
+        <.code_inline>add-member</.code_inline>,
+        and all catalog commands. Sync-related commands
+        (<.code_inline>sync</.code_inline>, <.code_inline>pull</.code_inline>,
+        <.code_inline>diff</.code_inline>, <.code_inline>invite</.code_inline>)
+        require a relay connection.
+      </p>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        To connect a local team later, run <.code_inline>teamrc push</.code_inline>. This registers
+        the team on teamrc.ai and enables all sync and collaboration features.
+      </p>
     </section>
 
     <%!-- What sync does --%>

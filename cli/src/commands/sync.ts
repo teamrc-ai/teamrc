@@ -6,7 +6,7 @@ import { getAdapter, slugify, type TeamScope } from "../adapters/base.js";
 import { writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
 import {
-  requireTeamContext,
+  requireRelayContext,
   effectiveScope,
   handleTeamNotFound,
   cliCmd,
@@ -22,7 +22,7 @@ export function registerSync(program: Command): void {
     .action(async (opts: { platform?: string; scope?: string; global?: boolean }) => {
       p.intro("teamrc");
 
-      const ctx = requireTeamContext();
+      const ctx = requireRelayContext();
       const { client } = ctx;
       const scope = opts.global ? "global" : (opts.scope as TeamScope) ?? ctx.scope;
       const platforms = opts.platform

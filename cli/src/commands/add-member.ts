@@ -6,7 +6,7 @@ import { writeTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import {
   isNonInteractive,
   handleCancel,
-  requireTeamContext,
+  requireRelayContext,
   effectiveScope,
 } from "../utils.js";
 
@@ -18,7 +18,7 @@ export function registerAddMember(program: Command): void {
     .action(async (agentName?: string) => {
       p.intro("teamrc");
 
-      const ctx = requireTeamContext();
+      const ctx = requireRelayContext();
       const { team, scope, client, platforms } = ctx;
       const yamlPath = scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
 

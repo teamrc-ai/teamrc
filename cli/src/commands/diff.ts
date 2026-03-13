@@ -3,7 +3,7 @@ import * as p from "@clack/prompts";
 import { computeTeamHashes } from "../sync-hash.js";
 import {
   globals,
-  requireTeamContext,
+  requireRelayContext,
   jsonOutput,
   cliCmd,
 } from "../utils.js";
@@ -15,7 +15,7 @@ export function registerDiff(program: Command): void {
     .option("--json", "Output as JSON")
     .action(async (opts: { json?: boolean }) => {
       const useJson = opts.json ?? globals().json;
-      const ctx = requireTeamContext();
+      const ctx = requireRelayContext();
       const { client } = ctx;
       const adapter = ctx.adapters[0];
 

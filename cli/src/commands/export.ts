@@ -3,7 +3,7 @@ import * as p from "@clack/prompts";
 import { remoteTeamToDefinition } from "../client.js";
 import { writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import {
-  requireTeamContext,
+  requireRelayContext,
 } from "../utils.js";
 
 export function registerExport(program: Command): void {
@@ -13,7 +13,7 @@ export function registerExport(program: Command): void {
     .action(async () => {
       p.intro("teamrc");
 
-      const ctx = requireTeamContext();
+      const ctx = requireRelayContext();
       const { client } = ctx;
       const yamlPath = ctx.scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
 

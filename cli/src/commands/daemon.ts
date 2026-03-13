@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import {
-  requireTeamContext,
+  requireRelayContext,
   CLI_NAME,
 } from "../utils.js";
 
@@ -17,7 +17,7 @@ export function registerDaemon(program: Command): void {
         process.exit(1);
       }
 
-      const ctx = requireTeamContext();
+      const ctx = requireRelayContext();
       const { client } = ctx;
 
       p.intro(`${CLI_NAME} daemon`);

@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import { loadConfig, getRelayUrl } from "../config.js";
 import {
-  requireTeamContext,
+  requireRelayContext,
   cliCmd,
 } from "../utils.js";
 
@@ -20,7 +20,7 @@ export function registerShare(program: Command): void {
         process.exit(1);
       }
 
-      const ctx = requireTeamContext();
+      const ctx = requireRelayContext();
       const { client } = ctx;
       const teamName = ctx.team.name;
       const visibility = opts.off ? "private" : "public";
