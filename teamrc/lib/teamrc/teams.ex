@@ -478,6 +478,17 @@ defmodule Teamrc.Teams do
 
   def set_visibility_by_owner(_user_id, _team_id, _visibility), do: {:error, :invalid_visibility}
 
+  @doc "Set team visibility by creator token (claim secret). For web-only creators who haven't linked an account."
+  def set_visibility_by_creator(team_id, creator_token, visibility) when visibility in ["public", "private"] do
+    if verify_creator_token(team_id, creator_token) do
+      do_set_visibility(team_id, visibility)
+    else
+      {:error, :not_owner}
+    end
+  end
+
+  def set_visibility_by_creator(_team_id, _creator_token, _visibility), do: {:error, :invalid_visibility}
+
   @doc "Delete a skill from a team and remove it from all members. Returns {:ok, team_with_members} or {:error, reason}."
   def delete_skill(team, skill_id) do
     updated_skills = Enum.reject(team.skills, &(&1["id"] == skill_id))

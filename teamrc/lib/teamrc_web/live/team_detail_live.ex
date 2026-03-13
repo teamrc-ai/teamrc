@@ -630,12 +630,22 @@ defmodule TeamrcWeb.TeamDetailLive do
   defp set_visibility_result(socket, new_visibility) do
     team = socket.assigns.team
 
-    # Try token-based visibility toggle first; fall back to owner-based for web-only owners
+    # Try token-based first, then account-based, then creator-session-based
     visibility_result =
       case find_user_token_for_team(socket.assigns, team.id) do
         nil ->
           current_user = socket.assigns.current_user
-          if current_user, do: Teams.set_visibility_by_owner(current_user.id, team.id, new_visibility), else: {:error, :not_authorized}
+          creator_sessions = socket.assigns[:creator_sessions] || %{}
+          creator_token = Map.get(creator_sessions, team.id)
+
+          cond do
+            current_user ->
+              Teams.set_visibility_by_owner(current_user.id, team.id, new_visibility)
+            is_binary(creator_token) ->
+              Teams.set_visibility_by_creator(team.id, creator_token, new_visibility)
+            true ->
+              {:error, :not_authorized}
+          end
 
         token ->
           Teams.set_visibility(token, team.id, new_visibility)
