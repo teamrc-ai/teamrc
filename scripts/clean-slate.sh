@@ -28,8 +28,6 @@ remove_if_exists "$HOME/.teambridge"
 echo "Project config..."
 remove_if_exists ".teamrc.yaml"
 remove_if_exists "agent-team.yaml"
-remove_if_exists ".claude/teamrc-knowledge.md"
-
 # --- Project state directory ---
 echo "Project state..."
 remove_if_exists ".teamrc"
@@ -135,7 +133,7 @@ done
 for d in "$HOME"/.openclaw/skills/trc-* "$HOME"/.openclaw/skills/tb-*; do
   remove_if_exists "$d"
 done
-remove_if_exists "$HOME/.openclaw/teamrc-knowledge.md"
+rm -f "$HOME/.openclaw/knowledge-"*.md
 
 # ~/.openclaw/openclaw.json — remove trc-/tb- agent entries
 OPENCLAW_JSON="$HOME/.openclaw/openclaw.json"

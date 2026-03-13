@@ -275,7 +275,7 @@ After `init` or `join` on a platform, verify the correct file formats.
 | Agent file (Markdown + YAML frontmatter, OpenHands format) | `~/.openclaw/agents/trc-agent.md` |
 | Config registration | `~/.openclaw/openclaw.json` — `agents.list` array includes `trc-*` entries |
 | Skills | `~/.openclaw/skills/trc-*/SKILL.md` |
-| Knowledge | `~/.openclaw/teamrc-knowledge.md` |
+| Knowledge | `~/.openclaw/knowledge-<team-slug>.md` |
 
 **OpenClaw is global-only** (no project scope). Verify:
 - [ ] Agent files in `~/.openclaw/agents/` (not workspaces)
@@ -312,13 +312,13 @@ Sync hashes are now stored in `.teamrc/state.json` (not in `.teamrc.yaml`):
 ### 4.2 Push Knowledge
 
 ```bash
-echo "new team insight" >> teamrc-knowledge.md
+echo "new team insight" >> .teamrc/knowledge-<team-slug>.md
 npx @teamrc/cli push
 ```
 
 - [ ] "Pushed to relay." message
 - [ ] `.teamrc/state.json` `syncHash*` fields updated to match server (NOT in `.teamrc.yaml`)
-- [ ] Local `teamrc-knowledge.md` has merged content (relay lines + new local line)
+- [ ] Local `.teamrc/knowledge-<slug>.md` has merged content (relay lines + new local line)
 - [ ] Knowledge is append-only: relay content preserved, new line appended at bottom
 
 ### 4.3 Sync — Local Changes Only
@@ -405,7 +405,7 @@ npx @teamrc/cli daemon --poll-interval 5000
 npx @teamrc/cli daemon --poll-interval 60000
 
 # Terminal 2:
-echo "# Updated knowledge" >> teamrc-knowledge.md
+echo "# Updated knowledge" >> .teamrc/knowledge-<team-slug>.md
 ```
 
 - [ ] Daemon detects change within ~1s and pushes to relay
@@ -1481,7 +1481,7 @@ Ask the same question to the same agent on 3+ platforms:
 ### Knowledge Sync Usage
 
 ```bash
-echo "# Team Knowledge\n\n## Bug Found\nAuth tokens expire silently after 24h." > teamrc-knowledge.md
+echo "# Team Knowledge\n\n## Bug Found\nAuth tokens expire silently after 24h." > .teamrc/knowledge-<team-slug>.md
 npx @teamrc/cli push
 npx @teamrc/cli sync                      # On another platform
 ```

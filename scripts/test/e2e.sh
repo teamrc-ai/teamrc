@@ -125,7 +125,7 @@ phase_1() {
   # Claude Code
   rm -f .claude/agents/trc-*.md .claude/agents/tb-*.md
   rm -f .claude/rules/trc-*.md
-  rm -f teamrc-knowledge.md
+  rm -f .teamrc/knowledge-*.md
   rm -rf .claude/skills/trc-*
   # Remove teamrc section from CLAUDE.md (keep the rest)
   if [ -f CLAUDE.md ]; then
@@ -210,7 +210,11 @@ phase_2_init() {
   done
 
   # Knowledge file
-  check_file "teamrc-knowledge.md" "teamrc-knowledge.md created"
+  if ls .teamrc/knowledge-*.md >/dev/null 2>&1; then
+    check "knowledge file created in .teamrc/" 0
+  else
+    check "knowledge file created in .teamrc/" 1
+  fi
 
   # Status
   check_cmd "status exits cleanly" $CLI status
@@ -295,10 +299,15 @@ phase_4() {
   check_cmd "sync exits cleanly" $CLI sync
 
   subsection "Push knowledge"
-  echo "# Team Knowledge" > teamrc-knowledge.md
-  echo "" >> teamrc-knowledge.md
-  echo "## Test Entry" >> teamrc-knowledge.md
-  echo "E2E test from $(hostname) at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> teamrc-knowledge.md
+  KNOWLEDGE_FILE=$(ls .teamrc/knowledge-*.md 2>/dev/null | head -1)
+  if [ -z "$KNOWLEDGE_FILE" ]; then
+    mkdir -p .teamrc
+    KNOWLEDGE_FILE=".teamrc/knowledge-test.md"
+  fi
+  echo "# Team Knowledge" > "$KNOWLEDGE_FILE"
+  echo "" >> "$KNOWLEDGE_FILE"
+  echo "## Test Entry" >> "$KNOWLEDGE_FILE"
+  echo "E2E test from $(hostname) at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$KNOWLEDGE_FILE"
 
   PUSH_OUT=$($CLI push 2>&1 || true)
   if echo "$PUSH_OUT" | grep -qi "push\|success\|knowledge"; then
@@ -321,19 +330,29 @@ phase_5() {
   section "Phase 5: Cross-Machine Sync"
 
   subsection "Push unique knowledge from this machine"
-  echo "## $(hostname) Finding" >> teamrc-knowledge.md
-  echo "Cross-machine test at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> teamrc-knowledge.md
+  KNOWLEDGE_FILE=$(ls .teamrc/knowledge-*.md 2>/dev/null | head -1)
+  if [ -z "$KNOWLEDGE_FILE" ]; then
+    mkdir -p .teamrc
+    KNOWLEDGE_FILE=".teamrc/knowledge-test.md"
+  fi
+  echo "## $(hostname) Finding" >> "$KNOWLEDGE_FILE"
+  echo "Cross-machine test at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$KNOWLEDGE_FILE"
   $CLI push 2>&1 | head -5
 
   subsection "Sync to pull other machine's changes"
   $CLI sync 2>&1 | head -10
 
   # Verify knowledge file has content
-  check_file "teamrc-knowledge.md" "teamrc-knowledge.md exists"
-  if [ -s "teamrc-knowledge.md" ]; then
-    check "teamrc-knowledge.md has content" 0
+  KNOWLEDGE_FILE=$(ls .teamrc/knowledge-*.md 2>/dev/null | head -1)
+  if [ -n "$KNOWLEDGE_FILE" ]; then
+    check "knowledge file exists in .teamrc/" 0
   else
-    check "teamrc-knowledge.md has content" 1
+    check "knowledge file exists in .teamrc/" 1
+  fi
+  if [ -n "$KNOWLEDGE_FILE" ] && [ -s "$KNOWLEDGE_FILE" ]; then
+    check "knowledge file has content" 0
+  else
+    check "knowledge file has content" 1
   fi
 
   subsection "Status confirms relay connection"

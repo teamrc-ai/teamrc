@@ -19,10 +19,10 @@ check_not_contains ".teamrc.yaml" "syncHash" ".teamrc.yaml has no syncHash after
 
 subsection "4.2: Push knowledge"
 # Create knowledge file if it doesn't exist
-mkdir -p .claude
-if [ ! -f ".claude/teamrc-knowledge.md" ]; then
-  echo "# Team Knowledge" > .claude/teamrc-knowledge.md
-  echo "Test entry: verification at $(date)" >> .claude/teamrc-knowledge.md
+mkdir -p .teamrc
+if ! ls .teamrc/knowledge-*.md >/dev/null 2>&1; then
+  echo "# Team Knowledge" > .teamrc/knowledge-test.md
+  echo "Test entry: verification at $(date)" >> .teamrc/knowledge-test.md
 fi
 PUSH_OUTPUT=$(npx @teamrc/cli push 2>&1 || true)
 if echo "$PUSH_OUTPUT" | grep -qi "push\|success\|knowledge"; then

@@ -63,7 +63,7 @@ fi
 
 # 3. Generated project files
 echo "Cleaning project artifacts..."
-remove_if_exists ".claude/teamrc-knowledge.md"
+rm -f .teamrc/knowledge-*.md
 remove_if_exists ".teamrc.yaml"
 
 # Claude Code — agents, rules, skills
@@ -94,7 +94,7 @@ done
 for d in "$HOME"/.openclaw/skills/trc-* "$HOME"/.openclaw/skills/tb-*; do
   remove_if_exists "$d"
 done
-remove_if_exists "$HOME/.openclaw/teamrc-knowledge.md"
+rm -f "$HOME/.openclaw/knowledge-"*.md
 
 # ~/.openclaw/openclaw.json — remove trc-/tb- agent entries
 OPENCLAW_JSON="$HOME/.openclaw/openclaw.json"

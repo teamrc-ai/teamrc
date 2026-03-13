@@ -28,7 +28,7 @@ verify_claude_code() {
   check_file "CLAUDE.md" "CLAUDE.md exists"
   check_contains "CLAUDE.md" "<!-- teamrc -->" "CLAUDE.md has <!-- teamrc --> marker"
   check_contains "CLAUDE.md" "<!-- /teamrc -->" "CLAUDE.md has <!-- /teamrc --> marker"
-  check_contains "CLAUDE.md" "teamrc-knowledge.md" "CLAUDE.md references teamrc-knowledge.md"
+  check_contains "CLAUDE.md" "knowledge-" "CLAUDE.md references knowledge file"
 }
 
 verify_cursor() {
