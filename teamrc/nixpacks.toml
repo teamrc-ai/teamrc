@@ -1,0 +1,23 @@
+# Nixpacks configuration for Coolify deployment
+# Base directory in Coolify should be set to: teamrc
+
+[phases.setup]
+nixPkgs = ["...", "curl"]
+
+[phases.install]
+cmds = ["mix local.hex --force && mix local.rebar --force && mix deps.get --only prod"]
+
+[phases.build]
+cmds = [
+  "mix compile",
+  "mix assets.deploy",
+  "mix release",
+  "cp -r _build/prod/rel/teamrc/* /app/",
+  "cp -r ../templates /app/templates",
+]
+
+[start]
+cmd = "/app/bin/migrate && /app/bin/server"
+
+[variables]
+MIX_ENV = "prod"

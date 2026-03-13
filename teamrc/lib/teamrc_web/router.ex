@@ -86,6 +86,8 @@ defmodule TeamrcWeb.Router do
   scope "/", TeamrcWeb do
     pipe_through :browser
 
+    post "/teams/create-web", TeamController, :create
+
     live_session :public,
       layout: {TeamrcWeb.Layouts, :app},
       on_mount: [{TeamrcWeb.UserAuth, :mount_current_scope}] do

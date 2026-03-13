@@ -42,7 +42,7 @@ defmodule Teamrc.Teams do
     end
   end
 
-  @doc "Create a team with a random invite code. Returns {:ok, invite_code, team_id}."
+  @doc "Create a team with a random invite code. Returns {:ok, invite_code, team_id, creator_token}."
   def create_team_with_invite(team_attrs, opts \\ []) do
     team_data = normalize_team(team_attrs)
     invite_code = generate_invite_code()
@@ -56,7 +56,7 @@ defmodule Teamrc.Teams do
                |> Invite.changeset(%{code: invite_code, expires_at: expires_at, team_id: team.id})
                |> Repo.insert() do
             {:ok, _invite} ->
-              {invite_code, team.id}
+              {invite_code, team.id, team.owner_claim_secret}
 
             {:error, changeset} ->
               Repo.rollback({:invite_creation_failed, changeset})
@@ -67,7 +67,7 @@ defmodule Teamrc.Teams do
       end
     end)
     |> case do
-      {:ok, {invite_code, team_id}} -> {:ok, invite_code, team_id}
+      {:ok, {invite_code, team_id, creator_token}} -> {:ok, invite_code, team_id, creator_token}
       {:error, _reason} -> {:error, :creation_failed}
     end
   end
@@ -290,6 +290,16 @@ defmodule Teamrc.Teams do
       end
     end
   end
+
+  @doc "Verify a plaintext creator token against the stored bcrypt hash. Returns true/false."
+  def verify_creator_token(team_id, plaintext_token) when is_binary(plaintext_token) do
+    case Repo.one(from t in Team, where: t.id == ^team_id, select: t.owner_claim_secret) do
+      hash when is_binary(hash) -> Bcrypt.verify_pass(plaintext_token, hash)
+      _ -> Bcrypt.no_user_verify(); false
+    end
+  end
+
+  def verify_creator_token(_team_id, _), do: Bcrypt.no_user_verify(); false
 
   @doc "Remove token_teams rows for a given token. If team_id is provided, only remove that association. Returns {:ok, count}."
   def erase_token(token, team_id \\ nil) do

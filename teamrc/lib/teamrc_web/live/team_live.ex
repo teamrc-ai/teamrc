@@ -17,80 +17,8 @@ defmodule TeamrcWeb.TeamLive do
      )}
   end
 
-  @impl true
-  def handle_event("select_template", %{"template" => key}, socket) do
-    template = socket.assigns.templates[key]
-
-    if is_nil(template) do
-      {:noreply, put_flash(socket, :error, "Unknown template.")}
-    else
-      do_create_team(template, socket)
-    end
-  end
-
-  defp do_create_team(template, socket) do
-    members =
-      Enum.map(template.members, fn m ->
-        Map.take(m, [:name, :role, :soul, :skills])
-      end)
-
-    team = build_team_payload(template.team_name, members, template.skills, template.default_platforms)
-
-    # If the user is authenticated, set them as owner immediately
-    current_user = socket.assigns[:current_scope] && socket.assigns.current_scope.user
-    opts = resolve_owner_opts(current_user)
-
-    case Teams.create_team_with_invite(team, opts) do
-      {:ok, invite_code, team_id} ->
-        {:noreply, socket |> put_flash(:invite_code, invite_code) |> redirect(to: "/teams/#{team_id}")}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Failed to create team.")}
-    end
-  end
-
-  defp build_team_payload(team_name, members, skills, default_platforms) do
-    skills_clean =
-      skills
-      |> Enum.filter(&(&1.id != ""))
-      |> Enum.map(fn s ->
-        %{id: s.id}
-        |> put_if(s[:title], :title)
-        |> put_if(s[:description], :description)
-        |> put_if(s[:alwaysApply], :alwaysApply)
-        |> put_if(s[:globs], :globs)
-        |> put_if(s[:userInvocable], :userInvocable)
-        |> put_if(s[:body], :body)
-      end)
-
-    skill_ids = MapSet.new(skills_clean, & &1.id)
-
-    %{
-      name: team_name,
-      platforms: default_platforms,
-      members:
-        members
-        |> Enum.filter(&(&1.name != ""))
-        |> Enum.map(fn m ->
-          member = %{name: m.name, role: m.role}
-          member = if m[:soul] && m.soul != "", do: Map.put(member, :soul, m.soul), else: member
-          member_skills = (m[:skills] || []) |> Enum.filter(&MapSet.member?(skill_ids, &1))
-          if member_skills != [], do: Map.put(member, :skills, member_skills), else: member
-        end),
-      skills: skills_clean
-    }
-  end
-
-  defp resolve_owner_opts(nil), do: []
-
-  defp resolve_owner_opts(current_user) do
-    [owner_user_id: current_user.id]
-  end
-
-  defp put_if(map, nil, _key), do: map
-  defp put_if(map, false, _key), do: map
-  defp put_if(map, "", _key), do: map
-  defp put_if(map, value, key), do: Map.put(map, key, value)
+  # Team creation is handled by TeamController.create/2 (POST /teams/create-web)
+  # to enable writing the creator session token before redirecting.
 
   @known_icons ~w(code server shield megaphone wrench book cloud)
 
@@ -134,11 +62,12 @@ defmodule TeamrcWeb.TeamLive do
       </div>
 
       <div class="grid gap-2">
+        <form :for={key <- @template_order} method="post" action={~p"/teams/create-web"}>
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <input type="hidden" name="template" value={key} />
         <button
-          :for={key <- @template_order}
-          phx-click="select_template"
-          phx-value-template={key}
-          class="trc-card trc-focus group flex items-start gap-4 rounded-lg border border-base-300 bg-base-100 p-4 text-left hover:border-primary/30 hover:shadow-sm"
+          type="submit"
+          class="trc-card trc-focus group flex items-start gap-4 rounded-lg border border-base-300 bg-base-100 p-4 text-left hover:border-primary/30 hover:shadow-sm w-full"
         >
           <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-base-200 text-base-content/60 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-[18px] w-[18px]">
@@ -166,6 +95,7 @@ defmodule TeamrcWeb.TeamLive do
             <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
           </svg>
         </button>
+        </form>
       </div>
     </div>
     """

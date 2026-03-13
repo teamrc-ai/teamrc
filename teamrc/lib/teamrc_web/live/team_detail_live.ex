@@ -10,9 +10,10 @@ defmodule TeamrcWeb.TeamDetailLive do
   # --- Mount ---
 
   @impl true
-  def mount(%{"id" => team_id}, _session, socket) do
+  def mount(%{"id" => team_id}, session, socket) do
     current_user = socket.assigns[:current_scope] && socket.assigns.current_scope.user
-    socket = assign(socket, current_user: current_user)
+    creator_sessions = session["creator_sessions"] || %{}
+    socket = assign(socket, current_user: current_user, creator_sessions: creator_sessions)
 
     case load_team(team_id, socket.assigns) do
       {:ok, %{access_level: :private_gate}} ->
@@ -43,6 +44,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                access_level: data.access_level,
                can_edit: data.access_level in [:owner, :participant],
                is_owner: data.access_level == :owner,
+               is_creator_session: data[:is_creator_session] == true,
                clone_token: data.clone_token,
                participants: data.participants,
                invites: data.invites,
@@ -108,7 +110,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                   socket
 
                 invite ->
-                  assign(socket, invite_access: invite, invite_code: invite_code, can_edit: true)
+                  assign(socket, invite_access: invite, invite_code: invite_code)
               end
           end
       end
@@ -126,7 +128,7 @@ defmodule TeamrcWeb.TeamDetailLive do
           team: team,
           page_title: team.name,
           access_level: :viewer,
-          can_edit: true,
+          can_edit: false,
           is_owner: false,
           clone_token: nil,
           participants: [],
@@ -153,10 +155,16 @@ defmodule TeamrcWeb.TeamDetailLive do
         user_id = current_user && current_user.id
         is_participant = Accounts.is_team_participant?(user_id, team.id)
 
+        # Check creator session: the browser that created this team gets owner access
+        creator_sessions = assigns[:creator_sessions] || %{}
+        creator_token = Map.get(creator_sessions, team_id)
+        is_creator = is_binary(creator_token) && Teams.verify_creator_token(team_id, creator_token)
+
         access_level =
           cond do
             is_participant && user_id && user_id == team.owner_user_id -> :owner
             is_participant -> :participant
+            is_creator -> :owner
             team.visibility == "public" -> :viewer
             true -> :private_gate
           end
@@ -183,6 +191,7 @@ defmodule TeamrcWeb.TeamDetailLive do
              %{
                team: team,
                access_level: access_level,
+               is_creator_session: is_creator,
                participants: participants,
                invites: invites,
                clone_token: clone_token
@@ -821,8 +830,8 @@ defmodule TeamrcWeb.TeamDetailLive do
           <p class="text-sm text-base-content/60 mb-3">
             Run this command to join the team. Expires in <span class="text-base-content/70 font-medium"><%= time_remaining(@invite_access.expires_at) %></span>.
           </p>
-          <p class="text-xs text-amber-500/80 mb-3">
-            Invite codes grant full edit access. Only share with people you trust.
+          <p :if={!@can_edit} class="text-xs text-base-content/50 mb-3">
+            Viewing as guest. Join via the CLI to edit this team.
           </p>
           <p :if={!@current_user} class="text-sm text-base-content/60 mb-4">
             For permanent access, <a

@@ -22,12 +22,6 @@ defmodule TeamrcWeb.InviteLiveTest do
     hd(team.members)
   end
 
-  defp set_invite_expiry!(invite_code, expires_at) do
-    expires_at = DateTime.truncate(expires_at, :second)
-    invite = Repo.get_by!(Invite, code: invite_code)
-    invite |> Ecto.Changeset.change(%{expires_at: expires_at}) |> Repo.update!()
-  end
-
   test "valid invite redirects to team dashboard via flash", %{conn: conn} do
     {code, team_id} = create_team_with_invite()
 
@@ -46,7 +40,10 @@ defmodule TeamrcWeb.InviteLiveTest do
 
   test "expired invite shows error page instead of redirect", %{conn: conn} do
     {code, _team_id} = create_team_with_invite()
-    set_invite_expiry!(code, DateTime.utc_now() |> DateTime.add(-3600))
+
+    expires_at = DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.truncate(:second)
+    invite = Repo.get_by!(Invite, code: code)
+    invite |> Ecto.Changeset.change(%{expires_at: expires_at}) |> Repo.update!()
 
     {:ok, _view, html} = live(conn, "/invite/#{code}")
     assert html =~ "Invite Expired"
@@ -73,11 +70,17 @@ defmodule TeamrcWeb.InviteLiveTest do
     assert html =~ "You need an invite code to view this team."
   end
 
-  test "invite access allows editing on team page", %{conn: conn} do
+  test "invite access gives read-only view on team page", %{conn: conn} do
     {code, team_id} = create_team_with_invite()
-    {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
+    {:ok, view, html} = live(conn, "/teams/#{team_id}?invite=#{code}")
 
-    assert has_element?(view, "button", "Add team member")
+    # Invite holder can view the team
+    assert html =~ "test-team"
+    assert html =~ "dev"
+
+    # But cannot see edit controls
+    refute has_element?(view, "button", "Add team member")
+    refute has_element?(view, "button", "Add skill")
   end
 
   test "member cards link to member detail page", %{conn: conn} do
@@ -90,28 +93,34 @@ defmodule TeamrcWeb.InviteLiveTest do
     assert html =~ "invite=#{code}"
   end
 
-  test "member detail page loads via invite access", %{conn: conn} do
+  test "member detail page loads via invite access as read-only", %{conn: conn} do
     {code, team_id} = create_team_with_invite()
 
     member = team_member(team_id)
 
-    {:ok, _view, html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+    {:ok, view, html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
 
-    assert html =~ "Name"
-    assert html =~ "Role"
+    # Can view the member
     assert html =~ "Instructions"
-    assert html =~ "Remove member"
+    assert html =~ "dev"
+
+    # But read-only: no edit inputs or delete button
+    refute has_element?(view, "input#member-name")
+    refute has_element?(view, "button[phx-click='delete_member']")
   end
 
-  test "can remove a member via invite on detail page", %{conn: conn} do
+  test "invite holder cannot remove a member via event", %{conn: conn} do
     {code, team_id} = create_team_with_invite()
 
     member = team_member(team_id)
 
     {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
 
-    assert {:error, {:redirect, %{to: "/teams/" <> _}}} =
-             view |> element("button[phx-click='delete_member']") |> render_click()
+    # Attempt delete via event (bypassing UI)
+    render_click(view, "delete_member", %{})
+
+    # Member should still exist
+    assert Repo.get(Member, member.id)
   end
 
   test "member detail without invite is denied for unauthenticated users", %{conn: conn} do
@@ -122,24 +131,5 @@ defmodule TeamrcWeb.InviteLiveTest do
              live(conn, "/teams/#{team_id}/members/#{member.id}")
 
     assert rest == team_id
-  end
-
-  test "member detail blocks save after invite expires", %{conn: conn} do
-    {code, team_id} = create_team_with_invite()
-    set_invite_expiry!(code, DateTime.utc_now() |> DateTime.add(2, :second))
-    member = team_member(team_id)
-
-    {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
-    view |> element("input[phx-keyup='update_name']") |> render_keyup(%{"value" => "new-name"})
-
-    Process.sleep(2_500)
-
-    view |> element("button[phx-click='save']") |> render_click()
-
-    html = render(view)
-    assert html =~ "This invite has expired or been revoked."
-
-    db_member = Repo.get!(Member, member.id)
-    assert db_member.name == member.name
   end
 end

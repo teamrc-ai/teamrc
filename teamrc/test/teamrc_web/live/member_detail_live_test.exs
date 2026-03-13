@@ -2,8 +2,8 @@ defmodule TeamrcWeb.MemberDetailLiveTest do
   use TeamrcWeb.ConnCase
   import Phoenix.LiveViewTest
 
-  alias Teamrc.{Repo, Teams}
-  alias Teamrc.Schema.{Invite, Member, Team}
+  alias Teamrc.{Accounts, Repo, Teams}
+  alias Teamrc.Schema.{Member, Team}
 
   # --- Helpers ---
 
@@ -26,15 +26,21 @@ defmodule TeamrcWeb.MemberDetailLiveTest do
     hd(team.members)
   end
 
-  defp set_invite_expiry!(invite_code, expires_at) do
-    expires_at = DateTime.truncate(expires_at, :second)
-    invite = Repo.get_by!(Invite, code: invite_code)
-    invite |> Ecto.Changeset.change(%{expires_at: expires_at}) |> Repo.update!()
-  end
-
   defp make_team_public(team_id) do
     team = Repo.get!(Team, team_id)
     team |> Ecto.Changeset.change(%{visibility: "public"}) |> Repo.update!()
+  end
+
+  defp create_owner_with_team(opts \\ []) do
+    user = Teamrc.AccountsFixtures.user_fixture()
+    {invite_code, team_id} = create_team_with_invite([owner_user_id: user.id] ++ opts)
+
+    # Link a machine token so the user is a "participant"
+    token = "trc_ak_test_#{System.unique_integer([:positive])}"
+    {:ok, _mt} = Accounts.link_machine_token(user.id, token, "test-machine")
+    Teams.join_by_invite(invite_code, token)
+
+    %{user: user, team_id: team_id, invite_code: invite_code, token: token}
   end
 
   # --- Tests: rendering ---
@@ -46,17 +52,29 @@ defmodule TeamrcWeb.MemberDetailLiveTest do
 
       {:ok, _view, html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
 
-      assert html =~ "Name"
-      assert html =~ "Role"
       assert html =~ "Instructions"
       assert html =~ "dev"
     end
 
-    test "shows editable fields with invite access", %{conn: conn} do
+    test "invite holder sees read-only view", %{conn: conn} do
       {code, team_id} = create_team_with_invite()
       member = team_member(team_id)
 
       {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+
+      # Read-only view doesn't have edit inputs
+      refute has_element?(view, "input#member-name")
+      refute has_element?(view, "input#member-role")
+      refute has_element?(view, "textarea#member-soul")
+      refute has_element?(view, "button[phx-click='delete_member']")
+    end
+
+    test "owner sees editable fields", %{conn: conn} do
+      %{user: user, team_id: team_id} = create_owner_with_team()
+      conn = log_in_user(conn, user)
+      member = team_member(team_id)
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}")
 
       assert has_element?(view, "input#member-name")
       assert has_element?(view, "input#member-role")
@@ -104,14 +122,63 @@ defmodule TeamrcWeb.MemberDetailLiveTest do
       assert {:error, {:redirect, %{to: "/teams/" <> ^team_id}}} =
                live(conn, "/teams/#{team_id}/members/#{fake_member_id}?invite=#{code}")
     end
-  end
 
-  describe "editing member" do
-    test "can update name and role", %{conn: conn} do
+    test "invite holder cannot save via event", %{conn: conn} do
       {code, team_id} = create_team_with_invite()
       member = team_member(team_id)
 
       {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+
+      # Attempt save via event (bypassing UI which hides the button)
+      render_click(view, "save", %{})
+
+      # Verify no changes in database
+      db_member = Repo.get!(Member, member.id)
+      assert db_member.name == member.name
+    end
+
+    test "invite holder cannot delete member via event", %{conn: conn} do
+      {code, team_id} = create_team_with_invite()
+      member = team_member(team_id)
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+
+      # Attempt delete via event (bypassing UI which hides the button)
+      render_click(view, "delete_member", %{})
+
+      # Member should still exist
+      assert Repo.get(Member, member.id)
+    end
+
+    test "invite holder cannot toggle skill via event", %{conn: conn} do
+      skills = [%{"id" => "test-skill", "body" => "Do things", "title" => "Test"}]
+
+      {code, team_id} =
+        create_team_with_invite(
+          skills: skills,
+          members: [%{name: "dev", role: "development", skills: []}]
+        )
+
+      member = team_member(team_id)
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+
+      # Attempt toggle via event (bypassing UI which hides the button)
+      render_click(view, "toggle_skill", %{"skill-id" => "test-skill"})
+
+      # Skill should not be assigned
+      db_member = Repo.get!(Member, member.id)
+      refute "test-skill" in (db_member.skills || [])
+    end
+  end
+
+  describe "editing member" do
+    test "owner can update name and role", %{conn: conn} do
+      %{user: user, team_id: team_id} = create_owner_with_team()
+      conn = log_in_user(conn, user)
+      member = team_member(team_id)
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}")
 
       # Update name
       view |> element("input[phx-keyup='update_name']") |> render_keyup(%{"value" => "new-name"})
@@ -129,11 +196,12 @@ defmodule TeamrcWeb.MemberDetailLiveTest do
       assert db_member.role == "new-role"
     end
 
-    test "can update soul/instructions", %{conn: conn} do
-      {code, team_id} = create_team_with_invite()
+    test "owner can update soul/instructions", %{conn: conn} do
+      %{user: user, team_id: team_id} = create_owner_with_team()
+      conn = log_in_user(conn, user)
       member = team_member(team_id)
 
-      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}")
 
       view |> element("textarea[phx-keyup='update_soul']") |> render_keyup(%{"value" => "Be helpful"})
       view |> element("button[phx-click='save']") |> render_click()
@@ -143,10 +211,11 @@ defmodule TeamrcWeb.MemberDetailLiveTest do
     end
 
     test "save with empty name fails", %{conn: conn} do
-      {code, team_id} = create_team_with_invite()
+      %{user: user, team_id: team_id} = create_owner_with_team()
+      conn = log_in_user(conn, user)
       member = team_member(team_id)
 
-      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}")
 
       view |> element("input[phx-keyup='update_name']") |> render_keyup(%{"value" => ""})
       view |> element("button[phx-click='save']") |> render_click()
@@ -157,11 +226,12 @@ defmodule TeamrcWeb.MemberDetailLiveTest do
   end
 
   describe "deleting member" do
-    test "can delete member and redirects to team page", %{conn: conn} do
-      {code, team_id} = create_team_with_invite()
+    test "owner can delete member and redirects to team page", %{conn: conn} do
+      %{user: user, team_id: team_id} = create_owner_with_team()
+      conn = log_in_user(conn, user)
       member = team_member(team_id)
 
-      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}")
 
       assert {:error, {:redirect, %{to: "/teams/" <> _}}} =
                view |> element("button[phx-click='delete_member']") |> render_click()
@@ -172,18 +242,19 @@ defmodule TeamrcWeb.MemberDetailLiveTest do
   end
 
   describe "skill toggling" do
-    test "can toggle a skill on a member", %{conn: conn} do
+    test "owner can toggle a skill on a member", %{conn: conn} do
       skills = [%{"id" => "test-skill", "body" => "Do things", "title" => "Test"}]
 
-      {code, team_id} =
-        create_team_with_invite(
+      %{user: user, team_id: team_id} =
+        create_owner_with_team(
           skills: skills,
           members: [%{name: "dev", role: "development", skills: []}]
         )
 
+      conn = log_in_user(conn, user)
       member = team_member(team_id)
 
-      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}")
 
       # Toggle skill on
       view
@@ -200,27 +271,6 @@ defmodule TeamrcWeb.MemberDetailLiveTest do
 
       db_member = Repo.get!(Member, member.id)
       refute "test-skill" in (db_member.skills || [])
-    end
-  end
-
-  describe "invite expiry on member detail" do
-    test "blocks save after invite expires", %{conn: conn} do
-      {code, team_id} = create_team_with_invite()
-      set_invite_expiry!(code, DateTime.utc_now() |> DateTime.add(2, :second))
-      member = team_member(team_id)
-
-      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
-      view |> element("input[phx-keyup='update_name']") |> render_keyup(%{"value" => "new-name"})
-
-      Process.sleep(2_500)
-
-      view |> element("button[phx-click='save']") |> render_click()
-
-      html = render(view)
-      assert html =~ "This invite has expired or been revoked."
-
-      db_member = Repo.get!(Member, member.id)
-      assert db_member.name == member.name
     end
   end
 end

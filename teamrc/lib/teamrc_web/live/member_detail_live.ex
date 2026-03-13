@@ -7,7 +7,7 @@ defmodule TeamrcWeb.MemberDetailLive do
   # --- Mount ---
 
   @impl true
-  def mount(%{"team_id" => team_id, "member_id" => member_id} = params, _session, socket) do
+  def mount(%{"team_id" => team_id, "member_id" => member_id} = params, session, socket) do
     team = Teams.get_team_by_id(team_id)
     member = team && Enum.find(team.members, &(&1.id == member_id))
     invite_code = params["invite"]
@@ -27,13 +27,19 @@ defmodule TeamrcWeb.MemberDetailLive do
         owner_access = Accounts.is_team_participant?(current_user && current_user.id, team.id)
         invite_access = load_valid_invite(team.id, invite_code)
 
+        # Check creator session
+        creator_sessions = session["creator_sessions"] || %{}
+        creator_token = Map.get(creator_sessions, team_id)
+        is_creator = is_binary(creator_token) && Teams.verify_creator_token(team_id, creator_token)
+
         can_view =
           owner_access or
+            is_creator or
             team.visibility == "public" or
             not is_nil(invite_access)
 
         if can_view do
-          can_edit = owner_access or not is_nil(invite_access)
+          can_edit = owner_access or is_creator
 
           {:ok,
            assign(socket,
@@ -41,6 +47,7 @@ defmodule TeamrcWeb.MemberDetailLive do
              team: team,
              member: member,
              can_edit: can_edit,
+             is_creator_session: is_creator,
              invite_access: invite_access,
              invite_code: invite_code,
              edit_name: member.name,
@@ -74,8 +81,7 @@ defmodule TeamrcWeb.MemberDetailLive do
             invite ->
               assign(socket,
                 invite_access: invite,
-                invite_code: invite_code,
-                can_edit: true
+                invite_code: invite_code
               )
           end
       end

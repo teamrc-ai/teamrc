@@ -24,9 +24,9 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
     team |> Ecto.Changeset.change(%{visibility: "public"}) |> Repo.update!()
   end
 
-  defp create_owner_with_team do
+  defp create_owner_with_team(opts \\ []) do
     user = Teamrc.AccountsFixtures.user_fixture()
-    {invite_code, team_id} = create_team_with_invite(owner_user_id: user.id)
+    {invite_code, team_id} = create_team_with_invite([owner_user_id: user.id] ++ opts)
 
     # Link a machine token so the user is a "participant"
     token = "trc_ak_test_#{System.unique_integer([:positive])}"
@@ -75,12 +75,29 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
       assert html =~ "Expires in"
     end
 
-    test "shows add member button with invite access", %{conn: conn} do
+    test "invite holder cannot see edit controls", %{conn: conn} do
       {code, team_id} = create_team_with_invite()
 
       {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
 
-      assert has_element?(view, "button", "Add team member")
+      refute has_element?(view, "button", "Add team member")
+      refute has_element?(view, "button", "Add skill")
+    end
+
+    test "invite holder cannot add member via event", %{conn: conn} do
+      {code, team_id} = create_team_with_invite()
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
+
+      # Set up member form state, then attempt to add
+      render_click(view, "custom_member", %{})
+      render_keyup(view, "update_new_member_name", %{"value" => "hacker-agent"})
+      render_keyup(view, "update_new_member_role", %{"value" => "hacking"})
+      render_click(view, "add_member", %{})
+
+      # Verify member was NOT added
+      team = Repo.get!(Team, team_id) |> Repo.preload(:members)
+      refute Enum.any?(team.members, &(&1.name == "hacker-agent"))
     end
   end
 
@@ -151,10 +168,11 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
   end
 
   describe "member management" do
-    test "can add a custom member via invite", %{conn: conn} do
-      {code, team_id} = create_team_with_invite()
+    test "owner can add a custom member", %{conn: conn} do
+      %{user: user, team_id: team_id} = create_owner_with_team()
+      conn = log_in_user(conn, user)
 
-      {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}")
 
       # Open member picker
       view |> element("button", "Add team member") |> render_click()
@@ -174,7 +192,7 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
       assert html =~ "testing"
     end
 
-    test "member cards link to member detail page", %{conn: conn} do
+    test "member cards link to member detail page with invite code", %{conn: conn} do
       {code, team_id} = create_team_with_invite()
 
       {:ok, _view, html} = live(conn, "/teams/#{team_id}?invite=#{code}")
@@ -185,10 +203,11 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
   end
 
   describe "skill management" do
-    test "can add a custom skill via invite", %{conn: conn} do
-      {code, team_id} = create_team_with_invite()
+    test "owner can add a custom skill", %{conn: conn} do
+      %{user: user, team_id: team_id} = create_owner_with_team()
+      conn = log_in_user(conn, user)
 
-      {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}")
 
       # Open skill picker
       view |> element("button", "Add skill") |> render_click()
@@ -212,11 +231,12 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
       assert html =~ "test-skill"
     end
 
-    test "can delete a skill", %{conn: conn} do
+    test "owner can delete a skill", %{conn: conn} do
       skills = [%{"id" => "my-skill", "body" => "skill body", "title" => "My Skill"}]
-      {code, team_id} = create_team_with_invite(skills: skills)
+      %{user: user, team_id: team_id} = create_owner_with_team(skills: skills)
+      conn = log_in_user(conn, user)
 
-      {:ok, view, html} = live(conn, "/teams/#{team_id}?invite=#{code}")
+      {:ok, view, html} = live(conn, "/teams/#{team_id}")
 
       assert html =~ "my-skill"
 
@@ -226,6 +246,20 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
 
       html = render(view)
       refute html =~ "my-skill"
+    end
+
+    test "invite holder cannot delete a skill via event", %{conn: conn} do
+      skills = [%{"id" => "my-skill", "body" => "skill body", "title" => "My Skill"}]
+      {code, team_id} = create_team_with_invite(skills: skills)
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
+
+      # Attempt to delete skill via event (bypassing UI)
+      render_click(view, "delete_skill", %{"skill-id" => "my-skill"})
+
+      # Verify skill was NOT deleted
+      team = Teams.get_team_by_id(team_id)
+      assert Enum.any?(team.skills, &(&1["id"] == "my-skill"))
     end
   end
 end
