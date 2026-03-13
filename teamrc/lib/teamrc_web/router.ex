@@ -40,7 +40,7 @@ defmodule TeamrcWeb.Router do
     plug TeamrcWeb.Plugs.CORS
     plug :fetch_session
     plug :fetch_current_scope_for_user
-    plug :require_authenticated_user
+    plug :require_authenticated_json
     plug TeamrcWeb.Plugs.VerifyOrigin
     plug TeamrcWeb.Plugs.PIIHeader
     plug TeamrcWeb.Plugs.RateLimiter, limit: 60, window_ms: 60_000
@@ -52,7 +52,7 @@ defmodule TeamrcWeb.Router do
     plug TeamrcWeb.Plugs.CORS
     plug :fetch_session
     plug :fetch_current_scope_for_user
-    plug :require_authenticated_user
+    plug :require_authenticated_json
     plug TeamrcWeb.Plugs.VerifyOrigin
     plug TeamrcWeb.Plugs.PIIHeader
     plug TeamrcWeb.Plugs.VerifySignature

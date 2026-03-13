@@ -239,6 +239,21 @@ defmodule TeamrcWeb.UserAuth do
   def signed_in_path(_), do: ~p"/"
 
   @doc """
+  Plug for JSON API routes that require the user to be authenticated.
+  Returns 401 JSON instead of redirecting to the login page.
+  """
+  def require_authenticated_json(conn, _opts) do
+    if conn.assigns.current_scope && conn.assigns.current_scope.user do
+      conn
+    else
+      conn
+      |> put_status(:unauthorized)
+      |> Phoenix.Controller.json(%{error: "authentication required"})
+      |> halt()
+    end
+  end
+
+  @doc """
   Plug for routes that require the user to be authenticated.
   Also enforces Terms of Service acceptance.
   """

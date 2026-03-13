@@ -65,6 +65,26 @@ defmodule TeamrcWeb.AccountControllerTest do
     }
   end
 
+  describe "unauthenticated access" do
+    test "GET /api/account returns 401 JSON when not logged in", %{conn: _conn} do
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Conn.put_req_header("accept", "application/json")
+        |> get("/api/account")
+
+      assert json_response(conn, 401)["error"] == "authentication required"
+    end
+
+    test "GET /api/account/teams returns 401 JSON when not logged in", %{conn: _conn} do
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Conn.put_req_header("accept", "application/json")
+        |> get("/api/account/teams")
+
+      assert json_response(conn, 401)["error"] == "authentication required"
+    end
+  end
+
   describe "GET /api/account" do
     test "returns account and machines", %{conn: conn, user: user} do
       conn = get(conn, "/api/account")
