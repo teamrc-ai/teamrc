@@ -16,7 +16,7 @@ defmodule Teamrc.Accounts.UserNotifier do
     email =
       new()
       |> to(recipient)
-      |> from({"teamrc", "noreply@teamrc.dev"})
+      |> from({"teamrc", "no-reply@notifications.teamrc.ai"})
       |> subject(subject)
       |> text_body(text_body)
       |> html_body(html_body)
