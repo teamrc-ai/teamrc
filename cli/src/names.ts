@@ -26,7 +26,7 @@ const WORDS = [
 
 /** Generate a Heroku-style suffix: `<word>-<4hex>` (e.g. `coral-9f3a`). */
 export function generateTeamSuffix(): string {
-  const word = WORDS[randomBytes(1)[0] % WORDS.length];
+  const word = WORDS[randomBytes(2).readUInt16BE(0) % WORDS.length];
   const hex = randomBytes(2).toString("hex");
   return `${word}-${hex}`;
 }

@@ -6,6 +6,7 @@ import {
   sanitizeText,
   slugify,
   knowledgeFileName,
+  deleteKnowledgeFiles,
   writeSkillDir,
   cleanupSkillDirs,
   resolveAgentSkills,
@@ -317,10 +318,8 @@ export class OpenClawAdapter implements PlatformAdapter {
     }
 
     // Delete team knowledge
-    const kPath = this.knowledgePath();
-    if (fs.existsSync(kPath)) {
-      fs.unlinkSync(kPath);
-      actions.push(`Deleted ${kPath}`);
+    for (const deleted of deleteKnowledgeFiles(this.openclawDir(), this.teamSlug)) {
+      actions.push(`Deleted ${deleted}`);
     }
 
     return actions;

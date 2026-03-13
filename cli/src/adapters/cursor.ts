@@ -7,6 +7,7 @@ import {
   slugify,
   escapeYamlString,
   knowledgeFileName,
+  deleteKnowledgeFiles,
   validateAgentName,
   writeSkillDir,
   listTrcFiles,
@@ -372,10 +373,8 @@ ${body}
     }
 
     // Clean up knowledge
-    const kp = this.knowledgePath();
-    if (fs.existsSync(kp)) {
-      fs.unlinkSync(kp);
-      actions.push(`Deleted ${kp}`);
+    for (const deleted of deleteKnowledgeFiles(path.join(process.cwd(), ".teamrc"), this.teamSlug)) {
+      actions.push(`Deleted ${deleted}`);
     }
 
     // Clean up AGENTS.md marker block

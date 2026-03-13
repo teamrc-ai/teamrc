@@ -218,6 +218,30 @@ export function knowledgeFileName(teamSlug: string): string {
   return `knowledge-${teamSlug || "team"}.md`;
 }
 
+/** Delete knowledge file(s) in a directory. When slug is the fallback "team",
+ *  glob-deletes all knowledge-*.md to handle the case where the real slug is unknown.
+ *  Otherwise deletes only the specific slug's file. Returns list of deleted paths. */
+export function deleteKnowledgeFiles(dir: string, teamSlug: string): string[] {
+  if (!fs.existsSync(dir)) return [];
+  const deleted: string[] = [];
+  if (teamSlug === "team") {
+    // Slug unknown (e.g., YAML already deleted) — clean up all knowledge files
+    const files = fs.readdirSync(dir).filter((f) => f.startsWith("knowledge-") && f.endsWith(".md"));
+    for (const f of files) {
+      const full = path.join(dir, f);
+      fs.unlinkSync(full);
+      deleted.push(full);
+    }
+  } else {
+    const full = path.join(dir, knowledgeFileName(teamSlug));
+    if (fs.existsSync(full)) {
+      fs.unlinkSync(full);
+      deleted.push(full);
+    }
+  }
+  return deleted;
+}
+
 /** Escape a string for use in YAML double-quoted values */
 export function escapeYamlString(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");

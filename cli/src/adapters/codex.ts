@@ -6,6 +6,7 @@ import {
   sanitizeText,
   slugify,
   knowledgeFileName,
+  deleteKnowledgeFiles,
   listTrcFiles,
   upsertMarkerBlock,
   removeMarkerBlock,
@@ -359,10 +360,8 @@ export class CodexAdapter implements PlatformAdapter {
     }
 
     // Clean up knowledge
-    const kp = this.knowledgePath();
-    if (fs.existsSync(kp)) {
-      fs.unlinkSync(kp);
-      actions.push(`Deleted ${kp}`);
+    for (const deleted of deleteKnowledgeFiles(path.join(process.cwd(), ".teamrc"), this.teamSlug)) {
+      actions.push(`Deleted ${deleted}`);
     }
 
     // Clean up AGENTS.md marker block

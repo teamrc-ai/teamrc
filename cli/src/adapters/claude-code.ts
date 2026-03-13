@@ -9,6 +9,7 @@ import {
   slugify,
   escapeYamlString,
   knowledgeFileName,
+  deleteKnowledgeFiles,
   listTrcFiles,
   deleteTrcFiles,
   resolveAgentsDir,
@@ -321,11 +322,11 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     }
 
     // Delete team knowledge
-    for (const s of ["project", "global"] as TeamScope[]) {
-      const kPath = this.knowledgePath(s);
-      if (fs.existsSync(kPath)) {
-        fs.unlinkSync(kPath);
-        actions.push(`Deleted ${kPath}`);
+    const projectKnowledgeDir = path.join(process.cwd(), ".teamrc");
+    const globalKnowledgeDir = path.join(os.homedir(), ".teamrc");
+    for (const dir of [projectKnowledgeDir, globalKnowledgeDir]) {
+      for (const deleted of deleteKnowledgeFiles(dir, this.teamSlug)) {
+        actions.push(`Deleted ${deleted}`);
       }
     }
 
