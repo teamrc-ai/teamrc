@@ -8,6 +8,7 @@ defmodule TeamrcWeb.GuideLive do
     {:cli, "CLI Reference", "/guide/cli"},
     {:platforms, "Platforms", "/guide/platforms"},
     {:sync, "Syncing", "/guide/sync"},
+    {:sharing, "Sharing", "/guide/sharing"},
     {:web_ui, "Web UI Tour", "/guide/web-ui"},
     {:config, "Configuration", "/guide/config"},
     {:faq, "FAQ", "/guide/faq"}
@@ -62,6 +63,8 @@ defmodule TeamrcWeb.GuideLive do
             <.page_platforms />
           <% :sync -> %>
             <.page_sync />
+          <% :sharing -> %>
+            <.page_sharing />
           <% :web_ui -> %>
             <.page_web_ui />
           <% :config -> %>
@@ -1171,7 +1174,7 @@ defmodule TeamrcWeb.GuideLive do
         <span class="font-semibold">Detection:</span>
         <.code_inline>.codex/</.code_inline>
         directory.
-        Supports both project and global scope.
+        Project scope only.
       </p>
       <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-2">
         <p class="text-[10px] font-medium text-base-content/60 uppercase tracking-wider">
@@ -1571,6 +1574,122 @@ defmodule TeamrcWeb.GuideLive do
       <p class="text-sm text-base-content/70 leading-relaxed">
         But it's optional. Everything works without it.
       </p>
+    </section>
+    """
+  end
+
+  # ===========================================================================
+  # Page: Sharing
+  # ===========================================================================
+
+  defp page_sharing(assigns) do
+    ~H"""
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight mb-1">Sharing</h1>
+      <p class="text-sm text-base-content/60">
+        Share your team publicly so anyone can view and clone it.
+      </p>
+    </div>
+
+    <.page_toc items={[
+      {"#make-public", "Making a team public"},
+      {"#share-url", "The share URL"},
+      {"#cloning", "Cloning a shared team"},
+      {"#stop-sharing", "Stopping sharing"},
+      {"#whats-shared", "What is and isn't shared"}
+    ]} />
+
+    <%!-- Making a team public --%>
+    <section class="space-y-3">
+      <.section_heading id="make-public" title="Making a team public" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        Sharing requires a linked account. If you haven't already, run
+        <.code_inline>teamrc login</.code_inline> first.
+      </p>
+
+      <.sub_heading id="share-cli" title="From the CLI" />
+      <.terminal_block title="terminal">
+        <.cmd_line cmd="npx @teamrc/cli share" />
+      </.terminal_block>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        This makes your team public and prints the share URL and clone command.
+      </p>
+
+      <.sub_heading id="share-web" title="From the web UI" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        Open your team dashboard and click the <span class="font-semibold">Share</span> button.
+        You'll see a confirmation dialog explaining that your team will become publicly visible.
+        Confirm, and the share panel appears with a copyable link.
+      </p>
+    </section>
+
+    <%!-- The share URL --%>
+    <section class="space-y-3">
+      <.section_heading id="share-url" title="The share URL" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        Public teams get a URL in the format:
+      </p>
+      <div class="rounded-lg border border-base-300 bg-base-100 p-3">
+        <code class="text-sm font-mono text-base-content/80">https://teamrc.ai/t/&lt;clone_token&gt;</code>
+      </div>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        This page shows the team name, agents, and skills. Anyone with the link can view the
+        team composition and copy the clone command. The page also has a copy-link button for
+        easy re-sharing.
+      </p>
+    </section>
+
+    <%!-- Cloning a shared team --%>
+    <section class="space-y-3">
+      <.section_heading id="cloning" title="Cloning a shared team" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        If someone shares a team URL with you, clone it from any project directory:
+      </p>
+      <.terminal_block title="terminal">
+        <.cmd_line cmd={"npx @teamrc/cli clone <clone_token>"} />
+      </.terminal_block>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        This copies the team definition to your machine and applies it to your detected platforms.
+        Run <.code_inline>teamrc pull</.code_inline> anytime to get the latest updates from the
+        original team.
+      </p>
+    </section>
+
+    <%!-- Stopping sharing --%>
+    <section class="space-y-3">
+      <.section_heading id="stop-sharing" title="Stopping sharing" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        To make a team private again, use the CLI:
+      </p>
+      <.terminal_block title="terminal">
+        <.cmd_line cmd="npx @teamrc/cli share --off" />
+      </.terminal_block>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        Or click <span class="font-semibold">Make private</span> on the team dashboard.
+        The share link immediately stops working. You can re-share at any time, which generates
+        the same link.
+      </p>
+    </section>
+
+    <%!-- What's shared --%>
+    <section class="space-y-3">
+      <.section_heading id="whats-shared" title="What is and isn't shared" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        When a team is public, viewers can see:
+      </p>
+      <ul class="text-sm text-base-content/70 space-y-1.5 list-disc list-inside">
+        <li>Team name</li>
+        <li>Agent names, roles, and soul descriptions</li>
+        <li>Skill IDs and descriptions</li>
+        <li>Skill assignments per agent</li>
+      </ul>
+      <.callout title="Knowledge files are never shared">
+        <p class="text-sm text-base-content/70">
+          Knowledge files are private to your team and are not included on the public share page
+          or in cloned copies. They often contain project-specific context, so they stay with the
+          machines that created them.
+        </p>
+      </.callout>
     </section>
     """
   end
