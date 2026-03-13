@@ -715,7 +715,7 @@ defmodule TeamrcWeb.ApiControllerTest do
           }
         })
 
-      resp = json_response(conn, 201)
+      resp = json_response(conn, 200)
       assert resp["team"]["name"] == "FF Team"
       assert length(resp["team"]["members"]) == 1
     end

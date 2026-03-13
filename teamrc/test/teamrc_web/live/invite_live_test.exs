@@ -35,7 +35,7 @@ defmodule TeamrcWeb.InviteLiveTest do
   test "invalid invite renders error page", %{conn: conn} do
     {:ok, _view, html} = live(conn, "/invite/trc_inv_nonexistent")
     assert html =~ "Invalid Invite"
-    assert html =~ "This invite has expired or is invalid"
+    assert html =~ "invite link is not valid"
   end
 
   test "expired invite shows error page instead of redirect", %{conn: conn} do
@@ -47,8 +47,7 @@ defmodule TeamrcWeb.InviteLiveTest do
 
     {:ok, _view, html} = live(conn, "/invite/#{code}")
     assert html =~ "Invite Expired"
-    assert html =~ "This invite has expired or is invalid"
-    assert html =~ "Create a new team"
+    assert html =~ "invite link has expired"
   end
 
   test "team dashboard shows join command via invite", %{conn: conn} do

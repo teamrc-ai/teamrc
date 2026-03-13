@@ -24,8 +24,10 @@ defmodule TeamrcWeb.ApiController do
 
       case Teams.put_team(token, sanitized, team_id) do
         {:ok, team_data} ->
+          status = if Map.has_key?(team_data, "owner_claim_secret"), do: :created, else: :ok
+
           conn
-          |> put_status(:created)
+          |> put_status(status)
           |> json(%{team: team_data})
 
         {:error, :team_id_required} ->

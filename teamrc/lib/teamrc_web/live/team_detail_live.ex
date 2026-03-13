@@ -6,6 +6,8 @@ defmodule TeamrcWeb.TeamDetailLive do
   import TeamrcWeb.LiveHelpers
 
   @max_members 20
+  @max_skill_body_bytes 10_000
+  @max_skills 50
 
   # --- Mount ---
 
@@ -82,7 +84,9 @@ defmodule TeamrcWeb.TeamDetailLive do
       skill_description: "",
       skill_body: "",
       skill_always_apply: false,
-      show_share_modal: false
+      show_share_modal: false,
+      show_claim_form: false,
+      claim_secret_input: ""
     ]
   end
 
@@ -108,7 +112,7 @@ defmodule TeamrcWeb.TeamDetailLive do
 
               case Teams.get_valid_invite(team.id, invite_code) do
                 nil ->
-                  socket
+                  put_flash(socket, :error, "This invite code has expired or is invalid.")
 
                 invite ->
                   assign(socket, invite_access: invite, invite_code: invite_code)
@@ -122,7 +126,7 @@ defmodule TeamrcWeb.TeamDetailLive do
   defp reload_with_invite(socket, invite_code, team_id) do
     case Teams.get_valid_invite_with_team(team_id, invite_code) do
       nil ->
-        socket
+        put_flash(socket, :error, "This invite code has expired or is invalid.")
 
       %{team: team} = invite ->
         assign(socket,
@@ -320,7 +324,7 @@ defmodule TeamrcWeb.TeamDetailLive do
     require_edit_access(socket, fn ->
       team = socket.assigns.team
 
-      if length(team.members) > @max_members do
+      if length(team.members) >= @max_members do
         {:noreply, put_flash(socket, :error, "Maximum #{@max_members} members reached.")}
       else
         name = String.trim(socket.assigns.new_member_name)
@@ -420,7 +424,7 @@ defmodule TeamrcWeb.TeamDetailLive do
          skill_title: skill["title"] || "",
          skill_description: skill["description"] || "",
          skill_body: skill["body"] || "",
-         skill_always_apply: false
+         skill_always_apply: skill["alwaysApply"] == true
        )}
     else
       {:noreply, socket}
@@ -485,17 +489,33 @@ defmodule TeamrcWeb.TeamDetailLive do
              "Skill ID must be alphanumeric (hyphens and underscores allowed)."
            )}
 
-        true ->
-          new_skill =
-            %{"id" => id, "body" => body}
-            |> then(fn s -> if title != "", do: Map.put(s, "title", title), else: s end)
-            |> then(fn s ->
-              if description != "", do: Map.put(s, "description", description), else: s
-            end)
-            |> then(fn s -> if always_apply, do: Map.put(s, "alwaysApply", true), else: s end)
+        byte_size(body) > @max_skill_body_bytes ->
+          {:noreply, put_flash(socket, :error, "Skill body exceeds #{@max_skill_body_bytes} bytes.")}
 
+        !socket.assigns.editing_skill and length(team.skills) >= @max_skills ->
+          {:noreply, put_flash(socket, :error, "Team may have at most #{@max_skills} skills.")}
+
+        true ->
           existing_skills = team.skills
           editing = socket.assigns.editing_skill
+
+          # When editing, start from the existing skill to preserve fields
+          # not exposed in the web form (globs, userInvocable)
+          base_skill =
+            if editing do
+              Enum.find(existing_skills, %{}, fn s -> s["id"] == editing end)
+            else
+              %{}
+            end
+
+          new_skill =
+            base_skill
+            |> Map.merge(%{"id" => id, "body" => body})
+            |> then(fn s -> if title != "", do: Map.put(s, "title", title), else: Map.delete(s, "title") end)
+            |> then(fn s ->
+              if description != "", do: Map.put(s, "description", description), else: Map.delete(s, "description")
+            end)
+            |> then(fn s -> if always_apply, do: Map.put(s, "alwaysApply", true), else: Map.delete(s, "alwaysApply") end)
 
           # Check for duplicate ID (unless editing that same skill)
           duplicate = Enum.any?(existing_skills, fn s -> s["id"] == id and s["id"] != editing end)
@@ -620,6 +640,74 @@ defmodule TeamrcWeb.TeamDetailLive do
     set_visibility_result(socket, "private")
   end
 
+  def handle_event("show_claim_form", _params, socket) do
+    {:noreply, assign(socket, show_claim_form: true, claim_secret_input: "")}
+  end
+
+  def handle_event("cancel_claim", _params, socket) do
+    {:noreply, assign(socket, show_claim_form: false, claim_secret_input: "")}
+  end
+
+  def handle_event("update_claim_secret", %{"value" => value}, socket) do
+    {:noreply, assign(socket, claim_secret_input: value)}
+  end
+
+  def handle_event("submit_claim", _params, socket) do
+    current_user = socket.assigns.current_user
+    team = socket.assigns.team
+    secret = String.trim(socket.assigns.claim_secret_input)
+
+    cond do
+      is_nil(current_user) ->
+        {:noreply, put_flash(socket, :error, "Sign in to claim ownership.")}
+
+      socket.assigns.access_level != :participant ->
+        {:noreply, put_flash(socket, :error, "You don't have permission to claim this team.")}
+
+      secret == "" ->
+        {:noreply, put_flash(socket, :error, "Please enter a claim secret.")}
+
+      true ->
+        case Teams.claim_ownership_by_user(current_user.id, team.id, secret) do
+          {:ok, :claimed} ->
+            # Reload with owner access
+            case load_team(team.id, socket.assigns) do
+              {:ok, data} ->
+                {:noreply,
+                 socket
+                 |> put_flash(:info, "Ownership claimed successfully.")
+                 |> assign(
+                   team: data.team,
+                   access_level: data.access_level,
+                   can_edit: data.access_level in [:owner, :participant],
+                   is_owner: data.access_level == :owner,
+                   is_creator_session: data[:is_creator_session] == true,
+                   participants: data.participants,
+                   invites: data.invites,
+                   clone_token: data.clone_token,
+                   show_claim_form: false,
+                   claim_secret_input: ""
+                 )}
+
+              _ ->
+                {:noreply,
+                 socket
+                 |> put_flash(:info, "Ownership claimed.")
+                 |> push_navigate(to: ~p"/teams/#{team.id}")}
+            end
+
+          {:error, :not_participant} ->
+            {:noreply, put_flash(socket, :error, "You don't have permission to claim this team.")}
+
+          {:error, :invalid_secret} ->
+            {:noreply, put_flash(socket, :error, "Invalid claim secret.")}
+
+          {:error, :already_claimed} ->
+            {:noreply, put_flash(socket, :error, "This team already has an owner.")}
+        end
+    end
+  end
+
   def handle_event("delete_team", _params, socket) do
     current_user = socket.assigns.current_user
     team = socket.assigns.team
@@ -631,7 +719,7 @@ defmodule TeamrcWeb.TeamDetailLive do
     if not is_authenticated_owner do
       {:noreply, put_flash(socket, :error, "Only the team owner can delete this team. Sign in and claim ownership first.")}
     else
-      case Teams.delete_team(team.id) do
+      case Teams.delete_team(team.id, current_user.id) do
         :ok ->
           {:noreply,
            socket
@@ -795,6 +883,7 @@ defmodule TeamrcWeb.TeamDetailLive do
       <div class="max-w-2xl mx-auto space-y-8">
         <%!-- Back link --%>
         <a
+          :if={@current_user}
           href={~p"/dashboard"}
           class="trc-focus inline-flex items-center gap-1.5 text-xs font-medium text-base-content/60 hover:text-base-content/70 transition-colors rounded px-1 -ml-1"
         >
@@ -925,6 +1014,7 @@ defmodule TeamrcWeb.TeamDetailLive do
         <section
           :if={@is_owner && @team.visibility == "public" && @team.clone_token}
           id="share-panel"
+          style="display: none;"
           class="rounded-lg border border-base-300 bg-base-100 p-5 space-y-4"
         >
           <div class="flex items-center justify-between">
@@ -1000,7 +1090,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                 class="trc-focus text-[10px] font-mono text-white/30 hover:text-white/60 transition-colors rounded px-1.5 py-0.5 hover:bg-white/5"
                 aria-label="Copy join command"
               >
-                copy
+                Copy
               </button>
             </div>
             <div class="p-4">
@@ -1100,8 +1190,8 @@ defmodule TeamrcWeb.TeamDetailLive do
             <%!-- Step 1: Member picker (pre-built catalog + custom option) --%>
             <div
               :if={@member_mode == :picker}
-              role="dialog"
-              aria-modal="true"
+              role="region"
+              aria-label="Add a team member"
               class="rounded-lg border border-base-300 bg-base-200/30 p-4 space-y-4 animate-[fadeIn_150ms_ease-out]"
             >
               <div class="flex items-center justify-between">
@@ -1176,8 +1266,8 @@ defmodule TeamrcWeb.TeamDetailLive do
             <%!-- Step 2: Member form (for custom or pre-filled from catalog) --%>
             <div
               :if={@member_mode == :form}
-              role="dialog"
-              aria-modal="true"
+              role="region"
+              aria-label="Member details form"
               class="rounded-lg border border-base-300 bg-base-200/30 p-3 space-y-2 animate-[fadeIn_150ms_ease-out]"
             >
               <div class="flex flex-col sm:flex-row gap-2">
@@ -1398,8 +1488,8 @@ defmodule TeamrcWeb.TeamDetailLive do
             <%!-- Step 1: Skill picker (pre-built catalog + custom option) --%>
             <div
               :if={@skill_mode == :picker}
-              role="dialog"
-              aria-modal="true"
+              role="region"
+              aria-label="Add a skill"
               class="rounded-lg border border-base-300 bg-base-200/30 p-4 space-y-4 animate-[fadeIn_150ms_ease-out]"
             >
               <div class="flex items-center justify-between">
@@ -1485,8 +1575,8 @@ defmodule TeamrcWeb.TeamDetailLive do
             <%!-- Step 2: Skill form (for custom or pre-filled from catalog) --%>
             <div
               :if={@skill_mode == :form}
-              role="dialog"
-              aria-modal="true"
+              role="region"
+              aria-label="Skill details form"
               class="rounded-lg border border-base-300 bg-base-200/30 p-4 space-y-3 animate-[fadeIn_150ms_ease-out]"
             >
               <div class="flex items-center justify-between">
@@ -1724,7 +1814,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                   class="trc-focus text-[10px] font-mono text-white/30 hover:text-white/60 transition-colors rounded px-1.5 py-0.5 hover:bg-white/5"
                   aria-label="Copy invite command"
                 >
-                  copy
+                  Copy
                 </button>
               </div>
             </div>
@@ -1753,7 +1843,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                     class="trc-focus text-[10px] font-mono text-white/30 hover:text-white/60 transition-colors rounded px-1.5 py-0.5 hover:bg-white/5"
                     aria-label="Copy invite command"
                   >
-                    copy
+                    Copy
                   </button>
                 </div>
               </div>
@@ -1797,6 +1887,56 @@ defmodule TeamrcWeb.TeamDetailLive do
                   npx @teamrc/cli clone {@clone_token}
                 </code>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <%!-- Claim ownership (logged-in participant who is not the owner, team has no owner) --%>
+        <section
+          :if={@current_user && @access_level == :participant && @team.owner_user_id == nil}
+          class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-3"
+        >
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-base-content">Claim ownership</p>
+              <p class="text-xs text-base-content/60 mt-0.5">
+                This team has no owner. If you have the claim secret (shown when the team was created via the CLI), you can become the owner.
+              </p>
+            </div>
+            <button
+              :if={!@show_claim_form}
+              phx-click="show_claim_form"
+              class="trc-focus shrink-0 ml-4 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-content hover:brightness-110 transition-all"
+            >
+              Claim
+            </button>
+          </div>
+          <div :if={@show_claim_form} class="space-y-2">
+            <label for="claim-secret" class="sr-only">Claim secret</label>
+            <input
+              id="claim-secret"
+              type="text"
+              value={@claim_secret_input}
+              phx-keyup="update_claim_secret"
+              phx-debounce="300"
+              phx-mounted={JS.focus()}
+              placeholder="trc_ocs_..."
+              autocomplete="off"
+              class="trc-focus w-full rounded-md border border-base-300 bg-base-100 px-3 py-2 text-sm font-mono placeholder:text-base-content/40 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors"
+            />
+            <div class="flex items-center gap-2">
+              <button
+                phx-click="submit_claim"
+                class="trc-focus rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-content hover:brightness-110 transition-all"
+              >
+                Verify & claim
+              </button>
+              <button
+                phx-click="cancel_claim"
+                class="trc-focus rounded-md px-3 py-1.5 text-xs font-medium text-base-content/60 hover:text-base-content/70 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </section>

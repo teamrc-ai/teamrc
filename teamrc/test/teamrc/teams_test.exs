@@ -497,26 +497,121 @@ defmodule Teamrc.TeamsTest do
     end
   end
 
+  describe "claim_ownership_by_user" do
+    defp make_participant(user, team_id) do
+      token = "trc_ak_claim_#{:erlang.unique_integer([:positive])}"
+      {:ok, _mt} = Teamrc.Accounts.link_machine_token(user.id, token, "claim-machine")
+      {:ok, invite_code, _expires} = Teams.create_invite_by_team_id(team_id, 24)
+      Teams.join_by_invite(invite_code, token)
+    end
+
+    test "claims ownership with valid secret" do
+      team_attrs = %{
+        name: "claim-web",
+        members: [%{name: "dev", role: "dev"}],
+        skills: [],
+        platforms: []
+      }
+      {:ok, _invite, team_id, claim_secret} = Teams.create_team_with_invite(team_attrs)
+
+      user = user_fixture()
+      make_participant(user, team_id)
+      assert {:ok, :claimed} = Teams.claim_ownership_by_user(user.id, team_id, claim_secret)
+
+      team = Teamrc.Repo.get!(Teamrc.Schema.Team, team_id)
+      assert team.owner_user_id == user.id
+      assert is_nil(team.owner_claim_secret)
+    end
+
+    test "rejects invalid secret" do
+      team_attrs = %{
+        name: "claim-reject",
+        members: [%{name: "dev", role: "dev"}],
+        skills: [],
+        platforms: []
+      }
+      {:ok, _invite, team_id, _claim_secret} = Teams.create_team_with_invite(team_attrs)
+
+      user = user_fixture()
+      make_participant(user, team_id)
+      assert {:error, :invalid_secret} = Teams.claim_ownership_by_user(user.id, team_id, "trc_ocs_wrong")
+
+      team = Teamrc.Repo.get!(Teamrc.Schema.Team, team_id)
+      assert is_nil(team.owner_user_id)
+    end
+
+    test "rejects non-participant" do
+      team_attrs = %{
+        name: "claim-nopart",
+        members: [%{name: "dev", role: "dev"}],
+        skills: [],
+        platforms: []
+      }
+      {:ok, _invite, team_id, claim_secret} = Teams.create_team_with_invite(team_attrs)
+
+      user = user_fixture()
+      # User is NOT a participant — no machine token linked to this team
+      assert {:error, :not_participant} = Teams.claim_ownership_by_user(user.id, team_id, claim_secret)
+
+      team = Teamrc.Repo.get!(Teamrc.Schema.Team, team_id)
+      assert is_nil(team.owner_user_id)
+    end
+
+    test "rejects claim for already-owned team" do
+      owner = user_fixture()
+      team_attrs = %{
+        name: "claim-owned",
+        members: [%{name: "dev", role: "dev"}],
+        skills: [],
+        platforms: []
+      }
+      {:ok, _invite, team_id, claim_secret} = Teams.create_team_with_invite(team_attrs, owner_user_id: owner.id)
+
+      other_user = user_fixture()
+      make_participant(other_user, team_id)
+      assert {:error, :invalid_secret} = Teams.claim_ownership_by_user(other_user.id, team_id, claim_secret)
+    end
+  end
+
   describe "delete_team" do
     test "deletes team and all associated data" do
-      token = "trc_ak_delteam_#{:erlang.unique_integer([:positive])}"
-      {:ok, team_data} = Teams.put_team(token, %{"name" => "Delete Me", "members" => [%{"name" => "agent", "role" => "dev"}]})
-      team_id = team_data["id"]
+      owner = user_fixture()
+      team_attrs = %{
+        name: "delete-me",
+        members: [%{name: "agent", role: "dev"}],
+        skills: [],
+        platforms: []
+      }
+      {:ok, _invite, team_id, _secret} = Teams.create_team_with_invite(team_attrs, owner_user_id: owner.id)
 
       # Create an invite
       {:ok, _code, _expires} = Teams.create_invite_by_team_id(team_id, 24)
 
-      assert :ok = Teams.delete_team(team_id)
+      assert :ok = Teams.delete_team(team_id, owner.id)
 
       # Team should be gone
       assert Teamrc.Repo.get(Teamrc.Schema.Team, team_id) == nil
-
-      # Token should no longer resolve to a team
-      assert :error = Teams.get_team(token, team_id)
     end
 
     test "returns error for non-existent team" do
-      assert {:error, :not_found} = Teams.delete_team(Ecto.UUID.generate())
+      assert {:error, :not_found} = Teams.delete_team(Ecto.UUID.generate(), Ecto.UUID.generate())
+    end
+
+    test "non-owner cannot delete team" do
+      owner = user_fixture()
+      other_user = user_fixture()
+      team_attrs = %{
+        name: "cant-delete",
+        members: [%{name: "agent", role: "dev"}],
+        skills: [],
+        platforms: []
+      }
+      {:ok, _invite, team_id, _secret} = Teams.create_team_with_invite(team_attrs, owner_user_id: owner.id)
+
+      assert {:error, :not_authorized} = Teams.delete_team(team_id, other_user.id)
+
+      # Team should still exist
+      assert Teamrc.Repo.get(Teamrc.Schema.Team, team_id) != nil
     end
   end
 

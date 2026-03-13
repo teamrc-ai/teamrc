@@ -23,7 +23,6 @@ defmodule Teamrc.Teams do
       nil ->
         case create_team_in_db(team_data, token) do
           {:ok, team} ->
-            upsert_token_team(token, team.id)
             # Include claim secret only on initial creation (shown once to creator)
             map = team_to_map(team)
               |> put_if_present("owner_claim_secret", team.owner_claim_secret)
@@ -68,7 +67,7 @@ defmodule Teamrc.Teams do
     end)
     |> case do
       {:ok, {invite_code, team_id, creator_token}} -> {:ok, invite_code, team_id, creator_token}
-      {:error, _reason} -> {:error, :creation_failed}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -297,6 +296,40 @@ defmodule Teamrc.Teams do
     end
   end
 
+  @doc "Claim ownership of a specific team by user_id. Requires the user to be a participant. For web UI where the team_id is known."
+  def claim_ownership_by_user(user_id, team_id, claim_secret) do
+    # Verify user is actually a participant (fresh DB check, not stale socket state)
+    unless Teamrc.Accounts.is_team_participant?(user_id, team_id) do
+      Bcrypt.no_user_verify()
+      {:error, :not_participant}
+    else
+      team = Repo.one(
+        from(t in Team,
+          where: t.id == ^team_id and is_nil(t.owner_user_id) and not is_nil(t.owner_claim_secret),
+          select: t
+        )
+      )
+
+      case team do
+        nil ->
+          Bcrypt.no_user_verify()
+          {:error, :invalid_secret}
+
+        %Team{} ->
+          if Bcrypt.verify_pass(claim_secret, team.owner_claim_secret) do
+            # Atomic claim: only succeeds if still unclaimed
+            {count, _} =
+              from(t in Team, where: t.id == ^team_id and is_nil(t.owner_user_id))
+              |> Repo.update_all(set: [owner_user_id: user_id, owner_claim_secret: nil])
+
+            if count == 1, do: {:ok, :claimed}, else: {:error, :already_claimed}
+          else
+            {:error, :invalid_secret}
+          end
+      end
+    end
+  end
+
   @doc "Verify a plaintext creator token against the stored bcrypt hash. Returns true/false."
   def verify_creator_token(team_id, plaintext_token) when is_binary(plaintext_token) do
     case Repo.one(from t in Team, where: t.id == ^team_id, select: t.owner_claim_secret) do
@@ -399,31 +432,49 @@ defmodule Teamrc.Teams do
 
   @doc "Update a team's name. Returns {:ok, team_with_members} or {:error, changeset}."
   def update_team_name(team, new_name) do
-    case team |> Team.changeset(%{name: new_name}) |> Repo.update() do
-      {:ok, updated_team} -> {:ok, recompute_hashes(updated_team.id)}
+    Repo.transaction(fn ->
+      case team |> Team.changeset(%{name: new_name}) |> Repo.update() do
+        {:ok, updated_team} -> recompute_hashes(updated_team.id)
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+    |> case do
+      {:ok, team_with_hashes} -> {:ok, team_with_hashes}
       {:error, changeset} -> {:error, changeset}
     end
   end
 
   @doc "Update a team's skills list. Returns {:ok, team_with_members} or {:error, changeset}."
   def update_team_skills(team, skills) do
-    case team |> Team.changeset(%{skills: skills}) |> Repo.update() do
-      {:ok, updated_team} -> {:ok, recompute_hashes(updated_team.id)}
+    Repo.transaction(fn ->
+      case team |> Team.changeset(%{skills: skills}) |> Repo.update() do
+        {:ok, updated_team} -> recompute_hashes(updated_team.id)
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+    |> case do
+      {:ok, team_with_hashes} -> {:ok, team_with_hashes}
       {:error, changeset} -> {:error, changeset}
     end
   end
 
   @doc "Add a member to a team. Returns {:ok, member} or {:error, changeset}."
   def add_member(team_id, attrs) do
-    case %Member{team_id: team_id}
-         |> Member.changeset(attrs)
-         |> Repo.insert() do
-      {:ok, member} ->
-        recompute_hashes(team_id)
-        {:ok, member}
+    Repo.transaction(fn ->
+      case %Member{team_id: team_id}
+           |> Member.changeset(attrs)
+           |> Repo.insert() do
+        {:ok, member} ->
+          recompute_hashes(team_id)
+          member
 
-      {:error, changeset} ->
-        {:error, changeset}
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
+    |> case do
+      {:ok, member} -> {:ok, member}
+      {:error, changeset} -> {:error, changeset}
     end
   end
 
@@ -434,15 +485,21 @@ defmodule Teamrc.Teams do
 
   @doc "Update a member. Returns {:ok, member} or {:error, changeset}."
   def update_member(member, changes) do
-    case member
-         |> Member.changeset(changes)
-         |> Repo.update() do
-      {:ok, updated_member} ->
-        recompute_hashes(updated_member.team_id)
-        {:ok, updated_member}
+    Repo.transaction(fn ->
+      case member
+           |> Member.changeset(changes)
+           |> Repo.update() do
+        {:ok, updated_member} ->
+          recompute_hashes(updated_member.team_id)
+          updated_member
 
-      {:error, changeset} ->
-        {:error, changeset}
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
+    |> case do
+      {:ok, updated_member} -> {:ok, updated_member}
+      {:error, changeset} -> {:error, changeset}
     end
   end
 
@@ -450,13 +507,19 @@ defmodule Teamrc.Teams do
   def delete_member(member) do
     team_id = member.team_id
 
-    case Repo.delete(member) do
-      {:ok, deleted_member} ->
-        recompute_hashes(team_id)
-        {:ok, deleted_member}
+    Repo.transaction(fn ->
+      case Repo.delete(member) do
+        {:ok, deleted_member} ->
+          recompute_hashes(team_id)
+          deleted_member
 
-      {:error, changeset} ->
-        {:error, changeset}
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
+    |> case do
+      {:ok, deleted_member} -> {:ok, deleted_member}
+      {:error, changeset} -> {:error, changeset}
     end
   end
 
@@ -508,11 +571,14 @@ defmodule Teamrc.Teams do
 
   def set_visibility_by_creator(_team_id, _creator_token, _visibility), do: {:error, :invalid_visibility}
 
-  @doc "Delete a team and all associated data (members, invites, token_teams). Returns :ok or {:error, reason}."
-  def delete_team(team_id) do
+  @doc "Delete a team and all associated data (members, invites, token_teams). Requires owner_user_id for authorization. Returns :ok or {:error, reason}."
+  def delete_team(team_id, owner_user_id) do
     case Repo.get(Team, team_id) do
       nil ->
         {:error, :not_found}
+
+      %Team{owner_user_id: actual_owner} when actual_owner != owner_user_id ->
+        {:error, :not_authorized}
 
       team ->
         Repo.transaction(fn ->
@@ -534,8 +600,9 @@ defmodule Teamrc.Teams do
 
     result =
       Repo.transaction(fn ->
-        # Remove the skill from any members that have it
-        team.members
+        # Query members fresh from DB to avoid stale data from socket assigns
+        from(m in Member, where: m.team_id == ^team.id)
+        |> Repo.all()
         |> Enum.filter(fn m -> skill_id in (m.skills || []) end)
         |> Enum.each(fn m ->
           new_skills = List.delete(m.skills || [], skill_id)
@@ -547,13 +614,14 @@ defmodule Teamrc.Teams do
         end)
 
         case team |> Team.changeset(%{skills: updated_skills}) |> Repo.update() do
-          {:ok, updated_team} -> updated_team
+          {:ok, updated_team} ->
+            recompute_hashes(updated_team.id)
           {:error, changeset} -> Repo.rollback(changeset)
         end
       end)
 
     case result do
-      {:ok, updated_team} -> {:ok, recompute_hashes(updated_team.id)}
+      {:ok, team_with_hashes} -> {:ok, team_with_hashes}
       {:error, reason} -> {:error, reason}
     end
   end
@@ -681,6 +749,9 @@ defmodule Teamrc.Teams do
             knowledge_hash: hashes.knowledge_hash
           })
           |> Repo.update()
+
+        # Associate the token with the team inside this transaction
+        if token, do: upsert_token_team(token, team.id)
 
         # Return plaintext secret (not the bcrypt hash stored in DB) for one-time display
         team_with_plaintext = %{team | owner_claim_secret: plaintext_secret}
@@ -936,7 +1007,17 @@ defmodule Teamrc.Teams do
   end
 
   defp team_to_map(%Team{} = team) do
-    hashes = ContentHash.compute_team_hashes(team)
+    hashes =
+      if team.members_hash do
+        %{
+          members_hash: team.members_hash,
+          skills_hash: team.skills_hash,
+          knowledge_hash: team.knowledge_hash,
+          hash: ContentHash.compute_full_hash(team.members_hash, team.skills_hash, team.knowledge_hash)
+        }
+      else
+        ContentHash.compute_team_hashes(team)
+      end
 
     %{
       "id" => team.id,

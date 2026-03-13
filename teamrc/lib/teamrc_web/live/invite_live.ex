@@ -34,11 +34,15 @@ defmodule TeamrcWeb.InviteLive do
           <%= if @error == :expired, do: "Invite Expired", else: "Invalid Invite" %>
         </h1>
         <p class="text-sm text-base-content/60 mb-6">
-          This invite has expired or is invalid. Ask the team owner to generate a new invite code.
+          <%= if @error == :expired do %>
+            This invite link has expired. Ask the team owner to generate a new invite code.
+          <% else %>
+            This invite link is not valid. It may have been copied incorrectly. Ask the team owner for a new link.
+          <% end %>
         </p>
-        <a href={~p"/new"} class="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors">
-          Create a new team
-        </a>
+        <p class="text-xs text-base-content/40">
+          Need to create your own team instead? <a href={~p"/new"} class="text-primary/80 hover:text-primary transition-colors">Get started here</a>.
+        </p>
       </div>
     </div>
     """

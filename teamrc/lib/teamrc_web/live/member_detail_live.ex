@@ -4,6 +4,8 @@ defmodule TeamrcWeb.MemberDetailLive do
   alias Teamrc.{Accounts, Teams}
   import TeamrcWeb.LiveHelpers
 
+  @max_member_soul_bytes 10_000
+
   # --- Mount ---
 
   @impl true
@@ -128,31 +130,36 @@ defmodule TeamrcWeb.MemberDetailLive do
           role = String.trim(socket.assigns.edit_role)
           soul = String.trim(socket.assigns.edit_soul)
 
-          if name != "" and role != "" do
-            changes = %{
-              name: name,
-              role: role,
-              soul: if(soul != "", do: soul, else: nil)
-            }
+          cond do
+            name == "" or role == "" ->
+              {:noreply, put_flash(socket, :error, "Name and role are required.")}
 
-            case Teams.update_member(db_member, changes) do
-              {:ok, updated_member} ->
-                updated_team = Teams.reload_team_with_members(team)
+            soul != "" and byte_size(soul) > @max_member_soul_bytes ->
+              {:noreply, put_flash(socket, :error, "Instructions exceed #{@max_member_soul_bytes} bytes.")}
 
-                {:noreply,
-                 assign(socket,
-                   member: updated_member,
-                   team: updated_team,
-                   dirty: false,
-                   page_title: "#{updated_member.name} - #{team.name}"
-                 )
-                 |> put_flash(:info, "Saved.")}
+            true ->
+              changes = %{
+                name: name,
+                role: role,
+                soul: if(soul != "", do: soul, else: nil)
+              }
 
-              {:error, _} ->
-                {:noreply, put_flash(socket, :error, "Failed to save changes.")}
-            end
-          else
-            {:noreply, put_flash(socket, :error, "Name and role are required.")}
+              case Teams.update_member(db_member, changes) do
+                {:ok, updated_member} ->
+                  updated_team = Teams.reload_team_with_members(team)
+
+                  {:noreply,
+                   assign(socket,
+                     member: updated_member,
+                     team: updated_team,
+                     dirty: false,
+                     page_title: "#{updated_member.name} - #{team.name}"
+                   )
+                   |> put_flash(:info, "Saved.")}
+
+                {:error, _} ->
+                  {:noreply, put_flash(socket, :error, "Failed to save changes.")}
+              end
           end
       end
     end)
@@ -300,6 +307,7 @@ defmodule TeamrcWeb.MemberDetailLive do
           </h2>
           <a
             href={~p"/guide#instructions"}
+            aria-label="Learn more about instructions"
             class="text-[10px] text-primary/80 hover:text-primary transition-colors"
           >
             ?

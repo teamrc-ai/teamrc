@@ -107,7 +107,7 @@ defmodule TeamrcWeb.Layouts do
           </.link>
           <%!-- Mobile menu button --%>
           <button
-            phx-click={JS.toggle(to: "#mobile-menu", in: "fade-in", out: "fade-out")}
+            phx-click={JS.toggle(to: "#mobile-menu", in: "fade-in", out: "fade-out") |> JS.toggle_attribute({"aria-expanded", "true", "false"})}
             class="trc-focus sm:hidden rounded-md p-1.5 text-base-content/60 hover:text-base-content/80 hover:bg-base-200/60 transition-colors"
             aria-label="Toggle menu"
             aria-expanded="false"

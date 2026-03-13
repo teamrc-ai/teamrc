@@ -141,7 +141,7 @@ defmodule TeamrcWeb.ShareLive do
                         :if={skill["alwaysApply"]}
                         class="ml-1.5 inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
                       >
-                        auto
+                        all agents
                       </span>
                       <p :if={skill["description"]} class="text-xs text-base-content/60 mt-0.5">
                         {skill["description"]}
@@ -173,7 +173,7 @@ defmodule TeamrcWeb.ShareLive do
                       class="trc-focus text-[10px] font-mono text-white/30 hover:text-white/60 transition-colors rounded px-1.5 py-0.5 hover:bg-white/5"
                       aria-label="Copy clone command"
                     >
-                      copy
+                      Copy
                     </button>
                   </div>
                   <div class="p-4">

@@ -14,7 +14,7 @@ defmodule TeamrcWeb.Plugs.VerifySignature do
   - For POST: the raw request body (exact bytes sent by the client)
   - For GET: "GET /path" (method + space + request path)
 
-  The `x-trc-timestamp` header is required and must be within 5 minutes
+  The `x-trc-timestamp` header is required and must be within 30 seconds
   of server time to prevent replay attacks.
 
   This prevents BOLA because the token embeds the public key, and only
@@ -35,7 +35,7 @@ defmodule TeamrcWeb.Plugs.VerifySignature do
 
   def init(opts), do: opts
 
-  @max_timestamp_drift_seconds 300
+  @max_timestamp_drift_seconds 30
 
   def call(conn, _opts) do
     if @skip_auth_allowed and Application.get_env(:teamrc, :skip_auth, false) do

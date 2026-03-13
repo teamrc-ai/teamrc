@@ -66,6 +66,7 @@ defmodule TeamrcWeb.TeamLive do
         <input type="hidden" name="template" value={key} />
         <button
           type="submit"
+          phx-disable-with="Creating..."
           class="trc-card trc-focus group flex items-start gap-4 rounded-lg border border-base-300 bg-base-100 p-4 text-left hover:border-primary/30 hover:shadow-sm w-full"
         >
           <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-base-200 text-base-content/60 group-hover:bg-primary/10 group-hover:text-primary transition-colors">

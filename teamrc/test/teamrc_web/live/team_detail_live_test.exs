@@ -257,6 +257,133 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
     end
   end
 
+  describe "claim ownership" do
+    test "participant sees claim button for unclaimed team", %{conn: conn} do
+      # Create team without owner_user_id
+      {_code, team_id} = create_team_with_invite()
+
+      # Create a user who joins as participant
+      user = Teamrc.AccountsFixtures.user_fixture()
+      token = "trc_ak_claim_#{System.unique_integer([:positive])}"
+      {:ok, _mt} = Accounts.link_machine_token(user.id, token, "claim-machine")
+      invite_code = Teams.create_invite_by_team_id(team_id, 24) |> elem(1)
+      Teams.join_by_invite(invite_code, token)
+
+      conn = log_in_user(conn, user)
+      {:ok, _view, html} = live(conn, "/teams/#{team_id}")
+
+      assert html =~ "Claim ownership"
+      assert html =~ "This team has no owner"
+    end
+
+    test "participant can claim ownership with valid secret", %{conn: conn} do
+      # Create team and get the plaintext claim secret
+      team_attrs = %{
+        name: "claim-test",
+        members: [%{name: "dev", role: "development"}],
+        skills: [],
+        platforms: []
+      }
+      {:ok, _invite, team_id, claim_secret} = Teams.create_team_with_invite(team_attrs)
+
+      # Create a user who joins as participant
+      user = Teamrc.AccountsFixtures.user_fixture()
+      token = "trc_ak_claim2_#{System.unique_integer([:positive])}"
+      {:ok, _mt} = Accounts.link_machine_token(user.id, token, "claim-machine2")
+      invite_code = Teams.create_invite_by_team_id(team_id, 24) |> elem(1)
+      Teams.join_by_invite(invite_code, token)
+
+      conn = log_in_user(conn, user)
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}")
+
+      # Show claim form
+      view |> element("button[phx-click='show_claim_form']") |> render_click()
+
+      # Enter secret
+      view |> element("input#claim-secret") |> render_keyup(%{"value" => claim_secret})
+
+      # Submit
+      view |> element("button[phx-click='submit_claim']") |> render_click()
+
+      # Should now be owner
+      team = Repo.get!(Team, team_id)
+      assert team.owner_user_id == user.id
+      assert is_nil(team.owner_claim_secret)
+    end
+
+    test "claim with invalid secret fails", %{conn: conn} do
+      {_code, team_id} = create_team_with_invite()
+
+      user = Teamrc.AccountsFixtures.user_fixture()
+      token = "trc_ak_claim3_#{System.unique_integer([:positive])}"
+      {:ok, _mt} = Accounts.link_machine_token(user.id, token, "claim-machine3")
+      invite_code = Teams.create_invite_by_team_id(team_id, 24) |> elem(1)
+      Teams.join_by_invite(invite_code, token)
+
+      conn = log_in_user(conn, user)
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}")
+
+      render_click(view, "show_claim_form", %{})
+      render_keyup(view, "update_claim_secret", %{"value" => "trc_ocs_wrong_secret"})
+      render_click(view, "submit_claim", %{})
+
+      html = render(view)
+      assert html =~ "Invalid claim secret"
+
+      # Team should still have no owner
+      team = Repo.get!(Team, team_id)
+      assert is_nil(team.owner_user_id)
+    end
+
+    test "owner does not see claim button", %{conn: conn} do
+      %{user: user, team_id: team_id} = create_owner_with_team()
+      conn = log_in_user(conn, user)
+
+      {:ok, _view, html} = live(conn, "/teams/#{team_id}")
+
+      refute html =~ "Claim ownership"
+    end
+
+    test "unauthenticated user cannot claim via event", %{conn: conn} do
+      {code, team_id} = create_team_with_invite()
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}?invite=#{code}")
+
+      render_click(view, "submit_claim", %{})
+
+      html = render(view)
+      assert html =~ "Sign in to claim ownership"
+
+      # Team should still have no owner
+      team = Repo.get!(Team, team_id)
+      assert is_nil(team.owner_user_id)
+    end
+
+    test "logged-in viewer (non-participant) cannot claim via event", %{conn: conn} do
+      {_code, team_id} = create_team_with_invite()
+      make_team_public(team_id)
+
+      non_participant = Teamrc.AccountsFixtures.user_fixture()
+      conn = log_in_user(conn, non_participant)
+
+      {:ok, view, html} = live(conn, "/teams/#{team_id}")
+
+      # Viewer should not see claim UI
+      refute html =~ "Claim ownership"
+
+      # Attempt claim via event (bypassing UI)
+      render_click(view, "update_claim_secret", %{"value" => "trc_ocs_fake"})
+      render_click(view, "submit_claim", %{})
+
+      html = render(view)
+      assert html =~ "don&#39;t have permission"
+
+      # Team should still have no owner
+      team = Repo.get!(Team, team_id)
+      assert is_nil(team.owner_user_id)
+    end
+  end
+
   describe "member management" do
     test "owner can add a custom member", %{conn: conn} do
       %{user: user, team_id: team_id} = create_owner_with_team()

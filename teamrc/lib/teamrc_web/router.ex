@@ -225,11 +225,17 @@ defmodule TeamrcWeb.Router do
     post "/teams/preview", ApiController, :preview_team
     post "/teams/invite", ApiController, :create_invite
     post "/teams/visibility", ApiController, :set_visibility
-    post "/teams/claim", ApiController, :claim_ownership
     delete "/token/:token/erase", ApiController, :erase_token
     get "/teams/all/:token", ApiController, :get_teams
     get "/teams/:token/head", ApiController, :head_team
     get "/teams/:token", ApiController, :get_team
+  end
+
+  # CLI API with stricter rate limiting (Bcrypt-verified endpoints)
+  scope "/api", TeamrcWeb do
+    pipe_through [:api, :auth_rate_limit]
+
+    post "/teams/claim", ApiController, :claim_ownership
   end
 
   # Account API (session-based auth)

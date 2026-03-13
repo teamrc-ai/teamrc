@@ -19,7 +19,8 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
   end
 
   describe "POST with valid signature" do
-    test "passes through for /api/teams (create)", %{conn: conn, priv: priv, token: token} do
+    test "passes through for /api/teams (update)", %{conn: conn, priv: priv, token: token} do
+      # Token already has a team from setup, so this is an update (200)
       body = %{"token" => token, "team" => %{"name" => "test-team"}}
       {signature, timestamp} = sign_body_with_timestamp(priv, body)
 
@@ -30,7 +31,7 @@ defmodule TeamrcWeb.Plugs.VerifySignatureTest do
         |> put_req_header("x-trc-timestamp", timestamp)
         |> post("/api/teams", body)
 
-      resp = json_response(conn, 201)
+      resp = json_response(conn, 200)
       assert resp["team"]["name"] == "test-team"
       assert resp["team"]["id"]
     end

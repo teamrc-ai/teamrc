@@ -59,6 +59,12 @@ defmodule TeamrcWeb.Plugs.RateLimiter do
   defp check_rate(key, limit, window_ms) do
     now = System.system_time(:millisecond)
 
+    # NOTE: There is a known race condition at window boundaries. Between the
+    # update_counter and the subsequent lookup+insert, concurrent requests may
+    # all see the expired window and reset the counter. With a 60-second window
+    # the practical impact is negligible (at most one extra burst of requests at
+    # the boundary). A truly atomic solution would require a serializing process
+    # (e.g., a GenServer) which is not worth the complexity for this use case.
     count = :ets.update_counter(@table, key, {2, 1}, {key, 0, now})
 
     case :ets.lookup(@table, key) do
