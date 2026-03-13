@@ -535,5 +535,36 @@ export async function handleTeamNotFound(ctx: TeamContext & { client: TeamrcClie
   writeTeamYaml(yamlPath, team);
   writeSyncState({});
 
+  if (relayTeam.owner_claim_secret) {
+    const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
+    const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
+    p.log.warn(
+      `${yellow("Save this to claim ownership:")}  ${relayTeam.owner_claim_secret}\n` +
+      `${dim(`Run \`${cliCmd("claim <token>")}\` anytime, or link your account now to claim automatically.`)}`,
+    );
+
+    if (!isNonInteractive()) {
+      const shouldLink = await p.confirm({
+        message: "Link your account? (claims ownership automatically)",
+        initialValue: true,
+      });
+      if (!p.isCancel(shouldLink) && shouldLink) {
+        const machineName = os.hostname();
+        const relayUrl = getRelayUrl(undefined, team.relay);
+        const success = await deviceAuthFlow(client, machineName, relayUrl);
+        if (success) {
+          try {
+            await client.claimOwnership(relayTeam.owner_claim_secret);
+            p.log.step("Ownership claimed.");
+          } catch {
+            p.log.warn(`Account linked, but ownership claim failed. Run \`${cliCmd("claim <token>")}\` later.`);
+          }
+        }
+      }
+    }
+  } else {
+    p.log.step("You own this team.");
+  }
+
   return true;
 }

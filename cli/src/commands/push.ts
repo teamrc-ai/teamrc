@@ -60,7 +60,7 @@ export function registerPush(program: Command): void {
           writeTeamYaml(yamlPath, team);
           p.log.step(`Updated ${yamlPath} with relay connection.`);
 
-          // Show ownership token (same pattern as init)
+          // Show ownership token or confirm auto-assignment
           if (relayTeam.owner_claim_secret) {
             const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
             const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
@@ -87,6 +87,8 @@ export function registerPush(program: Command): void {
                 }
               }
             }
+          } else {
+            p.log.step("You own this team.");
           }
 
           // Create invite

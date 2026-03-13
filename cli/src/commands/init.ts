@@ -256,17 +256,8 @@ export function registerInit(program: Command): void {
             }
           }
         } else {
-          // Fallback: offer account linking without ownership
-          if (!isNonInteractive()) {
-            const shouldLink = await p.confirm({
-              message: "Link your account? (optional, for recovery & dashboard)",
-              initialValue: false,
-            });
-            if (!p.isCancel(shouldLink) && shouldLink) {
-              const machineName = os.hostname();
-              await deviceAuthFlow(client, machineName, relayUrl);
-            }
-          }
+          // No claim secret means the server auto-assigned ownership (token is linked)
+          p.log.step("You own this team.");
         }
 
         // Create invite for sharing
