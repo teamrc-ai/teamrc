@@ -610,25 +610,25 @@ defmodule TeamrcWeb.TeamDetailLive do
   end
 
   def handle_event("confirm_share", _params, socket) do
-    if not socket.assigns.is_owner do
-      {:noreply, put_flash(socket, :error, "Only the team owner can share this team.")}
-    else
-      set_visibility_result(socket, "public")
-      |> case do
-        {:noreply, socket} -> {:noreply, assign(socket, show_share_modal: false)}
-      end
+    set_visibility_result(socket, "public")
+    |> case do
+      {:noreply, socket} -> {:noreply, assign(socket, show_share_modal: false)}
     end
   end
 
   def handle_event("stop_sharing", _params, socket) do
-    if not socket.assigns.is_owner do
-      {:noreply, put_flash(socket, :error, "Only the team owner can change visibility.")}
-    else
-      set_visibility_result(socket, "private")
-    end
+    set_visibility_result(socket, "private")
   end
 
   defp set_visibility_result(socket, new_visibility) do
+    if not socket.assigns.is_owner do
+      {:noreply, put_flash(socket, :error, "Only the team owner can change visibility.")}
+    else
+      set_visibility_result_authorized(socket, new_visibility)
+    end
+  end
+
+  defp set_visibility_result_authorized(socket, new_visibility) do
     team = socket.assigns.team
 
     # Try token-based first, then account-based, then creator-session-based

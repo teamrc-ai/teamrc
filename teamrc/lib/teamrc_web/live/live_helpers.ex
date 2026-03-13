@@ -11,15 +11,23 @@ defmodule TeamrcWeb.LiveHelpers do
   def require_edit_access(socket, fun) do
     if socket.assigns.can_edit do
       # Re-validate access against the database to catch
-      # revocations that occurred after mount (stale can_edit fix).
-      # Creator sessions bypass the participant check since they
-      # were verified at mount via bcrypt against the claim secret.
+      # revocations that occurred after mount (stale session fix).
       current_user = socket.assigns[:current_scope] && socket.assigns.current_scope.user
       team = socket.assigns[:team]
-      is_creator_session = socket.assigns[:is_creator_session] == true
+
+      # Re-verify creator sessions against DB each time (claim_secret may
+      # have been cleared by an ownership claim since mount).
+      is_creator_valid =
+        if socket.assigns[:is_creator_session] do
+          creator_sessions = socket.assigns[:creator_sessions] || %{}
+          creator_token = Map.get(creator_sessions, team && team.id)
+          is_binary(creator_token) && Teamrc.Teams.verify_creator_token(team.id, creator_token)
+        else
+          false
+        end
 
       has_access =
-        is_creator_session ||
+        is_creator_valid ||
           (team && Teamrc.Accounts.is_team_participant?(current_user && current_user.id, team.id))
 
       if has_access do
@@ -27,7 +35,7 @@ defmodule TeamrcWeb.LiveHelpers do
       else
         {:noreply,
          socket
-         |> assign(can_edit: false)
+         |> assign(can_edit: false, is_creator_session: false)
          |> put_flash(:error, "You are no longer a participant in this team.")}
       end
     else

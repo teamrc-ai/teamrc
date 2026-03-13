@@ -300,12 +300,19 @@ defmodule Teamrc.Teams do
   @doc "Verify a plaintext creator token against the stored bcrypt hash. Returns true/false."
   def verify_creator_token(team_id, plaintext_token) when is_binary(plaintext_token) do
     case Repo.one(from t in Team, where: t.id == ^team_id, select: t.owner_claim_secret) do
-      hash when is_binary(hash) -> Bcrypt.verify_pass(plaintext_token, hash)
-      _ -> Bcrypt.no_user_verify(); false
+      hash when is_binary(hash) ->
+        Bcrypt.verify_pass(plaintext_token, hash)
+
+      _ ->
+        Bcrypt.no_user_verify()
+        false
     end
   end
 
-  def verify_creator_token(_team_id, _), do: Bcrypt.no_user_verify(); false
+  def verify_creator_token(_team_id, _) do
+    Bcrypt.no_user_verify()
+    false
+  end
 
   @doc "Remove token_teams rows for a given token. If team_id is provided, only remove that association. Returns {:ok, count}."
   def erase_token(token, team_id \\ nil) do
