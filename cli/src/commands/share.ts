@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
-import { loadConfig } from "../config.js";
+import { loadConfig, getRelayUrl } from "../config.js";
 import {
   requireTeamContext,
   cliCmd,
@@ -22,6 +22,7 @@ export function registerShare(program: Command): void {
 
       const ctx = requireTeamContext();
       const { client } = ctx;
+      const teamName = ctx.team.name;
       const visibility = opts.off ? "private" : "public";
 
       const s = p.spinner();
@@ -30,14 +31,26 @@ export function registerShare(program: Command): void {
         const result = await client.setVisibility(visibility);
         s.stop(opts.off ? "Team is now private." : "Team is now public.");
 
-        if (result.clone_token) {
+        if (opts.off) {
           p.note(
-            `npx @teamrc/cli clone ${result.clone_token}\n\nAnyone with this command can clone your team definition.\nNo invite needed — read-only, no sync.`,
-            "Clone command",
+            `Your team is no longer publicly visible or clonable.`,
+            `Team "${teamName}" is now private`,
           );
-        }
+          p.outro(`Use \`${cliCmd("share")}\` to make it public again.`);
+        } else if (result.clone_token) {
+          const baseUrl = getRelayUrl(undefined, ctx.team.relay).replace(/\/api\/?$/, "");
+          const shareUrl = `${baseUrl}/t/${result.clone_token}`;
 
-        p.outro(opts.off ? "Cloning disabled." : `Share the clone command above. Use \`${cliCmd("share --off")}\` to disable.`);
+          p.note(
+            [
+              `Share URL:    ${shareUrl}`,
+              `Clone cmd:    npx @teamrc/cli clone ${result.clone_token}`,
+            ].join("\n"),
+            `Team "${teamName}" is now public and clonable`,
+          );
+
+          p.outro(`Use \`${cliCmd("share --off")}\` to disable.`);
+        }
       } catch (err) {
         s.error("Failed to update visibility.");
         p.log.error((err as Error).message);

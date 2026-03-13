@@ -124,14 +124,14 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
   end
 
   describe "owner access" do
-    test "shows owner controls (visibility toggle)", %{conn: conn} do
+    test "shows owner controls (share button)", %{conn: conn} do
       %{user: user, team_id: team_id} = create_owner_with_team()
       conn = log_in_user(conn, user)
 
       {:ok, view, html} = live(conn, "/teams/#{team_id}")
 
       assert html =~ "test-team"
-      assert has_element?(view, "button", "Make public")
+      assert has_element?(view, "button[phx-click='open_share_modal']", "Share")
     end
 
     test "owner can rename team", %{conn: conn} do
@@ -153,17 +153,45 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
       assert html =~ "renamed-team"
     end
 
-    test "owner can toggle visibility", %{conn: conn} do
+    test "owner can share team via share flow", %{conn: conn} do
       %{user: user, team_id: team_id} = create_owner_with_team()
       conn = log_in_user(conn, user)
 
       {:ok, view, html} = live(conn, "/teams/#{team_id}")
 
       assert html =~ "private"
-      view |> element("button[phx-click='toggle_visibility']") |> render_click()
+
+      # Open share modal
+      view |> element("button[phx-click='open_share_modal']") |> render_click()
+      html = render(view)
+      assert html =~ "Share your team publicly?"
+
+      # Confirm share
+      view |> element("button[phx-click='confirm_share']") |> render_click()
 
       html = render(view)
       assert html =~ "public"
+      assert html =~ "Share this team"
+    end
+
+    test "owner can stop sharing", %{conn: conn} do
+      %{user: user, team_id: team_id} = create_owner_with_team()
+      conn = log_in_user(conn, user)
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}")
+
+      # First make it public via share flow
+      view |> element("button[phx-click='open_share_modal']") |> render_click()
+      view |> element("button[phx-click='confirm_share']") |> render_click()
+
+      html = render(view)
+      assert html =~ "public"
+
+      # Stop sharing
+      view |> element("button[phx-click='stop_sharing']") |> render_click()
+
+      html = render(view)
+      assert html =~ "private"
     end
   end
 

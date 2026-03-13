@@ -81,7 +81,8 @@ defmodule TeamrcWeb.TeamDetailLive do
       skill_title: "",
       skill_description: "",
       skill_body: "",
-      skill_always_apply: false
+      skill_always_apply: false,
+      show_share_modal: false
     ]
   end
 
@@ -595,41 +596,67 @@ defmodule TeamrcWeb.TeamDetailLive do
     end)
   end
 
-  def handle_event("toggle_visibility", _params, socket) do
+  def handle_event("open_share_modal", _params, socket) do
+    if not socket.assigns.is_owner do
+      {:noreply, put_flash(socket, :error, "Only the team owner can share this team.")}
+    else
+      {:noreply, assign(socket, show_share_modal: true)}
+    end
+  end
+
+  def handle_event("close_share_modal", _params, socket) do
+    {:noreply, assign(socket, show_share_modal: false)}
+  end
+
+  def handle_event("confirm_share", _params, socket) do
+    if not socket.assigns.is_owner do
+      {:noreply, put_flash(socket, :error, "Only the team owner can share this team.")}
+    else
+      set_visibility_result(socket, "public")
+      |> case do
+        {:noreply, socket} -> {:noreply, assign(socket, show_share_modal: false)}
+      end
+    end
+  end
+
+  def handle_event("stop_sharing", _params, socket) do
     if not socket.assigns.is_owner do
       {:noreply, put_flash(socket, :error, "Only the team owner can change visibility.")}
     else
-      team = socket.assigns.team
-      new_visibility = if team.visibility == "public", do: "private", else: "public"
+      set_visibility_result(socket, "private")
+    end
+  end
 
-      # Try token-based visibility toggle first; fall back to owner-based for web-only owners
-      visibility_result =
-        case find_user_token_for_team(socket.assigns, team.id) do
-          nil ->
-            current_user = socket.assigns.current_user
-            if current_user, do: Teams.set_visibility_by_owner(current_user.id, team.id, new_visibility), else: {:error, :not_authorized}
+  defp set_visibility_result(socket, new_visibility) do
+    team = socket.assigns.team
 
-          token ->
-            Teams.set_visibility(token, team.id, new_visibility)
-        end
+    # Try token-based visibility toggle first; fall back to owner-based for web-only owners
+    visibility_result =
+      case find_user_token_for_team(socket.assigns, team.id) do
+        nil ->
+          current_user = socket.assigns.current_user
+          if current_user, do: Teams.set_visibility_by_owner(current_user.id, team.id, new_visibility), else: {:error, :not_authorized}
 
-      case visibility_result do
-        {:ok, updated_team} ->
-          updated_team = Teams.reload_team_with_members(updated_team)
-          clone_token = if new_visibility == "public", do: updated_team.clone_token, else: nil
-
-          {:noreply,
-           assign(socket,
-             team: updated_team,
-             clone_token: clone_token
-           )}
-
-        {:error, :not_owner} ->
-          {:noreply, put_flash(socket, :error, "Only the team owner can change visibility.")}
-
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to update visibility.")}
+        token ->
+          Teams.set_visibility(token, team.id, new_visibility)
       end
+
+    case visibility_result do
+      {:ok, updated_team} ->
+        updated_team = Teams.reload_team_with_members(updated_team)
+        clone_token = if new_visibility == "public", do: updated_team.clone_token, else: nil
+
+        {:noreply,
+         assign(socket,
+           team: updated_team,
+           clone_token: clone_token
+         )}
+
+      {:error, :not_owner} ->
+        {:noreply, put_flash(socket, :error, "Only the team owner can change visibility.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to update visibility.")}
     end
   end
 
@@ -667,6 +694,10 @@ defmodule TeamrcWeb.TeamDetailLive do
       skill_body: "",
       skill_always_apply: false
     )
+  end
+
+  defp share_url(team) do
+    TeamrcWeb.Endpoint.url() <> "/t/#{team.clone_token}"
   end
 
   defp member_path(team_id, member_id, nil), do: "/teams/#{team_id}/members/#{member_id}"
@@ -791,11 +822,24 @@ defmodule TeamrcWeb.TeamDetailLive do
               {@team.visibility}
             </span>
             <button
-              :if={@is_owner}
-              phx-click="toggle_visibility"
-              class="trc-focus rounded px-1.5 py-0.5 text-[10px] font-medium text-base-content/50 hover:text-base-content/60 hover:bg-base-200/60 transition-colors"
+              :if={@is_owner && @team.visibility == "private"}
+              phx-click="open_share_modal"
+              class="trc-focus inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-content hover:brightness-110 transition-all"
             >
-              Make {if @team.visibility == "public", do: "private", else: "public"}
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+              </svg>
+              Share
+            </button>
+            <button
+              :if={@is_owner && @team.visibility == "public"}
+              phx-click={JS.toggle(to: "#share-panel", display: "block")}
+              class="trc-focus inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 hover:bg-emerald-500/15 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+              </svg>
+              Sharing
             </button>
             <button
               :if={@can_edit}
@@ -841,6 +885,53 @@ defmodule TeamrcWeb.TeamDetailLive do
           </div>
           <p class="text-sm text-base-content/60 mt-1 font-mono">{@team.id}</p>
         </div>
+
+        <%!-- Share panel (shown to owners when team is public) --%>
+        <section
+          :if={@is_owner && @team.visibility == "public" && @team.clone_token}
+          id="share-panel"
+          class="rounded-lg border border-base-300 bg-base-100 p-5 space-y-4"
+        >
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-semibold text-base-content">Share this team</p>
+            <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+              Public
+            </span>
+          </div>
+
+          <%!-- Shareable URL with copy button --%>
+          <div>
+            <label class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1.5">
+              Shareable link
+            </label>
+            <div class="flex items-center gap-2">
+              <div class="flex-1 rounded-md border border-base-300 bg-base-200/30 px-3 py-2">
+                <code class="text-sm font-mono text-base-content/80 break-all select-all"><%= share_url(@team) %></code>
+              </div>
+              <button
+                phx-click={JS.dispatch("trc:copy", detail: %{text: share_url(@team)})}
+                class="trc-focus shrink-0 rounded-md border border-base-300 bg-base-100 px-3 py-2 text-xs font-medium text-base-content/60 hover:text-base-content/80 hover:border-base-400 transition-colors"
+                aria-label="Copy share URL"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+
+          <%!-- Stop sharing button --%>
+          <div class="pt-1 border-t border-base-200">
+            <button
+              phx-click="stop_sharing"
+              data-confirm="Make this team private? The share link will stop working and the team will no longer be clonable."
+              class="trc-focus text-xs text-base-content/50 hover:text-red-500 transition-colors"
+            >
+              Stop sharing
+            </button>
+          </div>
+        </section>
 
         <%!-- Join command (shown when invite code is present) --%>
         <div :if={@invite_code}>
@@ -1674,6 +1765,53 @@ defmodule TeamrcWeb.TeamDetailLive do
             </div>
           </div>
         </section>
+      </div>
+
+      <%!-- Share confirmation modal --%>
+      <div
+        :if={@show_share_modal}
+        id="share-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-modal-title"
+        phx-window-keydown="close_share_modal"
+        phx-key="Escape"
+      >
+        <%!-- Backdrop --%>
+        <div
+          class="absolute inset-0 bg-zinc-900/50"
+          phx-click="close_share_modal"
+          aria-hidden="true"
+        >
+        </div>
+
+        <%!-- Modal card --%>
+        <div class="relative mx-4 w-full max-w-md rounded-lg border border-base-300 bg-base-100 p-6 shadow-lg animate-[fadeIn_150ms_ease-out]">
+          <h2 id="share-modal-title" class="text-base font-semibold text-base-content">
+            Share your team publicly?
+          </h2>
+          <p class="mt-3 text-sm text-base-content/70 leading-relaxed">
+            By sharing, your team definition becomes public and anyone with the link can clone it. Your knowledge files will not be shared.
+          </p>
+          <p class="mt-2 text-sm text-base-content/70">
+            You can make it private again at any time.
+          </p>
+          <div class="mt-6 flex items-center justify-end gap-3">
+            <button
+              phx-click="close_share_modal"
+              class="trc-focus rounded-md px-4 py-2 text-sm font-medium text-base-content/60 hover:text-base-content/80 hover:bg-base-200/60 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              phx-click="confirm_share"
+              class="trc-focus rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-content hover:brightness-110 transition-all"
+            >
+              Share publicly
+            </button>
+          </div>
+        </div>
       </div>
     <% end %>
     """

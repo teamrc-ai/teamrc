@@ -108,6 +108,7 @@ defmodule TeamrcWeb.Router do
       live "/auth/verify", AuthVerifyLive
       live "/terms", LegalLive, :terms
       live "/privacy", LegalLive, :privacy
+      live "/t/:clone_token", ShareLive
     end
   end
 
