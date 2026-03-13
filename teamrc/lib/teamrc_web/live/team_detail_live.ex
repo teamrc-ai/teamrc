@@ -681,8 +681,12 @@ defmodule TeamrcWeb.TeamDetailLive do
     cond do
       diff <= 0 -> "expired"
       diff < 3600 -> "#{div(diff, 60)} min"
-      diff < 86400 -> "#{div(diff, 3600)} hr"
-      true -> "#{div(diff, 86400)} days"
+      diff < 86400 ->
+        hours = div(diff, 3600)
+        if hours == 1, do: "1 hour", else: "#{hours} hours"
+      true ->
+        days = div(diff, 86400)
+        if days == 1, do: "1 day", else: "#{days} days"
     end
   end
 
@@ -841,7 +845,7 @@ defmodule TeamrcWeb.TeamDetailLive do
         <%!-- Join command (shown when invite code is present) --%>
         <div :if={@invite_code}>
           <p class="text-sm text-base-content/60 mb-3">
-            Run this command to join the team. Expires in <span class="text-base-content/70 font-medium"><%= time_remaining(@invite_access.expires_at) %></span>.
+            Run this command to join the team. Invite code expires in <span class="text-base-content/70 font-medium"><%= time_remaining(@invite_access.expires_at) %></span>.
           </p>
           <p :if={!@can_edit} class="text-xs text-base-content/50 mb-3">
             Viewing as guest. Join via the CLI to edit this team.
@@ -1599,7 +1603,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               </div>
             </div>
             <p class="text-xs text-base-content/60 mt-2">
-              Expires in {time_remaining(@generated_invite.expires_at)}. Anyone with this code can edit this team.
+              Invite code expires in {time_remaining(@generated_invite.expires_at)}. Anyone with this code can edit this team.
             </p>
           </div>
 

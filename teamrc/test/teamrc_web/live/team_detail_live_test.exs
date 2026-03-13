@@ -72,7 +72,7 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
       {:ok, _view, html} = live(conn, "/teams/#{team_id}?invite=#{code}")
 
       assert html =~ "npx @teamrc/cli join #{code}"
-      assert html =~ "Expires in"
+      assert html =~ "Invite code expires in"
     end
 
     test "invite holder cannot see edit controls", %{conn: conn} do

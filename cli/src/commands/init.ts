@@ -220,7 +220,7 @@ export function registerInit(program: Command): void {
 
         if (inviteInfo) {
           p.note(
-            `npx @teamrc/cli join ${inviteInfo.invite_code}\nExpires in 24 hours.`,
+            `npx @teamrc/cli join ${inviteInfo.invite_code}\nInvite code expires in 24 hours.`,
             "Share with teammates",
           );
         }

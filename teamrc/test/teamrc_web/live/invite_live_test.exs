@@ -59,7 +59,7 @@ defmodule TeamrcWeb.InviteLiveTest do
     assert html =~ "dev"
     assert html =~ "npx @teamrc/cli join #{code}"
     assert html =~ "copy"
-    assert html =~ "Expires in"
+    assert html =~ "Invite code expires in"
   end
 
   test "private team dashboard without invite is gated", %{conn: conn} do
