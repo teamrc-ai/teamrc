@@ -60,7 +60,25 @@ export function registerInit(program: Command): void {
       const token = toToken(kp.publicKey);
       const relayUrl = getRelayUrl(opts.relay);
 
-      // If there's an existing YAML without a teamId (e.g. from clone), adopt it
+      // If there's an existing YAML without a teamId (e.g. from clone), adopt it.
+      // For global scope, also check the project-level YAML in the current directory.
+      if (!existingYaml && scope === "global") {
+        try {
+          const projectYaml = readTeamYaml(TEAM_YAML);
+          if (projectYaml && !projectYaml.teamId && !isNonInteractive()) {
+            const useProject = await p.confirm({
+              message: `Found .teamrc.yaml in this directory ("${projectYaml.name}"). Use it for your global team?`,
+              initialValue: true,
+            });
+            if (!p.isCancel(useProject) && useProject) {
+              existingYaml = projectYaml;
+            }
+          }
+        } catch {
+          // Ignore parse errors for project YAML when targeting global
+        }
+      }
+
       let team;
       if (existingYaml && !existingYaml.teamId) {
         if (opts.name) {
