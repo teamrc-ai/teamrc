@@ -582,6 +582,19 @@ defmodule TeamrcWeb.TeamDetailLive do
     {:noreply, assign(socket, generated_invite: nil)}
   end
 
+  def handle_event("revoke_invite", %{"id" => invite_id}, socket) do
+    require_edit_access(socket, fn ->
+      case Teams.revoke_invite(invite_id, socket.assigns.team.id) do
+        {:ok, _} ->
+          invites = Teams.list_active_invites(socket.assigns.team.id)
+          {:noreply, assign(socket, invites: invites)}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to revoke invite.")}
+      end
+    end)
+  end
+
   def handle_event("toggle_visibility", _params, socket) do
     if not socket.assigns.is_owner do
       {:noreply, put_flash(socket, :error, "Only the team owner can change visibility.")}
@@ -1591,15 +1604,42 @@ defmodule TeamrcWeb.TeamDetailLive do
           </div>
 
           <%!-- Existing invites --%>
-          <div :if={@invites != []} class="space-y-1.5">
+          <div :if={@invites != []} class="space-y-2">
             <div
               :for={invite <- @invites}
-              class="flex items-center justify-between rounded-md border border-base-300 bg-base-100 px-3 py-2"
+              class="rounded-md border border-base-300 bg-base-100 px-3 py-2"
             >
-              <code class="text-xs font-mono text-base-content/60">{invite.code}</code>
-              <span class="text-[10px] text-base-content/50">
-                expires in {time_remaining(invite.expires_at)}
-              </span>
+              <div class="terminal-block rounded-md overflow-hidden mb-2">
+                <div class="flex items-center justify-between px-3 py-2">
+                  <code class="text-emerald-400 text-xs font-mono">
+                    npx @teamrc/cli join {invite.code}
+                  </code>
+                  <button
+                    phx-click={
+                      JS.dispatch("trc:copy",
+                        detail: %{text: "npx @teamrc/cli join #{invite.code}"}
+                      )
+                    }
+                    class="trc-focus text-[10px] font-mono text-white/30 hover:text-white/60 transition-colors rounded px-1.5 py-0.5 hover:bg-white/5"
+                    aria-label="Copy invite command"
+                  >
+                    copy
+                  </button>
+                </div>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] text-base-content/50">
+                  expires in {time_remaining(invite.expires_at)}
+                </span>
+                <button
+                  phx-click="revoke_invite"
+                  phx-value-id={invite.id}
+                  data-confirm="Revoke this invite? It will no longer be usable."
+                  class="trc-focus text-[10px] text-red-500/60 hover:text-red-500 transition-colors"
+                >
+                  Revoke
+                </button>
+              </div>
             </div>
           </div>
 

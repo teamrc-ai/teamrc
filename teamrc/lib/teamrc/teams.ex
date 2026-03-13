@@ -359,9 +359,17 @@ defmodule Teamrc.Teams do
     from(i in Invite,
       where: i.team_id == ^team_id and i.expires_at > ^now,
       order_by: [desc: :inserted_at],
-      select: %{code: i.code, expires_at: i.expires_at}
+      select: %{id: i.id, code: i.code, expires_at: i.expires_at}
     )
     |> Repo.all()
+  end
+
+  @doc "Revoke (delete) an invite by its ID, scoped to the given team."
+  def revoke_invite(invite_id, team_id) do
+    case Repo.get(Invite, invite_id) do
+      %Invite{team_id: ^team_id} = invite -> Repo.delete(invite)
+      _ -> {:error, :not_found}
+    end
   end
 
   @doc "Update a team's name. Returns {:ok, team_with_members} or {:error, changeset}."
