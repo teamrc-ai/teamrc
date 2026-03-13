@@ -11,6 +11,10 @@ services:
     build: .
     ports:
       - "4000:4000"
+    deploy:
+      update_config:
+        order: start-first
+        failure_action: rollback
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:4000/health"]
       interval: 10s
