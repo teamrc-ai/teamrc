@@ -156,17 +156,6 @@ Point the CLI at your relay with `TEAMRC_RELAY=http://your-host:4000` or set `re
 
 ## Security
 
-- Ed25519 authentication with timestamp-signed requests
-- Agent names validated with strict regex before filesystem use
-- YAML file size limited to 256KB, max 20 members
-- Team names and roles sanitized in all template outputs
-- Daemon sync operations are serialized with a mutex
-- Invite codes are multi-use with 144-bit entropy and 24h TTL
-- Every content change tracks `pushed_by` token for attribution
-- Daemon defaults to knowledge-only sync mode (agent definitions require explicit `teamrc sync`)
-- Sync state capped at 50MB per team
-- Skills capped at 50 per team and 10KB per skill body
-- Clerk JWT validation for account endpoints (fail-closed when configured)
-- See security test suite for coverage of auth, ownership, and validation
+Treat `.teamrc.yaml` as a trusted configuration file (like `.env`). The `soul` field controls agent behavior, so review YAML changes in PRs just as you would review code changes.
 
-**Important:** Treat `.teamrc.yaml` as a trusted configuration file (like `.env`). The `soul` field controls agent behavior, so review YAML changes in PRs just as you would review code changes.
+See the security test suites for coverage of auth, ownership, and input validation.
