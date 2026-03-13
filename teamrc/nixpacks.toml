@@ -2,7 +2,8 @@
 # Base directory in Coolify should be set to: /teamrc
 
 [phases.setup]
-nixPkgs = ["...", "curl"]
+nixPkgs = ["elixir_1_18", "erlang_27", "gcc", "curl", "git"]
+nixLibs = ["stdenv.cc.cc.lib"]
 
 [phases.install]
 cmds = [
@@ -12,6 +13,7 @@ cmds = [
 ]
 
 [phases.build]
+dependsOn = ["install"]
 cmds = [
   "mix deps.compile",
   "mix compile",
