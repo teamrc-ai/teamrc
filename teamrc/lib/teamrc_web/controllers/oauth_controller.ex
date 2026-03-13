@@ -53,7 +53,7 @@ defmodule TeamrcWeb.OAuthController do
 
       {:error, :oauth_provider_mismatch} ->
         conn
-        |> put_flash(:error, "Authentication failed. Please try again.")
+        |> put_flash(:error, "That email is already associated with another sign-in method. Please use your original sign-in method.")
         |> redirect(to: ~p"/users/log-in")
 
       {:error, _reason} ->
