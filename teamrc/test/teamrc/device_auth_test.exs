@@ -104,8 +104,9 @@ defmodule Teamrc.DeviceAuthTest do
         })
       )
 
-      # Run cleanup
-      assert {:ok, 1} = DeviceAuth.cleanup_expired()
+      # Run cleanup — may delete more than 1 if other expired rows exist
+      assert {:ok, n} = DeviceAuth.cleanup_expired()
+      assert n >= 1
 
       # Request should now be gone
       assert {:error, :not_found} =

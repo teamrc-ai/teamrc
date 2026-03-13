@@ -359,7 +359,8 @@ defmodule Teamrc.Accounts do
         existing
         |> MachineToken.changeset(%{
           machine_name: machine_name || existing.machine_name,
-          last_seen_at: now
+          last_seen_at: now,
+          revoked_at: nil
         })
         |> Repo.update()
 
