@@ -96,23 +96,38 @@ defmodule TeamrcWeb.UserSessionController do
     |> create(params, "Password updated successfully!")
   end
 
-  @doc "Complete login after ToS acceptance. Renews session for already-authenticated user."
+  @doc "Complete login after ToS acceptance. Logs in user from pending OAuth session or existing session."
   def terms_accepted(conn, _params) do
-    case conn.assigns[:current_scope] do
-      %{user: %{accepted_terms_at: at} = user} when not is_nil(at) ->
-        # Restore the original return destination saved before the ToS detour
-        conn =
-          case get_session(conn, :post_tos_return_to) do
-            nil ->
-              conn
+    # Restore the original return destination saved before the ToS detour
+    conn =
+      case get_session(conn, :post_tos_return_to) do
+        nil -> conn
+        path ->
+          conn
+          |> put_session(:user_return_to, path)
+          |> delete_session(:post_tos_return_to)
+      end
 
-            path ->
-              conn
-              |> put_session(:user_return_to, path)
-              |> delete_session(:post_tos_return_to)
+    # Try existing authenticated user first, then fall back to pending OAuth user
+    user =
+      case conn.assigns[:current_scope] do
+        %{user: %{accepted_terms_at: at} = u} when not is_nil(at) -> u
+        _ ->
+          pending_at = get_session(conn, :pending_oauth_at)
+          expired = is_nil(pending_at) or System.system_time(:second) - pending_at > 600
+
+          case {expired, get_session(conn, :pending_oauth_user_id)} do
+            {true, _} -> nil
+            {false, nil} -> nil
+            {false, user_id} -> Teamrc.Accounts.get_user(user_id)
           end
+      end
 
+    case user do
+      %{accepted_terms_at: at} when not is_nil(at) ->
         conn
+        |> delete_session(:pending_oauth_user_id)
+        |> delete_session(:pending_oauth_at)
         |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
 
       _ ->

@@ -63,30 +63,19 @@ defmodule TeamrcWeb.UserLive.AcceptTerms do
 
   @impl true
   def handle_event("accept", %{"accepted" => "true"}, socket) do
-    current_scope = socket.assigns[:current_scope]
-    current_user = current_scope && current_scope.user
-
     case socket.assigns.pending_user_id do
       nil ->
         {:noreply, push_navigate(socket, to: ~p"/users/log-in")}
 
       user_id ->
-        # Security: require authenticated user AND cross-check against pending_user_id
-        if is_nil(current_user) || current_user.id != user_id do
-          {:noreply,
-           socket
-           |> put_flash(:error, "Session mismatch. Please log in again.")
-           |> redirect(to: ~p"/users/log-in")}
-        else
-          user = Accounts.get_user!(user_id)
-          {:ok, _user} = Accounts.accept_terms(user)
+        user = Accounts.get_user!(user_id)
+        {:ok, _user} = Accounts.accept_terms(user)
 
-          # Trigger a CSRF-protected POST to the controller to renew session
-          {:noreply,
-           socket
-           |> put_flash(:info, "Terms accepted. Welcome!")
-           |> assign(:trigger_submit, true)}
-        end
+        # Trigger a CSRF-protected POST to the controller to renew session
+        {:noreply,
+         socket
+         |> put_flash(:info, "Terms accepted. Welcome!")
+         |> assign(:trigger_submit, true)}
     end
   end
 

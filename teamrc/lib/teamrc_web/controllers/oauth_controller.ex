@@ -38,6 +38,7 @@ defmodule TeamrcWeb.OAuthController do
 
           conn
           |> put_session(:pending_oauth_user_id, user.id)
+          |> put_session(:pending_oauth_at, System.system_time(:second))
           |> then(fn c ->
             if original_return,
               do: put_session(c, :post_tos_return_to, original_return),
@@ -62,7 +63,10 @@ defmodule TeamrcWeb.OAuthController do
     end
   end
 
-  def callback(%{assigns: %{ueberauth_failure: _failure}} = conn, _params) do
+  def callback(%{assigns: %{ueberauth_failure: failure}} = conn, _params) do
+    require Logger
+    Logger.error("Ueberauth failure: #{inspect(failure)}")
+
     conn
     |> put_flash(:error, "Authentication failed. Please try again.")
     |> redirect(to: ~p"/users/log-in")
