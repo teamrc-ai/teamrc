@@ -185,8 +185,9 @@ defmodule TeamrcWeb.TeamDetailLive do
                 email -> Teamrc.PII.email_hash(email) || "anonymous"
               end)
 
-            invites = if is_participant, do: Teams.list_active_invites(team.id), else: []
-            clone_token = if is_participant, do: team.clone_token, else: nil
+            has_team_access = is_participant || is_creator
+            invites = if has_team_access, do: Teams.list_active_invites(team.id), else: []
+            clone_token = if has_team_access, do: team.clone_token, else: nil
 
             {:ok,
              %{
