@@ -110,7 +110,6 @@ Fields:
 | `teamrc doctor` | Run health checks on config, relay, auth, and team state |
 | `teamrc daemon` | Start background sync. `--sync-mode <all\|knowledge\|none>` (default: knowledge) |
 | `teamrc login` | Link this machine to an account via device auth |
-| `teamrc erase` | Erase a token and its data from the relay |
 | `teamrc delete` | Remove all teamrc setup from this machine |
 
 ## Platforms
