@@ -13,7 +13,7 @@ defmodule TeamrcWeb.InviteLiveTest do
       platforms: []
     }
 
-    {:ok, invite_code, team_id} = Teams.create_team_with_invite(team)
+    {:ok, invite_code, team_id, _} = Teams.create_team_with_invite(team)
     {invite_code, team_id}
   end
 

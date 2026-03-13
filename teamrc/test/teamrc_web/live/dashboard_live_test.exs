@@ -18,7 +18,7 @@ defmodule TeamrcWeb.DashboardLiveTest do
       platforms: opts[:platforms] || []
     }
 
-    {:ok, invite_code, team_id} =
+    {:ok, invite_code, team_id, _} =
       Teams.create_team_with_invite(team_attrs, owner_user_id: user.id)
 
     # Join with the user's token so they're a participant
@@ -95,7 +95,7 @@ defmodule TeamrcWeb.DashboardLiveTest do
           platforms: []
         }
 
-        {:ok, invite_code, _team_id} =
+        {:ok, invite_code, _team_id, _} =
           Teams.create_team_with_invite(team_attrs, owner_user_id: user.id)
 
         Teams.join_by_invite(invite_code, token)

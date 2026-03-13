@@ -152,7 +152,7 @@ defmodule Teamrc.AccountsTest do
       user = user_fixture()
 
       # Create team via web wizard with direct owner_user_id
-      {:ok, _invite_code, team_id} =
+      {:ok, _invite_code, team_id, _} =
         Teamrc.Teams.create_team_with_invite(
           %{"name" => "web-owned-team", "members" => []},
           owner_user_id: user.id

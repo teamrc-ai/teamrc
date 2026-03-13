@@ -90,7 +90,7 @@ defmodule Teamrc.SecurityAuditTest do
 
   describe "create_team_with_invite/1 is transactional" do
     test "creates both team and invite atomically" do
-      {:ok, invite_code, team_id} =
+      {:ok, invite_code, team_id, _} =
         Teams.create_team_with_invite(%{
           "name" => "atomic-team",
           "members" => [%{"name" => "bot", "role" => "helper"}]
@@ -104,7 +104,7 @@ defmodule Teamrc.SecurityAuditTest do
     test "creates team and invite atomically (both exist after success)" do
       teams_before = Repo.aggregate(Team, :count)
 
-      {:ok, _code, team_id} =
+      {:ok, _code, team_id, _} =
         Teams.create_team_with_invite(%{
           "name" => "txn-team",
           "members" => []

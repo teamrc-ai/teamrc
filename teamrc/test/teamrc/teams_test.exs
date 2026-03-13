@@ -74,7 +74,7 @@ defmodule Teamrc.TeamsTest do
 
   describe "preview_by_invite" do
     test "returns team data without creating token_teams" do
-      {:ok, invite_code, _team_id} = Teams.create_team_with_invite(%{
+      {:ok, invite_code, _team_id, _} = Teams.create_team_with_invite(%{
         "name" => "preview-team",
         "members" => [%{"name" => "agent1", "role" => "dev", "soul" => "I am a dev agent"}],
         "knowledge" => "secret knowledge"
@@ -97,7 +97,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "returns :error with expired invite code" do
-      {:ok, invite_code, _team_id} = Teams.create_team_with_invite(%{
+      {:ok, invite_code, _team_id, _} = Teams.create_team_with_invite(%{
         "name" => "expired-team",
         "members" => []
       })
@@ -140,7 +140,7 @@ defmodule Teamrc.TeamsTest do
       team_a_id = team_a["id"]
 
       # Create Team B via invite + join so the same token belongs to both
-      {:ok, invite_code, _team_b_id} = Teams.create_team_with_invite(%{
+      {:ok, invite_code, _team_b_id, _} = Teams.create_team_with_invite(%{
         "name" => "Team B",
         "members" => [%{"name" => "bot", "role" => "helper"}]
       })
@@ -161,7 +161,7 @@ defmodule Teamrc.TeamsTest do
       {:ok, team_a} = Teams.put_team(token, %{"name" => "Team A", "members" => []})
       team_a_id = team_a["id"]
 
-      {:ok, invite_code, _} = Teams.create_team_with_invite(%{
+      {:ok, invite_code, _, _} = Teams.create_team_with_invite(%{
         "name" => "Team B",
         "members" => []
       })
@@ -360,7 +360,7 @@ defmodule Teamrc.TeamsTest do
     end
 
     test "expired invite returns :error" do
-      {:ok, invite_code, _team_id} = Teams.create_team_with_invite(%{
+      {:ok, invite_code, _team_id, _} = Teams.create_team_with_invite(%{
         "name" => "expired-join-team",
         "members" => []
       })
@@ -471,7 +471,7 @@ defmodule Teamrc.TeamsTest do
       {:ok, team_a} = Teams.put_team(token, %{"name" => "Keep Team", "members" => []})
       team_a_id = team_a["id"]
 
-      {:ok, invite_code, _} = Teams.create_team_with_invite(%{
+      {:ok, invite_code, _, _} = Teams.create_team_with_invite(%{
         "name" => "Remove Team",
         "members" => []
       })

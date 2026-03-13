@@ -66,7 +66,7 @@ defmodule TeamrcWeb.ApiControllerTest do
 
   describe "POST /api/teams/preview" do
     test "returns team data for valid invite", %{conn: conn} do
-      {:ok, invite_code, _team_id} = Teamrc.Teams.create_team_with_invite(%{
+      {:ok, invite_code, _team_id, _} = Teamrc.Teams.create_team_with_invite(%{
         "name" => "preview-api-team",
         "members" => [%{"name" => "dev", "role" => "backend", "soul" => "I write APIs"}],
         "knowledge" => "secret team knowledge"
@@ -271,7 +271,7 @@ defmodule TeamrcWeb.ApiControllerTest do
       {:ok, team_a} = Teamrc.Teams.put_team(token, %{"name" => "Keep Team", "members" => []})
       team_a_id = team_a["id"]
 
-      {:ok, invite_code, _} = Teamrc.Teams.create_team_with_invite(%{
+      {:ok, invite_code, _, _} = Teamrc.Teams.create_team_with_invite(%{
         "name" => "Remove Team",
         "members" => []
       })
@@ -332,7 +332,7 @@ defmodule TeamrcWeb.ApiControllerTest do
   describe "POST /api/join" do
     test "joins a team with valid invite code", %{conn: conn} do
       # Create a team with an invite
-      {:ok, invite_code, _team_id} = Teamrc.Teams.create_team_with_invite(%{
+      {:ok, invite_code, _team_id, _} = Teamrc.Teams.create_team_with_invite(%{
         "name" => "join-api-team",
         "members" => [%{"name" => "bot", "role" => "helper"}]
       })
@@ -363,7 +363,7 @@ defmodule TeamrcWeb.ApiControllerTest do
     end
 
     test "returns 404 for expired invite code", %{conn: conn} do
-      {:ok, invite_code, _team_id} = Teamrc.Teams.create_team_with_invite(%{
+      {:ok, invite_code, _team_id, _} = Teamrc.Teams.create_team_with_invite(%{
         "name" => "expired-join-api-team",
         "members" => []
       })
@@ -613,7 +613,7 @@ defmodule TeamrcWeb.ApiControllerTest do
 
       {:ok, _team_a} = Teamrc.Teams.put_team(token, %{"name" => "Team All A", "members" => []})
 
-      {:ok, invite_code, _} = Teamrc.Teams.create_team_with_invite(%{
+      {:ok, invite_code, _, _} = Teamrc.Teams.create_team_with_invite(%{
         "name" => "Team All B",
         "members" => []
       })

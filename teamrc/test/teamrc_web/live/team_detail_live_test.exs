@@ -15,7 +15,7 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
       platforms: opts[:platforms] || []
     }
 
-    {:ok, invite_code, team_id} = Teams.create_team_with_invite(team, opts)
+    {:ok, invite_code, team_id, _} = Teams.create_team_with_invite(team, opts)
     {invite_code, team_id}
   end
 
