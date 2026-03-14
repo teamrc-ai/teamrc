@@ -18,7 +18,7 @@ import {
   type ChannelClient,
   type KnowledgeChannel,
 } from "./channel-client.js";
-import { TeamrcClient, TeamNotFoundError, remoteTeamToDefinition } from "./client.js";
+import { TeamrcClient, TeamNotFoundError } from "./client.js";
 import { mergeKnowledge, pruneKnowledge } from "./team-yaml.js";
 
 // ---------------------------------------------------------------------------
@@ -447,11 +447,7 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
 
   async function pushKnowledgeViaRest(content: string): Promise<void> {
     try {
-      // Push via the existing pushTeam endpoint with knowledge.
-      // Fetch the current team definition first to avoid overwriting config.
-      const team = await restClient.getTeam();
-      const def = remoteTeamToDefinition(team);
-      await restClient.pushTeam(def, content);
+      await restClient.pushKnowledge(content);
       log("Knowledge pushed via REST.");
     } catch (err) {
       warn(`Failed to push knowledge via REST: ${(err as Error).message}`);

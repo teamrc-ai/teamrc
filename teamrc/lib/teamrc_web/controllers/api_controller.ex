@@ -193,6 +193,30 @@ defmodule TeamrcWeb.ApiController do
     end
   end
 
+  def push_knowledge(conn, %{"token" => token, "content" => content} = params)
+      when is_binary(content) do
+    team_id = params["team_id"]
+
+    with :ok <- validate_knowledge(content) do
+      case Teams.update_knowledge(team_id, token, content) do
+        {:ok, _merged, knowledge_hash, knowledge_size} ->
+          json(conn, %{knowledge_hash: knowledge_hash, knowledge_size: knowledge_size})
+
+        {:error, :not_found} ->
+          conn |> put_status(:not_found) |> json(%{error: "not_found"})
+
+        {:error, :team_id_required} ->
+          conn |> put_status(:conflict) |> json(%{error: "team_id required: token belongs to multiple teams"})
+
+        {:error, reason} ->
+          conn |> put_status(:bad_request) |> json(%{error: to_string(reason)})
+      end
+    else
+      {:error, reason} ->
+        conn |> put_status(:bad_request) |> json(%{error: reason})
+    end
+  end
+
   def erase_token(conn, params) do
     token = conn.assigns[:verified_token]
     team_id = params["team_id"]

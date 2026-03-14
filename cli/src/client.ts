@@ -314,6 +314,27 @@ export class TeamrcClient {
     return data.team;
   }
 
+  async pushKnowledge(content: string): Promise<{ knowledge_hash: string; knowledge_size: number }> {
+    const body = JSON.stringify({
+      token: this.token,
+      ...(this.teamId ? { team_id: this.teamId } : {}),
+      content,
+    });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/teams/knowledge`, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
+    });
+    this.checkUpgradeRequired(res);
+    if (res.status === 404) throw new TeamNotFoundError();
+    if (!res.ok) {
+      throw new Error(await this.errorMessage(res, "pushKnowledge failed"));
+    }
+    return (await res.json()) as { knowledge_hash: string; knowledge_size: number };
+  }
+
   async getTeamHead(): Promise<TeamHeadResponse> {
     const url = this.teamId
       ? `/api/teams/${this.token}/head?team_id=${encodeURIComponent(this.teamId)}`

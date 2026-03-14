@@ -108,7 +108,7 @@ export function createChannelClient(
   // Pending reply handlers keyed by ref
   const pendingReplies = new Map<
     string,
-    { resolve: (payload: Record<string, unknown>) => void; reject: (err: Error) => void }
+    { resolve: (payload: Record<string, unknown>) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }
   >();
 
   // Event handlers keyed by topic+event
@@ -131,6 +131,7 @@ export function createChannelClient(
     if (event === "phx_reply" && ref) {
       const pending = pendingReplies.get(ref);
       if (pending) {
+        clearTimeout(pending.timer);
         pendingReplies.delete(ref);
         const response = payload.response as Record<string, unknown> | undefined;
         if (payload.status === "ok") {
@@ -196,18 +197,19 @@ export function createChannelClient(
       }
 
       const ref = nextRef();
-      pendingReplies.set(ref, { resolve, reject });
 
       const msg: PhoenixMessage = [joinRef, ref, topic, event, payload];
       socket.send(JSON.stringify(msg));
 
       // Timeout pending replies after 15 seconds
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (pendingReplies.has(ref)) {
           pendingReplies.delete(ref);
           reject(new Error(`Channel push timed out for ${event} on ${topic}`));
         }
       }, 15_000);
+
+      pendingReplies.set(ref, { resolve, reject, timer });
     });
   }
 
@@ -233,8 +235,9 @@ export function createChannelClient(
         socket.on("close", () => {
           connected = false;
           stopHeartbeat();
-          // Reject all pending replies
+          // Reject all pending replies and clear their timers
           for (const [ref, pending] of pendingReplies) {
+            clearTimeout(pending.timer);
             pending.reject(new Error("Socket closed"));
             pendingReplies.delete(ref);
           }

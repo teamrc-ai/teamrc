@@ -21,6 +21,11 @@ defmodule TeamrcWeb.ChannelCase do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Teamrc.Repo)
     Ecto.Adapters.SQL.Sandbox.mode(Teamrc.Repo, {:shared, self()})
 
+    # Clear channel rate limiter state between tests
+    if :ets.whereis(:teamrc_channel_rate_limits) != :undefined do
+      :ets.delete_all_objects(:teamrc_channel_rate_limits)
+    end
+
     :ok
   end
 
