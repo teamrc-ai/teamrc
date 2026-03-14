@@ -7,39 +7,39 @@ globs:
   - "**/*.swift"
 body: |
   ## Concurrency and Actor Safety
-  - Never update UI from a non-@MainActor context — all UI mutations must
+  - Never update UI from a non-@MainActor context  --  all UI mutations must
     run on the main actor. Use @MainActor annotation or MainActor.run for
     explicit dispatch.
-  - Never use DispatchQueue.main.async in new Swift concurrency code — use
+  - Never use DispatchQueue.main.async in new Swift concurrency code  --  use
     @MainActor and structured concurrency (async/await) instead. GCD is the
     legacy escape hatch, not the default.
   - Never mark a type @unchecked Sendable without a documented safety argument
-    explaining why concurrent access is safe — incorrect Sendable conformance
+    explaining why concurrent access is safe  --  incorrect Sendable conformance
     causes data races the compiler cannot catch.
-  - Never use Task.detached without a documented reason — unstructured tasks
+  - Never use Task.detached without a documented reason  --  unstructured tasks
     lose cancellation propagation and priority inheritance. Prefer Task {}
     which inherits the actor context.
-  - Always handle Task cancellation — check Task.isCancelled or use
+  - Always handle Task cancellation  --  check Task.isCancelled or use
     Task.checkCancellation() at appropriate points. Long-running tasks that
     ignore cancellation waste resources and block shutdown.
 
   ## Memory Safety
   - Never force-unwrap optionals (!) outside of IBOutlet declarations and
-    test assertions — use guard let, if let, or ?? with a sensible default.
+    test assertions  --  use guard let, if let, or ?? with a sensible default.
     Force-unwrap crashes are the most common Swift crash category.
   - Never use unowned references when the referenced object might outlive the
-    referencing closure — use weak and handle the nil case. Unowned references
+    referencing closure  --  use weak and handle the nil case. Unowned references
     to deallocated objects cause immediate crashes.
-  - Never create strong reference cycles — use [weak self] in stored closures,
+  - Never create strong reference cycles  --  use [weak self] in stored closures,
     escaping closures, and any closure that may outlive the current scope.
     Use Instruments Leaks and Memory Graph to detect cycles.
 
   ## SwiftUI Data Flow
-  - Use @StateObject for state that the view creates and owns — use
+  - Use @StateObject for state that the view creates and owns  --  use
     @ObservedObject for state injected from a parent. Mixing these up causes
     either state loss on re-render or duplicate object creation.
-  - Never mutate @State properties from outside the owning view — @State is
+  - Never mutate @State properties from outside the owning view  --  @State is
     private to the view that declares it. Pass @Binding for child mutation.
   - Never perform side effects (network calls, writes) inside the body
-    property — body is called on every render. Use .task, .onAppear, or
+    property  --  body is called on every render. Use .task, .onAppear, or
     onChange modifiers for side effects.

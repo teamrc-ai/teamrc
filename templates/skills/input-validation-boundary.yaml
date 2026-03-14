@@ -5,23 +5,23 @@ description: "Validate all external input at system boundaries, trust internally
 alwaysApply: false
 body: |
   ## Boundary Validation
-  - Validate at the boundary, trust internally — every external input (HTTP
+  - Validate at the boundary, trust internally  --  every external input (HTTP
     requests, file uploads, queue messages, webhook payloads, CLI arguments)
     gets validated before reaching business logic. Internal function calls
     between trusted modules do not need redundant validation.
-  - Return all validation errors at once, not one at a time — users should
+  - Return all validation errors at once, not one at a time  --  users should
     not have to submit a form repeatedly to discover each individual error.
   - Separate structural validation (types, lengths, ranges, formats) from
-    business rule validation (uniqueness, authorization, cross-field rules) —
+    business rule validation (uniqueness, authorization, cross-field rules)  -- 
     structural errors are cheap to check and should fail fast.
 
   ## Input Sanitization
-  - Never trust client-provided data for security decisions — user IDs,
+  - Never trust client-provided data for security decisions  --  user IDs,
     roles, permissions, and pricing should come from the server session or
     database, not from request parameters.
-  - Use parameterized queries for all database access — string concatenation
+  - Use parameterized queries for all database access  --  string concatenation
     in SQL is always a finding, regardless of whether the input "looks safe."
-  - Never dynamically evaluate untrusted input — no runtime code execution
+  - Never dynamically evaluate untrusted input  --  no runtime code execution
     from user-supplied strings, no template injection, no deserialization of
     native objects from untrusted sources. Use safe alternatives like
     JSON.parse and allowlisted template variables.
@@ -30,13 +30,13 @@ body: |
     generated filenames outside the web root.
 
   ## Output Encoding
-  - Encode output for the context — HTML-encode for HTML output, URL-encode
+  - Encode output for the context  --  HTML-encode for HTML output, URL-encode
     for URLs, JavaScript-encode for inline scripts. Raw HTML rendering of
     user input is a cross-site scripting vulnerability.
-  - Return consistent error shapes across all endpoints — a machine-readable
+  - Return consistent error shapes across all endpoints  --  a machine-readable
     error code, a human-readable message, and optionally field-level details
     for validation errors. Never expose internal error messages, stack traces,
     or database errors to external consumers.
   - Never log raw user input containing potential secrets or PII without
-    redaction — form fields named password, token, ssn, and credit_card
+    redaction  --  form fields named password, token, ssn, and credit_card
     should be masked in all log output.

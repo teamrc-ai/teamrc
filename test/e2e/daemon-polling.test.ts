@@ -88,7 +88,7 @@ describe("Daemon polling behavior (hash-based change detection)", () => {
       },
     });
 
-    // Daemon polls head again — should detect hash change
+    // Daemon polls head again  --  should detect hash change
     const head2 = await signedGet(
       `/api/teams/${owner.token}/head?team_id=${owner.teamId}`,
       owner,

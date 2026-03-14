@@ -8,7 +8,7 @@
 
 ## Problem
 
-Team knowledge — a shared markdown file where agents record findings — has two issues:
+Team knowledge  --  a shared markdown file where agents record findings  --  has two issues:
 
 ### 1. Knowledge doesn't sync automatically
 
@@ -17,7 +17,7 @@ The daemon (`cli/src/daemon.ts`) is disabled and polls the entire team definitio
 ### 2. No cap handling
 
 The relay caps knowledge at 100KB (~2,000-2,500 lines). When the cap is hit:
-- REST push returns a 422 — the CLI shows a vague error
+- REST push returns a 422  --  the CLI shows a vague error
 - The daemon logs a warning and skips the write
 - Sync silently stops working
 - There is no visibility into current size, no warning as it approaches the limit, and no recovery path
@@ -28,7 +28,7 @@ The relay caps knowledge at 100KB (~2,000-2,500 lines). When the cap is hit:
 
 ### Repurpose the daemon for knowledge-only sync over Phoenix Channels
 
-The daemon becomes a lightweight background process that keeps the knowledge file in sync across machines in real-time. It does **not** sync team config (members, skills, name) — those remain explicit via `push`/`pull`/`sync`.
+The daemon becomes a lightweight background process that keeps the knowledge file in sync across machines in real-time. It does **not** sync team config (members, skills, name)  --  those remain explicit via `push`/`pull`/`sync`.
 
 ### FIFO pruning when the cap is reached
 
@@ -61,13 +61,13 @@ The daemon E2E tests fail on slow CI
 runners due to a 5s timeout.
 ```
 
-**Preamble**: Everything before the first `## ` heading, up to 10KB. This is permanent — never dropped during pruning. ~50 lines of core knowledge: test commands, architecture notes, key conventions. The 10KB allocation comes out of the 100KB relay cap, leaving 90KB for FIFO sections.
+**Preamble**: Everything before the first `## ` heading, up to 10KB. This is permanent  --  never dropped during pruning. ~50 lines of core knowledge: test commands, architecture notes, key conventions. The 10KB allocation comes out of the 100KB relay cap, leaving 90KB for FIFO sections.
 
-**Sections**: Each `## <heading>` plus all lines until the next `## ` or EOF. Sections are ordered chronologically (oldest at top, newest at bottom — natural result of append-only writes). Sections are the unit of FIFO eviction.
+**Sections**: Each `## <heading>` plus all lines until the next `## ` or EOF. Sections are ordered chronologically (oldest at top, newest at bottom  --  natural result of append-only writes). Sections are the unit of FIFO eviction.
 
 ### Pruning
 
-Pruning is **not daemon-specific** — it happens wherever knowledge is merged. All paths that merge knowledge (push, pull, sync, daemon, channel) go through the same merge+prune flow:
+Pruning is **not daemon-specific**  --  it happens wherever knowledge is merged. All paths that merge knowledge (push, pull, sync, daemon, channel) go through the same merge+prune flow:
 
 1. Merge remote + local knowledge (existing `mergeKnowledge`)
 2. If merged content exceeds 100KB: parse into preamble + sections
@@ -112,7 +112,7 @@ Signed:  Ed25519 with machine private key
 TTL:     30 seconds
 ```
 
-The server's `UserSocket.connect/3` parses the ticket, validates the timestamp, extracts the public key from the token (`trc_ak_<base64url(pubkey)>`), and verifies the Ed25519 signature. This reuses the exact same auth infrastructure as the REST API — no new crypto, no sessions.
+The server's `UserSocket.connect/3` parses the ticket, validates the timestamp, extracts the public key from the token (`trc_ak_<base64url(pubkey)>`), and verifies the Ed25519 signature. This reuses the exact same auth infrastructure as the REST API  --  no new crypto, no sessions.
 
 ### Channel protocol
 
@@ -157,9 +157,9 @@ Uses the same hash normalization as `ContentHash.compute_knowledge_hash` (traili
 
 ### Transport fallback
 
-Phoenix handles transport fallback natively — the `phoenix` JS client tries WebSocket first, then falls back to longpoll automatically. Both transports use the same channel API, so the daemon code doesn't need to know which transport is active.
+Phoenix handles transport fallback natively  --  the `phoenix` JS client tries WebSocket first, then falls back to longpoll automatically. Both transports use the same channel API, so the daemon code doesn't need to know which transport is active.
 
-The daemon retains a last-resort REST polling mode for cases where the server is completely unreachable via both WebSocket and longpoll (e.g., server down, network partition). This is not the primary fallback mechanism — Phoenix longpoll handles transport-level issues transparently.
+The daemon retains a last-resort REST polling mode for cases where the server is completely unreachable via both WebSocket and longpoll (e.g., server down, network partition). This is not the primary fallback mechanism  --  Phoenix longpoll handles transport-level issues transparently.
 
 ### PubSub for REST-initiated changes
 
@@ -217,16 +217,16 @@ Identical logic, both implementations tested against the same fixtures.
 - Prune with content over cap → oldest sections dropped, preamble intact
 - Prune preserves section boundaries (no partial section removal)
 
-### Phase 2: Backend — Socket, Channel, knowledge update
+### Phase 2: Backend  --  Socket, Channel, knowledge update
 
 **New files:**
-- `teamrc/lib/teamrc_web/channels/user_socket.ex` — ticket auth
-- `teamrc/lib/teamrc_web/channels/knowledge_channel.ex` — join, knowledge:push, PubSub handler
+- `teamrc/lib/teamrc_web/channels/user_socket.ex`  --  ticket auth
+- `teamrc/lib/teamrc_web/channels/knowledge_channel.ex`  --  join, knowledge:push, PubSub handler
 
 **Modified files:**
-- `teamrc/lib/teamrc_web/endpoint.ex` — add `socket "/socket", TeamrcWeb.UserSocket, websocket: true, longpoll: true` (Phoenix handles WebSocket → longpoll fallback transparently)
-- `teamrc/lib/teamrc/teams.ex` — add `update_knowledge/3` (merge, prune, persist, PubSub broadcast)
-- `teamrc/lib/teamrc/teams.ex` — add PubSub broadcast in `do_update_team` for REST-initiated knowledge changes
+- `teamrc/lib/teamrc_web/endpoint.ex`  --  add `socket "/socket", TeamrcWeb.UserSocket, websocket: true, longpoll: true` (Phoenix handles WebSocket → longpoll fallback transparently)
+- `teamrc/lib/teamrc/teams.ex`  --  add `update_knowledge/3` (merge, prune, persist, PubSub broadcast)
+- `teamrc/lib/teamrc/teams.ex`  --  add PubSub broadcast in `do_update_team` for REST-initiated knowledge changes
 
 **`update_knowledge/3` flow:**
 1. Verify token access via `resolve_team_id`
@@ -248,7 +248,7 @@ Identical logic, both implementations tested against the same fixtures.
 - Channel: PubSub from REST push forwarded to connected clients
 - Channel: rate limiting enforced
 
-### Phase 3: CLI — Channel client
+### Phase 3: CLI  --  Channel client
 
 **New file:** `cli/src/channel-client.ts`
 
@@ -269,7 +269,7 @@ interface KnowledgeChannel {
 }
 ```
 
-**Dependencies:** Add `phoenix` (^1.7) and `ws` (^8.0) to `cli/package.json`. The `phoenix` Socket accepts a `transport` option — pass `WebSocket` from `ws`.
+**Dependencies:** Add `phoenix` (^1.7) and `ws` (^8.0) to `cli/package.json`. The `phoenix` Socket accepts a `transport` option  --  pass `WebSocket` from `ws`.
 
 URL conversion: `https://teamrc.ai` → `wss://teamrc.ai/socket`, `http://localhost:4000` → `ws://localhost:4000/socket`.
 
@@ -277,7 +277,7 @@ URL conversion: `https://teamrc.ai` → `wss://teamrc.ai/socket`, `http://localh
 - Ticket generation format and signature
 - URL conversion (http→ws, https→wss, with/without trailing slash)
 
-### Phase 4: CLI — Daemon rewrite
+### Phase 4: CLI  --  Daemon rewrite
 
 **Rewrite:** `cli/src/daemon.ts`
 
@@ -299,7 +299,7 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
 
 **WebSocket mode:**
 1. Connect socket, join `knowledge:<teamId>`
-2. Compare join reply `knowledge_hash` with local — merge if different
+2. Compare join reply `knowledge_hash` with local  --  merge if different
 3. Watch knowledge file(s) via chokidar (debounce 500ms)
 4. Local change → hash check (anti-echo) → push via channel
 5. Remote `knowledge:updated` → merge with local → write to all adapters → update `lastWrittenHash`
@@ -314,9 +314,9 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
 - `>70%`: `[hh:mm:ss] Knowledge: 72KB / 100KB`
 - `>90%`: `[hh:mm:ss] WARN: Knowledge nearly full (93KB / 100KB). Oldest entries will be pruned on next sync.`
 
-**Modify:** `cli/src/commands/daemon.ts` — update options, remove team-config sync concerns.
+**Modify:** `cli/src/commands/daemon.ts`  --  update options, remove team-config sync concerns.
 
-**Uncomment:** `cli/src/index.ts` — enable daemon registration.
+**Uncomment:** `cli/src/index.ts`  --  enable daemon registration.
 
 **Tests:**
 - WebSocket mode: local change triggers push
@@ -354,8 +354,8 @@ After a prune event:
 | Knowledge-only daemon | Team config changes are infrequent and admin-initiated. Knowledge benefits most from real-time sync. Simpler daemon, fewer edge cases. |
 | Phoenix Channels over REST polling | Sub-second propagation for knowledge. Eliminates wasted polls. PubSub infrastructure already running. |
 | Phoenix longpoll as primary fallback | Phoenix handles WebSocket → longpoll fallback transparently. Same channel API, zero extra code. REST polling retained as last-resort fallback when the server is completely unreachable. |
-| Ticket auth (not per-message signing) | WebSocket is a persistent TLS-encrypted connection. Once authenticated at connect time, all messages are encrypted and integrity-protected by TLS — per-message Ed25519 signing would be redundant. REST needs per-request signing because HTTP requests are stateless. Standard practice (Slack, Discord, Firebase, LiveView). Enforce `wss://` in production; allow `ws://` only for localhost. |
-| Full content in channel messages | Knowledge is bounded at 100KB — well within WebSocket frame limits. Simpler than diffing or hash-then-fetch. |
+| Ticket auth (not per-message signing) | WebSocket is a persistent TLS-encrypted connection. Once authenticated at connect time, all messages are encrypted and integrity-protected by TLS  --  per-message Ed25519 signing would be redundant. REST needs per-request signing because HTTP requests are stateless. Standard practice (Slack, Discord, Firebase, LiveView). Enforce `wss://` in production; allow `ws://` only for localhost. |
+| Full content in channel messages | Knowledge is bounded at 100KB  --  well within WebSocket frame limits. Simpler than diffing or hash-then-fetch. |
 | Server-side merge | Single source of truth. Avoids split-brain when two machines push simultaneously. |
 | FIFO section pruning | Simple, deterministic, no external dependencies. Oldest knowledge is least relevant. |
 | 10KB permanent preamble | Teams need a protected area for essentials (test commands, conventions). 10KB (~50 lines) is enough for core knowledge without eating too much of the 100KB cap. |
@@ -368,9 +368,9 @@ After a prune event:
 ## Out of Scope
 
 - Knowledge summarization / LLM-assisted compaction
-- Section pinning (`[core]` tags) — revisit later
+- Section pinning (`[core]` tags)  --  revisit later
 - Cross-team knowledge sharing
-- Section-aware merge (dedup by heading) — current line-based merge is sufficient
+- Section-aware merge (dedup by heading)  --  current line-based merge is sufficient
 - `teamrc knowledge` subcommand (list, prune, compact)
 - Daemon auto-start / launchd / systemd integration
 - Multi-team global daemon (single team per daemon instance for now)
@@ -386,7 +386,7 @@ After a prune event:
 ### Ticket auth threat model
 - **Replay**: 30s TTL on tickets. Server rejects expired tickets.
 - **Theft**: Ticket is transmitted once in the WebSocket upgrade request (query param over TLS). Cannot be extracted from subsequent messages.
-- **Session hijack**: Requires breaking TLS. At that point, per-message signing wouldn't help either — attacker could steal the private key.
+- **Session hijack**: Requires breaking TLS. At that point, per-message signing wouldn't help either  --  attacker could steal the private key.
 - **BOLA**: Channel `join` verifies the token has access to the requested `team_id` via `resolve_team_id` (same check as REST API).
 
 ### Rate limiting

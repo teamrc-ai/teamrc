@@ -6,36 +6,36 @@ alwaysApply: false
 body: |
   ## Backward Compatibility
   - Every schema migration MUST be backward-compatible with the currently
-    deployed application version — the old code must continue to work after
+    deployed application version  --  the old code must continue to work after
     the migration runs. This enables zero-downtime deployments and safe
     rollbacks.
   - Use the expand-contract pattern for breaking changes: first expand (add
     the new column/table, dual-write), then migrate data, then contract
     (remove the old column/table in a later release after all code uses the
     new schema).
-  - Never rename or remove a column in the same release that stops using it —
+  - Never rename or remove a column in the same release that stops using it  -- 
     the previous application version may still be running during deployment.
     Remove in a subsequent release after confirming no code references remain.
-  - Never change a column type in-place if the old type is incompatible —
+  - Never change a column type in-place if the old type is incompatible  -- 
     add a new column, migrate data, then drop the old column.
 
   ## Idempotency and Rollback
-  - Data migrations MUST be idempotent — running the migration twice must
+  - Data migrations MUST be idempotent  --  running the migration twice must
     produce the same result as running it once. This is the foundation of
     safe retry and rollback.
-  - Every migration phase MUST have a documented, tested rollback procedure —
+  - Every migration phase MUST have a documented, tested rollback procedure  -- 
     "restore from backup" is a last resort, not a primary strategy.
   - Forward-only migrations are rejected unless the risk is explicitly
     accepted and documented by the engineering lead.
-  - Feature flags used for migration routing MUST support instant rollback —
+  - Feature flags used for migration routing MUST support instant rollback  -- 
     toggling the flag should revert to the old path without a deployment.
 
   ## Validation and Safety
-  - Run validation queries before and after every migration phase — row
+  - Run validation queries before and after every migration phase  --  row
     counts, checksums, and business logic spot-checks are the minimum.
-  - Never delete old data before the new system is proven stable — archive
+  - Never delete old data before the new system is proven stable  --  archive
     if needed, but do not delete until the soak period is complete.
-  - Test migrations against production-scale data volumes — a migration that
+  - Test migrations against production-scale data volumes  --  a migration that
     works on 10,000 rows may lock tables or time out on 10 million rows.
-  - Monitor migration performance impact on production — throttle or pause
+  - Monitor migration performance impact on production  --  throttle or pause
     if user-facing latency degrades.

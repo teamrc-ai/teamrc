@@ -1,7 +1,7 @@
 id: no-any-types
 title: No Any Types
 category: quality
-description: "Never use any in TypeScript — use unknown and type guards"
+description: "Never use any in TypeScript  --  use unknown and type guards"
 alwaysApply: false
 globs:
   - "**/*.ts"

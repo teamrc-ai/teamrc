@@ -6,7 +6,7 @@ userInvocable: true
 alwaysApply: false
 body: |
   Decompose services along business domain boundaries, not technical layers.
-  Each service owns its data store — no shared databases. Prefer choreography
+  Each service owns its data store  --  no shared databases. Prefer choreography
   (events) over orchestration (central coordinator) for cross-service workflows.
   Define clear API contracts between services. A service should be independently
   deployable and testable.

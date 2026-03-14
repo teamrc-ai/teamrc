@@ -171,7 +171,7 @@ export function spawnCli(
     stderr += chunk.toString();
   });
 
-  // Don't close stdin — some commands may need it open
+  // Don't close stdin  --  some commands may need it open
   // But we don't write to it (non-interactive via !isTTY)
 
   return {

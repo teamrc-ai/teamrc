@@ -5,7 +5,7 @@ description: "Design data schemas before implementation with proper constraints"
 alwaysApply: true
 body: |
   Design data schemas before writing implementation code. Define all constraints,
-  indexes, and relationships up front. Normalize by default — denormalize only
+  indexes, and relationships up front. Normalize by default  --  denormalize only
   when there is a measured performance reason. Plan migration strategy for schema
   changes. Use explicit types and avoid nullable columns unless the domain
   requires it.

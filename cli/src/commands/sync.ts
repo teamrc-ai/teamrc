@@ -48,7 +48,7 @@ export function registerSync(program: Command): void {
         const serverHead = await client.getTeamHead();
 
         if (localHashes.hash === serverHead.hash) {
-          // a. Already in sync — persist sync state so subsequent syncs have a baseline
+          // a. Already in sync  --  persist sync state so subsequent syncs have a baseline
           if (!lastSyncHash) {
             writeSyncState({
               syncHash: serverHead.hash,
@@ -63,7 +63,7 @@ export function registerSync(program: Command): void {
         }
 
         if (!lastSyncHash) {
-          // b. Never synced — push unconditionally (no base_hash)
+          // b. Never synced  --  push unconditionally (no base_hash)
           s.start("First sync: pushing to relay...");
           await client.pushTeam(team, knowledge || undefined);
           const newHead = await client.getTeamHead();
@@ -82,7 +82,7 @@ export function registerSync(program: Command): void {
         const serverChanged = serverHead.hash !== lastSyncHash;
 
         if (!serverChanged && localChanged) {
-          // c. Server unchanged, local changed — push with base_hash
+          // c. Server unchanged, local changed  --  push with base_hash
           // Merge knowledge (append-only) so local edits don't overwrite remote knowledge
           s.start("Pushing local changes...");
           let pushKnowledge = knowledge || undefined;
@@ -117,7 +117,7 @@ export function registerSync(program: Command): void {
         }
 
         if (serverChanged && !localChanged) {
-          // d. Local unchanged, server changed — pull
+          // d. Local unchanged, server changed  --  pull
           s.start("Pulling remote changes...");
           const remoteTeam = await client.getTeam();
           validateTeamName(remoteTeam.name);
@@ -160,7 +160,7 @@ export function registerSync(program: Command): void {
           return;
         }
 
-        // e. Both changed — diverged
+        // e. Both changed  --  diverged
         const onlyKnowledgeDiffers =
           localHashes.membersHash === serverHead.members_hash &&
           localHashes.skillsHash === serverHead.skills_hash &&
@@ -220,7 +220,7 @@ export function registerSync(program: Command): void {
           return;
         }
 
-        // Members/skills differ on both sides — pull first, warn user
+        // Members/skills differ on both sides  --  pull first, warn user
         s.start("Both sides changed. Pulling remote first...");
         p.log.warn(`Both local and remote have changes. Pulling remote changes first. Run \`${cliCmd("push")}\` to push local changes.`);
         const remoteTeam = await client.getTeam();

@@ -67,7 +67,7 @@ function capString(s: string | undefined, max: number): string | undefined {
 
 /** Strip YAML frontmatter delimiters from body/soul content to prevent injection */
 function sanitizeFrontmatter(s: string): string {
-  return s.replace(/^---\s*$/gm, "– – –");
+  return s.replace(/^---\s*$/gm, "- - -");
 }
 
 export function remoteTeamToDefinition(team: TeamrcTeam): TeamDefinition {
@@ -101,7 +101,7 @@ export function remoteTeamToDefinition(team: TeamrcTeam): TeamDefinition {
  *  Strips source-body skills since they should not be sent unresolved to the relay. */
 export function sanitizeTeamDefinition(team: TeamDefinition): TeamDefinition {
   const skills = team.skills?.filter((s) => {
-    // Drop source-body skills — they reference local files and must not be sent to relay unresolved
+    // Drop source-body skills  --  they reference local files and must not be sent to relay unresolved
     if (typeof s.body === "object" && s.body?.source) return false;
     try { validateSkillId(s.id); return true; } catch { return false; }
   }).map((s) => ({

@@ -306,7 +306,7 @@ describe("size warning thresholds", () => {
 });
 
 // ---------------------------------------------------------------------------
-// readLocalKnowledge — tested through daemon with in-memory adapters
+// readLocalKnowledge  --  tested through daemon with in-memory adapters
 // ---------------------------------------------------------------------------
 
 describe("readLocalKnowledge via daemon", () => {
@@ -464,7 +464,7 @@ describe("readLocalKnowledge via daemon", () => {
 });
 
 // ---------------------------------------------------------------------------
-// writeKnowledgeToAllAdapters — tested through mergeAndWrite flow
+// writeKnowledgeToAllAdapters  --  tested through mergeAndWrite flow
 // ---------------------------------------------------------------------------
 
 describe("writeKnowledgeToAllAdapters behavior", () => {
@@ -569,7 +569,7 @@ describe("writeKnowledgeToAllAdapters behavior", () => {
 });
 
 // ---------------------------------------------------------------------------
-// mergeAndWrite — testing the merge + prune + write flow
+// mergeAndWrite  --  testing the merge + prune + write flow
 // ---------------------------------------------------------------------------
 
 describe("mergeAndWrite flow", () => {
@@ -680,7 +680,7 @@ describe("mergeAndWrite flow", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Anti-echo integration — testing hash-based echo prevention
+// Anti-echo integration  --  testing hash-based echo prevention
 // ---------------------------------------------------------------------------
 
 describe("anti-echo integration", () => {
@@ -757,7 +757,7 @@ describe("anti-echo integration", () => {
 });
 
 // ---------------------------------------------------------------------------
-// logSizeWarning — testing actual console output
+// logSizeWarning  --  testing actual console output
 // ---------------------------------------------------------------------------
 
 describe("logSizeWarning via daemon logs", () => {
@@ -882,7 +882,7 @@ describe("logSizeWarning via daemon logs", () => {
 });
 
 // ---------------------------------------------------------------------------
-// computeKnowledgeHash — additional edge cases
+// computeKnowledgeHash  --  additional edge cases
 // ---------------------------------------------------------------------------
 
 describe("computeKnowledgeHash edge cases", () => {
@@ -940,7 +940,7 @@ describe("computeKnowledgeHash edge cases", () => {
 });
 
 // ---------------------------------------------------------------------------
-// setupFileWatcher — testing watch path construction
+// setupFileWatcher  --  testing watch path construction
 // ---------------------------------------------------------------------------
 
 describe("setupFileWatcher path construction", () => {

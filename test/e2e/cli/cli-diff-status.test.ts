@@ -27,7 +27,7 @@ describe("teamrc diff", () => {
   it("diff shows no changes", async () => {
     const env = createIsolatedEnv("diff-none");
     try {
-      // Init creates the team on relay and pushes — local and remote should match
+      // Init creates the team on relay and pushes  --  local and remote should match
       const initResult = await runCli(
         ["init", "--name", "diff-none", "--team", "backend", "--platform", "claude-code"],
         env,
@@ -230,7 +230,7 @@ describe("teamrc status", () => {
   it("status shows in sync", async () => {
     const env = createIsolatedEnv("status-sync");
     try {
-      // Init creates and pushes — should be in sync immediately
+      // Init creates and pushes  --  should be in sync immediately
       const initResult = await runCli(
         ["init", "--name", "status-sync", "--team", "backend", "--platform", "claude-code"],
         env,

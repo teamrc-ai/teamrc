@@ -268,7 +268,7 @@ describe("teamrc clone", () => {
       );
       assert.equal(cloneResult.exitCode, 0, `Clone failed.\nstdout: ${cloneResult.stdout}\nstderr: ${cloneResult.stderr}`);
 
-      // Machine B: try to push — should fail (no teamId, clone is read-only)
+      // Machine B: try to push  --  should fail (no teamId, clone is read-only)
       const pushResult = await runCli(["push"], envB);
       const combined = pushResult.stdout + pushResult.stderr;
 

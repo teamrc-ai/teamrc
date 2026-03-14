@@ -5,7 +5,7 @@ defmodule TeamrcWeb.KnowledgeChannel do
   Topic: `knowledge:<team_id>`
 
   Handles:
-  - `knowledge:push` — merge incoming knowledge, persist, broadcast to other clients
+  - `knowledge:push`  --  merge incoming knowledge, persist, broadcast to other clients
   - PubSub messages from REST-initiated knowledge changes
 
   Rate limited to 1 push per second per token (via ETS, not per-socket).

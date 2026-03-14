@@ -9,50 +9,50 @@ globs:
   - "**/*.cairo"
 body: |
   ## Authentication and Access Control
-  - Never use tx.origin for authentication — tx.origin returns the original
+  - Never use tx.origin for authentication  --  tx.origin returns the original
     external caller and can be spoofed through intermediary contracts. Use
     msg.sender for authorization checks.
-  - Never use delegatecall to untrusted or user-supplied contract addresses —
+  - Never use delegatecall to untrusted or user-supplied contract addresses  -- 
     delegatecall executes external code in the calling contract's storage
     context, enabling complete storage manipulation.
-  - Never store secrets on-chain — all blockchain data is publicly readable
+  - Never store secrets on-chain  --  all blockchain data is publicly readable
     regardless of Solidity visibility modifiers. Use commit-reveal schemes
     or off-chain computation for private data.
 
   ## Reentrancy and State Management
-  - Follow the checks-effects-interactions pattern — validate conditions,
+  - Follow the checks-effects-interactions pattern  --  validate conditions,
     update state, then make external calls. Never update state after an
     external call, as the callee can re-enter and observe stale state.
   - Never assume external calls (transfer, send, call) succeed without
-    checking the return value — use require() to verify success or use
+    checking the return value  --  use require() to verify success or use
     the checks-effects-interactions pattern with pull-over-push for
     payments.
-  - Maintain explicit supply accounting — token mints and burns must
+  - Maintain explicit supply accounting  --  token mints and burns must
     always balance. Use SafeMath or Solidity 0.8+ built-in overflow
     checks for all arithmetic.
-  - Never use block.timestamp for sub-minute precision — miners can
+  - Never use block.timestamp for sub-minute precision  --  miners can
     manipulate timestamps within a ~15 second window. Use block numbers
     for relative timing or external oracles for precise timestamps.
 
   ## Upgradeability and Architecture
   - Never use upgradeable proxy patterns without explicit storage layout
-    awareness — storage slot collisions between proxy and implementation
+    awareness  --  storage slot collisions between proxy and implementation
     corrupt state silently. Use EIP-1967 storage slots and maintain a
     storage layout compatibility test in CI.
-  - Never use selfdestruct in production contracts — it creates complex
+  - Never use selfdestruct in production contracts  --  it creates complex
     edge cases and is being deprecated. Use pause/unpause patterns for
     emergency stops.
-  - Never hardcode cross-chain or external contract addresses — use a
+  - Never hardcode cross-chain or external contract addresses  --  use a
     registry pattern or constructor injection so addresses can be updated
     without redeployment.
 
   ## Process and Auditing
   - Every contract managing significant value must undergo an external
-    security audit before mainnet deployment — internal review is necessary
+    security audit before mainnet deployment  --  internal review is necessary
     but not sufficient for contracts handling user funds.
   - Run storage layout compatibility checks in CI for all upgradeable
-    contracts — a storage slot change in an upgrade silently corrupts
+    contracts  --  a storage slot change in an upgrade silently corrupts
     all existing state.
   - Use formal verification tools (Certora, Halmos) for critical
-    invariants — unit tests cannot cover the combinatorial state space
+    invariants  --  unit tests cannot cover the combinatorial state space
     of smart contracts.

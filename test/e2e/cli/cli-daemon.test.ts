@@ -25,7 +25,7 @@ beforeEach(async () => {
   await testSetup("clear_rate_limits");
 });
 
-// Daemon command is disabled (coming soon) — skip these tests
+// Daemon command is disabled (coming soon)  --  skip these tests
 describe.skip("teamrc daemon", () => {
   it("daemon detects remote change and applies new agent file", { timeout: 45000 }, async () => {
     const env = createIsolatedEnv("daemon-detect");

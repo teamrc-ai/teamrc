@@ -7,38 +7,38 @@ globs:
   - "**/*.rs"
 body: |
   ## Memory and Ownership
-  - Never use unsafe to silence the borrow checker — if the borrow checker
+  - Never use unsafe to silence the borrow checker  --  if the borrow checker
     rejects your code, redesign the ownership model. Unsafe is for FFI, SIMD
     intrinsics, and low-level primitives with formal safety arguments.
-  - Never create references to uninitialized memory — use MaybeUninit with
+  - Never create references to uninitialized memory  --  use MaybeUninit with
     assume_init only after guaranteed initialization.
-  - Never hold a MutexGuard across an .await point — it blocks the executor
+  - Never hold a MutexGuard across an .await point  --  it blocks the executor
     thread. Use tokio::sync::Mutex for async code or restructure to drop the
     guard before awaiting.
   - Never implement Send or Sync manually without a formal safety argument
-    documented in a SAFETY comment — incorrect implementations cause undefined
+    documented in a SAFETY comment  --  incorrect implementations cause undefined
     behavior.
-  - Never use mem::forget for correctness — it is a safety escape hatch, not
+  - Never use mem::forget for correctness  --  it is a safety escape hatch, not
     a resource management tool. Use Drop implementations for cleanup.
-  - Never use transmute between types of different sizes — it is instant
+  - Never use transmute between types of different sizes  --  it is instant
     undefined behavior. Use from_ne_bytes, TryFrom, or bytemuck for safe
     type conversions.
 
   ## API Design
   - Use #[non_exhaustive] on public enums and structs to preserve semver
-    compatibility — adding a variant or field is a breaking change without it.
-  - Accept impl AsRef<T>, impl Into<T>, or generics for input parameters —
+    compatibility  --  adding a variant or field is a breaking change without it.
+  - Accept impl AsRef<T>, impl Into<T>, or generics for input parameters  -- 
     return concrete types. Flexible inputs, predictable outputs.
   - Use the builder pattern for functions with three or more optional
-    parameters — long parameter lists are error-prone and unreadable.
+    parameters  --  long parameter lists are error-prone and unreadable.
   - Add #[must_use] to functions that return values which should not be
-    silently discarded — especially Result, locks, and resource handles.
+    silently discarded  --  especially Result, locks, and resource handles.
   - Document every public item with /// comments including Examples, Errors,
     and Panics sections where applicable.
 
   ## Performance
-  - Prefer stack allocation over heap allocation — use arrays, SmallVec, or
+  - Prefer stack allocation over heap allocation  --  use arrays, SmallVec, or
     ArrayVec for small, bounded collections.
-  - Profile before optimizing — cargo flamegraph and criterion benchmarks
+  - Profile before optimizing  --  cargo flamegraph and criterion benchmarks
     provide data. Gut feelings about Rust performance are frequently wrong.
-  - Avoid allocations in hot loops — preallocate buffers and reuse them.
+  - Avoid allocations in hot loops  --  preallocate buffers and reuse them.

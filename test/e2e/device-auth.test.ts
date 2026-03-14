@@ -50,7 +50,7 @@ describe("Device auth flow", () => {
     );
     const { device_code } = (await createRes.json()) as { device_code: string };
 
-    // Poll — should be pending
+    // Poll  --  should be pending
     const pollRes = await signedGet(
       `/api/auth/device/${encodeURIComponent(device_code)}`,
       cli,
@@ -82,7 +82,7 @@ describe("Device auth flow", () => {
     };
     await testSetup("confirm_device_auth", { user_code, user_id, email });
 
-    // Poll — should be confirmed
+    // Poll  --  should be confirmed
     const pollRes = await signedGet(
       `/api/auth/device/${encodeURIComponent(device_code)}`,
       cli,

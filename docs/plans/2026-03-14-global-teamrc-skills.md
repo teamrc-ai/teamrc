@@ -8,7 +8,7 @@
 
 ## Problem
 
-teamrc installs `alwaysApply` rules and per-agent skills, but ships no **on-demand skills** — slash commands users can invoke mid-session. This is a missed opportunity: both Claude Code and Cursor support the [Agent Skills](https://agentskills.io) open standard, and Cursor even auto-discovers skills from `.claude/skills/` and `.agents/skills/` for cross-platform compatibility.
+teamrc installs `alwaysApply` rules and per-agent skills, but ships no **on-demand skills**  --  slash commands users can invoke mid-session. This is a missed opportunity: both Claude Code and Cursor support the [Agent Skills](https://agentskills.io) open standard, and Cursor even auto-discovers skills from `.claude/skills/` and `.agents/skills/` for cross-platform compatibility.
 
 Users currently have no way to interact with teamrc from inside their coding session. Want to save a finding? Hope the agent remembers the "append to knowledge file" instruction. Want to see what the team knows? Open the file manually. Want to check knowledge size (relevant now with the 100KB cap and FIFO pruning)? Run `teamrc status` in a separate terminal.
 
@@ -16,8 +16,8 @@ Users currently have no way to interact with teamrc from inside their coding ses
 
 | Platform | Skills directory | Slash commands | Auto-discovery |
 |---|---|---|---|
-| **Claude Code** | `.claude/skills/` | `/skill-name` | Yes — descriptions loaded, full content on invoke |
-| **Cursor** | `.cursor/skills/`, `.agents/skills/` | `/skill-name` | Yes — also reads `.claude/skills/`, `.codex/skills/` |
+| **Claude Code** | `.claude/skills/` | `/skill-name` | Yes  --  descriptions loaded, full content on invoke |
+| **Cursor** | `.cursor/skills/`, `.agents/skills/` | `/skill-name` | Yes  --  also reads `.claude/skills/`, `.codex/skills/` |
 | **Gemini** | `.agents/skills/` | Likely | Likely |
 | **Codex** | No native support | No | No |
 | **OpenClaw** | `~/.openclaw/skills/` | No user invocation | Agent-discoverable only |
@@ -42,7 +42,7 @@ Both Claude Code and Cursor support these fields:
 
 ## Proposed Skills
 
-### 1. `/trc-save-finding` — Save a finding to team knowledge
+### 1. `/trc-save-finding`  --  Save a finding to team knowledge
 
 **Why:** The `team-knowledge` alwaysApply rule tells agents to "append useful findings before finishing." But agents often skip this, and users have no way to explicitly trigger it. This skill gives users a direct slash command to save something mid-session.
 
@@ -65,7 +65,7 @@ disable-model-invocation: true
 ---
 ```
 
-`disable-model-invocation: true` because we don't want agents auto-triggering this — the alwaysApply rule already handles the "agent saves findings" use case. This is for users who want to explicitly save something.
+`disable-model-invocation: true` because we don't want agents auto-triggering this  --  the alwaysApply rule already handles the "agent saves findings" use case. This is for users who want to explicitly save something.
 
 **Body:**
 ```markdown
@@ -82,7 +82,7 @@ Save the following finding to the team knowledge file.
 5. Report the current file size and how close it is to the 100KB relay cap
 ```
 
-### 2. `/trc-knowledge` — Read team knowledge
+### 2. `/trc-knowledge`  --  Read team knowledge
 
 **Why:** Users want to see what the team knows without opening the file. Especially useful when onboarding to a project or checking if a topic has already been documented.
 
@@ -102,9 +102,9 @@ disable-model-invocation: false
 ---
 ```
 
-`disable-model-invocation: false` — agents SHOULD auto-trigger this when they need to check team context. This complements the alwaysApply rule which loads the content at session start — this skill lets the agent refresh mid-session.
+`disable-model-invocation: false`  --  agents SHOULD auto-trigger this when they need to check team context. This complements the alwaysApply rule which loads the content at session start  --  this skill lets the agent refresh mid-session.
 
-### 3. `/trc-status` — Show team and knowledge status
+### 3. `/trc-status`  --  Show team and knowledge status
 
 **Why:** Quick reference for current team state without leaving the editor. Shows team name, members, skills, knowledge size, and daemon status.
 
@@ -134,9 +134,9 @@ Show the current teamrc team status:
 4. If size > 90% of cap, warn urgently
 ```
 
-### 4. `/trc-switch-team` — Switch active team (FUTURE)
+### 4. `/trc-switch-team`  --  Switch active team (FUTURE)
 
-**Why:** When multi-team-per-project is supported, users will need to switch context. Not implemented now — placeholder for when the feature exists.
+**Why:** When multi-team-per-project is supported, users will need to switch context. Not implemented now  --  placeholder for when the feature exists.
 
 **Frontmatter (future):**
 ```yaml
@@ -160,7 +160,7 @@ The knowledge daemon plan introduces real-time sync via Phoenix Channels. The sk
 | `/trc-knowledge` | Reads local file (always up-to-date via daemon) | Reads local file (may be stale) |
 | `/trc-status` | Could query daemon for sync status, connection state, last sync time | Shows file-only status |
 
-The skills don't need to know about the daemon — they just read/write the knowledge file. The daemon handles sync transparently.
+The skills don't need to know about the daemon  --  they just read/write the knowledge file. The daemon handles sync transparently.
 
 ### Pruning interaction
 
@@ -196,9 +196,9 @@ Update adapters to write on-demand skills with correct frontmatter.
 - Update `writeSkillDir()` to include new frontmatter fields
 
 **Changes to each adapter's skill writing:**
-- Claude Code: `writeSkillsAsNativeFiles()` — write new frontmatter fields to `SKILL.md`
-- Cursor: `writeSkillAsMdc()` — on-demand skills go to `.cursor/skills/`, write new frontmatter. Note: Cursor also discovers from `.agents/skills/` and `.claude/skills/`
-- Codex: No change — Codex doesn't support on-demand skills natively
+- Claude Code: `writeSkillsAsNativeFiles()`  --  write new frontmatter fields to `SKILL.md`
+- Cursor: `writeSkillAsMdc()`  --  on-demand skills go to `.cursor/skills/`, write new frontmatter. Note: Cursor also discovers from `.agents/skills/` and `.claude/skills/`
+- Codex: No change  --  Codex doesn't support on-demand skills natively
 - Gemini: Write to `.agents/skills/` with new frontmatter
 - OpenClaw: Write to `~/.openclaw/skills/` with new frontmatter
 
@@ -270,7 +270,7 @@ Each adapter's `writeTeam()` calls `createBuiltInSkills(knowledgePath)` and writ
 **Claude Code:** Write to `.claude/skills/trc-save-finding/SKILL.md`, etc.
 **Cursor:** Write to `.cursor/skills/trc-save-finding/SKILL.md` (Cursor also discovers from `.agents/skills/`)
 **Gemini:** Write to `.agents/skills/trc-save-finding/SKILL.md`
-**Codex:** Skip — no native skill support
+**Codex:** Skip  --  no native skill support
 **OpenClaw:** Write to `~/.openclaw/skills/trc-save-finding/SKILL.md`
 
 ### Phase 4: `/trc-switch-team` (FUTURE)
@@ -287,37 +287,37 @@ Depends on multi-team-per-project support. When implemented:
 
 While implementing this, also fix the redundant per-agent skill inlining identified in the skills audit:
 
-1. **Claude Code**: Remove body inlining in `buildAgentFile()` (lines 424-431). Keep `skills:` frontmatter reference — that's how Claude Code knows which skills the agent can use.
+1. **Claude Code**: Remove body inlining in `buildAgentFile()` (lines 424-431). Keep `skills:` frontmatter reference  --  that's how Claude Code knows which skills the agent can use.
 2. **Cursor**: Remove body inlining in `writeAgentMd()` (lines 228-243). Cursor auto-discovers skills, no per-agent reference needed.
-3. **Codex**: Keep body inlining — Codex has no native skill support, inlining is the only way.
+3. **Codex**: Keep body inlining  --  Codex has no native skill support, inlining is the only way.
 4. **Gemini**: Remove body inlining in `buildAgentFile()` (lines 373-382). Gemini reads from `.agents/skills/`.
-5. **OpenClaw**: Already minimal — just lists title+description, not full body. Keep as-is.
+5. **OpenClaw**: Already minimal  --  just lists title+description, not full body. Keep as-is.
 
-Also fix the broken frontmatter reference bug in Claude Code: `resolveAgentSkills()` returns alwaysApply skills, which get listed in agent frontmatter `skills:` pointing to `.claude/skills/` — but alwaysApply skills are in `.claude/rules/`. Filter alwaysApply/glob skills out of the frontmatter list.
+Also fix the broken frontmatter reference bug in Claude Code: `resolveAgentSkills()` returns alwaysApply skills, which get listed in agent frontmatter `skills:` pointing to `.claude/skills/`  --  but alwaysApply skills are in `.claude/rules/`. Filter alwaysApply/glob skills out of the frontmatter list.
 
 ---
 
 ## Files to modify
 
 ### Phase 1 (skill writing infrastructure)
-1. `cli/src/adapters/base.ts` — Extend `Skill` interface, update `writeSkillDir()`
-2. `cli/src/team-yaml.ts` — Parse/serialize new fields
+1. `cli/src/adapters/base.ts`  --  Extend `Skill` interface, update `writeSkillDir()`
+2. `cli/src/team-yaml.ts`  --  Parse/serialize new fields
 
 ### Phase 2 (built-in skills)
-3. `cli/src/adapters/base.ts` — Add `createBuiltInSkills()`
+3. `cli/src/adapters/base.ts`  --  Add `createBuiltInSkills()`
 
 ### Phase 3 (adapter integration)
-4. `cli/src/adapters/claude-code.ts` — Write built-in skills, fix frontmatter bug, remove body inlining
-5. `cli/src/adapters/cursor.ts` — Write built-in skills, remove body inlining
-6. `cli/src/adapters/codex.ts` — Skip built-in skills (no native support)
-7. `cli/src/adapters/gemini.ts` — Write built-in skills, remove body inlining
-8. `cli/src/adapters/openclaw.ts` — Write built-in skills
+4. `cli/src/adapters/claude-code.ts`  --  Write built-in skills, fix frontmatter bug, remove body inlining
+5. `cli/src/adapters/cursor.ts`  --  Write built-in skills, remove body inlining
+6. `cli/src/adapters/codex.ts`  --  Skip built-in skills (no native support)
+7. `cli/src/adapters/gemini.ts`  --  Write built-in skills, remove body inlining
+8. `cli/src/adapters/openclaw.ts`  --  Write built-in skills
 
 ### Tests
-9. `cli/src/__tests__/claude-code-rules.test.ts` — Test built-in skill writing, frontmatter fields
-10. `cli/src/__tests__/cursor-rules.test.ts` — Test built-in skill writing
-11. `cli/src/__tests__/gemini-rules.test.ts` — Test built-in skill writing
-12. `cli/src/__tests__/openclaw-rules.test.ts` — Test built-in skill writing
+9. `cli/src/__tests__/claude-code-rules.test.ts`  --  Test built-in skill writing, frontmatter fields
+10. `cli/src/__tests__/cursor-rules.test.ts`  --  Test built-in skill writing
+11. `cli/src/__tests__/gemini-rules.test.ts`  --  Test built-in skill writing
+12. `cli/src/__tests__/openclaw-rules.test.ts`  --  Test built-in skill writing
 
 ---
 
@@ -337,7 +337,7 @@ Also fix the broken frontmatter reference bug in Claude Code: `resolveAgentSkill
 ## Out of Scope
 
 - `/trc-switch-team` implementation (future, needs multi-team-per-project)
-- `/trc-sync` slash command (use CLI `teamrc sync` — syncing is an admin action, not a mid-session action)
+- `/trc-sync` slash command (use CLI `teamrc sync`  --  syncing is an admin action, not a mid-session action)
 - Script-based skills (all three skills are prompt-based, no `scripts/` directory needed)
 - Cursor `.cursor/commands/` migration (Cursor's `/migrate-to-skills` handles this)
 - Web UI for managing built-in skills

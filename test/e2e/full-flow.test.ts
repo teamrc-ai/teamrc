@@ -82,7 +82,7 @@ describe("Full onboarding flow", () => {
     const { clone_token } = (await shareRes.json()) as { clone_token: string };
     assert.ok(clone_token.startsWith("trc_cl_"));
 
-    // Step 7: Clone preview (no auth needed — public)
+    // Step 7: Clone preview (no auth needed  --  public)
     const cloneRes = await unsignedGet(`/api/teams/clone/${clone_token}`);
     assert.equal(cloneRes.status, 200);
     const cloneData = (await cloneRes.json()) as { team: Record<string, unknown> };

@@ -7,5 +7,5 @@ body: |
   Update the changelog with every user-facing change in the same commit or PR
   that introduces it. Group entries under Added, Changed, Fixed, and Removed
   headings. Follow the Keep a Changelog format. Write entries from the user's
-  perspective — describe what changed for them, not implementation details.
+  perspective  --  describe what changed for them, not implementation details.
   Never leave an Unreleased section empty after a release.

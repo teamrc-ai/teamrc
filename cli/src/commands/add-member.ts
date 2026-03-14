@@ -22,7 +22,7 @@ export function registerAddMember(program: Command): void {
       const { team, scope, client, platforms } = ctx;
       const yamlPath = scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
 
-      // Resolve agent name — from argument or interactive picker
+      // Resolve agent name  --  from argument or interactive picker
       let name = agentName;
       if (!name) {
         if (isNonInteractive()) {
@@ -98,7 +98,7 @@ export function registerAddMember(program: Command): void {
               body: skill.body,
             });
           } catch {
-            // Skill not in catalog — skip
+            // Skill not in catalog  --  skip
           }
         }
       }
@@ -111,14 +111,14 @@ export function registerAddMember(program: Command): void {
         ...(recommendedSkillIds.length > 0 ? { skills: recommendedSkillIds } : {}),
       };
 
-      // Mutate team (in memory only — write after push succeeds)
+      // Mutate team (in memory only  --  write after push succeeds)
       team.members.push(newMember);
       if (newSkills.length > 0) {
         if (!team.skills) team.skills = [];
         team.skills.push(...newSkills);
       }
 
-      // Push to relay first — don't persist locally until relay accepts
+      // Push to relay first  --  don't persist locally until relay accepts
       const s = p.spinner();
       try {
         s.start("Pushing to relay...");

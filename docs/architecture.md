@@ -81,17 +81,17 @@ Primary files:
 7. Creates a new independent team on relay via `POST /api/teams` (new `teamId`)
 8. Sets `client.setTeamId()` so subsequent calls (knowledge push, invite) target the correct team
 9. Proceeds with normal init flow: knowledge, ownership, invites
-10. All future `pull`/`push`/`sync` operate on the new team — no connection to the original
+10. All future `pull`/`push`/`sync` operate on the new team  --  no connection to the original
 11. If the user declines the relay prompt (or uses `--local`), the team is created locally without a relay connection. Running `teamrc push` later will register it on the relay.
 
 ### Local-only teams
 
 Teams created with `teamrc init --local` or via declining the relay prompt during interactive init have no `teamId` or `relay` fields in `.teamrc.yaml`. They support:
 
-- `apply` — regenerate platform files from YAML
-- `import` — import platform config into YAML
-- `status` — show team state (sync status shows "local-only")
-- `delete` — remove all teamrc files
+- `apply`  --  regenerate platform files from YAML
+- `import`  --  import platform config into YAML
+- `status`  --  show team state (sync status shows "local-only")
+- `delete`  --  remove all teamrc files
 - `add-member`, `list-templates`, `list-agents`, `whoami`, `doctor`
 
 Commands that require relay (`sync`, `pull`, `diff`, `export`, `invite`, `share`, `claim`, `dashboard`, `daemon`) show: "This team is local-only. Run `teamrc push` to connect."

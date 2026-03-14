@@ -233,7 +233,7 @@ describe("Knowledge", () => {
     assert.equal(pushRes.status, 200);
     const updated = (await pushRes.json()) as { team: Record<string, unknown> };
     assert.notEqual(updated.team.knowledge_hash, originalKnowledgeHash, "knowledge_hash should change");
-    // Knowledge is stored as-sent (server doesn't merge — that's the CLI's job)
+    // Knowledge is stored as-sent (server doesn't merge  --  that's the CLI's job)
     const knowledge = updated.team.knowledge as string;
     assert.ok(knowledge.includes("Initial knowledge."), "should contain original");
     assert.ok(knowledge.includes("New line of knowledge."), "should contain new line");

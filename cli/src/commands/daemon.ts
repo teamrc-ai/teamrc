@@ -71,12 +71,15 @@ export function registerDaemon(program: Command): void {
         restOnly: opts.restOnly,
       });
 
-      const shutdown = () => {
-        daemon.stop();
-        p.outro("Daemon stopped.");
-        process.exit(0);
-      };
-      process.on("SIGINT", shutdown);
-      process.on("SIGTERM", shutdown);
+      // Keep the process alive until signal
+      await new Promise<void>((resolve) => {
+        const shutdown = () => {
+          daemon.stop();
+          p.outro("Daemon stopped.");
+          resolve();
+        };
+        process.on("SIGINT", shutdown);
+        process.on("SIGTERM", shutdown);
+      });
     });
 }

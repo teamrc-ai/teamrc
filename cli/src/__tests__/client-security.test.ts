@@ -34,7 +34,7 @@ function restoreFetch() {
   globalThis.fetch = originalFetch;
 }
 
-// Dummy key bytes (32 bytes for ed25519 private key — the signMessage call
+// Dummy key bytes (32 bytes for ed25519 private key  --  the signMessage call
 // will be exercised but we only care about fetch options here).
 const dummyKey = new Uint8Array(32);
 const dummyToken = "trc_ak_AAAAAAAAAAAAAAAAAAAAAA";

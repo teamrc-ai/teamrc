@@ -201,7 +201,7 @@ describe("teamrc init", () => {
   it("init without login → shows claim secret", async () => {
     const env = createIsolatedEnv("init-claim-secret");
     try {
-      // Fresh env, no login — run relay-connected init
+      // Fresh env, no login  --  run relay-connected init
       const result = await runCli(
         ["init", "--name", "no-login", "--team", "backend", "--platform", "claude-code"],
         env,

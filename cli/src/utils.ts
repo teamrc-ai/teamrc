@@ -24,7 +24,7 @@ import type { TeamrcConfig } from "./config.js";
 import { openBrowserIfSameOrigin } from "./browser.js";
 
 // ---------------------------------------------------------------------------
-// CLI name detection — use the right invocation form in messages
+// CLI name detection  --  use the right invocation form in messages
 // ---------------------------------------------------------------------------
 function detectCliName(): string {
   const scriptPath = process.argv[1] || "";
@@ -43,7 +43,7 @@ export function cliCmd(subcommand: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Program definition — single shared instance
+// Program definition  --  single shared instance
 // ---------------------------------------------------------------------------
 const require = createRequire(import.meta.url);
 const { version: CLI_VERSION } = require("../package.json") as { version: string };
@@ -60,7 +60,7 @@ program
   .option("-v, --verbose", "Show detailed output");
 
 // ---------------------------------------------------------------------------
-// Global options — parsed from root program, threaded through all commands
+// Global options  --  parsed from root program, threaded through all commands
 // ---------------------------------------------------------------------------
 export interface GlobalOpts {
   json?: boolean;
@@ -93,7 +93,7 @@ export function requireTTY(flagHint: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// Cancel handler — graceful Ctrl-C for all prompts
+// Cancel handler  --  graceful Ctrl-C for all prompts
 // ---------------------------------------------------------------------------
 export function handleCancel(value: unknown): void {
   if (p.isCancel(value)) {
@@ -383,7 +383,7 @@ export async function deviceAuthFlow(client: TeamrcClient, machineName: string, 
           }
           return false;
         }
-        // Continue polling — transient error
+        // Continue polling  --  transient error
       }
     }
   } finally {
@@ -484,7 +484,7 @@ export async function promptTeamName(defaultName: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Team not found recovery — re-create team on relay
+// Team not found recovery  --  re-create team on relay
 // ---------------------------------------------------------------------------
 
 /**

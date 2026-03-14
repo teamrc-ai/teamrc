@@ -110,7 +110,7 @@ defmodule TeamrcWeb.HomeLive do
             <p class="text-sm font-semibold">Platform files are generated</p>
             <p class="text-sm text-base-content/60 mt-0.5">
               teamrc writes the native config for each platform you use. Claude Code gets
-              markdown agents, Codex gets TOML, Gemini gets YAML frontmatter — all from the
+              markdown agents, Codex gets TOML, Gemini gets YAML frontmatter  --  all from the
               same source.
             </p>
           </div>
@@ -120,7 +120,7 @@ defmodule TeamrcWeb.HomeLive do
           <div>
             <p class="text-sm font-semibold">Sync through the relay</p>
             <p class="text-sm text-base-content/60 mt-0.5">
-              The relay is the coordination point. Push changes from one machine — CLI or web UI — and
+              The relay is the coordination point. Push changes from one machine  --  CLI or web UI  --  and
               every connected machine, VM, or project pulls the latest with
               <code class="font-mono bg-base-200 rounded px-1.5 py-0.5 text-xs">teamrc sync</code>.
               No Git conflicts over config files.
@@ -132,7 +132,7 @@ defmodule TeamrcWeb.HomeLive do
           <div>
             <p class="text-sm font-semibold">Knowledge travels with the team</p>
             <p class="text-sm text-base-content/60 mt-0.5">
-              Agents write findings to a shared knowledge doc as they work — architecture
+              Agents write findings to a shared knowledge doc as they work  --  architecture
               decisions, debugging insights, gotchas. On sync, knowledge from all machines
               merges together automatically, so every agent on every VM benefits from what
               the others have learned.
@@ -168,7 +168,7 @@ defmodule TeamrcWeb.HomeLive do
         <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1">
           <p class="text-sm font-semibold">Reusable skills</p>
           <p class="text-xs text-base-content/60">
-            50+ skills you assign to agents — testing conventions, code style, security
+            50+ skills you assign to agents  --  testing conventions, code style, security
             rules. Define once, assign to many.
           </p>
         </div>

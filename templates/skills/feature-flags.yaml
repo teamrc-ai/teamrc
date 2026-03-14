@@ -5,7 +5,7 @@ description: "Gate new features behind flags for safe, incremental rollout"
 alwaysApply: true
 body: |
   Gate every new user-facing feature behind a feature flag. Ship flagged code to
-  production before enabling it for users. Roll out incrementally — internal
+  production before enabling it for users. Roll out incrementally  --  internal
   users first, then a percentage of traffic, then general availability. Clean up
   stale flags promptly after full rollout. Document each flag's purpose, owner,
   and expected removal date.

@@ -8,36 +8,36 @@ globs:
   - "**/*.exs"
 body: |
   ## GenServer and Process Safety
-  - Never store large binaries in GenServer state — they prevent garbage
+  - Never store large binaries in GenServer state  --  they prevent garbage
     collection and cause memory bloat. Store references or ETS table keys.
-  - Never use Process.exit(pid, :kill) in application code — it bypasses
+  - Never use Process.exit(pid, :kill) in application code  --  it bypasses
     cleanup and supervision. Use GenServer.stop or send a shutdown message.
-  - Always handle the case where a named process does not exist — processes
+  - Always handle the case where a named process does not exist  --  processes
     crash, and GenServer.call to a dead process raises. Use GenServer.whereis
     or try/catch.
-  - Never spawn a process-per-entity for simple CRUD operations — use Task
+  - Never spawn a process-per-entity for simple CRUD operations  --  use Task
     for short-lived work, GenServer for long-lived stateful processes, and
     plain functions for stateless transformations.
-  - Always set explicit timeouts on GenServer.call — the default 5-second
+  - Always set explicit timeouts on GenServer.call  --  the default 5-second
     timeout may be too long or too short for your use case.
-  - Never link processes across supervision tree boundaries — links propagate
+  - Never link processes across supervision tree boundaries  --  links propagate
     crashes and can take down unrelated subtrees.
 
   ## Ecto Discipline
-  - Never call Repo functions directly from controllers or LiveViews — all
+  - Never call Repo functions directly from controllers or LiveViews  --  all
     data access goes through context modules for testability and encapsulation.
   - Never use bang functions (Repo.insert!, Repo.update!) in production code
-    paths — they raise on failure. Use the non-bang versions and handle
+    paths  --  they raise on failure. Use the non-bang versions and handle
     {:error, changeset} explicitly.
-  - Never use raw SQL without documented justification — Ecto's query DSL is
+  - Never use raw SQL without documented justification  --  Ecto's query DSL is
     composable, injection-safe, and easier to maintain.
-  - Always use Ecto.Multi for operations that must be atomic — individual Repo
+  - Always use Ecto.Multi for operations that must be atomic  --  individual Repo
     calls in sequence are not transactional by default.
-  - Always preload associations deliberately — use Repo.preload or join-based
+  - Always preload associations deliberately  --  use Repo.preload or join-based
     preloads. Never rely on lazy loading, which does not exist in Ecto.
 
   ## Pattern Matching
-  - Prefer pattern matching over Map.get and conditional checks — match in
+  - Prefer pattern matching over Map.get and conditional checks  --  match in
     function heads and case clauses for clarity and exhaustiveness.
-  - Order function clauses from most specific to most general — Elixir
+  - Order function clauses from most specific to most general  --  Elixir
     evaluates clauses top to bottom and stops at the first match.

@@ -1,4 +1,4 @@
-# Manual Test Plan — teamrc
+# Manual Test Plan  --  teamrc
 
 **Date:** 2026-03-08 (updated 2026-03-12)
 **Platforms:** Claude Code, Cursor, Codex, Gemini, OpenClaw, Claude Desktop
@@ -8,7 +8,7 @@
 ## Prerequisites
 
 - PostgreSQL running (`pg_isready`)
-- Database migrations applied (`cd teamrc && mix ecto.migrate`) — DeviceAuth is now Postgres-backed
+- Database migrations applied (`cd teamrc && mix ecto.migrate`)  --  DeviceAuth is now Postgres-backed
 - Relay running (`cd teamrc && mix phx.server`)
 - CLI built (`cd cli && npm run build`)
 - **Note:** Catalog template changes require a server restart (ETS cache is loaded at boot)
@@ -58,7 +58,7 @@ bash scripts/verify/section-05-rollback.sh post-delete|post-reinit|post-uninstal
 bash scripts/verify/section-06-catalog.sh
 bash scripts/verify/section-07-cross-sync.sh
 bash scripts/verify/section-08-errors.sh             # Standalone, no setup needed
-bash scripts/verify/section-09-lifecycle.sh           # Destructive — runs full lifecycle
+bash scripts/verify/section-09-lifecycle.sh           # Destructive  --  runs full lifecycle
 bash scripts/verify/section-10-legacy.sh scan|post-uninstall|post-init
 bash scripts/verify/section-13-account.sh pre-link|post-link
 ```
@@ -84,7 +84,7 @@ bash scripts/test/e2e.sh --role primary --phase 3
 | Phase | Sections | Tests |
 |-------|----------|-------|
 | 1 | 1.1 | Clean slate + prerequisites |
-| 2 | 1–2 | Init (`--team backend`) or join |
+| 2 | 1-2 | Init (`--team backend`) or join |
 | 3 | 3 | Per-platform file verification |
 | 3.5 | 5 | Catalog commands + add-member |
 | 4 | 4 | Sync, push, diff |
@@ -92,8 +92,8 @@ bash scripts/test/e2e.sh --role primary --phase 3
 | 6 | 8 | Error cases |
 | 7 | 7 | Delete, re-init, re-join |
 | 8 | 10 | Legacy TeamBridge scan |
-| 9 | 7.4–7.5 | Corrupt config + missing keypair recovery |
-| 10 | — | Final status verification |
+| 9 | 7.4-7.5 | Corrupt config + missing keypair recovery |
+| 10 |  --  | Final status verification |
 
 ---
 
@@ -111,7 +111,7 @@ Removes all teamrc/TeamBridge state: config dirs, agent files, rules, skills, ro
 
 Verify: `ls ~/.teamrc` → "No such file or directory", `ls .teamrc` → "No such file or directory"
 
-### 1.2 Init — Single Platform
+### 1.2 Init  --  Single Platform
 
 ```bash
 npx @teamrc/cli init --platform claude-code
@@ -120,15 +120,15 @@ npx @teamrc/cli init --platform claude-code
 - [ ] Keypair generated, team created on relay
 - [ ] `.teamrc.yaml` created with `name`, `members`, `teamId`, `platforms`
 - [ ] `.teamrc.yaml` does NOT contain `syncHash` fields (sync hashes are in `.teamrc/state.json`)
-- [ ] `~/.teamrc/config.json` has `token` (no `relay` — relay is stripped from global config, no `teamId` at top level)
+- [ ] `~/.teamrc/config.json` has `token` (no `relay`  --  relay is stripped from global config, no `teamId` at top level)
 - [ ] `.teamrc/` state directory created in project dir
 - [ ] `.gitignore` updated with `.teamrc/` entry
 - [ ] `.claude/agents/trc-agent.md` created
 - [ ] Invite code shown
-- [ ] Ownership token shown (`trc_ocs_...`) with "save this somewhere safe" note — plaintext shown to user, bcrypt hash stored in DB
-- [ ] Prompted "Claim ownership now?" — choosing `y` runs device auth + claim, `n` shows `teamrc claim <token>` hint
+- [ ] Ownership token shown (`trc_ocs_...`) with "save this somewhere safe" note  --  plaintext shown to user, bcrypt hash stored in DB
+- [ ] Prompted "Claim ownership now?"  --  choosing `y` runs device auth + claim, `n` shows `teamrc claim <token>` hint
 
-### 1.3 Init — Already Initialized
+### 1.3 Init  --  Already Initialized
 
 ```bash
 npx @teamrc/cli init --platform claude-code
@@ -138,7 +138,7 @@ npx @teamrc/cli init --platform claude-code
 - [ ] Suggests `teamrc apply --platform <platforms>` or `teamrc delete`
 - [ ] Exit code 1, no files changed
 
-### 1.4 Init — Multiple Platforms
+### 1.4 Init  --  Multiple Platforms
 
 ```bash
 bash scripts/clean-slate.sh
@@ -198,7 +198,7 @@ npx @teamrc/cli join <invite-code> --platform cursor,gemini
 npx @teamrc/cli clone <invite-code> --platform claude-code
 ```
 
-- [ ] `.teamrc.yaml` created (no `teamId`, no `cloneToken` — local copy only)
+- [ ] `.teamrc.yaml` created (no `teamId`, no `cloneToken`  --  local copy only)
 - [ ] Agent files created
 - [ ] Outro mentions `teamrc join` to connect to the original team
 
@@ -233,7 +233,7 @@ After `init` or `join` on a platform, verify the correct file formats.
 | Check | Path |
 |-------|------|
 | Agent file (Markdown + YAML frontmatter) | `.claude/agents/trc-agent.md` |
-| Routing section | `CLAUDE.md` — `<!-- teamrc -->` markers |
+| Routing section | `CLAUDE.md`  --  `<!-- teamrc -->` markers |
 | Rules | `.claude/rules/trc-*.md` |
 | Skills | `.claude/skills/trc-*/SKILL.md` |
 
@@ -242,7 +242,7 @@ After `init` or `join` on a platform, verify the correct file formats.
 | Check | Path |
 |-------|------|
 | Agent file (Markdown + YAML frontmatter) | `.cursor/agents/trc-agent.md` |
-| Routing | `.cursor/AGENTS.md` — `<!-- teamrc -->` markers |
+| Routing | `.cursor/AGENTS.md`  --  `<!-- teamrc -->` markers |
 | Rules | `.cursor/rules/trc-*.mdc` |
 | Skills | `.cursor/skills/trc-*/SKILL.md` |
 
@@ -256,15 +256,15 @@ After `init` or `join` on a platform, verify the correct file formats.
 | Check | Path |
 |-------|------|
 | Agent file (TOML with `developer_instructions`) | `.codex/agents/trc-agent.toml` |
-| Config registration (`[agents.trc-agent]` section) | `.codex/config.toml` — `# --- teamrc start ---` markers |
-| Routing | `AGENTS.md` — `<!-- teamrc -->` markers |
+| Config registration (`[agents.trc-agent]` section) | `.codex/config.toml`  --  `# --- teamrc start ---` markers |
+| Routing | `AGENTS.md`  --  `<!-- teamrc -->` markers |
 
 ### 3.4 Gemini
 
 | Check | Path |
 |-------|------|
 | Agent file (Markdown + YAML frontmatter) | `.gemini/agents/trc-agent.md` |
-| Routing / knowledge | `GEMINI.md` — `<!-- teamrc -->` markers |
+| Routing / knowledge | `GEMINI.md`  --  `<!-- teamrc -->` markers |
 | Skills (Gemini CLI) | `.agents/skills/trc-*/SKILL.md` |
 | Skills (Antigravity) | `.agent/skills/trc-*/SKILL.md` |
 
@@ -273,7 +273,7 @@ After `init` or `join` on a platform, verify the correct file formats.
 | Check | Path |
 |-------|------|
 | Agent file (Markdown + YAML frontmatter, OpenHands format) | `~/.openclaw/agents/trc-agent.md` |
-| Config registration | `~/.openclaw/openclaw.json` — `agents.list` array includes `trc-*` entries |
+| Config registration | `~/.openclaw/openclaw.json`  --  `agents.list` array includes `trc-*` entries |
 | Skills | `~/.openclaw/skills/trc-*/SKILL.md` |
 | Knowledge | `~/.openclaw/knowledge-<team-slug>.md` |
 
@@ -292,7 +292,7 @@ Shares `.claude/agents/` with Claude Code. Global scope agents go in `~/.claude/
 
 ## 4. Sync & Daemon
 
-### 4.1 Manual Sync — Already In Sync
+### 4.1 Manual Sync  --  Already In Sync
 
 ```bash
 npx @teamrc/cli sync
@@ -321,7 +321,7 @@ npx @teamrc/cli push
 - [ ] Local `.teamrc/knowledge-<slug>.md` has merged content (relay lines + new local line)
 - [ ] Knowledge is append-only: relay content preserved, new line appended at bottom
 
-### 4.3 Sync — Local Changes Only
+### 4.3 Sync  --  Local Changes Only
 
 Edit `.teamrc.yaml` members/skills locally (no pull since last sync):
 
@@ -333,7 +333,7 @@ npx @teamrc/cli sync
 - [ ] "Pushed local changes to relay." or similar
 - [ ] Knowledge merge: even if local knowledge file was accidentally overwritten, relay content is preserved (append-only)
 
-### 4.4 Sync — Remote Changes Only
+### 4.4 Sync  --  Remote Changes Only
 
 Push from another machine, then on this machine:
 
@@ -344,7 +344,7 @@ npx @teamrc/cli sync
 - [ ] Detects server-only changes, pulls from server
 - [ ] Agent files and knowledge file updated
 
-### 4.5 Sync — Both Changed (Knowledge Only)
+### 4.5 Sync  --  Both Changed (Knowledge Only)
 
 Both machines edit knowledge, then sync:
 
@@ -353,7 +353,7 @@ Both machines edit knowledge, then sync:
 - [ ] Relay is source of truth for line order; new local lines appended at bottom
 - [ ] Duplicate lines (by trimmed content) never created
 
-### 4.6 Sync — Both Changed (Members/Skills Conflict)
+### 4.6 Sync  --  Both Changed (Members/Skills Conflict)
 
 Both machines edit members/skills differently, Machine A pushes first:
 
@@ -366,7 +366,7 @@ npx @teamrc/cli sync
 - [ ] Warns user about overwritten local member/skill changes
 - [ ] No data corruption
 
-### 4.7 Status — Hash Display
+### 4.7 Status  --  Hash Display
 
 ```bash
 npx @teamrc/cli status
@@ -386,7 +386,7 @@ npx @teamrc/cli diff --json       # Valid JSON
 - [ ] If hashes differ: fetches full team, shows per-section diff (members, skills, knowledge)
 - [ ] Skills read from `.teamrc.yaml`, not platform adapter files
 
-### 4.9 Daemon — Start/Stop
+### 4.9 Daemon  --  Start/Stop
 
 ```bash
 npx @teamrc/cli daemon --poll-interval 5000
@@ -398,7 +398,7 @@ npx @teamrc/cli daemon --poll-interval 5000
 - [ ] Only fetches full team when hash changes
 - [ ] Ctrl+C: "Daemon stopped." (clean exit)
 
-### 4.10 Daemon — File Watch
+### 4.10 Daemon  --  File Watch
 
 ```bash
 # Terminal 1:
@@ -432,7 +432,7 @@ npx @teamrc/cli list-agents --json        # JSON array with category, label, age
 
 - [ ] ~68 agents across categories (Core Development, Language Specialists, Infrastructure, etc.)
 
-### 5.3 Add Member — By Name
+### 5.3 Add Member  --  By Name
 
 ```bash
 npx @teamrc/cli add-member backend-dev
@@ -441,7 +441,7 @@ npx @teamrc/cli add-member backend-dev
 - [ ] "Added backend-dev (Backend developer)" with recommended skills
 - [ ] `.teamrc.yaml` updated, agent files created, pushed to relay
 
-### 5.4 Add Member — Duplicate
+### 5.4 Add Member  --  Duplicate
 
 ```bash
 npx @teamrc/cli add-member backend-dev    # Already added
@@ -449,7 +449,7 @@ npx @teamrc/cli add-member backend-dev    # Already added
 
 - [ ] "Agent 'backend-dev' is already on this team" warning, no changes
 
-### 5.5 Add Member — Invalid Name
+### 5.5 Add Member  --  Invalid Name
 
 ```bash
 npx @teamrc/cli add-member nonexistent-agent-xyz
@@ -457,7 +457,7 @@ npx @teamrc/cli add-member nonexistent-agent-xyz
 
 - [ ] "Agent not found in catalog" error, exit code 1
 
-### 5.6 Add Member — Interactive Picker
+### 5.6 Add Member  --  Interactive Picker
 
 ```bash
 npx @teamrc/cli add-member               # No name arg
@@ -466,7 +466,7 @@ npx @teamrc/cli add-member               # No name arg
 - [ ] Selectable list grouped by category, already-added agents filtered out
 - [ ] Ctrl-C cancels gracefully
 
-### 5.7 Add Member — Non-Interactive
+### 5.7 Add Member  --  Non-Interactive
 
 ```bash
 echo "" | npx @teamrc/cli add-member 2>&1
@@ -535,9 +535,9 @@ npx @teamrc/cli diff                      # "No differences"
 ### 7.1 Delete and Re-Init
 
 The `delete` command now supports a `--scope` flag:
-- `--scope project` — removes `.teamrc.yaml` + `.teamrc/` state dir + platform agent files, keeps `~/.teamrc/`
-- `--scope global` — removes `~/.teamrc/team.yaml`, keeps project files and `~/.teamrc/config.json`
-- `--scope all` (default with `--yes`) — removes everything
+- `--scope project`  --  removes `.teamrc.yaml` + `.teamrc/` state dir + platform agent files, keeps `~/.teamrc/`
+- `--scope global`  --  removes `~/.teamrc/team.yaml`, keeps project files and `~/.teamrc/config.json`
+- `--scope all` (default with `--yes`)  --  removes everything
 
 ```bash
 npx @teamrc/cli delete                    # Shows scope picker (project/global/everything)
@@ -552,7 +552,7 @@ npx @teamrc/cli init --platform claude-code
 
 - [ ] Fresh keypair, new team, everything works as Section 1
 
-### 7.1b Scoped Delete — Project Only
+### 7.1b Scoped Delete  --  Project Only
 
 ```bash
 npx @teamrc/cli delete --scope project
@@ -563,7 +563,7 @@ npx @teamrc/cli delete --scope project
 - [ ] Platform agent files removed
 - [ ] `~/.teamrc/` still exists (config.json, keypair preserved)
 
-### 7.1c Scoped Delete — Global Only
+### 7.1c Scoped Delete  --  Global Only
 
 ```bash
 npx @teamrc/cli delete --scope global
@@ -612,7 +612,7 @@ rm -f ~/.teamrc/key
 npx @teamrc/cli init --platform claude-code
 ```
 
-- [ ] "Generated new keypair." — new token, everything works
+- [ ] "Generated new keypair."  --  new token, everything works
 
 ### 7.6 Switch Project ↔ Global
 
@@ -767,16 +767,16 @@ npx @teamrc/cli join <invite-code> --platform claude-code
 **B:** `npx @teamrc/cli push`
 - [ ] A detects change within ~10s, knowledge file updated automatically
 
-### 11.5 Concurrent Edits — Knowledge Merge
+### 11.5 Concurrent Edits  --  Knowledge Merge
 
 Both machines edit knowledge + push simultaneously, then both sync.
-- [ ] Server merges knowledge (append-only dedup) — enforced at server layer in `do_update_team`
+- [ ] Server merges knowledge (append-only dedup)  --  enforced at server layer in `do_update_team`
 - [ ] Client also merges before push (relay content + local additions)
 - [ ] No data loss, no crash, both converge to same state
 - [ ] Duplicate lines not repeated in merged result
 - [ ] Relay line order preserved; new lines appended at bottom
 
-### 11.5b Concurrent Edits — Member/Skill Conflict
+### 11.5b Concurrent Edits  --  Member/Skill Conflict
 
 Both machines edit members differently + push simultaneously:
 - [ ] First push succeeds (fast-forward)
@@ -785,7 +785,7 @@ Both machines edit members differently + push simultaneously:
 
 ### 11.6 Different Platforms Per Machine
 
-**A:** `claude-code,cursor` — **B:** `codex,gemini`
+**A:** `claude-code,cursor`  --  **B:** `codex,gemini`
 - [ ] Same team definition, different agent file formats, knowledge sync works
 
 ### 11.7 Delete on B Doesn't Affect A
@@ -915,7 +915,7 @@ npx @teamrc/cli claim <same-secret>       # Second attempt
 npx @teamrc/cli claim <A's-secret>
 ```
 
-- [ ] B becomes owner (the secret is a bearer token — whoever has it can claim)
+- [ ] B becomes owner (the secret is a bearer token  --  whoever has it can claim)
 - [ ] A can no longer claim (secret cleared after use)
 
 ### 12.13 Non-Member Cannot Use Claim Secret
@@ -986,12 +986,12 @@ Same flow as 12.15 but using "Sign in with Google":
 npx @teamrc/cli status --json             # visibility: "private", no clone token
 ```
 
-### 13.2 Toggle to Public (Web UI — Owner)
+### 13.2 Toggle to Public (Web UI  --  Owner)
 
 On `/teams/:id` as the team owner, click "Make public":
 - [ ] Visibility → "public", clone token generated (`trc_cl_...`), copy button works
 
-### 13.3 Toggle to Public (Web UI — Non-Owner)
+### 13.3 Toggle to Public (Web UI  --  Non-Owner)
 
 On `/teams/:id` as a non-owner team member:
 - [ ] Visibility toggle is disabled or hidden
@@ -1276,7 +1276,7 @@ Requires authentication (email/password or OAuth). Open `/dashboard`.
 
 ## 15b. Auth & Security
 
-### 15b.1 Registration — Email/Password
+### 15b.1 Registration  --  Email/Password
 
 ```
 Navigate to /users/register
@@ -1288,7 +1288,7 @@ Navigate to /users/register
 - [ ] Duplicate email → "has already been taken"
 - [ ] Successful registration → logged in, redirected to dashboard
 
-### 15b.2 Registration — OAuth
+### 15b.2 Registration  --  OAuth
 
 ```
 Navigate to /users/log-in → click GitHub or Google
@@ -1300,7 +1300,7 @@ Navigate to /users/log-in → click GitHub or Google
 - [ ] Returning OAuth user (ToS already accepted) → logged in, redirected to dashboard
 - [ ] OAuth user email collision with existing password user → "Authentication failed" error (provider mismatch)
 
-### 15b.3 Login — Email/Password
+### 15b.3 Login  --  Email/Password
 
 ```
 Navigate to /users/log-in
@@ -1311,7 +1311,7 @@ Navigate to /users/log-in
 - [ ] Email field pre-populated after failed attempt
 - [ ] "Remember me" checkbox available
 
-### 15b.4 Login — Magic Link
+### 15b.4 Login  --  Magic Link
 
 ```
 Navigate to /users/log-in → request magic link
@@ -1321,7 +1321,7 @@ Navigate to /users/log-in → request magic link
 - [ ] Clicking valid link → "User confirmed successfully.", logged in
 - [ ] Clicking expired/invalid link → "The link is invalid or it has expired."
 
-### 15b.5 Login — OAuth
+### 15b.5 Login  --  OAuth
 
 ```
 Navigate to /users/log-in → click GitHub or Google
@@ -1447,7 +1447,7 @@ Navigate to `/`:
 
 # Part 5: In-Platform Verification
 
-These tests verify agents actually work inside each IDE — not just that files exist. After init, open the platform and test.
+These tests verify agents actually work inside each IDE  --  not just that files exist. After init, open the platform and test.
 
 ## 17. Agent Usage
 
@@ -1455,11 +1455,11 @@ These tests verify agents actually work inside each IDE — not just that files 
 
 For each platform, after `npx @teamrc/cli init --platform <platform>`:
 
-1. **Agent visible** — appears in agent list/picker
-2. **Persona works** — responds with defined role/soul personality
-3. **Team awareness** — knows its role, references teammates
-4. **Rules enforced** — follows rules from `.teamrc.yaml`
-5. **Routing works** — delegates to correct agent when asked
+1. **Agent visible**  --  appears in agent list/picker
+2. **Persona works**  --  responds with defined role/soul personality
+3. **Team awareness**  --  knows its role, references teammates
+4. **Rules enforced**  --  follows rules from `.teamrc.yaml`
+5. **Routing works**  --  delegates to correct agent when asked
 
 ### Platform-Specific Notes
 
@@ -1511,7 +1511,7 @@ Define an on-demand skill (e.g., deployment steps). Verify:
 | Codex | `.codex/agents/trc-*.toml` | (inline in `AGENTS.md`) | `AGENTS.md`, `.codex/config.toml` |
 | Gemini | `.gemini/agents/trc-*.md` | `.agents/skills/trc-*/SKILL.md`, `.agent/skills/trc-*/SKILL.md` | `GEMINI.md` |
 | OpenClaw | `~/.openclaw/agents/trc-*.md` | `~/.openclaw/skills/trc-*/SKILL.md` | `~/.openclaw/openclaw.json` |
-| Claude Desktop | `~/.claude/agents/trc-*.md` | (same as Claude Code) | — |
+| Claude Desktop | `~/.claude/agents/trc-*.md` | (same as Claude Code) |  --  |
 
 **Note:** `.agents/skills/` is the Gemini CLI cross-platform skill alias (takes precedence over `.gemini/skills/`). `.agent/skills/` (singular) is mirrored for Google Antigravity compatibility.
 

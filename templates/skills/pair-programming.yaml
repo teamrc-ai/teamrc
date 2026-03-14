@@ -5,7 +5,7 @@ description: "Think aloud and explain reasoning while coding"
 userInvocable: true
 alwaysApply: false
 body: |
-  Think aloud while coding — explain your reasoning, assumptions, and tradeoffs
+  Think aloud while coding  --  explain your reasoning, assumptions, and tradeoffs
   as you go. Alternate between driver (writing code) and navigator (reviewing,
   thinking ahead) roles. Pause before complex decisions to discuss the approach.
   Ask clarifying questions rather than making assumptions. Keep a shared mental

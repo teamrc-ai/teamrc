@@ -1,5 +1,5 @@
 /**
- * E2E test helpers — keypair generation, signed HTTP requests, server readiness.
+ * E2E test helpers  --  keypair generation, signed HTTP requests, server readiness.
  *
  * Imports CLI crypto directly so we test the same signing code that ships.
  */

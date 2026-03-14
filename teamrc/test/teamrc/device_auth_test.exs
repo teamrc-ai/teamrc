@@ -104,7 +104,7 @@ defmodule Teamrc.DeviceAuthTest do
         })
       )
 
-      # Run cleanup — may delete more than 1 if other expired rows exist
+      # Run cleanup  --  may delete more than 1 if other expired rows exist
       assert {:ok, n} = DeviceAuth.cleanup_expired()
       assert n >= 1
 
@@ -188,7 +188,7 @@ defmodule Teamrc.DeviceAuthTest do
     test "rate limit holds under concurrent requests" do
       token = "trc_ak_concurrent_#{:erlang.unique_integer([:positive])}"
 
-      # Launch 6 concurrent requests — only 3 should succeed
+      # Launch 6 concurrent requests  --  only 3 should succeed
       tasks =
         for _ <- 1..6 do
           Task.async(fn -> DeviceAuth.create_request(token) end)

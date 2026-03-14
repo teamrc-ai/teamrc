@@ -7,7 +7,7 @@ export const KNOWLEDGE_CAP = 100_000;
  * Log knowledge size when it exceeds 70% of the relay cap.
  *
  * - Above 90%: warn that auto-pruning will kick in
- * - 70%–90%: show current usage
+ * - 70%-90%: show current usage
  * - Below 70%: silent
  */
 export function logKnowledgeSize(log: typeof p.log, sizeBytes: number): void {

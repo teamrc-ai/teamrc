@@ -90,7 +90,7 @@ export function migrateLegacySyncHashes(
 export function migrateLegacyYamlHashes(yamlPath: string, projectDir?: string): void {
   if (!fs.existsSync(yamlPath)) return;
 
-  // Check if state.json already exists — if so, no migration needed
+  // Check if state.json already exists  --  if so, no migration needed
   const existing = readSyncState(projectDir);
   if (existing.syncHash) return;
 
@@ -122,6 +122,6 @@ export function migrateLegacyYamlHashes(yamlPath: string, projectDir?: string): 
     fs.writeFileSync(tmpPath, newYaml);
     fs.renameSync(tmpPath, yamlPath);
   } catch {
-    // Migration is best-effort — don't break the workflow
+    // Migration is best-effort  --  don't break the workflow
   }
 }

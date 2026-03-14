@@ -45,7 +45,7 @@ export function registerDiff(program: Command): void {
           return;
         }
 
-        // Hashes differ — identify which sections changed
+        // Hashes differ  --  identify which sections changed
         const membersDiffer = localHashes.membersHash !== remoteHead.members_hash;
         const skillsDiffer = localHashes.skillsHash !== remoteHead.skills_hash;
         const knowledgeDiffers = localHashes.knowledgeHash !== remoteHead.knowledge_hash;

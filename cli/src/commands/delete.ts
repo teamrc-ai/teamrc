@@ -50,7 +50,7 @@ export function registerDelete(program: Command): void {
       try {
         globalTeam = readTeamYaml(GLOBAL_TEAM_YAML);
       } catch {
-        // Ignore parse errors during delete — proceed with detected platforms
+        // Ignore parse errors during delete  --  proceed with detected platforms
       }
 
       const skipConfirm = opts.yes ?? globals().yes;
@@ -163,7 +163,7 @@ export function registerDelete(program: Command): void {
       try {
         kp = loadKeypair();
       } catch {
-        // Can't load keypair — skip relay disconnect
+        // Can't load keypair  --  skip relay disconnect
       }
 
       const s = p.spinner();

@@ -8,7 +8,7 @@
 
 ## Problem
 
-Team knowledge — a shared markdown file where LLM agents record findings for cross-session and cross-machine continuity — has three bugs:
+Team knowledge  --  a shared markdown file where LLM agents record findings for cross-session and cross-machine continuity  --  has three bugs:
 
 ### 1. Inconsistent paths across platforms
 
@@ -32,7 +32,7 @@ All teams in a project write to the same `teamrc-knowledge.md`. With multi-team 
 
 ### 4. Codex subagent gap
 
-Codex subagent TOML files have no knowledge instruction at all — only the AGENTS.md routing file does.
+Codex subagent TOML files have no knowledge instruction at all  --  only the AGENTS.md routing file does.
 
 ### 5. LLM write compliance is low
 
@@ -56,11 +56,11 @@ OpenClaw keeps its own directory because its entire state (agents, skills, confi
 
 On `teamrc init` and web team creation, append a random suffix to team names: `product-team-coral-9f`, `infra-squad-pine-3a`. This makes slugs unique by default, eliminating collision concerns for knowledge filenames, agent file prefixes, and relay identification.
 
-Generation: `<user-chosen-name>-<word>-<hex>` where word is from a curated ~100 word list (colors, animals, materials) and hex is 2 random bytes. The suffix is appended at creation time only — users can still rename if they want.
+Generation: `<user-chosen-name>-<word>-<hex>` where word is from a curated ~100 word list (colors, animals, materials) and hex is 2 random bytes. The suffix is appended at creation time only  --  users can still rename if they want.
 
 ### Improved LLM instructions
 
-**Orchestrator** (CLAUDE.md, AGENTS.md, GEMINI.md) — read-awareness, delegates writes to subagents:
+**Orchestrator** (CLAUDE.md, AGENTS.md, GEMINI.md)  --  read-awareness, delegates writes to subagents:
 
 ```markdown
 ### Team Knowledge
@@ -70,7 +70,7 @@ Read this file at the start of every session for context from prior work.
 Subagents will also read and write to this file.
 ```
 
-**Subagents** (per-agent `.md` files) — read + write with task-boundary triggers:
+**Subagents** (per-agent `.md` files)  --  read + write with task-boundary triggers:
 
 ```markdown
 ## Team Knowledge
@@ -84,12 +84,12 @@ Key improvements over current text:
 - **Task-boundary triggers** ("before starting" / "before finishing") replace vague "when you discover something important"
 - **Lightweight format** (`## <topic>`, 3-5 lines) prevents noise while keeping write friction low
 - **Append-only rule** prevents accidental deletion
-- **One template across all platforms** — only the path varies
-- **Orchestrator doesn't write** — reduces duplicate entries from orchestrator summarizing what subagents already wrote
+- **One template across all platforms**  --  only the path varies
+- **Orchestrator doesn't write**  --  reduces duplicate entries from orchestrator summarizing what subagents already wrote
 
 ### No shared cross-team knowledge
 
-Each team's knowledge is isolated. A project with two teams gets two separate files. This matches the existing principle that skills and rules are explicitly assigned, not inherited. Cross-team knowledge sharing is out of scope — revisit if user demand emerges.
+Each team's knowledge is isolated. A project with two teams gets two separate files. This matches the existing principle that skills and rules are explicitly assigned, not inherited. Cross-team knowledge sharing is out of scope  --  revisit if user demand emerges.
 
 ---
 
@@ -159,21 +159,21 @@ If a team is renamed, the slug changes and the old knowledge file becomes orphan
 ```
 
 - `<base-name>`: User-chosen name or template default (e.g., `product-team`, `backend-squad`)
-- `<word>`: Random word from a curated list (~100 words: colors, animals, materials — e.g., `coral`, `falcon`, `cedar`, `slate`)
+- `<word>`: Random word from a curated list (~100 words: colors, animals, materials  --  e.g., `coral`, `falcon`, `cedar`, `slate`)
 - `<hex>`: 2 random bytes as hex (4 chars), e.g., `9f3a`
 
 Examples: `product-team-coral-9f3a`, `infra-squad-cedar-2b71`, `frontend-dev-falcon-e4a0`
 
 ### Where it applies
 
-- `teamrc init` — when creating a new team (append suffix to the chosen/template name)
-- Web wizard (`/new`) — same generation logic server-side
-- Template catalog teams — base name comes from template, suffix added on instantiation
+- `teamrc init`  --  when creating a new team (append suffix to the chosen/template name)
+- Web wizard (`/new`)  --  same generation logic server-side
+- Template catalog teams  --  base name comes from template, suffix added on instantiation
 
 ### Where it does NOT apply
 
-- `teamrc join` / `teamrc clone` — team already has a name from the relay
-- Team renames — user explicitly chooses the new name
+- `teamrc join` / `teamrc clone`  --  team already has a name from the relay
+- Team renames  --  user explicitly chooses the new name
 
 ### Implementation
 
@@ -206,7 +206,7 @@ export function generateTeamName(baseName: string): string {
 - Add `knowledgeFileName(teamSlug)` to `base.ts`
 - Update `getAdapter` signature to accept `teamSlug`
 - Pass `teamSlug` through to adapter constructors (constructors store but don't use it yet)
-- All existing tests pass — no path changes
+- All existing tests pass  --  no path changes
 
 ### Phase 3: Adapter path migration
 - Update `knowledgePath()` in all 5 adapters to new `.teamrc/` convention

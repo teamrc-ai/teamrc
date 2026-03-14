@@ -28,7 +28,7 @@ export function registerPush(program: Command): void {
       const yamlPath = ctx.scope === "global" ? GLOBAL_TEAM_YAML : TEAM_YAML;
 
       if (!ctx.client) {
-        // "Connect" flow — register local team with relay
+        // "Connect" flow  --  register local team with relay
         const kp = loadKeypair();
         if (!kp) {
           p.log.error(`No keypair found. Run \`${cliCmd("init")}\` first.`);

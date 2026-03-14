@@ -9,4 +9,4 @@ body: |
   context (what problem prompted the decision), the decision itself, and its
   consequences (tradeoffs, risks, follow-up work). Record alternatives that
   were considered and the rationale for rejecting them. ADRs are immutable
-  once accepted — supersede rather than edit.
+  once accepted  --  supersede rather than edit.

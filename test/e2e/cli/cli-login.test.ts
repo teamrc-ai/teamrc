@@ -110,7 +110,7 @@ describe("CLI login (device auth)", () => {
       await initLocal(env);
       const { email } = await performLogin(env, "whoami-machine");
 
-      // Run whoami — should show the linked account email
+      // Run whoami  --  should show the linked account email
       const result = await runCli(["whoami"], env);
       assert.equal(result.exitCode, 0, `whoami failed: ${result.stdout}\n${result.stderr}`);
       assert.ok(
@@ -209,14 +209,14 @@ describe("CLI login (device auth)", () => {
       // Wait for the code to appear (proving the login process started)
       await cli.waitForOutput(/Code:\s+[A-Z0-9]{4}-[A-Z0-9]{4}/, 20_000);
 
-      // Do NOT confirm — just kill the process after a short delay
+      // Do NOT confirm  --  just kill the process after a short delay
       await new Promise((r) => setTimeout(r, 1_000));
       cli.kill("SIGINT");
 
       // Process should exit within a reasonable time (not hang forever)
       const result = await cli.waitForExit(10_000);
 
-      // The process was killed, so it may exit with a non-zero code — that's fine.
+      // The process was killed, so it may exit with a non-zero code  --  that's fine.
       // The important thing is that it exited and didn't hang.
       assert.ok(
         result.exitCode !== undefined && result.exitCode !== null,

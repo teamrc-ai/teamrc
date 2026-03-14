@@ -5,45 +5,45 @@ description: "Design systems to maintain partial functionality when components f
 alwaysApply: false
 body: |
   ## Failure Isolation
-  - Design for partial failure — when a dependency fails, degrade the
+  - Design for partial failure  --  when a dependency fails, degrade the
     affected feature rather than failing the entire request. A product page
     with a broken recommendation widget is better than a 500 error.
-  - Implement circuit breakers on all external dependencies — when a
+  - Implement circuit breakers on all external dependencies  --  when a
     downstream service is failing, stop sending requests (open the circuit)
     to prevent cascade failures and allow recovery. Use tuned thresholds
     based on observed failure rates.
-  - Define fallback behavior for every external dependency — cached data,
+  - Define fallback behavior for every external dependency  --  cached data,
     default values, simplified responses, or graceful error messages. The
     fallback must be pre-designed and tested, not improvised during an
     outage.
-  - Set timeouts on every external call (HTTP, database, cache, queue) —
+  - Set timeouts on every external call (HTTP, database, cache, queue)  -- 
     a missing timeout means a slow dependency can exhaust your connection
     pool and take down your entire service.
 
   ## Resilience Patterns
   - Implement retry with exponential backoff and jitter for transient
-    errors — but only for idempotent operations. Never auto-retry
+    errors  --  but only for idempotent operations. Never auto-retry
     non-idempotent requests without explicit deduplication.
-  - Use bulkheads to isolate resource pools — separate connection pools
+  - Use bulkheads to isolate resource pools  --  separate connection pools
     for critical and non-critical dependencies prevent a non-essential
     service from exhausting connections needed by essential services.
   - Implement health check endpoints that verify actual dependency
-    connectivity — a health check that returns 200 without checking the
+    connectivity  --  a health check that returns 200 without checking the
     database is worse than no health check because it hides failures.
-  - Deploy across multiple availability zones for production systems —
+  - Deploy across multiple availability zones for production systems  -- 
     single-AZ deployments have a single point of failure at the
     infrastructure level.
 
   ## Operational Readiness
-  - Pre-design graceful degradation modes before they are needed — during
+  - Pre-design graceful degradation modes before they are needed  --  during
     an outage is too late to decide what features can be disabled. Document
     which features depend on which services and what happens when each
     service is unavailable.
   - Monitor error rates, latency percentiles (p50, p95, p99), and resource
-    utilization — alert before users notice. Proactive alerts on rate of
+    utilization  --  alert before users notice. Proactive alerts on rate of
     change catch problems faster than absolute thresholds.
   - Every production endpoint should have a latency budget and an error
-    rate SLO — violations trigger investigation, not just dashboard noise.
-  - Test failure modes actively — chaos engineering, dependency kill
+    rate SLO  --  violations trigger investigation, not just dashboard noise.
+  - Test failure modes actively  --  chaos engineering, dependency kill
     switches, and load testing with degraded dependencies validate that
     graceful degradation actually works.

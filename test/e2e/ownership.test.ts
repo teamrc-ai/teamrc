@@ -56,7 +56,7 @@ describe("Ownership (claim)", () => {
       { token: owner.token, claim_secret: claimSecret, team_id: owner.teamId },
       owner,
     );
-    // Should fail — already claimed or secret consumed
+    // Should fail  --  already claimed or secret consumed
     assert.ok(
       res2.status === 404 || res2.status === 409,
       `expected 404 or 409, got ${res2.status}`,
@@ -69,7 +69,7 @@ describe("Ownership (claim)", () => {
     ]);
     const claimSecret = owner.team.owner_claim_secret as string;
 
-    // No account linked — claim should fail with 403
+    // No account linked  --  claim should fail with 403
     const res = await signedPost(
       "/api/teams/claim",
       { token: owner.token, claim_secret: claimSecret, team_id: owner.teamId },

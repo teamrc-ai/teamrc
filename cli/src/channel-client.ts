@@ -122,7 +122,7 @@ export function createChannelClient(
     try {
       msg = JSON.parse(raw) as PhoenixMessage;
     } catch {
-      return; // Not valid JSON — ignore
+      return; // Not valid JSON  --  ignore
     }
 
     const [joinRef, ref, topic, event, payload] = msg;

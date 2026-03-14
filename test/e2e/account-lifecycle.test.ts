@@ -143,7 +143,7 @@ describe("Account lifecycle", () => {
       const deleteRes = await testSetup("delete_user", { user_id });
       assert.equal((deleteRes as { status: string }).status, "deleted");
 
-      // Export should fail — user gone
+      // Export should fail  --  user gone
       try {
         await testSetup("export_user", { user_id });
         assert.fail("export should fail after deletion");
@@ -164,7 +164,7 @@ describe("Account lifecycle", () => {
         team_id: kp.teamId,
       }).catch(() => null);
       // Token-teams may be deleted, but the team record itself persists
-      // This is expected — teams survive account deletion
+      // This is expected  --  teams survive account deletion
     });
   });
 });

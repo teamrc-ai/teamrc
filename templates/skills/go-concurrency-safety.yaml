@@ -7,30 +7,30 @@ globs:
   - "**/*.go"
 body: |
   ## Goroutine Safety
-  - Never share mutable state between goroutines without synchronization — use
+  - Never share mutable state between goroutines without synchronization  --  use
     channels for communication or sync.Mutex/sync.RWMutex for shared memory
-  - Never capture loop variables in goroutine closures without rebinding — pass
+  - Never capture loop variables in goroutine closures without rebinding  --  pass
     them as function parameters or use the loop variable fix (Go 1.22+)
   - Never call t.Fatal, t.FailNow, or t.Skip from a goroutine other than the
-    test goroutine — they call runtime.Goexit which only stops the current
+    test goroutine  --  they call runtime.Goexit which only stops the current
     goroutine, not the test
-  - Always drain channels and cancel contexts to prevent goroutine leaks — a
+  - Always drain channels and cancel contexts to prevent goroutine leaks  --  a
     leaked goroutine is a memory leak that grows silently under load
 
   ## Channel Discipline
-  - Only the sender closes a channel, never the receiver — sending on a closed
+  - Only the sender closes a channel, never the receiver  --  sending on a closed
     channel panics
-  - Never send on a channel that might be closed without recovery logic — use
+  - Never send on a channel that might be closed without recovery logic  --  use
     a select with a done channel or context cancellation
-  - Use context.Context for cooperative cancellation — never kill goroutines
+  - Use context.Context for cooperative cancellation  --  never kill goroutines
     externally, let them check ctx.Done() and exit cleanly
-  - Use sync.WaitGroup or errgroup.Group to wait for goroutine completion —
+  - Use sync.WaitGroup or errgroup.Group to wait for goroutine completion  -- 
     never rely on sleep or implicit ordering
 
   ## Standard Library First
-  - Prefer sync.Map only for cache-like patterns with high read contention —
+  - Prefer sync.Map only for cache-like patterns with high read contention  -- 
     use a plain map with sync.RWMutex for most cases
   - Prefer channels for coordination between goroutines, mutexes for protecting
     shared data structures
-  - Use atomic operations only for simple counters and flags — complex atomic
+  - Use atomic operations only for simple counters and flags  --  complex atomic
     sequences are error-prone and hard to reason about

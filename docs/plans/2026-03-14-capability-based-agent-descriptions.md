@@ -16,7 +16,7 @@ Agent descriptions are the primary signal used by AI coding assistants to decide
 "Deeply analyzes existing codebase features by tracing execution paths, mapping architecture layers, understanding patterns and abstractions, and documenting dependencies to inform new development"
 ```
 
-When a user asks "research how skills are routed across adapters," the built-in `code-explorer` wins every time — its description is an exact capability match. The teamrc `backend-dev` agent might be equally capable (it has the same tools), but its description doesn't signal that.
+When a user asks "research how skills are routed across adapters," the built-in `code-explorer` wins every time  --  its description is an exact capability match. The teamrc `backend-dev` agent might be equally capable (it has the same tools), but its description doesn't signal that.
 
 ### Real-world impact
 
@@ -90,7 +90,7 @@ members:
 interface TeamMember {
   name: string;
   role: string;
-  description?: string;  // NEW — capability-oriented dispatch hint
+  description?: string;  // NEW  --  capability-oriented dispatch hint
   soul?: string;
   skills?: string[];
 }
@@ -132,17 +132,17 @@ This gives the best of all approaches: catalog agents get great descriptions out
 
 ### Files to modify
 
-1. `cli/src/adapters/base.ts` — Add `description` to `TeamMember`, add `buildAgentDescription()` helper
-2. `cli/src/adapters/claude-code.ts` — Use new description in `buildAgentFile()`
-3. `cli/src/adapters/cursor.ts` — Use new description in `writeAgentMd()`
-4. `cli/src/adapters/codex.ts` — Use new description in `writeAgentToml()`
-5. `cli/src/adapters/gemini.ts` — Use new description in `buildAgentFile()`
-6. `cli/src/adapters/openclaw.ts` — Use new description in `buildAgentFile()`
-7. `cli/src/team-yaml.ts` — Parse/serialize `description` field
-8. `templates/agents/*.yaml` — Add `description` to ~68 agent templates
-9. `teamrc/lib/teamrc_web/controllers/team_controller.ex` — Pass description through API
-10. `teamrc/lib/teamrc_web/live/team_detail_live.ex` — Edit description in web UI
+1. `cli/src/adapters/base.ts`  --  Add `description` to `TeamMember`, add `buildAgentDescription()` helper
+2. `cli/src/adapters/claude-code.ts`  --  Use new description in `buildAgentFile()`
+3. `cli/src/adapters/cursor.ts`  --  Use new description in `writeAgentMd()`
+4. `cli/src/adapters/codex.ts`  --  Use new description in `writeAgentToml()`
+5. `cli/src/adapters/gemini.ts`  --  Use new description in `buildAgentFile()`
+6. `cli/src/adapters/openclaw.ts`  --  Use new description in `buildAgentFile()`
+7. `cli/src/team-yaml.ts`  --  Parse/serialize `description` field
+8. `templates/agents/*.yaml`  --  Add `description` to ~68 agent templates
+9. `teamrc/lib/teamrc_web/controllers/team_controller.ex`  --  Pass description through API
+10. `teamrc/lib/teamrc_web/live/team_detail_live.ex`  --  Edit description in web UI
 
 ### Migration
 
-No migration needed — `description` is optional. Existing teams get the auto-generated fallback. New teams from catalog get template descriptions.
+No migration needed  --  `description` is optional. Existing teams get the auto-generated fallback. New teams from catalog get template descriptions.

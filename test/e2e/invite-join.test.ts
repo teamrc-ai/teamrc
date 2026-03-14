@@ -29,7 +29,7 @@ describe("Invite and join", () => {
     assert.ok(data.expires_at, "should include expires_at");
   });
 
-  it("previews a team by invite (redacted — no knowledge/souls)", async () => {
+  it("previews a team by invite (redacted  --  no knowledge/souls)", async () => {
     const owner = await createTeamWithKeypair("preview-test", [
       { name: "Owner", role: "Lead" },
     ]);
@@ -52,7 +52,7 @@ describe("Invite and join", () => {
     assert.equal(previewRes.status, 200);
     const data = (await previewRes.json()) as { team: Record<string, unknown> };
     assert.equal(data.team.name, "preview-test");
-    // Preview should be redacted — no knowledge or member souls
+    // Preview should be redacted  --  no knowledge or member souls
     assert.equal(data.team.knowledge, undefined);
   });
 

@@ -291,7 +291,7 @@ describe("teamrc sync", () => {
         },
       });
 
-      // Sync with both sides having changes — should pull remote first
+      // Sync with both sides having changes  --  should pull remote first
       const syncResult = await runCli(
         ["sync", "--platform", "claude-code"],
         env,

@@ -4,7 +4,7 @@ defmodule TeamrcWeb.TeamController do
   alias Teamrc.{Catalog, Teams}
 
   @doc """
-  POST /teams/create-web — creates a team from a template, writes
+  POST /teams/create-web  --  creates a team from a template, writes
   a creator session token (for non-logged-in users) and redirects
   to the team detail page.
   """

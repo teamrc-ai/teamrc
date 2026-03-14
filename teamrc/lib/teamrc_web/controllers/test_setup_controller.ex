@@ -7,7 +7,7 @@ if Mix.env() == :test do
     creating users, linking tokens, confirming device auth, and
     simulating web-created teams.
 
-    Guarded by `Mix.env() == :test` at compile time — this module
+    Guarded by `Mix.env() == :test` at compile time  --  this module
     does not exist in :dev or :prod builds.
     """
 

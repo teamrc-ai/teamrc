@@ -49,7 +49,7 @@ export function registerInit(program: Command): void {
       try {
         existingYaml = readTeamYaml(yamlPath);
       } catch {
-        // Corrupt YAML is treated as not existing — init will overwrite it
+        // Corrupt YAML is treated as not existing  --  init will overwrite it
       }
       if (existingYaml) {
         p.log.error(`Already initialized: "${existingYaml.name}" (${yamlPath}).`);
@@ -88,7 +88,7 @@ export function registerInit(program: Command): void {
           existingYaml.name = opts.name;
         }
         validateTeamName(existingYaml.name);
-        // Strip clone token — this will be a new team
+        // Strip clone token  --  this will be a new team
         delete existingYaml.cloneToken;
         // Sanitize: cap lengths, strip frontmatter injection, drop source-body skills
         team = sanitizeTeamDefinition(existingYaml);
@@ -174,7 +174,7 @@ export function registerInit(program: Command): void {
         return;
       }
 
-      // Create team on relay first — don't write local files until relay succeeds
+      // Create team on relay first  --  don't write local files until relay succeeds
       const s = p.spinner();
       const client = new TeamrcClient(relayUrl, kp.privateKey, token);
       try {
@@ -186,7 +186,7 @@ export function registerInit(program: Command): void {
         );
         s.stop("Team created.");
 
-        // Relay succeeded — now write local files
+        // Relay succeeded  --  now write local files
         team.teamId = relayTeam.id;
         team.platforms = platforms;
         team.relay = relayUrl;

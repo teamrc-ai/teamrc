@@ -10,47 +10,47 @@ globs:
   - "**/*.rs"
 body: |
   ## ISR Discipline
-  - Never perform blocking operations inside an interrupt service routine —
+  - Never perform blocking operations inside an interrupt service routine  -- 
     no memory allocation, no mutex acquisition, no I/O operations, no
     printf. ISRs must complete in microseconds; blocking causes interrupt
     latency for the entire system.
   - Never access shared state between ISRs and task-level code without
-    proper synchronization — use volatile qualifiers, atomic operations,
+    proper synchronization  --  use volatile qualifiers, atomic operations,
     or disable/restore interrupt pairs for critical sections. A race
     condition in an ISR corrupts data silently and intermittently.
   - Analyze interrupt priorities and ensure higher-priority interrupts
-    cannot corrupt state used by lower-priority ones — priority inversion
+    cannot corrupt state used by lower-priority ones  --  priority inversion
     in interrupt handlers causes data corruption that is nearly impossible
     to reproduce in testing.
-  - Always clear the interrupt flag before returning from the ISR — failing
+  - Always clear the interrupt flag before returning from the ISR  --  failing
     to clear the flag causes the interrupt to fire continuously, starving
     all lower-priority processing.
-  - Keep ISRs minimal — set a flag or enqueue data, then handle the work
+  - Keep ISRs minimal  --  set a flag or enqueue data, then handle the work
     in task context. The ISR's job is to acknowledge the hardware event
     and defer processing, not to implement business logic.
 
   ## Memory Safety for Embedded
-  - Never assume RAM contents after a warm reset — global variables may
+  - Never assume RAM contents after a warm reset  --  global variables may
     retain stale values from the previous run. Initialize all state
     explicitly in the startup sequence.
-  - Never use variable-length arrays (VLAs) or alloca in embedded code —
+  - Never use variable-length arrays (VLAs) or alloca in embedded code  -- 
     stack overflow on constrained devices causes silent memory corruption
     with no stack trace. Use fixed-size arrays with compile-time bounds.
-  - Never cast away the volatile qualifier — the compiler must not optimize
+  - Never cast away the volatile qualifier  --  the compiler must not optimize
     away reads from or writes to hardware registers. Removing volatile
     causes reads to return cached values that do not reflect the actual
     hardware state.
   - Validate all external input (UART, SPI, I2C, sensor data, network
-    packets) before processing — embedded devices receive malformed data
+    packets) before processing  --  embedded devices receive malformed data
     from noisy buses and must not crash or corrupt state.
 
   ## Reliability
-  - Implement a watchdog timer and service it regularly — if the main loop
+  - Implement a watchdog timer and service it regularly  --  if the main loop
     hangs, the watchdog resets the device. A system without a watchdog is
     a system that can hang forever in the field.
-  - Handle non-atomic flash writes — power loss during a multi-page flash
+  - Handle non-atomic flash writes  --  power loss during a multi-page flash
     write corrupts the data. Use wear-leveling, CRC validation, and
     dual-bank strategies for persistent storage.
   - Implement brown-out detection and save critical state before power
-    drops — detect low-voltage conditions early enough to write state to
+    drops  --  detect low-voltage conditions early enough to write state to
     non-volatile memory before the supply falls below operating threshold.

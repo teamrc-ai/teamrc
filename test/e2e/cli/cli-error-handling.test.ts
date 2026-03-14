@@ -61,7 +61,7 @@ describe("teamrc error handling", () => {
   it("diff without relay fails", async () => {
     const env = createIsolatedEnv("err-diff");
     try {
-      // Init local-only — diff requires relay context
+      // Init local-only  --  diff requires relay context
       const initResult = await runCli(
         ["init", "--local", "--name", "diff-err", "--team", "backend", "--platform", "claude-code"],
         env,
@@ -84,7 +84,7 @@ describe("teamrc error handling", () => {
   it("invite without relay fails", async () => {
     const env = createIsolatedEnv("err-invite");
     try {
-      // Init local-only — invite requires relay context
+      // Init local-only  --  invite requires relay context
       const initResult = await runCli(
         ["init", "--local", "--name", "invite-err", "--team", "backend", "--platform", "claude-code"],
         env,
