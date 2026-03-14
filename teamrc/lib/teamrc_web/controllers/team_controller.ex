@@ -69,7 +69,18 @@ defmodule TeamrcWeb.TeamController do
         |> put_if(s[:body], :body)
       end)
 
-    skill_ids = MapSet.new(skills_clean, & &1.id)
+    team_knowledge_skill = %{
+      id: "team-knowledge",
+      title: "Team Knowledge",
+      description: "Auto-loads shared team knowledge into every session",
+      alwaysApply: true,
+      body:
+        "Before starting work, read the team knowledge file for shared context from prior work sessions.\n" <>
+          "Before finishing, append any useful findings as a `## <topic>` entry (3-5 lines). Do not delete existing entries."
+    }
+
+    all_skills = skills_clean ++ [team_knowledge_skill]
+    skill_ids = MapSet.new(all_skills, & &1.id)
 
     %{
       name: "#{template.team_name}-#{generate_team_suffix()}",
@@ -83,7 +94,7 @@ defmodule TeamrcWeb.TeamController do
           member_skills = (m[:skills] || []) |> Enum.filter(&MapSet.member?(skill_ids, &1))
           if member_skills != [], do: Map.put(member, :skills, member_skills), else: member
         end),
-      skills: skills_clean
+      skills: all_skills
     }
   end
 

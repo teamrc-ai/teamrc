@@ -10,6 +10,7 @@ import {
   writeSkillDir,
   cleanupSkillDirs,
   resolveAgentSkills,
+  enrichTeamKnowledgeSkill,
   type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
@@ -134,6 +135,9 @@ export class OpenClawAdapter implements PlatformAdapter {
   }
 
   writeTeam(team: TeamDefinition, _scope: TeamScope = "global"): void {
+    // Enrich team-knowledge skill with actual knowledge content
+    const teamWithKnowledge = enrichTeamKnowledgeSkill(team, `~/.openclaw/${knowledgeFileName(this.teamSlug)}`, this.readKnowledge());
+
     const agentsDir = this.agentsDir();
     if (!fs.existsSync(agentsDir)) {
       fs.mkdirSync(agentsDir, { recursive: true });
@@ -174,11 +178,11 @@ export class OpenClawAdapter implements PlatformAdapter {
     // Write skills to ~/.openclaw/skills/
     const sharedDir = this.sharedSkillsDir();
     cleanupSkillDirs(sharedDir);
-    if (team.skills) {
+    if (teamWithKnowledge.skills) {
       if (!fs.existsSync(sharedDir)) {
         fs.mkdirSync(sharedDir, { recursive: true });
       }
-      for (const skill of team.skills) {
+      for (const skill of teamWithKnowledge.skills) {
         writeSkillDir(sharedDir, skill);
       }
     }
@@ -401,11 +405,6 @@ function buildAgentFile(
     }
     lines.push("");
   }
-
-  lines.push("## Team Knowledge");
-  lines.push("");
-  lines.push(`Before starting work, read \`~/.openclaw/knowledge-${slugify(teamName)}.md\` for shared context. Before finishing, append any useful findings as a \`## <topic>\` entry (3-5 lines). Do not delete existing entries.`);
-  lines.push("");
 
   return lines.join("\n");
 }

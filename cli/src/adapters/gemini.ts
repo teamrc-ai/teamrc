@@ -18,6 +18,7 @@ import {
   writeSkillDir,
   cleanupSkillDirs,
   resolveAgentSkills,
+  enrichTeamKnowledgeSkill,
   type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
@@ -147,6 +148,12 @@ export class GeminiAdapter implements PlatformAdapter {
   }
 
   writeTeam(team: TeamDefinition, scope: TeamScope = "global"): void {
+    // Enrich team-knowledge skill with actual knowledge content
+    const knowledgePath = scope === "project"
+      ? `.teamrc/${knowledgeFileName(this.teamSlug)}`
+      : `~/.teamrc/${knowledgeFileName(this.teamSlug)}`;
+    const teamWithKnowledge = enrichTeamKnowledgeSkill(team, knowledgePath, this.readKnowledge());
+
     const agentDir = this.agentsDir(scope);
     if (!fs.existsSync(agentDir)) {
       fs.mkdirSync(agentDir, { recursive: true });
@@ -170,8 +177,8 @@ export class GeminiAdapter implements PlatformAdapter {
     const antigravityDir = this.antigravitySkillsDir(scope);
     cleanupSkillDirs(skillDir);
     cleanupSkillDirs(antigravityDir);
-    if (team.skills) {
-      for (const skill of team.skills) {
+    if (teamWithKnowledge.skills) {
+      for (const skill of teamWithKnowledge.skills) {
         if (!skill.alwaysApply && !(skill.globs && skill.globs.length > 0)) {
           if (!fs.existsSync(skillDir)) fs.mkdirSync(skillDir, { recursive: true });
           if (!fs.existsSync(antigravityDir)) fs.mkdirSync(antigravityDir, { recursive: true });
@@ -181,8 +188,8 @@ export class GeminiAdapter implements PlatformAdapter {
       }
     }
 
-    // Write GEMINI.md with team context and always-on skills
-    this.updateGeminiMd(team);
+    // Write GEMINI.md with team context and always-on skills (use enriched team)
+    this.updateGeminiMd(teamWithKnowledge);
   }
 
   private updateGeminiMd(team: TeamDefinition): void {
@@ -204,11 +211,6 @@ export class GeminiAdapter implements PlatformAdapter {
       memberLines,
       "",
       "Each member is defined as an agent in `.gemini/agents/`. Delegate tasks to them based on their roles.",
-      "",
-      "### Team Knowledge",
-      `This team (${safeName}) shares a knowledge file at \`.teamrc/knowledge-${slugify(team.name)}.md\`.`,
-      "Read this file at the start of every session for context from prior work.",
-      "Subagents will also read and write to this file.",
     ];
 
     // Inline alwaysApply/globs skills (Gemini has no native rules)
@@ -389,9 +391,5 @@ description: "${safeRole}"
 # Team: ${safeTeamNameText}
 
 ${soulContent}
-${skillsSection}
-## Team Knowledge
-
-Before starting work, read \`.teamrc/knowledge-${slugify(teamName)}.md\` for shared context. Before finishing, append any useful findings as a \`## <topic>\` entry (3-5 lines). Do not delete existing entries.
-`;
+${skillsSection}`;
 }

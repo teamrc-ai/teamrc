@@ -13,6 +13,7 @@ import {
   writeSkillDir,
   cleanupSkillDirs,
   resolveAgentSkills,
+  enrichTeamKnowledgeSkill,
   type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
@@ -127,11 +128,14 @@ export class CodexAdapter implements PlatformAdapter {
   }
 
   writeTeam(team: TeamDefinition): void {
+    // Enrich team-knowledge skill with actual knowledge content
+    const teamWithKnowledge = enrichTeamKnowledgeSkill(team, `.teamrc/${knowledgeFileName(this.teamSlug)}`, this.readKnowledge());
+
     // Route skills: alwaysApply/globs → inline in AGENTS.md, on-demand → .agents/skills/
     cleanupSkillDirs(this.skillsDir());
-    if (team.skills) {
+    if (teamWithKnowledge.skills) {
       const dir = this.skillsDir();
-      for (const skill of team.skills) {
+      for (const skill of teamWithKnowledge.skills) {
         if (!skill.alwaysApply && !(skill.globs && skill.globs.length > 0)) {
           writeSkillDir(dir, skill);
         }
@@ -159,7 +163,7 @@ export class CodexAdapter implements PlatformAdapter {
     this.writeConfigToml(team);
 
     // Write AGENTS.md with team context, routing, and always-on skills
-    this.writeAgentsMd(team);
+    this.writeAgentsMd(teamWithKnowledge);
   }
 
   /** Write a TOML config file for an individual subagent */
@@ -212,11 +216,6 @@ export class CodexAdapter implements PlatformAdapter {
       instructionParts.push(teammates);
       instructionParts.push("");
     }
-
-    instructionParts.push("## Team Knowledge");
-    instructionParts.push("");
-    instructionParts.push("Before starting work, read `.teamrc/knowledge-" + slugify(teamName) + ".md` for shared context. Before finishing, append any useful findings as a `## <topic>` entry (3-5 lines). Do not delete existing entries.");
-    instructionParts.push("");
 
     const instructions = instructionParts.join("\n").trim()
       .replace(/\\/g, "\\\\")
@@ -308,13 +307,6 @@ export class CodexAdapter implements PlatformAdapter {
         if (body) sections.push(body, "");
       }
     }
-
-    sections.push("## Team Knowledge");
-    sections.push("");
-    sections.push(`This team (${sanitizeMarkerContent(team.name)}) shares a knowledge file at \`.teamrc/knowledge-${slugify(team.name)}.md\`.`);
-    sections.push("Read this file at the start of every session for context from prior work.");
-    sections.push("Subagents will also read and write to this file.");
-    sections.push("");
 
     const block = [marker, ...sections, markerEnd].join("\n");
     upsertMarkerBlock(this.agentsMdPath(), marker, markerEnd, block);

@@ -247,6 +247,45 @@ export function escapeYamlString(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
 }
 
+/** Constant skill ID for the team knowledge skill */
+export const TEAM_KNOWLEDGE_SKILL_ID = "team-knowledge";
+
+/** Create the team-knowledge skill for inclusion in new teams */
+export function createTeamKnowledgeSkill(): Skill {
+  return {
+    id: TEAM_KNOWLEDGE_SKILL_ID,
+    title: "Team Knowledge",
+    description: "Auto-loads shared team knowledge into every session",
+    alwaysApply: true,
+    body: "Before starting work, read the team knowledge file for shared context from prior work sessions.\nBefore finishing, append any useful findings as a `## <topic>` entry (3-5 lines). Do not delete existing entries.",
+  };
+}
+
+/** Enrich the team-knowledge skill body with the actual knowledge file path and content.
+ *  Returns team unchanged if the skill is not present. */
+export function enrichTeamKnowledgeSkill(
+  team: TeamDefinition,
+  knowledgePath: string,
+  knowledgeContent: string,
+): TeamDefinition {
+  if (!team.skills) return team;
+  const idx = team.skills.findIndex((s) => s.id === TEAM_KNOWLEDGE_SKILL_ID);
+  if (idx === -1) return team;
+
+  const skill = team.skills[idx];
+  const baseBody = typeof skill.body === "string" ? skill.body : "";
+  const parts = [baseBody, "", `**Knowledge file:** \`${knowledgePath}\``];
+  if (knowledgeContent.trim()) {
+    parts.push("", "---", "", knowledgeContent.trim());
+  }
+
+  const enrichedSkill = { ...skill, body: parts.join("\n") };
+  const enrichedSkills = [...team.skills];
+  enrichedSkills[idx] = enrichedSkill;
+
+  return { ...team, skills: enrichedSkills };
+}
+
 /** Resolve skills for an agent. Only returns explicitly assigned skills. */
 export function resolveAgentSkills(agent: TeamMember, team: TeamDefinition): Skill[] {
   if (!agent.skills || agent.skills.length === 0 || !team.skills) return [];

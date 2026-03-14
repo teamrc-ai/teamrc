@@ -17,6 +17,7 @@ import {
   removeMarkerBlock,
   cleanupSkillDirs,
   resolveAgentSkills,
+  enrichTeamKnowledgeSkill,
   type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
@@ -156,6 +157,12 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
   }
 
   writeTeam(team: TeamDefinition, scope: TeamScope = "global"): void {
+    // Enrich team-knowledge skill with actual knowledge content
+    const knowledgePath = scope === "project"
+      ? `.teamrc/${knowledgeFileName(this.teamSlug)}`
+      : `~/.teamrc/${knowledgeFileName(this.teamSlug)}`;
+    const teamWithKnowledge = enrichTeamKnowledgeSkill(team, knowledgePath, this.readKnowledge());
+
     const dir = this.agentsDir(scope);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -183,7 +190,8 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     }
 
     // Route skills: alwaysApply/globs → native rules, otherwise → skill dirs
-    this.writeSkillsAsNativeFiles(team, scope);
+    // Use enriched team so knowledge content is written into the rule file
+    this.writeSkillsAsNativeFiles(teamWithKnowledge, scope);
 
     this.updateClaudeMd(team, scope);
   }
@@ -442,10 +450,6 @@ ${skillsSection}
 ## Teammates
 
 ${teammates}
-
-## Team Knowledge
-
-Before starting work, read \`.teamrc/knowledge-${slugify(teamName)}.md\` for shared context. Before finishing, append any useful findings as a \`## <topic>\` entry (3-5 lines). Do not delete existing entries.
 `;
 }
 
@@ -464,10 +468,5 @@ Members:
 ${memberLines}
 
 Each member is defined as a subagent in \`.claude/agents/\`. Delegate tasks to them based on their roles.
-
-### Team Knowledge
-This team (${team.name}) shares a knowledge file at \`.teamrc/knowledge-${slugify(team.name)}.md\`.
-Read this file at the start of every session for context from prior work.
-Subagents will also read and write to this file.
 <!-- /teamrc -->`;
 }

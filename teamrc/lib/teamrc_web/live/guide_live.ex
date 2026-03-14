@@ -637,6 +637,9 @@ defmodule TeamrcWeb.GuideLive do
         "the CI takes 8 minutes, cache the build."
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
+        Knowledge content is automatically injected into every agent's context via the
+        <.code_inline>team-knowledge</.code_inline> skill (an <.code_inline>alwaysApply</.code_inline> rule).
+        No manual reading is required &mdash; agents see the latest knowledge at the start of every session.
         Unlike instructions or skills, you don't write knowledge upfront. It builds up naturally
         as agents work on your codebase. When you sync, knowledge from all machines gets merged
         together, so every agent benefits from what the others have learned.
@@ -2736,13 +2739,17 @@ defmodule TeamrcWeb.GuideLive do
 
       <.callout title="How does knowledge get written?">
         <p>
-          Your agents write to the knowledge file during their work. In your team config,
-          tell agents to append findings to
-          <.code_inline>.teamrc/knowledge-&lt;team-slug&gt;.md</.code_inline>
-          (or wherever your platform stores it).
-          On the next <.code_inline>teamrc push</.code_inline>, that content uploads to the relay.
+          The <.code_inline>team-knowledge</.code_inline> skill handles both reading and writing.
+          As an <.code_inline>alwaysApply</.code_inline> rule, it automatically loads the knowledge file
+          into every agent's context at the start of each session. It also instructs agents to
+          append useful findings as <.code_inline>## &lt;topic&gt;</.code_inline> entries before finishing their work.
+        </p>
+        <p class="mt-2">
+          On the next <.code_inline>teamrc push</.code_inline>, new knowledge uploads to the relay.
           On <.code_inline>teamrc pull</.code_inline>, every machine gets the merged result.
           Duplicates are removed automatically.
+          The skill is added by default to new teams and can be removed from
+          <.code_inline>.teamrc.yaml</.code_inline> or the web dashboard if not wanted.
         </p>
       </.callout>
     </section>

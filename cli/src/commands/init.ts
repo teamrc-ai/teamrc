@@ -6,7 +6,7 @@ import * as p from "@clack/prompts";
 import { toToken } from "../auth.js";
 import { TeamrcClient } from "../client.js";
 import { getRelayUrl } from "../config.js";
-import { getAdapter, slugify } from "../adapters/base.js";
+import { getAdapter, slugify, createTeamKnowledgeSkill } from "../adapters/base.js";
 import { templateToTeamDefinition } from "../catalog.js";
 import { writeTeamYaml, readTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import { sanitizeTeamDefinition } from "../client.js";
@@ -107,6 +107,11 @@ export function registerInit(program: Command): void {
           const memberNames = template.members.map((m) => m.name).join(", ");
           p.log.info(`${template.members.length} agents: ${memberNames}`);
         }
+      }
+
+      // Add team-knowledge skill to new teams (unless --no-knowledge)
+      if (opts.knowledge !== false) {
+        team.skills = [...(team.skills ?? []), createTeamKnowledgeSkill()];
       }
 
       // Determine whether to connect to relay

@@ -15,6 +15,7 @@ import {
   removeMarkerBlock,
   cleanupSkillDirs,
   resolveAgentSkills,
+  enrichTeamKnowledgeSkill,
   type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
@@ -157,6 +158,9 @@ export class CursorAdapter implements PlatformAdapter {
   }
 
   writeTeam(team: TeamDefinition): void {
+    // Enrich team-knowledge skill with actual knowledge content
+    const teamWithKnowledge = enrichTeamKnowledgeSkill(team, `.teamrc/${knowledgeFileName(this.teamSlug)}`, this.readKnowledge());
+
     // Clean old rule files and skill dirs
     const oldRules = listTrcFiles(this.rulesDir(), ".mdc");
     for (const f of oldRules) {
@@ -165,8 +169,8 @@ export class CursorAdapter implements PlatformAdapter {
     cleanupSkillDirs(this.skillsDir());
 
     // Route skills: alwaysApply/globs → .mdc rule, otherwise → SKILL.md
-    if (team.skills) {
-      for (const skill of team.skills) {
+    if (teamWithKnowledge.skills) {
+      for (const skill of teamWithKnowledge.skills) {
         if (skill.alwaysApply || (skill.globs && skill.globs.length > 0)) {
           this.writeSkillAsMdc(skill);
         } else {
@@ -250,11 +254,6 @@ export class CursorAdapter implements PlatformAdapter {
       bodyParts.push("");
     }
 
-    bodyParts.push("## Team Knowledge");
-    bodyParts.push("");
-    bodyParts.push(`Before starting work, read \`.teamrc/knowledge-${slugify(teamName)}.md\` for shared context. Before finishing, append any useful findings as a \`## <topic>\` entry (3-5 lines). Do not delete existing entries.`);
-    bodyParts.push("");
-
     const body = bodyParts.join("\n").trim();
 
     const content = `---
@@ -317,13 +316,6 @@ ${body}
         sections.push("");
       }
     }
-
-    sections.push("## Team Knowledge");
-    sections.push("");
-    sections.push(`This team (${sanitizeMarkerContent(team.name)}) shares a knowledge file at \`.teamrc/knowledge-${slugify(team.name)}.md\`.`);
-    sections.push("Read this file at the start of every session for context from prior work.");
-    sections.push("Subagents will also read and write to this file.");
-    sections.push("");
 
     const block = [marker, ...sections, markerEnd].join("\n");
     upsertMarkerBlock(agentsMdPath, marker, markerEnd, block);
@@ -482,7 +474,7 @@ function parseAgentFile(content: string): ParsedAgent | null {
 
   // Extract soul: everything between team header and ## Skills / ## Teammates / ## Team Knowledge (or end)
   const bodyAfterHeader = body.replace(/^# Team:.*\n+/, "");
-  const sectionIdx = bodyAfterHeader.search(/^## (Skills|Teammates|Team Knowledge)/m);
+  const sectionIdx = bodyAfterHeader.search(/^## (Skills|Teammates)/m);
   const soulRaw = sectionIdx >= 0
     ? bodyAfterHeader.slice(0, sectionIdx).trim()
     : bodyAfterHeader.trim();
