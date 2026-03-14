@@ -1,9 +1,10 @@
 # docker compose up — starts Postgres + teamrc relay server
 # Runs migrations automatically on startup.
+# All secrets are preset for local development. For production, use the Coolify guide.
 
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: teamrc
       POSTGRES_PASSWORD: teamrc
@@ -30,12 +31,14 @@ services:
         required: false
     environment:
       DATABASE_URL: "ecto://teamrc:teamrc@db/teamrc"
-      SECRET_KEY_BASE: "${SECRET_KEY_BASE:?SECRET_KEY_BASE is required — generate with: mix phx.gen.secret}"
-      PHX_HOST: "${PHX_HOST:-teamrc.ai}"
+      DATABASE_SSL: "false"
+      SECRET_KEY_BASE: "dev-only-secret-key-base-do-not-use-in-production-aaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      PHX_HOST: "${PHX_HOST:-localhost}"
+      PHX_SERVER: "true"
       PORT: "4000"
-      SESSION_SIGNING_SALT: "${SESSION_SIGNING_SALT:?SESSION_SIGNING_SALT is required}"
-      LIVE_VIEW_SIGNING_SALT: "${LIVE_VIEW_SIGNING_SALT:?LIVE_VIEW_SIGNING_SALT is required}"
-      SESSION_ENCRYPTION_SALT: "${SESSION_ENCRYPTION_SALT:?SESSION_ENCRYPTION_SALT is required}"
+      SESSION_SIGNING_SALT: "dev-session-signing-salt"
+      LIVE_VIEW_SIGNING_SALT: "dev-live-view-signing-salt"
+      SESSION_ENCRYPTION_SALT: "dev-session-encryption-salt"
 
 volumes:
   pgdata:

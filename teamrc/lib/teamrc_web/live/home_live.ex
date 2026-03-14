@@ -37,8 +37,9 @@ defmodule TeamrcWeb.HomeLive do
       </h1>
       <p class="text-base text-base-content/60 mt-4 max-w-lg leading-relaxed">
         Claude Code on your laptop. OpenClaw on a VM. Cursor in the cloud. teamrc
-        keeps your agent configs, skills, and knowledge in sync across all of them --
-        no matter which platform or machine they're on.
+        keeps your agents, skills, and shared knowledge in sync across all of them.
+        Change something on one machine. Every other machine picks it up.
+        Open source. Self-host or use the hosted relay.
       </p>
 
       <%!-- Primary CTA: copyable CLI command --%>
@@ -86,7 +87,7 @@ defmodule TeamrcWeb.HomeLive do
             <p class="text-sm text-base-content/60 mt-0.5">
               A single
               <code class="font-mono bg-base-200 rounded px-1.5 py-0.5 text-xs">.teamrc.yaml</code>
-              describes your team -- agents, skills, and how they're wired together.
+              describes your team: agents, skills, and how they're wired together.
               Pick from 60+ pre-built agents and 50+ skills, or write your own.
             </p>
           </div>
@@ -100,7 +101,7 @@ defmodule TeamrcWeb.HomeLive do
               <code class="font-mono bg-base-200 rounded px-1.5 py-0.5 text-xs">.claude/agents/*.md</code>,
               OpenClaw gets
               <code class="font-mono bg-base-200 rounded px-1.5 py-0.5 text-xs">.agents/agents/*.md</code>,
-              Codex gets TOML -- all from the same source.
+              Codex gets TOML. All from the same source.
             </p>
           </div>
         </li>
@@ -119,6 +120,21 @@ defmodule TeamrcWeb.HomeLive do
       </ol>
     </section>
 
+    <%!-- Knowledge sync --%>
+    <section class="mt-12 space-y-3">
+      <h2 class="text-lg font-bold tracking-tight">Your agents learn once. Every machine remembers.</h2>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        As agents work, they write findings to a shared knowledge file: build quirks,
+        architectural decisions, environment-specific fixes. When you sync, knowledge
+        from every machine merges automatically. The agent on your VM benefits from
+        what the agent on your laptop discovered an hour ago.
+      </p>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        With the daemon running, this happens in real time over WebSocket. No manual
+        copying. No stale context.
+      </p>
+    </section>
+
     <%!-- The real scenario --%>
     <section class="mt-12 space-y-3">
       <h2 class="text-lg font-bold tracking-tight">Built for how people actually work</h2>
@@ -126,12 +142,12 @@ defmodule TeamrcWeb.HomeLive do
         You have Claude Code on your laptop and OpenClaw running on a VM. Maybe
         Cursor Cloud Agents too. Each platform has its own config format, and
         every machine has its own copy. You tweak an agent on one machine and the
-        others fall behind. Knowledge one agent learns never reaches the rest.
+        others fall behind.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        teamrc is the sync layer. Change your team from any machine -- CLI or web --
-        and every other machine picks it up on the next sync. No git conflicts over
-        config files. No copying markdown between directories.
+        teamrc is the sync layer. Change your team from any machine, CLI or web,
+        and every other machine picks it up on the next sync. Agents, skills,
+        knowledge. All of it.
       </p>
     </section>
 
@@ -160,11 +176,11 @@ defmodule TeamrcWeb.HomeLive do
           </p>
         </div>
         <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1">
-          <h3 class="text-sm font-semibold">Knowledge travels between machines</h3>
+          <h3 class="text-sm font-semibold">Shared knowledge, not siloed notes</h3>
           <p class="text-xs text-base-content/60">
-            Agents write findings to a shared knowledge doc as they work. On sync,
-            knowledge from your laptop and your VM merges together -- every agent
-            benefits from what the others learned.
+            Without teamrc, each machine's agents start from scratch. With teamrc,
+            an agent that discovers your project uses a custom ORM pattern writes it
+            down once. Every agent on every machine knows it by the next sync.
           </p>
         </div>
         <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1">

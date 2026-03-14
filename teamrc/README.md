@@ -4,33 +4,32 @@ Elixir/Phoenix backend for teamrc. Handles cross-machine sync, team management, 
 
 ## Setup
 
-### Install Elixir
+### Option A: Docker (from repo root)
 
-macOS:
 ```bash
+docker compose up  # http://localhost:4000
+```
+
+### Option B: Elixir
+
+Requires Elixir 1.18+ and PostgreSQL.
+
+Install Elixir:
+
+```bash
+# macOS
 brew install elixir
-```
 
-Ubuntu/Debian:
-```bash
+# Ubuntu/Debian
 sudo apt install elixir erlang
-```
-
-Or use [asdf](https://asdf-vm.com/) for version management:
-```bash
-asdf plugin add erlang && asdf plugin add elixir
-asdf install erlang 27.2 && asdf install elixir 1.18.2-otp-27
 ```
 
 See the [Elixir install guide](https://elixir-lang.org/install.html) for other platforms.
 
-### Run
-
-Requires Elixir 1.18+ and PostgreSQL.
+Run:
 
 ```bash
-mix deps.get
-mix ecto.setup
+mix setup
 mix phx.server  # http://localhost:4000
 ```
 

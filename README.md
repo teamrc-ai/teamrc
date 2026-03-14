@@ -1,6 +1,8 @@
 # teamrc
 
-Sync AI agent teams across platforms with a single, version-controlled source of truth.
+One team definition. Every AI platform. Every machine.
+
+Open-source CLI and relay server. Sync your AI agents, skills, and shared knowledge across Claude Code, Cursor, Codex, Gemini, and OpenClaw. Works across machines, VMs, and projects. Self-host or use the hosted relay.
 
 ## Quick Start
 
@@ -47,7 +49,7 @@ platform adapters (Claude Code, Cursor, Codex, OpenClaw, Gemini)
        |
 native agent files (.claude/agents/, .cursor/rules/, etc.)
        |
-  relay server   (optional  --  cross-machine sync via teamrc.ai)
+  relay server   (optional, cross-machine sync via teamrc.ai)
 ```
 
 **Priority chain:** `.teamrc.yaml` > platform folders
@@ -151,29 +153,35 @@ OpenClaw requires explicit subagent spawn permissions. teamrc configures `subage
 
 ## Self-Hosting
 
-### Install Elixir
+The relay server handles cross-machine sync, the web UI, and team management. You can run it with Docker or directly with Elixir.
 
-macOS:
+### Option A: Docker (recommended)
+
+Requires [Docker](https://docs.docker.com/get-docker/).
+
 ```bash
+docker compose up
+```
+
+This starts Postgres and the relay server. Open http://localhost:4000.
+
+### Option B: Elixir
+
+Requires Elixir 1.18+ and PostgreSQL.
+
+Install Elixir:
+
+```bash
+# macOS
 brew install elixir
-```
 
-Ubuntu/Debian:
-```bash
+# Ubuntu/Debian
 sudo apt install elixir erlang
-```
-
-Or use [asdf](https://asdf-vm.com/) for version management:
-```bash
-asdf plugin add erlang && asdf plugin add elixir
-asdf install erlang 27.2 && asdf install elixir 1.18.2-otp-27
 ```
 
 See the [Elixir install guide](https://elixir-lang.org/install.html) for other platforms.
 
-### Run the relay
-
-Requires Elixir 1.18+ and PostgreSQL.
+Run the relay:
 
 ```bash
 cd teamrc
@@ -181,7 +189,11 @@ mix setup
 mix phx.server  # http://localhost:4000
 ```
 
+### Connect the CLI
+
 Point the CLI at your relay with `TEAMRC_RELAY=http://localhost:4000` or set `relay:` in `.teamrc.yaml`.
+
+For production deployment, see the [Coolify deploy guide](docs/deploy-coolify.md).
 
 ## Sharing
 
