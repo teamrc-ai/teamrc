@@ -806,6 +806,156 @@ defmodule TeamrcWeb.TeamDetailLive do
     _ -> nil
   end
 
+  attr :editing_skill, :any, default: nil
+  attr :skill_id, :string, default: ""
+  attr :skill_title, :string, default: ""
+  attr :skill_description, :string, default: ""
+  attr :skill_body, :string, default: ""
+  attr :skill_always_apply, :boolean, default: false
+
+  defp skill_form(assigns) do
+    ~H"""
+    <div
+      role="region"
+      aria-label="Skill details form"
+      class="rounded-lg border border-base-300 bg-base-200/30 p-4 space-y-3 animate-[fadeIn_150ms_ease-out]"
+    >
+      <div class="flex items-center justify-between">
+        <p class="text-xs font-medium text-base-content/70">
+          {if @editing_skill, do: "Edit skill", else: "New skill"}
+        </p>
+        <button
+          phx-click="cancel_skill"
+          class="trc-focus text-xs text-base-content/50 hover:text-base-content/60 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <label for="skill-id" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
+            ID
+          </label>
+          <input
+            id="skill-id"
+            type="text"
+            value={@skill_id}
+            phx-keyup="update_skill_field"
+            phx-value-field="id"
+            phx-debounce="300"
+            maxlength="64"
+            placeholder="code-style"
+            disabled={@editing_skill != nil}
+            class={[
+              "trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm font-mono placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors",
+              if(@editing_skill, do: "opacity-50 cursor-not-allowed", else: "")
+            ]}
+          />
+        </div>
+        <div>
+          <label for="skill-title" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
+            Title <span class="text-base-content/50">(optional)</span>
+          </label>
+          <input
+            id="skill-title"
+            type="text"
+            value={@skill_title}
+            phx-keyup="update_skill_field"
+            phx-value-field="title"
+            phx-debounce="300"
+            maxlength="128"
+            placeholder="Code Style Guide"
+            class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label for="skill-description" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
+          Description <span class="text-base-content/50">(optional)</span>
+        </label>
+        <input
+          id="skill-description"
+          type="text"
+          value={@skill_description}
+          phx-keyup="update_skill_field"
+          phx-value-field="description"
+          phx-debounce="300"
+          maxlength="256"
+          placeholder="Enforces consistent code formatting and naming conventions"
+          class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors"
+        />
+      </div>
+
+      <div>
+        <label for="skill-body" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
+          Body
+        </label>
+        <textarea
+          id="skill-body"
+          phx-keyup="update_skill_field"
+          phx-value-field="body"
+          phx-debounce="500"
+          rows="6"
+          placeholder="The instructions for this skill in markdown..."
+          class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-2 text-sm font-mono placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors resize-y"
+        ><%= @skill_body %></textarea>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          phx-click="toggle_skill_always_apply"
+          class={[
+            "trc-focus relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out",
+            if(@skill_always_apply, do: "bg-primary", else: "bg-base-300"),
+            if(@skill_id == "team-knowledge", do: "opacity-50 cursor-not-allowed", else: "cursor-pointer")
+          ]}
+          role="switch"
+          aria-checked={to_string(@skill_always_apply)}
+          aria-label="Apply to all agents"
+          disabled={@skill_id == "team-knowledge"}
+        >
+          <span class={[
+            "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+            if(@skill_always_apply, do: "translate-x-4", else: "translate-x-0")
+          ]} />
+        </button>
+        <span class="text-xs text-base-content/70">Apply to all agents</span>
+        <%= if @skill_id == "team-knowledge" do %>
+          <span class="text-[10px] text-base-content/50">(required for team-knowledge)</span>
+        <% else %>
+          <span class="text-[10px] text-base-content/50">
+            (otherwise, assign per-agent on their detail page)
+          </span>
+        <% end %>
+      </div>
+
+      <div class="flex gap-2 pt-1">
+        <button
+          phx-click="save_skill"
+          disabled={@skill_id == "" || @skill_body == ""}
+          class={[
+            "trc-focus rounded px-3 py-1.5 text-xs font-semibold transition-all",
+            if(@skill_id == "" || @skill_body == "",
+              do: "bg-base-300 text-base-content/50 cursor-not-allowed",
+              else: "bg-primary text-primary-content hover:brightness-110"
+            )
+          ]}
+        >
+          {if @editing_skill, do: "Update skill", else: "Add skill"}
+        </button>
+        <button
+          phx-click="cancel_skill"
+          class="trc-focus rounded px-3 py-1.5 text-xs font-medium text-base-content/60 hover:text-base-content/70 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+    """
+  end
+
   defp reset_skill_form(socket) do
     assign(socket,
       skill_mode: nil,
@@ -1449,6 +1599,17 @@ defmodule TeamrcWeb.TeamDetailLive do
                     </button>
                   </div>
                 </div>
+                <%!-- Inline edit form: appears directly under the skill being edited --%>
+                <%= if @editing_skill == skill["id"] and @skill_mode == :form do %>
+                  <.skill_form
+                    editing_skill={@editing_skill}
+                    skill_id={@skill_id}
+                    skill_title={@skill_title}
+                    skill_description={@skill_description}
+                    skill_body={@skill_body}
+                    skill_always_apply={@skill_always_apply}
+                  />
+                <% end %>
               <% end %>
             </div>
           <% else %>
@@ -1572,140 +1733,17 @@ defmodule TeamrcWeb.TeamDetailLive do
               <% end %>
             </div>
 
-            <%!-- Step 2: Skill form (for custom or pre-filled from catalog) --%>
-            <div
-              :if={@skill_mode == :form}
-              role="region"
-              aria-label="Skill details form"
-              class="rounded-lg border border-base-300 bg-base-200/30 p-4 space-y-3 animate-[fadeIn_150ms_ease-out]"
-            >
-              <div class="flex items-center justify-between">
-                <p class="text-xs font-medium text-base-content/70">
-                  {if @editing_skill, do: "Edit skill", else: "New skill"}
-                </p>
-                <button
-                  phx-click="cancel_skill"
-                  class="trc-focus text-xs text-base-content/50 hover:text-base-content/60 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label for="skill-id" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
-                    ID
-                  </label>
-                  <input
-                    id="skill-id"
-                    type="text"
-                    value={@skill_id}
-                    phx-keyup="update_skill_field"
-                    phx-value-field="id"
-                    phx-debounce="300"
-                    maxlength="64"
-                    placeholder="code-style"
-                    disabled={@editing_skill != nil}
-                    class={[
-                      "trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm font-mono placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors",
-                      if(@editing_skill, do: "opacity-50 cursor-not-allowed", else: "")
-                    ]}
-                  />
-                </div>
-                <div>
-                  <label for="skill-title" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
-                    Title <span class="text-base-content/50">(optional)</span>
-                  </label>
-                  <input
-                    id="skill-title"
-                    type="text"
-                    value={@skill_title}
-                    phx-keyup="update_skill_field"
-                    phx-value-field="title"
-                    phx-debounce="300"
-                    maxlength="128"
-                    placeholder="Code Style Guide"
-                    class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label for="skill-description" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
-                  Description <span class="text-base-content/50">(optional)</span>
-                </label>
-                <input
-                  id="skill-description"
-                  type="text"
-                  value={@skill_description}
-                  phx-keyup="update_skill_field"
-                  phx-value-field="description"
-                  phx-debounce="300"
-                  maxlength="256"
-                  placeholder="Enforces consistent code formatting and naming conventions"
-                  class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-1.5 text-sm placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors"
-                />
-              </div>
-
-              <div>
-                <label for="skill-body" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
-                  Body
-                </label>
-                <textarea
-                  id="skill-body"
-                  phx-keyup="update_skill_field"
-                  phx-value-field="body"
-                  phx-debounce="500"
-                  rows="6"
-                  placeholder="The instructions for this skill in markdown..."
-                  class="trc-focus w-full rounded border border-base-300 bg-base-100 px-2.5 py-2 text-sm font-mono placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors resize-y"
-                ><%= @skill_body %></textarea>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <button
-                  phx-click="toggle_skill_always_apply"
-                  class={[
-                    "trc-focus relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out",
-                    if(@skill_always_apply, do: "bg-primary", else: "bg-base-300")
-                  ]}
-                  role="switch"
-                  aria-checked={to_string(@skill_always_apply)}
-                  aria-label="Apply to all agents"
-                >
-                  <span class={[
-                    "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                    if(@skill_always_apply, do: "translate-x-4", else: "translate-x-0")
-                  ]} />
-                </button>
-                <span class="text-xs text-base-content/70">Apply to all agents</span>
-                <span class="text-[10px] text-base-content/50">
-                  (otherwise, assign per-agent on their detail page)
-                </span>
-              </div>
-
-              <div class="flex gap-2 pt-1">
-                <button
-                  phx-click="save_skill"
-                  disabled={@skill_id == "" || @skill_body == ""}
-                  class={[
-                    "trc-focus rounded px-3 py-1.5 text-xs font-semibold transition-all",
-                    if(@skill_id == "" || @skill_body == "",
-                      do: "bg-base-300 text-base-content/50 cursor-not-allowed",
-                      else: "bg-primary text-primary-content hover:brightness-110"
-                    )
-                  ]}
-                >
-                  {if @editing_skill, do: "Update skill", else: "Add skill"}
-                </button>
-                <button
-                  phx-click="cancel_skill"
-                  class="trc-focus rounded px-3 py-1.5 text-xs font-medium text-base-content/60 hover:text-base-content/70 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+            <%!-- Step 2: Skill form (for new skills only — edits render inline above) --%>
+            <%= if @skill_mode == :form and is_nil(@editing_skill) do %>
+              <.skill_form
+                editing_skill={@editing_skill}
+                skill_id={@skill_id}
+                skill_title={@skill_title}
+                skill_description={@skill_description}
+                skill_body={@skill_body}
+                skill_always_apply={@skill_always_apply}
+              />
+            <% end %>
           </div>
         </section>
 
