@@ -151,7 +151,7 @@ export class OpenClawAdapter implements PlatformAdapter {
 
       fs.writeFileSync(
         this.agentFilePath(slug),
-        buildAgentFile(team.name, member, team.members, team),
+        buildAgentFile(teamWithKnowledge.name, member, teamWithKnowledge.members, teamWithKnowledge),
       );
     }
 
@@ -407,15 +407,21 @@ function buildAgentFile(
     lines.push("");
   }
 
-  // Per-agent skills
-  const agentSkills = resolveAgentSkills(member, team);
+  // Per-agent skills — include alwaysApply since OpenClaw has no native rules system
+  const agentSkills = resolveAgentSkills(member, team, { includeAlwaysApply: true });
   if (agentSkills.length > 0) {
     lines.push("## Skills");
     lines.push("");
     for (const s of agentSkills) {
-      lines.push(`- **${s.title || s.id}**: ${s.description || ""}`);
+      const title = s.title || s.id;
+      const desc = s.description ? `${s.description}\n\n` : "";
+      const body = typeof s.body === "string" ? s.body : "";
+      lines.push(`### ${title}`);
+      lines.push("");
+      if (desc) lines.push(desc);
+      if (body) lines.push(body);
+      lines.push("");
     }
-    lines.push("");
   }
 
   return lines.join("\n");

@@ -97,10 +97,12 @@ describe("Gemini CLI adapter", () => {
     assert.ok(architectContent.includes("Code Style"));
     assert.ok(architectContent.includes("Use prettier."));
 
-    // Check developer has no skills section
+    // Check developer gets alwaysApply skills (Gemini has no native rules)
     const devContent = fs.readFileSync(path.join(agentDir, "trc-developer.md"), "utf-8");
     assert.ok(devContent.includes('name: "trc-developer"'));
-    assert.ok(!devContent.includes("## Skills"));
+    assert.ok(devContent.includes("## Skills"));
+    assert.ok(devContent.includes("Code Style"));
+    assert.ok(devContent.includes("Use prettier."));
   });
 
   it("writes GEMINI.md with team knowledge marker block", async () => {

@@ -154,9 +154,9 @@ export class CodexAdapter implements PlatformAdapter {
       }
     }
 
-    // Write individual subagent TOML configs
-    for (const member of team.members) {
-      this.writeAgentToml(team.name, member, team.members, team);
+    // Write individual subagent TOML configs (use enriched team so alwaysApply skills have knowledge content)
+    for (const member of teamWithKnowledge.members) {
+      this.writeAgentToml(teamWithKnowledge.name, member, teamWithKnowledge.members, teamWithKnowledge);
     }
 
     // Register subagents in .codex/config.toml
@@ -189,7 +189,8 @@ export class CodexAdapter implements PlatformAdapter {
     }
 
     // Add resolved skills (per-agent, inlined into developer_instructions)
-    const agentSkills = resolveAgentSkills(member, team);
+    // Include alwaysApply skills since Codex has no native rules system
+    const agentSkills = resolveAgentSkills(member, team, { includeAlwaysApply: true });
     if (agentSkills.length > 0) {
       instructionParts.push("## Skills");
       instructionParts.push("");

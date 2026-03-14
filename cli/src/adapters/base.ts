@@ -381,12 +381,23 @@ The preamble is everything before the first \`## \` heading. It is capped at 10K
   ];
 }
 
-/** Resolve skills for an agent. Only returns explicitly assigned skills. */
-export function resolveAgentSkills(agent: TeamMember, team: TeamDefinition): Skill[] {
-  if (!agent.skills || agent.skills.length === 0 || !team.skills) return [];
-  return agent.skills
+/** Resolve skills for an agent. Returns explicitly assigned skills,
+ *  plus alwaysApply team-level skills when includeAlwaysApply is set.
+ *  Use includeAlwaysApply for platforms without native rule systems (Codex, Gemini, OpenClaw). */
+export function resolveAgentSkills(
+  agent: TeamMember,
+  team: TeamDefinition,
+  opts?: { includeAlwaysApply?: boolean },
+): Skill[] {
+  if (!team.skills) return [];
+  const assigned = (agent.skills || [])
     .map((id) => team.skills!.find((s) => s.id === id))
     .filter((s): s is Skill => s !== undefined);
+  if (!opts?.includeAlwaysApply) return assigned;
+  const alwaysOn = team.skills.filter(
+    (s) => s.alwaysApply && !assigned.some((a) => a.id === s.id),
+  );
+  return [...alwaysOn, ...assigned];
 }
 
 export function getAdapter(platform: string, teamSlug?: string): PlatformAdapter {

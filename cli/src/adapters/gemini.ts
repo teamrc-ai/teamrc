@@ -163,12 +163,12 @@ export class GeminiAdapter implements PlatformAdapter {
     // Clean old trc-*.md agent files
     deleteTrcFiles(agentDir);
 
-    // Write individual agent files
-    for (const member of team.members) {
+    // Write individual agent files (use enriched team so alwaysApply skills have knowledge content)
+    for (const member of teamWithKnowledge.members) {
       validateAgentName(member.name);
       const fileName = `trc-${slugify(member.name)}.md`;
       const filePath = path.join(agentDir, fileName);
-      const content = buildAgentFile(team.name, member, team);
+      const content = buildAgentFile(teamWithKnowledge.name, member, teamWithKnowledge);
       fs.writeFileSync(filePath, content);
     }
 
@@ -380,7 +380,8 @@ function buildAgentFile(teamName: string, member: TeamMember, team?: TeamDefinit
 
   let skillsSection = "";
   if (team) {
-    const resolvedSkills = resolveAgentSkills(member, team);
+    // Include alwaysApply skills since Gemini has no native rules system
+    const resolvedSkills = resolveAgentSkills(member, team, { includeAlwaysApply: true });
     if (resolvedSkills.length > 0) {
       const skillBlocks = resolvedSkills.map((s) => {
         const title = s.title || s.id;
