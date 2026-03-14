@@ -17,9 +17,6 @@ config :teamrc, TeamrcWeb.Endpoint,
     exclude: [paths: ["/health", "/live/websocket"]]
   ]
 
-# Redirect landing page to /new until it's ready for production
-config :teamrc, redirect_landing: true
-
 # Do not print debug messages in production
 config :logger, level: :info
 

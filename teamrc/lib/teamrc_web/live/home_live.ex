@@ -3,11 +3,7 @@ defmodule TeamrcWeb.HomeLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    if Application.get_env(:teamrc, :redirect_landing, false) do
-      {:ok, push_navigate(socket, to: ~p"/new")}
-    else
-      {:ok, assign(socket, page_title: nil)}
-    end
+    {:ok, assign(socket, page_title: nil)}
   end
 
   @impl true
