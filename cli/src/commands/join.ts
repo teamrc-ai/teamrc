@@ -5,7 +5,7 @@ import { toToken } from "../auth.js";
 import { TeamrcClient, remoteTeamToDefinition } from "../client.js";
 import { getRelayUrl, saveConfig } from "../config.js";
 import { getAdapter, slugify } from "../adapters/base.js";
-import { writeTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
+import { writeTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, pruneKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import {
   isNonInteractive,
   handleCancel,
@@ -78,7 +78,8 @@ export function registerJoin(program: Command): void {
 
           if (joinedTeam.knowledge) {
             const localKnowledge = joinAdapter.readKnowledge();
-            const merged = mergeKnowledge(joinedTeam.knowledge, localKnowledge);
+            let merged = mergeKnowledge(joinedTeam.knowledge, localKnowledge);
+            merged = pruneKnowledge(merged);
             if (merged.length <= MAX_KNOWLEDGE_SIZE) {
               joinAdapter.writeKnowledge(merged);
             } else {

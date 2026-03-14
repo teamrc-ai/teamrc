@@ -22,6 +22,7 @@ defmodule Teamrc.Application do
 
       {Finch, name: Swoosh.Finch},
       TeamrcWeb.Plugs.RateLimiter.Server,
+      Teamrc.ChannelRateLimiter,
       Teamrc.DeviceAuth.CleanupTask,
       # Start to serve requests, typically the last entry
       TeamrcWeb.Endpoint

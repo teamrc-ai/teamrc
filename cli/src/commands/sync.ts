@@ -3,7 +3,8 @@ import * as p from "@clack/prompts";
 import { remoteTeamToDefinition, SyncConflictError, TeamNotFoundError } from "../client.js";
 import { computeTeamHashes } from "../sync-hash.js";
 import { getAdapter, slugify, type TeamScope } from "../adapters/base.js";
-import { writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
+import { writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, pruneKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
+import { logKnowledgeSize } from "../knowledge-log.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
 import {
   requireRelayContext,
@@ -88,10 +89,17 @@ export function registerSync(program: Command): void {
           if (localHashes.knowledgeHash !== serverHead.knowledge_hash) {
             const remoteTeam = await client.getTeam();
             if (remoteTeam.knowledge) {
-              const merged = mergeKnowledge(remoteTeam.knowledge, knowledge);
+              let merged = mergeKnowledge(remoteTeam.knowledge, knowledge);
+              const prePruneSize = Buffer.byteLength(merged, "utf8");
+              merged = pruneKnowledge(merged);
+              const postPruneSize = Buffer.byteLength(merged, "utf8");
+              if (postPruneSize < prePruneSize) {
+                p.log.warn("Knowledge pruned: oldest entries dropped to fit within 100KB relay limit.");
+              }
               if (merged.length <= MAX_KNOWLEDGE_SIZE) {
                 pushKnowledge = merged;
                 adapter.writeKnowledge(merged);
+                logKnowledgeSize(p.log, postPruneSize);
               }
             }
           }
@@ -121,9 +129,16 @@ export function registerSync(program: Command): void {
 
           if (remoteTeam.knowledge) {
             const localKnowledge = adapter.readKnowledge();
-            const merged = mergeKnowledge(remoteTeam.knowledge, localKnowledge);
+            let merged = mergeKnowledge(remoteTeam.knowledge, localKnowledge);
+            const prePruneSize = Buffer.byteLength(merged, "utf8");
+            merged = pruneKnowledge(merged);
+            const postPruneSize = Buffer.byteLength(merged, "utf8");
+            if (postPruneSize < prePruneSize) {
+              p.log.warn("Knowledge pruned: oldest entries dropped to fit within 100KB relay limit.");
+            }
             if (merged.length <= MAX_KNOWLEDGE_SIZE) {
               adapter.writeKnowledge(merged);
+              logKnowledgeSize(p.log, postPruneSize);
             } else {
               p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
             }
@@ -174,9 +189,16 @@ export function registerSync(program: Command): void {
 
           if (remoteTeam.knowledge) {
             const localKnowledge = adapter.readKnowledge();
-            const merged = mergeKnowledge(remoteTeam.knowledge, localKnowledge);
+            let merged = mergeKnowledge(remoteTeam.knowledge, localKnowledge);
+            const prePruneSize = Buffer.byteLength(merged, "utf8");
+            merged = pruneKnowledge(merged);
+            const postPruneSize = Buffer.byteLength(merged, "utf8");
+            if (postPruneSize < prePruneSize) {
+              p.log.warn("Knowledge pruned: oldest entries dropped to fit within 100KB relay limit.");
+            }
             if (merged.length <= MAX_KNOWLEDGE_SIZE) {
               adapter.writeKnowledge(merged);
+              logKnowledgeSize(p.log, postPruneSize);
             } else {
               p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
             }
@@ -211,9 +233,16 @@ export function registerSync(program: Command): void {
 
         if (remoteTeam.knowledge) {
           const localKnowledge = adapter.readKnowledge();
-          const merged = mergeKnowledge(remoteTeam.knowledge, localKnowledge);
+          let merged = mergeKnowledge(remoteTeam.knowledge, localKnowledge);
+          const prePruneSize = Buffer.byteLength(merged, "utf8");
+          merged = pruneKnowledge(merged);
+          const postPruneSize = Buffer.byteLength(merged, "utf8");
+          if (postPruneSize < prePruneSize) {
+            p.log.warn("Knowledge pruned: oldest entries dropped to fit within 100KB relay limit.");
+          }
           if (merged.length <= MAX_KNOWLEDGE_SIZE) {
             adapter.writeKnowledge(merged);
+            logKnowledgeSize(p.log, postPruneSize);
           } else {
             p.log.warn("Remote knowledge exceeds maximum size, skipping merge.");
           }

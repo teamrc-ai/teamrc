@@ -4,7 +4,8 @@ import * as p from "@clack/prompts";
 import { loadKeypair, toToken } from "../auth.js";
 import { SyncConflictError, TeamNotFoundError, TeamrcClient } from "../client.js";
 import { getRelayUrl } from "../config.js";
-import { TEAM_YAML, GLOBAL_TEAM_YAML, writeTeamYaml, mergeKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
+import { TEAM_YAML, GLOBAL_TEAM_YAML, writeTeamYaml, mergeKnowledge, pruneKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
+import { logKnowledgeSize } from "../knowledge-log.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
 import {
   requireTeamContext,
@@ -131,10 +132,17 @@ export function registerPush(program: Command): void {
         let pushKnowledge = knowledge || undefined;
         const remoteTeam = await client.getTeam();
         if (remoteTeam.knowledge) {
-          const merged = mergeKnowledge(remoteTeam.knowledge, knowledge);
+          let merged = mergeKnowledge(remoteTeam.knowledge, knowledge);
+          const prePruneSize = Buffer.byteLength(merged, "utf8");
+          merged = pruneKnowledge(merged);
+          const postPruneSize = Buffer.byteLength(merged, "utf8");
+          if (postPruneSize < prePruneSize) {
+            p.log.warn("Knowledge pruned: oldest entries dropped to fit within 100KB relay limit.");
+          }
           if (merged.length <= MAX_KNOWLEDGE_SIZE) {
             pushKnowledge = merged;
             adapter.writeKnowledge(merged);
+            logKnowledgeSize(p.log, postPruneSize);
           }
         }
 

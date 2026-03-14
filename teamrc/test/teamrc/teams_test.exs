@@ -839,6 +839,77 @@ defmodule Teamrc.TeamsTest do
     end
   end
 
+  describe "update_knowledge/3" do
+    test "merges incoming knowledge with existing" do
+      token = "trc_ak_uk1_#{:erlang.unique_integer([:positive])}"
+      {:ok, team} = Teams.put_team(token, %{"name" => "uk-team", "members" => [], "knowledge" => "line A"})
+      team_id = team["id"]
+
+      {:ok, merged, hash, size} = Teams.update_knowledge(team_id, token, "line B")
+
+      assert merged =~ "line A"
+      assert merged =~ "line B"
+      assert is_binary(hash)
+      assert String.length(hash) == 64
+      assert size > 0
+    end
+
+    test "returns error for unauthorized token" do
+      token = "trc_ak_uk2_#{:erlang.unique_integer([:positive])}"
+      other_token = "trc_ak_uk3_#{:erlang.unique_integer([:positive])}"
+      {:ok, team} = Teams.put_team(token, %{"name" => "uk-auth-team", "members" => []})
+      team_id = team["id"]
+
+      assert {:error, :not_found} = Teams.update_knowledge(team_id, other_token, "should fail")
+    end
+
+    test "rejects oversized incoming content" do
+      token = "trc_ak_uk4_#{:erlang.unique_integer([:positive])}"
+      {:ok, team} = Teams.put_team(token, %{"name" => "uk-big-team", "members" => []})
+      team_id = team["id"]
+
+      oversized = String.duplicate("x", 100_001)
+      assert {:error, :content_too_large} = Teams.update_knowledge(team_id, token, oversized)
+    end
+
+    test "prunes when merged content exceeds cap" do
+      token = "trc_ak_uk5_#{:erlang.unique_integer([:positive])}"
+
+      # Create a team with 60KB of knowledge
+      existing_sections = for i <- 1..100, do: "## Existing #{i}\n#{String.duplicate("a", 550)}\n"
+      existing = "# Preamble\n\n" <> Enum.join(existing_sections, "\n")
+      {:ok, team} = Teams.put_team(token, %{"name" => "uk-prune-team", "members" => [], "knowledge" => existing})
+      team_id = team["id"]
+
+      # Push new content that will cause merge to exceed 100KB
+      new_sections = for i <- 1..100, do: "## New #{i}\n#{String.duplicate("b", 550)}\n"
+      new_content = Enum.join(new_sections, "\n")
+
+      {:ok, merged, _hash, size} = Teams.update_knowledge(team_id, token, new_content)
+
+      assert size <= 100_000
+      assert merged =~ "Preamble"
+    end
+
+    test "broadcasts via PubSub on successful update" do
+      token = "trc_ak_uk6_#{:erlang.unique_integer([:positive])}"
+      {:ok, team} = Teams.put_team(token, %{"name" => "uk-pubsub-team", "members" => [], "knowledge" => "initial"})
+      team_id = team["id"]
+
+      # Subscribe to the PubSub topic
+      Phoenix.PubSub.subscribe(Teamrc.PubSub, "team_knowledge:#{team_id}")
+
+      {:ok, _merged, _hash, _size} = Teams.update_knowledge(team_id, token, "new data")
+
+      assert_receive {:knowledge_updated, payload}
+      assert payload.content =~ "initial"
+      assert payload.content =~ "new data"
+      assert is_binary(payload.knowledge_hash)
+      assert is_integer(payload.knowledge_size)
+      assert payload.source_token == token
+    end
+  end
+
   describe "diff-based member updates" do
     test "unchanged members keep stable IDs" do
       token = "trc_ak_diff1_#{:erlang.unique_integer([:positive])}"

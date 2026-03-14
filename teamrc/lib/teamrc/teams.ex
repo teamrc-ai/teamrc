@@ -8,6 +8,7 @@ defmodule Teamrc.Teams do
   alias Teamrc.ContentHash
 
   @invite_ttl_hours 24
+  @knowledge_cap 100_000
 
   # --- Public API ---
 
@@ -374,6 +375,84 @@ defmodule Teamrc.Teams do
     end
 
     {:ok, count}
+  end
+
+  @doc """
+  Merge incoming knowledge with existing, prune if needed, persist, and broadcast.
+
+  Returns `{:ok, merged_content, knowledge_hash, knowledge_size}` or `{:error, reason}`.
+  """
+  @spec update_knowledge(String.t(), String.t(), String.t()) ::
+          {:ok, String.t(), String.t(), non_neg_integer()} | {:error, atom()}
+  def update_knowledge(team_id, token, incoming_content) do
+    case resolve_team_id(token, team_id) do
+      nil ->
+        {:error, :not_found}
+
+      {:error, :team_id_required} ->
+        {:error, :team_id_required}
+
+      resolved_id ->
+        # Validate incoming content size before merge
+        if is_binary(incoming_content) and byte_size(incoming_content) > @knowledge_cap do
+          {:error, :content_too_large}
+        else
+          do_update_knowledge(resolved_id, token, incoming_content)
+        end
+    end
+  end
+
+  defp do_update_knowledge(team_id, token, incoming_content) do
+    result =
+      Repo.transaction(fn ->
+        # Fetch team with row lock to prevent concurrent merges from losing data
+        team =
+          from(t in Team, where: t.id == ^team_id and is_nil(t.deleted_at), lock: "FOR UPDATE")
+          |> Repo.one()
+
+        case team do
+          nil ->
+            Repo.rollback(:not_found)
+
+          %Team{} = team ->
+            merged = ContentHash.merge_knowledge(team.knowledge, incoming_content)
+            pruned = ContentHash.prune_knowledge(merged, @knowledge_cap)
+            knowledge_hash = ContentHash.compute_knowledge_hash(pruned)
+
+            case team |> Team.changeset(%{knowledge: pruned, knowledge_hash: knowledge_hash}) |> Repo.update() do
+              {:ok, _updated} ->
+                knowledge_size = byte_size(pruned)
+                {pruned, knowledge_hash, knowledge_size}
+
+              {:error, _changeset} ->
+                Repo.rollback(:update_failed)
+            end
+        end
+      end)
+
+    case result do
+      {:ok, {pruned, knowledge_hash, knowledge_size}} ->
+        # Broadcast after transaction commits so messages aren't sent for rolled-back transactions
+        broadcast_knowledge_update(team_id, pruned, knowledge_hash, knowledge_size, token)
+        {:ok, pruned, knowledge_hash, knowledge_size}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp broadcast_knowledge_update(team_id, content, knowledge_hash, knowledge_size, source_token) do
+    Phoenix.PubSub.broadcast(
+      Teamrc.PubSub,
+      "team_knowledge:#{team_id}",
+      {:knowledge_updated,
+       %{
+         content: content,
+         knowledge_hash: knowledge_hash,
+         knowledge_size: knowledge_size,
+         source_token: source_token
+       }}
+    )
   end
 
   # --- LiveView-facing query functions ---
@@ -924,6 +1003,17 @@ defmodule Teamrc.Teams do
             knowledge_hash: hashes.knowledge_hash
           })
           |> Repo.update()
+
+        # Broadcast knowledge changes to WebSocket-connected daemons
+        if team.knowledge do
+          broadcast_knowledge_update(
+            team_id,
+            team.knowledge,
+            hashes.knowledge_hash,
+            byte_size(team.knowledge),
+            :rest
+          )
+        end
 
         Repo.preload(team, :members, force: true)
 

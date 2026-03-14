@@ -107,6 +107,202 @@ defmodule Teamrc.ContentHash do
     end
   end
 
+  # --- Knowledge parsing and pruning ---
+
+  @max_preamble_bytes 10_240
+  @default_max_bytes 100_000
+
+  @typedoc "A parsed knowledge section with heading text and full body (including the ## line)."
+  @type knowledge_section :: %{heading: String.t(), body: String.t()}
+
+  @typedoc "Parsed knowledge split into preamble and ordered sections."
+  @type parsed_knowledge :: %{preamble: String.t(), sections: [knowledge_section()]}
+
+  @doc """
+  Parse a knowledge markdown string into preamble + sections.
+
+  - **Preamble**: Everything before the first `## ` heading, up to 10KB.
+    If preamble content exceeds 10KB, it is truncated at a line boundary.
+  - **Sections**: Each `## <heading>` line plus all subsequent lines until the
+    next `## ` heading or EOF. Ordered as they appear (oldest first = top of file).
+  - `nil` or `""` input returns `%{preamble: "", sections: []}`.
+  """
+  @spec parse_knowledge(String.t() | nil) :: parsed_knowledge()
+  def parse_knowledge(nil), do: %{preamble: "", sections: []}
+  def parse_knowledge(""), do: %{preamble: "", sections: []}
+
+  def parse_knowledge(content) when is_binary(content) do
+    lines = String.split(content, "\n", trim: false)
+    {preamble_lines, section_groups} = split_at_sections(lines)
+
+    preamble_raw = Enum.join(preamble_lines, "\n")
+
+    # When sections follow the preamble, the \n before the first ## heading
+    # was consumed by String.split. Restore it so the preamble faithfully
+    # represents "everything before the first ## heading."
+    preamble_raw =
+      if section_groups != [] and preamble_raw != "" and
+           not String.ends_with?(preamble_raw, "\n") do
+        preamble_raw <> "\n"
+      else
+        preamble_raw
+      end
+
+    preamble = truncate_preamble_string(preamble_raw)
+
+    sections =
+      Enum.map(section_groups, fn {heading, body_lines} ->
+        %{heading: heading, body: Enum.join(body_lines, "\n")}
+      end)
+
+    %{preamble: preamble, sections: sections}
+  end
+
+  @doc """
+  FIFO prune knowledge to fit within a byte limit.
+
+  - Parses content into preamble + sections
+  - Preamble is always preserved (up to 10KB, never dropped)
+  - If total size <= max_bytes, returns content unchanged
+  - Drops sections oldest-first (from front of list) until total size <= 80% of max_bytes
+  - Reassembles preamble + remaining sections
+  """
+  @spec prune_knowledge(String.t() | nil, non_neg_integer()) :: String.t()
+  def prune_knowledge(content, max_bytes \\ @default_max_bytes)
+  def prune_knowledge(nil, _max_bytes), do: ""
+  def prune_knowledge("", _max_bytes), do: ""
+
+  def prune_knowledge(content, max_bytes) when is_binary(content) do
+    if byte_size(content) <= max_bytes do
+      content
+    else
+      target = trunc(max_bytes * 0.8)
+      %{preamble: preamble, sections: sections} = parse_knowledge(content)
+
+      remaining = drop_oldest_until_fits(preamble, sections, target)
+      reassemble(preamble, remaining)
+    end
+  end
+
+  # Split lines into preamble lines and section groups.
+  # Returns {preamble_lines, [{heading, all_lines_including_heading}]}
+  defp split_at_sections(lines) do
+    split_at_sections(lines, [], [])
+  end
+
+  defp split_at_sections([], preamble_acc, sections_acc) do
+    {Enum.reverse(preamble_acc), Enum.reverse(sections_acc)}
+  end
+
+  defp split_at_sections([line | rest], preamble_acc, []) do
+    case extract_heading(line) do
+      {:ok, heading} ->
+        {section_lines, remaining} = collect_section_lines([line], rest)
+        split_at_sections(remaining, preamble_acc, [{heading, section_lines}])
+
+      :not_heading ->
+        split_at_sections(rest, [line | preamble_acc], [])
+    end
+  end
+
+  defp split_at_sections([line | rest], preamble_acc, sections_acc) do
+    case extract_heading(line) do
+      {:ok, heading} ->
+        {section_lines, remaining} = collect_section_lines([line], rest)
+        split_at_sections(remaining, preamble_acc, [{heading, section_lines} | sections_acc])
+
+      :not_heading ->
+        # This shouldn't happen since after first section, all lines belong to sections
+        # But handle gracefully by appending to last section
+        [{prev_heading, prev_lines} | rest_sections] = sections_acc
+        split_at_sections(rest, preamble_acc, [{prev_heading, prev_lines ++ [line]} | rest_sections])
+    end
+  end
+
+  # Collect lines belonging to a section (until next ## heading or EOF)
+  defp collect_section_lines(acc, []) do
+    {Enum.reverse(acc), []}
+  end
+
+  defp collect_section_lines(acc, [line | rest] = remaining) do
+    case extract_heading(line) do
+      {:ok, _heading} ->
+        {Enum.reverse(acc), remaining}
+
+      :not_heading ->
+        collect_section_lines([line | acc], rest)
+    end
+  end
+
+  # Check if a line is a ## heading (but not ### or deeper)
+  defp extract_heading("## " <> heading_text), do: {:ok, String.trim_trailing(heading_text)}
+  defp extract_heading(_), do: :not_heading
+
+  # Truncate preamble string to fit within @max_preamble_bytes on a line boundary
+  defp truncate_preamble_string(preamble) when byte_size(preamble) <= @max_preamble_bytes do
+    preamble
+  end
+
+  defp truncate_preamble_string(preamble) do
+    lines = String.split(preamble, "\n", trim: false)
+    truncate_lines_to_bytes(lines, @max_preamble_bytes)
+  end
+
+  # Take lines until adding the next line would exceed the byte limit
+  defp truncate_lines_to_bytes(lines, max_bytes) do
+    truncate_lines_to_bytes(lines, max_bytes, [], 0)
+  end
+
+  defp truncate_lines_to_bytes([], _max_bytes, acc, _size) do
+    Enum.reverse(acc) |> Enum.join("\n")
+  end
+
+  defp truncate_lines_to_bytes([line | rest], max_bytes, acc, current_size) do
+    # Account for the newline separator between lines
+    separator_size = if acc == [], do: 0, else: 1
+    new_size = current_size + separator_size + byte_size(line)
+
+    if new_size > max_bytes do
+      Enum.reverse(acc) |> Enum.join("\n")
+    else
+      truncate_lines_to_bytes(rest, max_bytes, [line | acc], new_size)
+    end
+  end
+
+  # Drop oldest sections (from front) until total fits within target bytes.
+  # When no sections remain, return [] — preamble is always preserved as-is.
+  defp drop_oldest_until_fits(_preamble, [], _target), do: []
+
+  defp drop_oldest_until_fits(preamble, sections, target) do
+    total = byte_size(reassemble(preamble, sections))
+
+    if total <= target do
+      sections
+    else
+      drop_oldest_until_fits(preamble, tl(sections), target)
+    end
+  end
+
+  # Reassemble preamble and sections into a single string
+  defp reassemble(preamble, []) do
+    preamble
+  end
+
+  defp reassemble("", sections) do
+    sections
+    |> Enum.map(& &1.body)
+    |> Enum.join("\n")
+  end
+
+  defp reassemble(preamble, sections) do
+    section_text =
+      sections
+      |> Enum.map(& &1.body)
+      |> Enum.join("\n")
+
+    preamble <> "\n" <> section_text
+  end
+
   # --- Private helpers ---
 
   defp sha256_hex(data) do

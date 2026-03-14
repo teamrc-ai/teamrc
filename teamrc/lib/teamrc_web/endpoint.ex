@@ -16,6 +16,10 @@ defmodule TeamrcWeb.Endpoint do
     Keyword.merge(@default_session_options, runtime_overrides)
   end
 
+  socket "/socket", TeamrcWeb.UserSocket,
+    websocket: true,
+    longpoll: true
+
   socket "/live", Phoenix.LiveView.Socket,
     websocket: [connect_info: [session: {__MODULE__, :session_options, []}]],
     longpoll: [connect_info: [session: {__MODULE__, :session_options, []}]]

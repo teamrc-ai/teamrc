@@ -190,6 +190,94 @@ export function mergeKnowledge(remote: string, local: string): string {
   return remote.trimEnd() + "\n" + newLines.join("\n") + "\n";
 }
 
+export interface KnowledgeSection {
+  heading: string;  // text after "## "
+  body: string;     // full text including "## " line and all lines until next section
+}
+
+export interface ParsedKnowledge {
+  preamble: string;    // everything before first "## ", up to 10KB
+  sections: KnowledgeSection[];  // ordered oldest (top) → newest (bottom)
+}
+
+const MAX_PREAMBLE_BYTES = 10 * 1024; // 10 KB
+
+export function parseKnowledge(content: string): ParsedKnowledge {
+  if (!content) return { preamble: "", sections: [] };
+
+  // Find the first "## " heading (must be at start of a line)
+  const sectionPattern = /^## /m;
+  const firstMatch = sectionPattern.exec(content);
+
+  let preamble: string;
+  let rest: string;
+
+  if (!firstMatch) {
+    preamble = content;
+    rest = "";
+  } else {
+    preamble = content.slice(0, firstMatch.index);
+    rest = content.slice(firstMatch.index);
+  }
+
+  // Cap preamble at 10KB, truncating at a line boundary
+  if (Buffer.byteLength(preamble, "utf8") > MAX_PREAMBLE_BYTES) {
+    const lines = preamble.split("\n");
+    let truncated = "";
+    for (const line of lines) {
+      const candidate = truncated ? truncated + "\n" + line : line;
+      if (Buffer.byteLength(candidate, "utf8") > MAX_PREAMBLE_BYTES) break;
+      truncated = candidate;
+    }
+    preamble = truncated ? truncated + "\n" : "";
+  }
+
+  // Parse sections
+  const sections: KnowledgeSection[] = [];
+  if (rest) {
+    // Split on "## " at start of line, keeping the delimiter
+    const parts = rest.split(/^(?=## )/m);
+    for (const part of parts) {
+      if (!part) continue;
+      const newlineIdx = part.indexOf("\n");
+      const headingLine = newlineIdx === -1 ? part : part.slice(0, newlineIdx);
+      const heading = headingLine.replace(/^## /, "");
+      sections.push({ heading, body: part });
+    }
+  }
+
+  return { preamble, sections };
+}
+
+export function pruneKnowledge(content: string, maxBytes: number = 100_000): string {
+  if (!content) return "";
+
+  const totalBytes = Buffer.byteLength(content, "utf8");
+  if (totalBytes <= maxBytes) return content;
+
+  const parsed = parseKnowledge(content);
+  const targetBytes = Math.floor(maxBytes * 0.8);
+
+  let currentBytes = Buffer.byteLength(parsed.preamble, "utf8");
+
+  // Drop sections from the front (oldest first) until we fit
+  let startIdx = 0;
+  for (let i = 0; i < parsed.sections.length; i++) {
+    const projectedTotal = currentBytes + parsed.sections.slice(i).reduce(
+      (sum, s) => sum + Buffer.byteLength(s.body, "utf8"), 0,
+    );
+
+    if (projectedTotal <= targetBytes) {
+      startIdx = i;
+      break;
+    }
+    startIdx = i + 1;
+  }
+
+  const remainingSections = parsed.sections.slice(startIdx);
+  return parsed.preamble + remainingSections.map((s) => s.body).join("");
+}
+
 export const MAX_KNOWLEDGE_SIZE = 512 * 1024; // 512 KB
 
 const MAX_SOURCE_SIZE = 1024 * 1024; // 1 MB
