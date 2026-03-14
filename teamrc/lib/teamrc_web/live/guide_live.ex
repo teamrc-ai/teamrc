@@ -363,7 +363,7 @@ defmodule TeamrcWeb.GuideLive do
             <p class="text-sm text-base-content/70 mt-0.5">
               The shared coordination point. Changes go up through the CLI or web UI, and machines pull
               them back down with <.code_inline>sync</.code_inline>, <.code_inline>pull</.code_inline>,
-              or background sync (coming soon).
+              or background sync.
             </p>
           </div>
         </div>
@@ -1027,12 +1027,14 @@ defmodule TeamrcWeb.GuideLive do
 
       <.cli_command
         name="daemon"
-        desc="Start background sync process (coming soon)"
+        desc="Start background knowledge sync process"
         usage="teamrc daemon"
         flags={[
-          {"--poll-interval <ms>", "Poll interval in milliseconds (default: 120000, min: 5000)"}
+          {"--scope <scope>", "project or global (default: project)"},
+          {"--rest-only", "Force REST polling mode (no WebSocket)"},
+          {"--poll-interval <seconds>", "REST fallback poll interval (default: 120, min: 5)"}
         ]}
-        details="Coming soon. Will run a background process that watches your .teamrc.yaml for local changes and periodically polls the relay for remote updates. In the meantime, use teamrc sync to sync manually."
+        details="Runs a background process that keeps the team knowledge file in sync across machines in real-time via WebSocket. Watches the local knowledge file for changes and pushes updates to the relay. Receives remote changes and merges them locally. Does not sync team config (members, skills) — use teamrc sync for that."
       />
     </section>
 
@@ -1376,7 +1378,7 @@ defmodule TeamrcWeb.GuideLive do
       {"#conflicts", "Conflict resolution"},
       {"#invites", "Invite codes"},
       {"#multi-project", "Multi-project teams"},
-      {"#daemon", "Daemon mode (coming soon)"},
+      {"#daemon", "Daemon mode"},
       {"#auth", "Authentication"}
     ]} />
 
@@ -1641,14 +1643,13 @@ defmodule TeamrcWeb.GuideLive do
 
     <%!-- Daemon --%>
     <section class="space-y-3">
-      <.section_heading id="daemon" title="Daemon mode (coming soon)" />
+      <.section_heading id="daemon" title="Daemon mode" />
       <p class="text-sm text-base-content/70 leading-relaxed">
-        Background sync is coming soon. The daemon will be a background process that keeps your machine synced automatically by polling the relay and watching your
-        <.code_inline>.teamrc.yaml</.code_inline>
-        for local changes.
+        <.code_inline>teamrc daemon</.code_inline> runs a background process that keeps the team knowledge file in sync across machines in real-time via WebSocket.
+        It watches your local knowledge file for changes and pushes updates to the relay, and receives remote changes and merges them locally.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        In the meantime, use <.code_inline>teamrc sync</.code_inline> to sync manually whenever you need to pull or push changes.
+        The daemon syncs knowledge only — it does not sync team config (members, skills, instructions). Use <.code_inline>teamrc sync</.code_inline> for full team config sync.
       </p>
     </section>
 
@@ -3484,10 +3485,9 @@ defmodule TeamrcWeb.GuideLive do
       <.faq_item question="What does the daemon do?">
         <p class="text-sm text-base-content/70 leading-relaxed">
           <.code_inline>teamrc daemon</.code_inline>
-          is coming soon. It will run a background process that polls the relay for changes and watches your
-          <.code_inline>.teamrc.yaml</.code_inline>
-          for local edits, automatically regenerating platform config files when anything changes.
-          In the meantime, use <.code_inline>teamrc sync</.code_inline> to sync manually.
+          runs a background process that keeps the team knowledge file in sync across machines in real-time via WebSocket.
+          It watches your local knowledge file for changes and pushes updates to the relay, and receives remote changes and merges them locally.
+          The daemon syncs knowledge only — it does not sync team config (members, skills). Use <.code_inline>teamrc sync</.code_inline> for full team config sync.
         </p>
       </.faq_item>
 
