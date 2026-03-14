@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Template catalog — loads agents, skills, and teams from YAML files
+// Template catalog  --  loads agents, skills, and teams from YAML files
 // ---------------------------------------------------------------------------
 
 import * as fs from "node:fs";
@@ -22,6 +22,7 @@ const TEMPLATES_DIR = fs.existsSync(path.resolve(__dirname, "templates"))
 interface CatalogAgent {
   name: string;
   role: string;
+  description: string;
   category: string;
   soul: string;
 }
@@ -221,7 +222,7 @@ export function listSkillCategories(): SkillCategory[] {
 }
 
 // ---------------------------------------------------------------------------
-// Recommended skills — scan all team templates for per-agent skill assignments
+// Recommended skills  --  scan all team templates for per-agent skill assignments
 // ---------------------------------------------------------------------------
 
 /**
@@ -259,6 +260,7 @@ export function resolveTeam(teamId: string): TeamTemplate {
     return {
       name: agent.name,
       role: agent.role,
+      ...(agent.description ? { description: agent.description } : {}),
       soul: agent.soul,
       ...(agentSkillIds && agentSkillIds.length > 0 ? { skills: agentSkillIds } : {}),
     };
@@ -295,6 +297,7 @@ export function templateToTeamDefinition(template: TeamTemplate, teamName: strin
     members: template.members.map((m) => ({
       name: m.name,
       role: m.role,
+      ...(m.description ? { description: m.description } : {}),
       soul: m.soul,
       ...(m.skills && m.skills.length > 0 ? { skills: m.skills } : {}),
     })),

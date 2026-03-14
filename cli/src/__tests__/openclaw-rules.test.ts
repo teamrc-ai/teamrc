@@ -423,4 +423,20 @@ describe("OpenClaw adapter (file-based agents)", () => {
       assert.ok(fs.existsSync(skillFile), `${skillName}/SKILL.md should exist`);
     }
   });
+
+  it("uses member description in agent file when present", async () => {
+    const { OpenClawAdapter } = await import("../adapters/openclaw.js");
+    const adapter = new OpenClawAdapter();
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [
+        { name: "coder", role: "developer", description: "Builds features. Use for feature work." },
+      ],
+    });
+
+    const agentDir = path.join(tmpDir, ".openclaw", "agents");
+    const content = fs.readFileSync(path.join(agentDir, "trc-coder.md"), "utf-8");
+    assert.ok(content.includes("description: Builds features. Use for feature work."));
+  });
 });

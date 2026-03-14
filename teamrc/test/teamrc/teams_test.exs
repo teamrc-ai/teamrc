@@ -550,7 +550,7 @@ defmodule Teamrc.TeamsTest do
       {:ok, _invite, team_id, claim_secret} = Teams.create_team_with_invite(team_attrs)
 
       user = user_fixture()
-      # User is NOT a participant — no machine token linked to this team
+      # User is NOT a participant  --  no machine token linked to this team
       assert {:error, :not_participant} = Teams.claim_ownership_by_user(user.id, team_id, claim_secret)
 
       team = Teamrc.Repo.get!(Teamrc.Schema.Team, team_id)
@@ -910,6 +910,114 @@ defmodule Teamrc.TeamsTest do
     end
   end
 
+  describe "member description field" do
+    test "stores and retrieves description on team create" do
+      token = "trc_ak_desc1_#{:erlang.unique_integer([:positive])}"
+      team = %{
+        "name" => "desc-team",
+        "members" => [%{"name" => "agent1", "role" => "dev", "description" => "Builds APIs and data models"}]
+      }
+      {:ok, result} = Teams.put_team(token, team)
+      member = hd(result["members"])
+      assert member["description"] == "Builds APIs and data models"
+    end
+
+    test "description is optional and omitted from response when nil" do
+      token = "trc_ak_desc2_#{:erlang.unique_integer([:positive])}"
+      team = %{
+        "name" => "no-desc-team",
+        "members" => [%{"name" => "agent1", "role" => "dev"}]
+      }
+      {:ok, result} = Teams.put_team(token, team)
+      member = hd(result["members"])
+      refute Map.has_key?(member, "description")
+    end
+
+    test "description survives put_team overwrite" do
+      token = "trc_ak_desc3_#{:erlang.unique_integer([:positive])}"
+      Teams.put_team(token, %{
+        "name" => "desc-overwrite",
+        "members" => [%{"name" => "agent1", "role" => "dev", "description" => "original"}]
+      })
+      Teams.put_team(token, %{
+        "name" => "desc-overwrite",
+        "members" => [%{"name" => "agent1", "role" => "dev", "description" => "updated"}]
+      })
+      {:ok, result} = Teams.get_team(token)
+      assert hd(result["members"])["description"] == "updated"
+    end
+
+    test "description can be cleared by setting to nil" do
+      token = "trc_ak_desc4_#{:erlang.unique_integer([:positive])}"
+      Teams.put_team(token, %{
+        "name" => "desc-clear",
+        "members" => [%{"name" => "agent1", "role" => "dev", "description" => "has desc"}]
+      })
+      Teams.put_team(token, %{
+        "name" => "desc-clear",
+        "members" => [%{"name" => "agent1", "role" => "dev"}]
+      })
+      {:ok, result} = Teams.get_team(token)
+      refute Map.has_key?(hd(result["members"]), "description")
+    end
+
+    test "description changes trigger hash update" do
+      token = "trc_ak_desc5_#{:erlang.unique_integer([:positive])}"
+      {:ok, v1} = Teams.put_team(token, %{
+        "name" => "desc-hash",
+        "members" => [%{"name" => "agent1", "role" => "dev"}]
+      })
+      {:ok, v2} = Teams.put_team(token, %{
+        "name" => "desc-hash",
+        "members" => [%{"name" => "agent1", "role" => "dev", "description" => "added desc"}]
+      })
+      assert v1["members_hash"] != v2["members_hash"]
+      assert v1["hash"] != v2["hash"]
+    end
+
+    test "description stored via create_team_with_invite" do
+      team_attrs = %{
+        name: "desc-invite",
+        members: [%{name: "dev", role: "dev", description: "Handles backend logic"}],
+        skills: [],
+        platforms: []
+      }
+      {:ok, _invite, team_id, _} = Teams.create_team_with_invite(team_attrs)
+      team = Teams.get_team_by_id(team_id)
+      member = hd(team.members)
+      assert member.description == "Handles backend logic"
+    end
+
+    test "description stored and updated via update_member" do
+      token = "trc_ak_desc6_#{:erlang.unique_integer([:positive])}"
+      {:ok, team_data} = Teams.put_team(token, %{
+        "name" => "desc-update-member",
+        "members" => [%{"name" => "agent1", "role" => "dev"}]
+      })
+      team = Teams.get_team_by_id(team_data["id"])
+      member = hd(team.members)
+
+      {:ok, updated} = Teams.update_member(member, %{description: "New description"})
+      assert updated.description == "New description"
+    end
+
+    test "description validated to max 1000 chars" do
+      token = "trc_ak_desc7_#{:erlang.unique_integer([:positive])}"
+      {:ok, team_data} = Teams.put_team(token, %{
+        "name" => "desc-validate",
+        "members" => [%{"name" => "agent1", "role" => "dev"}]
+      })
+      team = Teams.get_team_by_id(team_data["id"])
+      member = hd(team.members)
+
+      long_desc = String.duplicate("a", 1001)
+      assert {:error, _changeset} = Teams.update_member(member, %{description: long_desc})
+
+      ok_desc = String.duplicate("a", 1000)
+      assert {:ok, _} = Teams.update_member(member, %{description: ok_desc})
+    end
+  end
+
   describe "diff-based member updates" do
     test "unchanged members keep stable IDs" do
       token = "trc_ak_diff1_#{:erlang.unique_integer([:positive])}"
@@ -925,7 +1033,7 @@ defmodule Teamrc.TeamsTest do
       {:ok, first} = Teams.get_team(token)
       first_ids = first["members"] |> Enum.map(& &1["name"]) |> Enum.sort()
 
-      # Update only bob's role — alice should keep stable ID
+      # Update only bob's role  --  alice should keep stable ID
       Teams.put_team(token, %{
         "name" => "stable-team",
         "members" => [

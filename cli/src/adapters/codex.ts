@@ -256,8 +256,9 @@ export class CodexAdapter implements PlatformAdapter {
     for (const member of team.members) {
       const slug = slugify(member.name);
       const safeRole = sanitizeText(member.role);
+      const description = member.description || safeRole;
       lines.push(`[agents.trc-${slug}]`);
-      lines.push(`description = ${JSON.stringify(safeRole)}`);
+      lines.push(`description = ${JSON.stringify(description)}`);
       lines.push(`config_file = "agents/trc-${slug}.toml"`);
       lines.push("");
     }

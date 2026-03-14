@@ -23,7 +23,7 @@ import {
  * OpenClaw file-based agent adapter.
  *
  * Each team member becomes a Markdown file with YAML frontmatter at
- * ~/.openclaw/agents/trc-<slug>.md — OpenHands auto-discovers these for
+ * ~/.openclaw/agents/trc-<slug>.md  --  OpenHands auto-discovers these for
  * delegation, so agents can call each other without explicit allowlists.
  *
  * Skills:     ~/.openclaw/skills/trc-<id>/SKILL.md
@@ -367,9 +367,11 @@ function buildAgentFile(
   const lines: string[] = [];
 
   // YAML frontmatter
+  const description = member.description || safeRole;
+
   lines.push("---");
   lines.push(`name: trc-${slugify(member.name)}`);
-  lines.push(`description: ${safeRole}`);
+  lines.push(`description: ${description}`);
   lines.push("---");
   lines.push("");
 
@@ -396,7 +398,7 @@ function buildAgentFile(
   // Teammates
   const teammates = allMembers
     .filter((m) => m.name !== member.name)
-    .map((m) => `- **${sanitizeText(m.name)}** — ${sanitizeText(m.role)}`)
+    .map((m) => `- **${sanitizeText(m.name)}**  --  ${sanitizeText(m.role)}`)
     .join("\n");
   if (teammates) {
     lines.push("## Teammates");

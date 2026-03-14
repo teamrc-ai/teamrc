@@ -190,4 +190,22 @@ describe("Cursor adapter", () => {
     );
     assert.ok(saveContent.includes("disable-model-invocation: true"));
   });
+
+  it("uses member description in agent file when present", async () => {
+    const { CursorAdapter } = await import("../adapters/cursor.js");
+    const adapter = new CursorAdapter();
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [
+        { name: "coder", role: "developer", description: "Builds features. Use for feature work." },
+      ],
+    });
+
+    const agentDir = path.join(tmpDir, ".cursor", "agents");
+    const content = fs.readFileSync(path.join(agentDir, "trc-coder.md"), "utf-8");
+    assert.ok(content.includes('description: "Builds features. Use for feature work."'));
+    // Description should NOT contain the role-based fallback pattern
+    assert.ok(!content.includes('description: "developer on the'));
+  });
 });

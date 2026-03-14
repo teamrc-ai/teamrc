@@ -225,6 +225,75 @@ defmodule TeamrcWeb.MemberDetailLiveTest do
     end
   end
 
+  describe "editing member description" do
+    test "owner sees description textarea", %{conn: conn} do
+      %{user: user, team_id: team_id} = create_owner_with_team()
+      conn = log_in_user(conn, user)
+      member = team_member(team_id)
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}")
+
+      assert has_element?(view, "textarea#member-description")
+    end
+
+    test "invite holder does not see description textarea", %{conn: conn} do
+      {code, team_id} = create_team_with_invite()
+      member = team_member(team_id)
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}?invite=#{code}")
+
+      refute has_element?(view, "textarea#member-description")
+    end
+
+    test "owner can save description", %{conn: conn} do
+      %{user: user, team_id: team_id} = create_owner_with_team()
+      conn = log_in_user(conn, user)
+      member = team_member(team_id)
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}")
+
+      view |> element("textarea[phx-keyup='update_description']") |> render_keyup(%{"value" => "Builds backend APIs"})
+      view |> element("button[phx-click='save']") |> render_click()
+
+      html = render(view)
+      assert html =~ "Saved."
+
+      db_member = Repo.get!(Member, member.id)
+      assert db_member.description == "Builds backend APIs"
+    end
+
+    test "description exceeding 1000 bytes fails", %{conn: conn} do
+      %{user: user, team_id: team_id} = create_owner_with_team()
+      conn = log_in_user(conn, user)
+      member = team_member(team_id)
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}")
+
+      long_desc = String.duplicate("x", 1001)
+      view |> element("textarea[phx-keyup='update_description']") |> render_keyup(%{"value" => long_desc})
+      view |> element("button[phx-click='save']") |> render_click()
+
+      html = render(view)
+      assert html =~ "Description exceeds 1000 bytes."
+    end
+
+    test "empty description is saved as nil", %{conn: conn} do
+      %{user: user, team_id: team_id} = create_owner_with_team(
+        members: [%{name: "dev", role: "development", description: "Has a desc"}]
+      )
+      conn = log_in_user(conn, user)
+      member = team_member(team_id)
+
+      {:ok, view, _html} = live(conn, "/teams/#{team_id}/members/#{member.id}")
+
+      view |> element("textarea[phx-keyup='update_description']") |> render_keyup(%{"value" => ""})
+      view |> element("button[phx-click='save']") |> render_click()
+
+      db_member = Repo.get!(Member, member.id)
+      assert is_nil(db_member.description)
+    end
+  end
+
   describe "deleting member" do
     test "owner can delete member and redirects to team page", %{conn: conn} do
       %{user: user, team_id: team_id} = create_owner_with_team()

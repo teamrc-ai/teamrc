@@ -252,7 +252,7 @@ export class CursorAdapter implements PlatformAdapter {
     // Add teammates
     const teammates = allMembers
       .filter((m) => m.name !== member.name)
-      .map((m) => `- **${sanitizeText(m.name)}** — ${sanitizeText(m.role)}`)
+      .map((m) => `- **${sanitizeText(m.name)}**  --  ${sanitizeText(m.role)}`)
       .join("\n");
     if (teammates) {
       bodyParts.push("## Teammates");
@@ -263,9 +263,13 @@ export class CursorAdapter implements PlatformAdapter {
 
     const body = bodyParts.join("\n").trim();
 
+    const description = member.description
+      ? escapeYamlString(member.description)
+      : `${escapeYamlString(safeRole)} on the ${escapeYamlString(safeTeamName)} team. Use when tasks relate to ${escapeYamlString(safeRole.toLowerCase())}.`;
+
     const content = `---
 name: trc-${slug}
-description: "${escapeYamlString(safeRole)} on the ${escapeYamlString(safeTeamName)} team. Use when tasks relate to ${escapeYamlString(safeRole.toLowerCase())}."
+description: "${description}"
 ---
 
 ${body}
@@ -429,7 +433,7 @@ function parseSkillMd(dirName: string, content: string): Skill | null {
   const id = dirName.replace(/^trc-/, "");
   const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!match) {
-    // No frontmatter — treat entire content as body
+    // No frontmatter  --  treat entire content as body
     return { id, body: content.trim() };
   }
 

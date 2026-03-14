@@ -57,6 +57,7 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
     const name = String(m.name || "");
     validateAgentName(name);
     const member: TeamMember = { name, role: String(m.role || "") };
+    if (m.description) member.description = String(m.description);
     if (m.soul) member.soul = String(m.soul);
     if (Array.isArray(m.skills)) member.skills = m.skills.map((s: unknown) => String(s));
     return member;
@@ -147,6 +148,7 @@ export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
     ...(team.platforms ? { platforms: team.platforms } : {}),
     members: team.members.map((m) => {
       const entry: Record<string, unknown> = { name: m.name, role: m.role };
+      if (m.description) entry.description = m.description;
       if (m.soul) entry.soul = m.soul;
       if (m.skills && m.skills.length > 0) entry.skills = m.skills;
       return entry;

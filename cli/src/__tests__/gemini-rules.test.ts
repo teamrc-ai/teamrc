@@ -240,4 +240,20 @@ describe("Gemini CLI adapter", () => {
     }
   });
 
+  it("uses member description in agent file when present", async () => {
+    const { GeminiAdapter } = await import("../adapters/gemini.js");
+    const adapter = new GeminiAdapter();
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [
+        { name: "coder", role: "developer", description: "Builds features. Use for feature work." },
+      ],
+    }, "project");
+
+    const agentDir = path.join(process.cwd(), ".gemini", "agents");
+    const content = fs.readFileSync(path.join(agentDir, "trc-coder.md"), "utf-8");
+    assert.ok(content.includes('description: "Builds features. Use for feature work."'));
+  });
+
 });

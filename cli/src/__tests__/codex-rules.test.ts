@@ -212,4 +212,20 @@ describe("Codex adapter", () => {
     assert.ok(fs.existsSync(path.join(agentDir, "trc-alice.toml")), "alice should remain");
     assert.ok(!fs.existsSync(path.join(agentDir, "trc-bob.toml")), "bob should be deleted");
   });
+
+  it("uses member description in config.toml when present", async () => {
+    const { CodexAdapter } = await import("../adapters/codex.js");
+    const adapter = new CodexAdapter();
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [
+        { name: "coder", role: "developer", description: "Builds features. Use for feature work." },
+      ],
+    });
+
+    const configPath = path.join(tmpDir, ".codex", "config.toml");
+    const content = fs.readFileSync(configPath, "utf-8");
+    assert.ok(content.includes("Builds features. Use for feature work."));
+  });
 });

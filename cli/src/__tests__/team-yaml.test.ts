@@ -105,6 +105,24 @@ describe("writeTeamYaml", () => {
     assert.equal(result.members[1].soul, "soul text");
   });
 
+  it("roundtrips description field", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    const team: TeamDefinition = {
+      name: "desc-team",
+      members: [
+        { name: "agent-a", role: "role-a", description: "Builds features. Use for feature work." },
+        { name: "agent-b", role: "role-b" },
+      ],
+    };
+
+    writeTeamYaml(filePath, team);
+    const result = readTeamYaml(filePath);
+
+    assert.ok(result);
+    assert.equal(result.members[0].description, "Builds features. Use for feature work.");
+    assert.equal(result.members[1].description, undefined);
+  });
+
   it("does not write syncHash fields to YAML", () => {
     const filePath = path.join(tmpDir, ".teamrc.yaml");
     writeTeamYaml(filePath, {

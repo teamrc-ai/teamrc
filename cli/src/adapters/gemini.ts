@@ -52,7 +52,7 @@ export class GeminiAdapter implements PlatformAdapter {
     return path.join(process.cwd(), ".agents", "skills");
   }
 
-  /** Antigravity uses .agent/skills/ (singular) — mirror skills there for compatibility */
+  /** Antigravity uses .agent/skills/ (singular)  --  mirror skills there for compatibility */
   private antigravitySkillsDir(scope: TeamScope): string {
     if (scope === "global") {
       return path.join(os.homedir(), ".gemini", "antigravity", "skills");
@@ -207,7 +207,7 @@ export class GeminiAdapter implements PlatformAdapter {
 
     const safeName = sanitizeMarkerContent(team.name);
     const memberLines = team.members
-      .map((m) => `- **${sanitizeMarkerContent(m.name)}** — ${sanitizeMarkerContent(m.role)}`)
+      .map((m) => `- **${sanitizeMarkerContent(m.name)}**  --  ${sanitizeMarkerContent(m.role)}`)
       .join("\n");
 
     const sections = [
@@ -392,9 +392,13 @@ function buildAgentFile(teamName: string, member: TeamMember, team?: TeamDefinit
     }
   }
 
+  const description = member.description
+    ? escapeYamlString(member.description)
+    : safeRole;
+
   return `---
 name: "${name}"
-description: "${safeRole}"
+description: "${description}"
 ---
 
 # Team: ${safeTeamNameText}

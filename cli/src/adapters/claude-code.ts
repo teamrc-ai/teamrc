@@ -455,12 +455,16 @@ function buildAgentFile(teamName: string, member: TeamMember, allMembers: TeamMe
 
   const teammates = allMembers
     .filter((m) => m.name !== member.name)
-    .map((m) => `- **${sanitizeText(m.name)}** — ${sanitizeText(m.role)}`)
+    .map((m) => `- **${sanitizeText(m.name)}**  --  ${sanitizeText(m.role)}`)
     .join("\n");
+
+  const description = member.description
+    ? escapeYamlString(member.description)
+    : `${safeRole} on the ${safeTeamName} team. Use when tasks relate to ${safeRole.toLowerCase()}.`;
 
   return `---
 name: ${name}
-description: "${safeRole} on the ${safeTeamName} team. Use when tasks relate to ${safeRole.toLowerCase()}."
+description: "${description}"
 model: inherit${skillsFrontmatter}
 ---
 
@@ -477,7 +481,7 @@ ${teammates}
 function buildClaudeMdSection(team: TeamDefinition): string {
   const safeName = sanitizeMarkerContent(team.name);
   const memberLines = team.members
-    .map((m) => `- **${sanitizeMarkerContent(m.name)}** — ${sanitizeMarkerContent(m.role)}`)
+    .map((m) => `- **${sanitizeMarkerContent(m.name)}**  --  ${sanitizeMarkerContent(m.role)}`)
     .join("\n");
 
   return `<!-- teamrc -->

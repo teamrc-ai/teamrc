@@ -24,6 +24,7 @@ export interface Skill {
 export interface TeamMember {
   name: string;
   role: string;
+  description?: string;
   soul?: string;
   skills?: string[];  // references Skill.id
 }
@@ -192,7 +193,7 @@ export function removeMarkerBlock(
   return true;
 }
 
-/** Resolve agents directory — check project first, fall back to global */
+/** Resolve agents directory  --  check project first, fall back to global */
 export function resolveAgentsDir(
   projectDir: string,
   globalDir: string,
@@ -229,7 +230,7 @@ export function deleteKnowledgeFiles(dir: string, teamSlug: string): string[] {
   if (!fs.existsSync(dir)) return [];
   const deleted: string[] = [];
   if (teamSlug === "team") {
-    // Slug unknown (e.g., YAML already deleted) — clean up all knowledge files
+    // Slug unknown (e.g., YAML already deleted)  --  clean up all knowledge files
     const files = fs.readdirSync(dir).filter((f) => f.startsWith("knowledge-") && f.endsWith(".md"));
     for (const f of files) {
       const full = path.join(dir, f);
@@ -322,12 +323,12 @@ Sections are pruned oldest-first (FIFO) when the file exceeds 100KB. The preambl
     {
       id: "save-core",
       title: "Save Core Knowledge",
-      description: "Save permanent knowledge to the preamble section that is never pruned — use for test commands, architecture decisions, and key conventions",
+      description: "Save permanent knowledge to the preamble section that is never pruned  --  use for test commands, architecture decisions, and key conventions",
       disableModelInvocation: true,
       argumentHint: "<details>",
       body: `Save permanent knowledge to the preamble of the team knowledge file at \`${knowledgePath}\`.
 
-The preamble is everything before the first \`## \` heading. It is capped at 10KB and is **never pruned** — use it for essential, permanent information like:
+The preamble is everything before the first \`## \` heading. It is capped at 10KB and is **never pruned**  --  use it for essential, permanent information like:
 - Test commands
 - Architecture decisions
 - Key conventions
@@ -335,7 +336,7 @@ The preamble is everything before the first \`## \` heading. It is capped at 10K
 
 1. Read the current knowledge file
 2. Add the provided information to the preamble (before the first \`## \` heading)
-3. Keep the preamble concise — it should stay well under 10KB
+3. Keep the preamble concise  --  it should stay well under 10KB
 4. Write the updated file
 5. Report the current preamble size`,
     },

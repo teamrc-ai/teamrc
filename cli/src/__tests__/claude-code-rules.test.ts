@@ -218,6 +218,38 @@ describe("Claude Code agent file with skills", () => {
     assert.ok(content.includes('argument-hint: "<file>"'));
   });
 
+  it("uses member description in agent file when present", async () => {
+    const { ClaudeCodeAdapter } = await import("../adapters/claude-code.js");
+    const adapter = new ClaudeCodeAdapter();
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [
+        { name: "coder", role: "developer", description: "Builds features. Use for feature work." },
+      ],
+    }, "global");
+
+    const agentDir = path.join(tmpDir, ".claude", "agents");
+    const content = fs.readFileSync(path.join(agentDir, "trc-coder.md"), "utf-8");
+    assert.ok(content.includes('description: "Builds features. Use for feature work."'));
+    // Description should NOT contain the role-based fallback pattern
+    assert.ok(!content.includes('description: "developer on the'));
+  });
+
+  it("falls back to role-based description when no member description", async () => {
+    const { ClaudeCodeAdapter } = await import("../adapters/claude-code.js");
+    const adapter = new ClaudeCodeAdapter();
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [{ name: "coder", role: "developer" }],
+    }, "global");
+
+    const agentDir = path.join(tmpDir, ".claude", "agents");
+    const content = fs.readFileSync(path.join(agentDir, "trc-coder.md"), "utf-8");
+    assert.ok(content.includes('description: "developer on the test-team team'));
+  });
+
   it("cleans up built-in skills on uninstall", async () => {
     const { ClaudeCodeAdapter } = await import("../adapters/claude-code.js");
     const adapter = new ClaudeCodeAdapter();

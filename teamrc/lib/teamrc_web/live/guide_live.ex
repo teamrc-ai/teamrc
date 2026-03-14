@@ -211,7 +211,7 @@ defmodule TeamrcWeb.GuideLive do
         <.cmd_line cmd="npx @teamrc/cli init" />
       </.terminal_block>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        This generates your machine keypair, writes <.code_inline>.teamrc.yaml</.code_inline>, and applies the generated platform files locally. You'll be asked whether to connect to teamrc.ai for cross-machine sync — you can skip this and connect later.
+        This generates your machine keypair, writes <.code_inline>.teamrc.yaml</.code_inline>, and applies the generated platform files locally. You'll be asked whether to connect to teamrc.ai for cross-machine sync  --  you can skip this and connect later.
       </p>
     </section>
 
@@ -801,7 +801,7 @@ defmodule TeamrcWeb.GuideLive do
           {"--name <name>", "Team name"},
           {"--team <id>", "Start from a catalog template (e.g. fullstack, backend)"}
         ]}
-        details="Generates an ed25519 keypair (stored in ~/.teamrc/key), writes .teamrc.yaml to your project, and applies config to detected platforms. In interactive mode, you'll be asked whether to connect to teamrc.ai for cross-machine sync. Use --local to skip the prompt and create a local-only team. Use --relay to skip the prompt and connect immediately. The interactive wizard lets you pick a catalog template or build a custom team. If a .teamrc.yaml already exists without a team ID (e.g. from clone), init adopts it — no template selection needed. When using --global, init also checks the current directory for a .teamrc.yaml to offer as the global team definition."
+        details="Generates an ed25519 keypair (stored in ~/.teamrc/key), writes .teamrc.yaml to your project, and applies config to detected platforms. In interactive mode, you'll be asked whether to connect to teamrc.ai for cross-machine sync. Use --local to skip the prompt and create a local-only team. Use --relay to skip the prompt and connect immediately. The interactive wizard lets you pick a catalog template or build a custom team. If a .teamrc.yaml already exists without a team ID (e.g. from clone), init adopts it  --  no template selection needed. When using --global, init also checks the current directory for a .teamrc.yaml to offer as the global team definition."
       />
 
       <.cli_command
@@ -826,7 +826,7 @@ defmodule TeamrcWeb.GuideLive do
           {"--name <name>", "Override team name"},
           {"--global", "Apply as global team"}
         ]}
-        details="Like join, but doesn't register this machine with the relay. You get a local copy of the team definition. Cloned teams support read-only pull (to fetch updates from the original) but not push or sync. To fork a cloned team into your own, run teamrc init — it will adopt the existing definition, create a new team on the relay, and give you full ownership."
+        details="Like join, but doesn't register this machine with the relay. You get a local copy of the team definition. Cloned teams support read-only pull (to fetch updates from the original) but not push or sync. To fork a cloned team into your own, run teamrc init  --  it will adopt the existing definition, create a new team on the relay, and give you full ownership."
       />
     </section>
 
@@ -863,7 +863,7 @@ defmodule TeamrcWeb.GuideLive do
         desc="Push local state to the relay"
         usage="teamrc push"
         flags={[]}
-        details="One-way: reads your .teamrc.yaml and knowledge file, and sends them to the relay. Does not pull or apply anything. Use after manually editing .teamrc.yaml. If the team is local-only (not yet connected to a relay), push will register it on teamrc.ai first and then push — this is how you connect a local team."
+        details="One-way: reads your .teamrc.yaml and knowledge file, and sends them to the relay. Does not pull or apply anything. Use after manually editing .teamrc.yaml. If the team is local-only (not yet connected to a relay), push will register it on teamrc.ai first and then push  --  this is how you connect a local team."
       />
 
       <.cli_command
@@ -1052,7 +1052,7 @@ defmodule TeamrcWeb.GuideLive do
           {"--rest-only", "Force REST polling mode (no WebSocket)"},
           {"--poll-interval <seconds>", "REST fallback poll interval (default: 120, min: 5)"}
         ]}
-        details="Runs a background process that keeps the team knowledge file in sync across machines in real-time via WebSocket. Watches the local knowledge file for changes and pushes updates to the relay. Receives remote changes and merges them locally. Does not sync team config (members, skills) — use teamrc sync for that."
+        details="Runs a background process that keeps the team knowledge file in sync across machines in real-time via WebSocket. Watches the local knowledge file for changes and pushes updates to the relay. Receives remote changes and merges them locally. Does not sync team config (members, skills)  --  use teamrc sync for that."
       />
     </section>
 
@@ -1423,7 +1423,7 @@ defmodule TeamrcWeb.GuideLive do
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
         The relay is optional. Teams created with <.code_inline>teamrc init --local</.code_inline> work
-        entirely offline — you can define agents, apply to platforms, and edit your team without any server
+        entirely offline  --  you can define agents, apply to platforms, and edit your team without any server
         connection. When you're ready to sync across machines, run <.code_inline>teamrc push</.code_inline>
         to connect.
       </p>
@@ -1677,7 +1677,7 @@ defmodule TeamrcWeb.GuideLive do
         It watches your local knowledge file for changes and pushes updates to the relay, and receives remote changes and merges them locally.
       </p>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        The daemon syncs knowledge only — it does not sync team config (members, skills, instructions). Use <.code_inline>teamrc sync</.code_inline> for full team config sync.
+        The daemon syncs knowledge only  --  it does not sync team config (members, skills, instructions). Use <.code_inline>teamrc sync</.code_inline> for full team config sync.
       </p>
     </section>
 
@@ -3124,6 +3124,14 @@ defmodule TeamrcWeb.GuideLive do
           </span>
         </div>
         <div class="flex items-start gap-3">
+          <.code_inline>description</.code_inline>
+          <span class="text-base-content/70">
+            Optional. Capability-based description used by AI platforms for task routing.
+            Pattern: <em>"[What it does]. Use when [trigger]."</em>
+            Auto-populated from the template catalog. Falls back to role if absent.
+          </span>
+        </div>
+        <div class="flex items-start gap-3">
           <.code_inline>soul</.code_inline>
           <span class="text-base-content/70">
             Optional. Markdown instructions that define the agent's identity and behavior.
@@ -3521,7 +3529,7 @@ defmodule TeamrcWeb.GuideLive do
           <.code_inline>teamrc daemon</.code_inline>
           runs a background process that keeps the team knowledge file in sync across machines in real-time via WebSocket.
           It watches your local knowledge file for changes and pushes updates to the relay, and receives remote changes and merges them locally.
-          The daemon syncs knowledge only — it does not sync team config (members, skills). Use <.code_inline>teamrc sync</.code_inline> for full team config sync.
+          The daemon syncs knowledge only  --  it does not sync team config (members, skills). Use <.code_inline>teamrc sync</.code_inline> for full team config sync.
         </p>
       </.faq_item>
 

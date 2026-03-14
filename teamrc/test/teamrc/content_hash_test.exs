@@ -68,6 +68,39 @@ defmodule Teamrc.ContentHashTest do
       assert hash == expected
     end
 
+    test "member with description included in hash" do
+      members = [%{"name" => "alice", "role" => "dev", "description" => "Builds APIs"}]
+      hash = ContentHash.compute_members_hash(members)
+
+      expected_json = ~s([{"description":"Builds APIs","name":"alice","role":"dev"}])
+      expected = :crypto.hash(:sha256, expected_json) |> Base.encode16(case: :lower)
+      assert hash == expected
+    end
+
+    test "nil description is omitted from hash" do
+      member_with_nil = [%{"name" => "alice", "role" => "dev", "description" => nil}]
+      member_without = [%{"name" => "alice", "role" => "dev"}]
+
+      assert ContentHash.compute_members_hash(member_with_nil) == ContentHash.compute_members_hash(member_without)
+    end
+
+    test "empty string description is omitted from hash" do
+      member_with_empty = [%{"name" => "alice", "role" => "dev", "description" => ""}]
+      member_without = [%{"name" => "alice", "role" => "dev"}]
+
+      assert ContentHash.compute_members_hash(member_with_empty) == ContentHash.compute_members_hash(member_without)
+    end
+
+    test "description key is sorted alphabetically (before name)" do
+      members = [%{"name" => "alice", "role" => "dev", "description" => "desc", "soul" => "kind", "skills" => ["a"]}]
+      hash = ContentHash.compute_members_hash(members)
+
+      # Keys in alphabetical order: description, name, role, skills, soul
+      expected_json = ~s([{"description":"desc","name":"alice","role":"dev","skills":["a"],"soul":"kind"}])
+      expected = :crypto.hash(:sha256, expected_json) |> Base.encode16(case: :lower)
+      assert hash == expected
+    end
+
     test "skills within a member are sorted" do
       members = [%{"name" => "alice", "role" => "dev", "skills" => ["review", "coding"]}]
       hash = ContentHash.compute_members_hash(members)

@@ -840,7 +840,7 @@ defmodule Teamrc.Teams do
       {:ok, team} ->
         Enum.each(team_data.members, fn m ->
           case %Member{team_id: team.id}
-               |> Member.changeset(%{name: m.name, role: m.role, soul: m[:soul], skills: m.skills})
+               |> Member.changeset(%{name: m.name, role: m.role, description: m[:description], soul: m[:soul], skills: m.skills})
                |> Repo.insert() do
             {:ok, _member} -> :ok
             {:error, changeset} -> Repo.rollback(changeset)
@@ -963,21 +963,22 @@ defmodule Teamrc.Teams do
         # Upsert new and changed members
         Enum.each(team_data.members, fn m ->
           name = m.name || m[:name]
-          attrs = %{name: name, role: m.role || m[:role], soul: m[:soul], skills: m.skills || []}
+          attrs = %{name: name, role: m.role || m[:role], description: m[:description] || m["description"], soul: m[:soul], skills: m.skills || []}
 
           case Map.get(existing_by_name, name) do
             nil ->
-              # New member — insert
+              # New member  --  insert
               case %Member{team_id: team_id} |> Member.changeset(attrs) |> Repo.insert() do
                 {:ok, _} -> :ok
                 {:error, changeset} -> Repo.rollback(changeset)
               end
 
             existing_member ->
-              # Existing — only update if changed
+              # Existing  --  only update if changed
               existing_attrs = %{
                 name: existing_member.name,
                 role: existing_member.role,
+                description: existing_member.description,
                 soul: existing_member.soul,
                 skills: existing_member.skills || []
               }
@@ -1029,6 +1030,7 @@ defmodule Teamrc.Teams do
         %{
           name: m["name"] || m[:name] || "",
           role: m["role"] || m[:role] || "",
+          description: m["description"] || m[:description],
           soul: m["soul"] || m[:soul],
           skills: m["skills"] || m[:skills] || []
         }
@@ -1150,6 +1152,7 @@ defmodule Teamrc.Teams do
       "members" =>
         Enum.map(team.members, fn m ->
           %{"name" => m.name, "role" => m.role}
+          |> put_if_present("description", m.description)
           |> put_if_present("soul", m.soul)
           |> put_if_present("skills", m.skills)
         end)

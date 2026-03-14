@@ -196,6 +196,20 @@ describe("loadAgent", () => {
       assert.ok(agent.soul, `Agent ${name} missing soul`);
     }
   });
+
+  it("all agents have capability-based descriptions", () => {
+    const onDisk = fs
+      .readdirSync(path.join(TEMPLATES_DIR, "agents"))
+      .filter((f) => f.endsWith(".yaml") && f !== "_index.yaml")
+      .map((f) => f.replace(/\.yaml$/, ""));
+
+    for (const name of onDisk) {
+      const agent = loadAgent(name);
+      assert.ok(agent.description, `Agent ${name} missing description`);
+      assert.ok(agent.description.length > 20, `Agent ${name} description too short`);
+      assert.ok(agent.description.includes("Use when"), `Agent ${name} description missing 'Use when' trigger phrase`);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -254,6 +268,14 @@ describe("resolveTeam", () => {
     }
   });
 
+  it("members have descriptions from catalog", () => {
+    const team = resolveTeam("fullstack");
+    for (const member of team.members) {
+      assert.ok(member.description, `Member ${member.name} missing description`);
+      assert.ok(member.description!.includes("Use when"), `Member ${member.name} description missing trigger phrase`);
+    }
+  });
+
   it("skills have ids and bodies", () => {
     const team = resolveTeam("backend");
     for (const skill of team.skills) {
@@ -306,6 +328,14 @@ describe("templateToTeamDefinition", () => {
     const def = templateToTeamDefinition(template, "test");
     assert.ok(def.skills, "Missing skills");
     assert.ok(def.skills!.length > 0);
+  });
+
+  it("preserves descriptions from template", () => {
+    const template = resolveTeam("fullstack");
+    const def = templateToTeamDefinition(template, "test-desc");
+    for (const m of def.members) {
+      assert.ok(m.description, `Member ${m.name} missing description in team definition`);
+    }
   });
 
   it("agent members can reference skills by id", () => {

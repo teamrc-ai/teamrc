@@ -56,6 +56,9 @@ function canonicalJson(value: unknown): string {
  */
 function canonicalizeMember(member: TeamMember): Record<string, unknown> {
   const obj: Record<string, unknown> = {};
+  if (member.description !== undefined && member.description !== null && member.description !== "") {
+    obj.description = member.description;
+  }
   obj.name = member.name;
   obj.role = member.role;
   if (member.skills && member.skills.length > 0) {

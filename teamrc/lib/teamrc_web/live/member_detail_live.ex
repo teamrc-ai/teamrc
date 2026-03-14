@@ -54,6 +54,7 @@ defmodule TeamrcWeb.MemberDetailLive do
              invite_code: invite_code,
              edit_name: member.name,
              edit_role: member.role,
+             edit_description: member.description || "",
              edit_soul: member.soul || "",
              dirty: false
            )}
@@ -108,6 +109,10 @@ defmodule TeamrcWeb.MemberDetailLive do
     {:noreply, assign(socket, edit_role: v, dirty: true)}
   end
 
+  def handle_event("update_description", %{"value" => v}, socket) do
+    {:noreply, assign(socket, edit_description: v, dirty: true)}
+  end
+
   def handle_event("update_soul", %{"value" => v}, socket) do
     {:noreply, assign(socket, edit_soul: v, dirty: true)}
   end
@@ -128,11 +133,15 @@ defmodule TeamrcWeb.MemberDetailLive do
         db_member ->
           name = String.trim(socket.assigns.edit_name)
           role = String.trim(socket.assigns.edit_role)
+          description = String.trim(socket.assigns.edit_description)
           soul = String.trim(socket.assigns.edit_soul)
 
           cond do
             name == "" or role == "" ->
               {:noreply, put_flash(socket, :error, "Name and role are required.")}
+
+            description != "" and byte_size(description) > 1000 ->
+              {:noreply, put_flash(socket, :error, "Description exceeds 1000 bytes.")}
 
             soul != "" and byte_size(soul) > @max_member_soul_bytes ->
               {:noreply, put_flash(socket, :error, "Instructions exceed #{@max_member_soul_bytes} bytes.")}
@@ -141,6 +150,7 @@ defmodule TeamrcWeb.MemberDetailLive do
               changes = %{
                 name: name,
                 role: role,
+                description: if(description != "", do: description, else: nil),
                 soul: if(soul != "", do: soul, else: nil)
               }
 
@@ -292,10 +302,25 @@ defmodule TeamrcWeb.MemberDetailLive do
                 class="trc-focus w-full rounded-lg border border-base-300 bg-base-100 px-4 py-2.5 text-sm placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
               />
             </div>
+            <div>
+              <label for="member-description" class="block text-[10px] font-medium text-base-content/60 uppercase tracking-wider mb-1">
+                Description
+              </label>
+              <textarea
+                id="member-description"
+                phx-keyup="update_description"
+                phx-debounce="300"
+                rows="2"
+                maxlength="1000"
+                placeholder="A short capability-oriented description used for AI subagent dispatch routing..."
+                class="trc-focus w-full rounded-lg border border-base-300 bg-base-100 px-4 py-2.5 text-sm placeholder:text-base-content/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors resize-y"
+              ><%= @edit_description %></textarea>
+            </div>
           </div>
         <% else %>
           <h1 class="text-2xl font-bold tracking-tight font-mono">{@member.name}</h1>
           <p class="text-sm text-base-content/70 mt-1">{@member.role}</p>
+          <p :if={@member.description && @member.description != ""} class="text-xs text-base-content/60 mt-1">{@member.description}</p>
         <% end %>
       </div>
 

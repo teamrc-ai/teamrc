@@ -126,6 +126,37 @@ describe("computeMembersHash", () => {
     assert.equal(hash, sha256('[{"name":"alice","role":"dev","soul":"careful coder"}]'));
   });
 
+  it("includes non-empty description", () => {
+    const members: TeamMember[] = [
+      { name: "alice", role: "dev", description: "Builds features. Use for feature work." },
+    ];
+    const hash = computeMembersHash(members);
+    // description < name alphabetically
+    assert.equal(hash, sha256('[{"description":"Builds features. Use for feature work.","name":"alice","role":"dev"}]'));
+  });
+
+  it("omits undefined description", () => {
+    const members: TeamMember[] = [
+      { name: "alice", role: "dev", description: undefined },
+    ];
+    const hash = computeMembersHash(members);
+    assert.equal(hash, sha256('[{"name":"alice","role":"dev"}]'));
+  });
+
+  it("omits empty string description", () => {
+    const members: TeamMember[] = [
+      { name: "alice", role: "dev", description: "" },
+    ];
+    const hash = computeMembersHash(members);
+    assert.equal(hash, sha256('[{"name":"alice","role":"dev"}]'));
+  });
+
+  it("description changes the hash", () => {
+    const without: TeamMember[] = [{ name: "alice", role: "dev" }];
+    const withDesc: TeamMember[] = [{ name: "alice", role: "dev", description: "some desc" }];
+    assert.notEqual(computeMembersHash(without), computeMembersHash(withDesc));
+  });
+
   it("omits empty skills array", () => {
     const members: TeamMember[] = [
       { name: "alice", role: "dev", skills: [] },

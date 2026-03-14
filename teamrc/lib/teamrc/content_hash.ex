@@ -270,7 +270,7 @@ defmodule Teamrc.ContentHash do
   end
 
   # Drop oldest sections (from front) until total fits within target bytes.
-  # When no sections remain, return [] — preamble is always preserved as-is.
+  # When no sections remain, return []  --  preamble is always preserved as-is.
   defp drop_oldest_until_fits(_preamble, [], _target), do: []
 
   defp drop_oldest_until_fits(preamble, sections, target) do
@@ -340,6 +340,7 @@ defmodule Teamrc.ContentHash do
     sorted_skills = if is_list(skills) and skills != [], do: Enum.sort(skills), else: skills
 
     [
+      {"description", get_field(member, :description, "description")},
       {"name", get_field(member, :name, "name")},
       {"role", get_field(member, :role, "role")},
       {"skills", sorted_skills},

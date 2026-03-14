@@ -47,7 +47,7 @@ platform adapters (Claude Code, Cursor, Codex, OpenClaw, Gemini)
        |
 native agent files (.claude/agents/, .cursor/rules/, etc.)
        |
-  relay server   (optional — cross-machine sync via teamrc.ai)
+  relay server   (optional  --  cross-machine sync via teamrc.ai)
 ```
 
 **Priority chain:** `.teamrc.yaml` > platform folders
@@ -95,6 +95,7 @@ Fields:
 - **members**: Array of agents (max 20)
   - **name**: Agent name (alphanumeric, hyphens, underscores; max 64 chars)
   - **role**: One-line role description
+  - **description**: Optional capability-based description for AI platform routing (e.g. `"Builds UI components. Use when tasks involve React or CSS."`)
   - **soul**: Optional custom persona or instructions
   - **skills**: Optional list of skill IDs to assign to this agent
 - **skills**: Array of shared skills and conventions (max 50)

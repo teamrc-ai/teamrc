@@ -313,6 +313,7 @@ defmodule Teamrc.Catalog do
           soul: agent["soul"] || ""
         }
 
+        base = if agent["description"], do: Map.put(base, :description, agent["description"]), else: base
         if skills != [], do: Map.put(base, :skills, skills), else: base
       end)
 

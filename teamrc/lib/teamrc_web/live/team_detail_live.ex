@@ -712,7 +712,7 @@ defmodule TeamrcWeb.TeamDetailLive do
     current_user = socket.assigns.current_user
     team = socket.assigns.team
 
-    # Require authenticated owner — creator sessions are not sufficient for deletion
+    # Require authenticated owner  --  creator sessions are not sufficient for deletion
     is_authenticated_owner =
       current_user != nil && team.owner_user_id != nil && current_user.id == team.owner_user_id
 
@@ -1289,6 +1289,7 @@ defmodule TeamrcWeb.TeamDetailLive do
                 <div>
                   <span class="font-mono font-semibold text-sm text-base-content">{member.name}</span>
                   <p class="text-xs text-base-content/70 mt-0.5">{member.role}</p>
+                  <p :if={member.description && member.description != ""} class="text-xs text-base-content/50 mt-0.5">{member.description}</p>
                 </div>
                 <svg
                   class="h-4 w-4 text-base-content/50 group-hover:text-primary/80 mt-0.5 shrink-0 transition-colors"
@@ -1733,7 +1734,7 @@ defmodule TeamrcWeb.TeamDetailLive do
               <% end %>
             </div>
 
-            <%!-- Step 2: Skill form (for new skills only — edits render inline above) --%>
+            <%!-- Step 2: Skill form (for new skills only  --  edits render inline above) --%>
             <%= if @skill_mode == :form and is_nil(@editing_skill) do %>
               <.skill_form
                 editing_skill={@editing_skill}
