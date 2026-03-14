@@ -248,11 +248,28 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
           const local = readLocalKnowledge();
           const localHash = local ? computeKnowledgeHash(local) : "";
 
-          if (hash && hash !== localHash) {
-            // We don't have the content yet on join -- the server only sends
-            // hash/size/cap. We need to fetch via REST or wait for an update.
-            // In practice, if hashes differ, we fetch the full team to get
-            // the knowledge content.
+          if (localHash && localHash !== hash) {
+            if (hash) {
+              // Both sides have content but differ -- fetch remote, merge, push merged result
+              void fetchAndMergeViaRest().then(() => {
+                if (!knowledgeChannel) return;
+                const merged = readLocalKnowledge();
+                if (merged) {
+                  void knowledgeChannel.push(merged).then(
+                    () => log("Merged knowledge pushed to relay."),
+                    (err) => warn(`Failed to push merged knowledge: ${(err as Error).message}`),
+                  );
+                }
+              });
+            } else {
+              // Remote is empty, local has content -- push local up
+              void knowledgeChannel!.push(local).then(
+                () => log("Local knowledge pushed to relay."),
+                (err) => warn(`Failed to push local knowledge: ${(err as Error).message}`),
+              );
+            }
+          } else if (hash && !localHash) {
+            // Remote has content, local is empty -- pull
             void fetchAndMergeViaRest();
           }
         },
@@ -350,9 +367,45 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
       void pushKnowledgeViaRest(content);
     });
 
-    // Start polling
-    void pollKnowledgeRest();
+    // Initial bidirectional sync: push local if remote is empty, merge if both have content
+    void initialRestSync();
     scheduleRestPoll();
+  }
+
+  async function initialRestSync(): Promise<void> {
+    try {
+      const local = readLocalKnowledge();
+      const localHash = local ? computeKnowledgeHash(local) : "";
+
+      const head = await restClient.getTeamHead();
+      lastKnownKnowledgeHash = head.knowledge_hash;
+
+      if (localHash && localHash !== head.knowledge_hash) {
+        if (head.knowledge_hash) {
+          // Both sides have content -- fetch, merge, push
+          const team = await restClient.getTeam();
+          if (team.knowledge) {
+            mergeAndWrite(team.knowledge);
+          }
+          const merged = readLocalKnowledge();
+          if (merged) {
+            await pushKnowledgeViaRest(merged);
+            log("Merged knowledge synced with relay.");
+          }
+        } else {
+          // Remote empty, local has content -- push
+          await pushKnowledgeViaRest(local);
+          log("Local knowledge pushed to relay.");
+        }
+      } else if (head.knowledge_hash && !localHash) {
+        // Remote has content, local empty -- pull
+        await pollKnowledgeRest();
+      } else {
+        log("Knowledge already in sync.");
+      }
+    } catch (err) {
+      warn(`Initial sync failed: ${(err as Error).message}. Will retry on next poll.`);
+    }
   }
 
   function scheduleRestPoll(): void {
