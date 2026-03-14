@@ -574,44 +574,111 @@ defmodule Teamrc.TeamsTest do
   end
 
   describe "delete_team" do
-    test "deletes team and all associated data" do
+    setup do
       owner = user_fixture()
+      token = "trc_ak_delete_#{:erlang.unique_integer([:positive])}"
+
       team_attrs = %{
-        name: "delete-me",
-        members: [%{name: "agent", role: "dev"}],
-        skills: [],
-        platforms: []
+        name: "team-to-delete",
+        members: [
+          %{name: "lead", role: "Team lead", soul: "You are the team lead with deep expertise."},
+          %{name: "dev", role: "Developer", soul: "You write clean code.", skills: ["testing", "review"]}
+        ],
+        skills: [
+          %{"id" => "testing", "name" => "Testing", "body" => "Write comprehensive tests."},
+          %{"id" => "review", "name" => "Code Review", "body" => "Review PRs carefully."}
+        ],
+        platforms: ["claude-code", "cursor"],
+        knowledge: "This team works on the billing service. The main database is PostgreSQL."
       }
-      {:ok, _invite, team_id, _secret} = Teams.create_team_with_invite(team_attrs, owner_user_id: owner.id)
+
+      {:ok, _invite, team_id, _secret} =
+        Teams.create_team_with_invite(team_attrs, owner_user_id: owner.id)
+
+      # Connect a machine token
+      {:ok, _} = Teamrc.Repo.insert(%Teamrc.Schema.TokenTeam{token: token, team_id: team_id})
 
       # Create an invite
       {:ok, _code, _expires} = Teams.create_invite_by_team_id(team_id, 24)
 
+      %{owner: owner, token: token, team_id: team_id}
+    end
+
+    test "anonymizes team skills, knowledge, and platforms", %{owner: owner, team_id: team_id} do
       assert :ok = Teams.delete_team(team_id, owner.id)
 
-      # Team should be gone
-      assert Teamrc.Repo.get(Teamrc.Schema.Team, team_id) == nil
+      team = Teamrc.Repo.get(Teamrc.Schema.Team, team_id)
+      assert team.deleted_at != nil
+      assert team.name == "team-to-delete"
+      assert team.skills == []
+      assert team.knowledge == nil
+      assert team.platforms == []
+      assert team.visibility == "private"
+      assert team.clone_token == nil
+      assert team.owner_user_id == nil
+      assert team.owner_claim_secret == nil
+      assert team.members_hash == nil
+      assert team.skills_hash == nil
+      assert team.knowledge_hash == nil
+    end
+
+    test "preserves member names and roles but clears souls and skills", %{owner: owner, team_id: team_id} do
+      assert :ok = Teams.delete_team(team_id, owner.id)
+
+      members =
+        Ecto.Query.from(m in Teamrc.Schema.Member, where: m.team_id == ^team_id, order_by: m.name)
+        |> Teamrc.Repo.all()
+
+      assert length(members) == 2
+
+      [dev, lead] = members
+      assert dev.name == "dev"
+      assert dev.role == "Developer"
+      assert dev.soul == nil
+      assert dev.skills == []
+
+      assert lead.name == "lead"
+      assert lead.role == "Team lead"
+      assert lead.soul == nil
+      assert lead.skills == []
+    end
+
+    test "disconnects all machines and revokes all invites", %{owner: owner, token: token, team_id: team_id} do
+      # Verify they exist before delete
+      assert Teamrc.Repo.exists?(Ecto.Query.from(tt in Teamrc.Schema.TokenTeam, where: tt.token == ^token))
+      assert Teamrc.Repo.exists?(Ecto.Query.from(i in Teamrc.Schema.Invite, where: i.team_id == ^team_id))
+
+      assert :ok = Teams.delete_team(team_id, owner.id)
+
+      assert Teamrc.Repo.all(Ecto.Query.from(tt in Teamrc.Schema.TokenTeam, where: tt.team_id == ^team_id)) == []
+      assert Teamrc.Repo.all(Ecto.Query.from(i in Teamrc.Schema.Invite, where: i.team_id == ^team_id)) == []
+    end
+
+    test "deleted team is invisible to all query functions", %{owner: owner, token: token, team_id: team_id} do
+      assert :ok = Teams.delete_team(team_id, owner.id)
+
+      assert Teams.get_team_by_id(team_id) == nil
+      assert Teams.get_team(token, team_id) == :error
+      assert Teams.get_teams(token) == :error
+    end
+
+    test "double-delete returns not_found", %{owner: owner, team_id: team_id} do
+      assert :ok = Teams.delete_team(team_id, owner.id)
+      assert {:error, :not_found} = Teams.delete_team(team_id, owner.id)
     end
 
     test "returns error for non-existent team" do
       assert {:error, :not_found} = Teams.delete_team(Ecto.UUID.generate(), Ecto.UUID.generate())
     end
 
-    test "non-owner cannot delete team" do
-      owner = user_fixture()
+    test "non-owner cannot delete team", %{team_id: team_id} do
       other_user = user_fixture()
-      team_attrs = %{
-        name: "cant-delete",
-        members: [%{name: "agent", role: "dev"}],
-        skills: [],
-        platforms: []
-      }
-      {:ok, _invite, team_id, _secret} = Teams.create_team_with_invite(team_attrs, owner_user_id: owner.id)
-
       assert {:error, :not_authorized} = Teams.delete_team(team_id, other_user.id)
 
-      # Team should still exist
-      assert Teamrc.Repo.get(Teamrc.Schema.Team, team_id) != nil
+      # Team should still be fully intact
+      team = Teams.get_team_by_id(team_id)
+      assert team != nil
+      assert length(team.members) == 2
     end
   end
 

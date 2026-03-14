@@ -102,7 +102,9 @@ defmodule Teamrc.Teams do
         :error
 
       resolved_id ->
-        team = Repo.get(Team, resolved_id) |> Repo.preload(:members)
+        team =
+          from(t in Team, where: t.id == ^resolved_id and is_nil(t.deleted_at), preload: [:members])
+          |> Repo.one()
 
         if team do
           {:ok, team_to_map(team)}
@@ -124,7 +126,7 @@ defmodule Teamrc.Teams do
 
       ids ->
         teams =
-          from(t in Team, where: t.id in ^ids, preload: [:members])
+          from(t in Team, where: t.id in ^ids and is_nil(t.deleted_at), preload: [:members])
           |> Repo.all()
           |> Enum.map(&team_to_map/1)
 
@@ -225,7 +227,7 @@ defmodule Teamrc.Teams do
   def set_visibility(_token, _team_id, _visibility), do: {:error, :invalid_visibility}
 
   defp do_set_visibility(team_id, visibility) do
-    case Repo.get(Team, team_id) do
+    case from(t in Team, where: t.id == ^team_id and is_nil(t.deleted_at)) |> Repo.one() do
       nil ->
         {:error, :not_found}
 
@@ -376,11 +378,9 @@ defmodule Teamrc.Teams do
 
   # --- LiveView-facing query functions ---
 
-  @doc "Get a team by ID with members preloaded. Returns nil if not found."
+  @doc "Get a team by ID with members preloaded. Returns nil if not found or deleted."
   def get_team_by_id(team_id) do
-    Team
-    |> where(id: ^team_id)
-    |> preload(:members)
+    from(t in Team, where: t.id == ^team_id and is_nil(t.deleted_at), preload: [:members])
     |> Repo.one()
   end
 
@@ -546,7 +546,7 @@ defmodule Teamrc.Teams do
 
   @doc "Set team visibility by owner user_id (no token required). Use when the caller has already verified ownership (e.g. web-only owner)."
   def set_visibility_by_owner(user_id, team_id, visibility) when visibility in ["public", "private"] do
-    case Repo.get(Team, team_id) do
+    case from(t in Team, where: t.id == ^team_id and is_nil(t.deleted_at)) |> Repo.one() do
       nil ->
         {:error, :not_found}
 
@@ -571,21 +571,51 @@ defmodule Teamrc.Teams do
 
   def set_visibility_by_creator(_team_id, _creator_token, _visibility), do: {:error, :invalid_visibility}
 
-  @doc "Delete a team and all associated data (members, invites, token_teams). Requires owner_user_id for authorization. Returns :ok or {:error, reason}."
+  @doc """
+  Soft-delete a team: anonymize sensitive data, disconnect machines, revoke invites,
+  but preserve the team record and member role titles. Requires owner_user_id for authorization.
+  Returns :ok or {:error, reason}.
+  """
   def delete_team(team_id, owner_user_id) do
     case Repo.get(Team, team_id) do
       nil ->
+        {:error, :not_found}
+
+      %Team{deleted_at: %DateTime{}} ->
         {:error, :not_found}
 
       %Team{owner_user_id: actual_owner} when actual_owner != owner_user_id ->
         {:error, :not_authorized}
 
       team ->
+        now = DateTime.utc_now() |> DateTime.truncate(:second)
+
         Repo.transaction(fn ->
+          # Disconnect all machines
           from(tt in TokenTeam, where: tt.team_id == ^team_id) |> Repo.delete_all()
+          # Revoke all invites
           from(i in Invite, where: i.team_id == ^team_id) |> Repo.delete_all()
-          from(m in Member, where: m.team_id == ^team_id) |> Repo.delete_all()
-          Repo.delete!(team)
+
+          # Anonymize members: keep name and role, clear soul and skills
+          from(m in Member, where: m.team_id == ^team_id)
+          |> Repo.update_all(set: [soul: nil, skills: []])
+
+          # Anonymize team: clear sensitive data, mark as deleted
+          team
+          |> Team.changeset(%{
+            skills: [],
+            knowledge: nil,
+            platforms: [],
+            visibility: "private",
+            clone_token: nil,
+            owner_user_id: nil,
+            owner_claim_secret: nil,
+            members_hash: nil,
+            skills_hash: nil,
+            knowledge_hash: nil
+          })
+          |> Ecto.Changeset.put_change(:deleted_at, now)
+          |> Repo.update!()
         end)
         |> case do
           {:ok, _} -> :ok
@@ -649,7 +679,7 @@ defmodule Teamrc.Teams do
 
   @doc "Recompute and persist content hashes for a team. Returns the updated team with members preloaded."
   def recompute_hashes(team_id) do
-    team = Repo.get(Team, team_id) |> Repo.preload(:members)
+    team = from(t in Team, where: t.id == ^team_id and is_nil(t.deleted_at), preload: [:members]) |> Repo.one()
     hashes = ContentHash.compute_team_hashes(team)
 
     {:ok, updated} =
@@ -975,7 +1005,7 @@ defmodule Teamrc.Teams do
       resolved_id ->
         result =
           from(t in Team,
-            where: t.id == ^resolved_id,
+            where: t.id == ^resolved_id and is_nil(t.deleted_at),
             select: %{
               members_hash: t.members_hash,
               skills_hash: t.skills_hash,
@@ -995,7 +1025,7 @@ defmodule Teamrc.Teams do
 
           _ ->
             # Fallback: hashes not yet stamped, compute from full team
-            team = Repo.get(Team, resolved_id) |> Repo.preload(:members)
+            team = from(t in Team, where: t.id == ^resolved_id and is_nil(t.deleted_at), preload: [:members]) |> Repo.one()
             if team do
               hashes = ContentHash.compute_team_hashes(team)
               {:ok, %{"hash" => hashes.hash, "members_hash" => hashes.members_hash, "skills_hash" => hashes.skills_hash, "knowledge_hash" => hashes.knowledge_hash}}

@@ -16,6 +16,7 @@ defmodule Teamrc.Schema.Team do
     field :members_hash, :string
     field :skills_hash, :string
     field :knowledge_hash, :string
+    field :deleted_at, :utc_datetime
     has_many :members, Teamrc.Schema.Member
     has_many :invites, Teamrc.Schema.Invite
 

@@ -406,7 +406,7 @@ defmodule Teamrc.Accounts do
 
     owned_teams =
       from(t in Team,
-        where: t.owner_user_id == ^user_id,
+        where: t.owner_user_id == ^user_id and is_nil(t.deleted_at),
         preload: [:members]
       )
       |> Repo.all()

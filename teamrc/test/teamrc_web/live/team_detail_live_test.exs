@@ -210,8 +210,11 @@ defmodule TeamrcWeb.TeamDetailLiveTest do
       # Should redirect to dashboard
       assert_redirect(view, "/dashboard")
 
-      # Team should be gone
-      assert Repo.get(Team, team_id) == nil
+      # Team should be soft-deleted (record exists but marked deleted)
+      team = Repo.get(Team, team_id)
+      assert team.deleted_at != nil
+      # Should not be findable through normal queries
+      assert Teamrc.Teams.get_team_by_id(team_id) == nil
     end
 
     test "non-owner cannot see delete button", %{conn: conn} do
