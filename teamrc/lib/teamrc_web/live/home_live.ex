@@ -5,9 +5,9 @@ defmodule TeamrcWeb.HomeLive do
   def mount(_params, _session, socket) do
     {:ok,
      assign(socket,
-       page_title: "Sync AI Coding Agents Across Claude Code, Cursor, Codex & Gemini",
+       page_title: "Keep Your AI Agents in Sync Across Machines and VMs",
        og_description:
-         "Define your AI agent team once, sync across Claude Code, Cursor, Codex, Gemini, and OpenClaw. Open-source CLI with 60+ agents and 50+ skills."
+         "Claude Code on your laptop, OpenClaw on a VM? teamrc keeps your agent configs in sync across machines, platforms, and projects. Open-source CLI."
      )}
   end
 
@@ -33,11 +33,12 @@ defmodule TeamrcWeb.HomeLive do
         </a>
       </div>
       <h1 class="text-3xl sm:text-4xl font-bold tracking-tight leading-tight">
-        Stop hand-maintaining agent configs.
+        Keep your AI agents in sync<br />across every machine.
       </h1>
       <p class="text-base text-base-content/60 mt-4 max-w-lg leading-relaxed">
-        One team definition generates native files for Claude Code, Cursor, Codex,
-        Gemini, and OpenClaw. Push from any machine, sync to all of them.
+        Claude Code on your laptop. OpenClaw on a VM. Cursor in the cloud. teamrc
+        keeps your agent configs, skills, and knowledge in sync across all of them --
+        no matter which platform or machine they're on.
       </p>
 
       <%!-- Primary CTA: copyable CLI command --%>
@@ -74,46 +75,64 @@ defmodule TeamrcWeb.HomeLive do
       </p>
     </div>
 
-    <%!-- What happens when you run it --%>
+    <%!-- How it works --%>
     <section class="mt-16 space-y-4">
-      <h2 class="text-lg font-bold tracking-tight">What happens when you run it</h2>
+      <h2 class="text-lg font-bold tracking-tight">How it works</h2>
       <ol class="space-y-3 list-none p-0">
         <li class="rounded-lg border border-base-300 bg-base-100 p-4 flex items-start gap-3">
           <span class="text-primary/80 font-mono text-sm font-bold shrink-0 w-5">1.</span>
           <div>
-            <h3 class="text-sm font-semibold">Pick a team template</h3>
+            <h3 class="text-sm font-semibold">Define your agents once</h3>
             <p class="text-sm text-base-content/60 mt-0.5">
-              The init wizard lets you choose from 60+ pre-built agents and 50+ skills,
-              or start from scratch. You get a
+              A single
               <code class="font-mono bg-base-200 rounded px-1.5 py-0.5 text-xs">.teamrc.yaml</code>
-              in your project.
+              describes your team -- agents, skills, and how they're wired together.
+              Pick from 60+ pre-built agents and 50+ skills, or write your own.
             </p>
           </div>
         </li>
         <li class="rounded-lg border border-base-300 bg-base-100 p-4 flex items-start gap-3">
           <span class="text-primary/80 font-mono text-sm font-bold shrink-0 w-5">2.</span>
           <div>
-            <h3 class="text-sm font-semibold">Platform files are generated</h3>
+            <h3 class="text-sm font-semibold">Each platform gets native files</h3>
             <p class="text-sm text-base-content/60 mt-0.5">
-              teamrc writes the native config for each platform you use. Claude Code gets
-              markdown agents, Codex gets TOML, Gemini gets YAML frontmatter -- all from the
-              same source.
+              teamrc generates the right format for each platform. Claude Code gets
+              <code class="font-mono bg-base-200 rounded px-1.5 py-0.5 text-xs">.claude/agents/*.md</code>,
+              OpenClaw gets
+              <code class="font-mono bg-base-200 rounded px-1.5 py-0.5 text-xs">.agents/agents/*.md</code>,
+              Codex gets TOML -- all from the same source.
             </p>
           </div>
         </li>
         <li class="rounded-lg border border-base-300 bg-base-100 p-4 flex items-start gap-3">
           <span class="text-primary/80 font-mono text-sm font-bold shrink-0 w-5">3.</span>
           <div>
-            <h3 class="text-sm font-semibold">Sync across machines</h3>
+            <h3 class="text-sm font-semibold">Sync across every machine</h3>
             <p class="text-sm text-base-content/60 mt-0.5">
               Run
               <code class="font-mono bg-base-200 rounded px-1.5 py-0.5 text-xs">teamrc sync</code>
-              on any machine, VM, or project. The relay keeps everything consistent.
-              Knowledge your agents gather merges automatically.
+              on your laptop, your VM, or any project directory. The relay pushes
+              config changes and merges knowledge from all machines automatically.
             </p>
           </div>
         </li>
       </ol>
+    </section>
+
+    <%!-- The real scenario --%>
+    <section class="mt-12 space-y-3">
+      <h2 class="text-lg font-bold tracking-tight">Built for how people actually work</h2>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        You have Claude Code on your laptop and OpenClaw running on a VM. Maybe
+        Cursor Cloud Agents too. Each platform has its own config format, and
+        every machine has its own copy. You tweak an agent on one machine and the
+        others fall behind. Knowledge one agent learns never reaches the rest.
+      </p>
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        teamrc is the sync layer. Change your team from any machine -- CLI or web --
+        and every other machine picks it up on the next sync. No git conflicts over
+        config files. No copying markdown between directories.
+      </p>
     </section>
 
     <%!-- Platforms --%>
@@ -124,40 +143,43 @@ defmodule TeamrcWeb.HomeLive do
         <li><.platform_badge name="Cursor" path=".cursor/agents/" /></li>
         <li><.platform_badge name="Codex" path=".codex/agents/" /></li>
         <li><.platform_badge name="Gemini" path=".gemini/agents/" /></li>
-        <li><.platform_badge name="OpenClaw" path="~/.openclaw/agents/" /></li>
+        <li><.platform_badge name="OpenClaw" path=".agents/agents/" /></li>
       </ul>
     </section>
 
-    <%!-- Features --%>
+    <%!-- Key differentiators --%>
     <section class="mt-12 space-y-4">
       <h2 class="text-lg font-bold tracking-tight">What you get</h2>
       <div class="grid gap-2 sm:grid-cols-2">
         <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1">
+          <h3 class="text-sm font-semibold">Relay sync, not git sync</h3>
+          <p class="text-xs text-base-content/60">
+            The relay is a coordination point that works across machines, VMs, and
+            projects without requiring them to share a repo. Push from one, pull
+            from all.
+          </p>
+        </div>
+        <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1">
+          <h3 class="text-sm font-semibold">Knowledge travels between machines</h3>
+          <p class="text-xs text-base-content/60">
+            Agents write findings to a shared knowledge doc as they work. On sync,
+            knowledge from your laptop and your VM merges together -- every agent
+            benefits from what the others learned.
+          </p>
+        </div>
+        <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1">
+          <h3 class="text-sm font-semibold">Format conversion built in</h3>
+          <p class="text-xs text-base-content/60">
+            One YAML definition, five native output formats. No need to translate
+            between Claude Code's markdown, Codex's TOML, or Gemini's YAML
+            frontmatter yourself.
+          </p>
+        </div>
+        <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1">
           <h3 class="text-sm font-semibold">60+ agents, 50+ skills</h3>
           <p class="text-xs text-base-content/60">
-            Pre-built agents across development, infrastructure, quality, and research.
-            Reusable skills for testing, code style, and security. Use as-is or customize.
-          </p>
-        </div>
-        <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1">
-          <h3 class="text-sm font-semibold">Shared knowledge</h3>
-          <p class="text-xs text-base-content/60">
-            Agents record what they learn to a shared doc. Sync merges knowledge
-            from every machine and VM, so the whole team builds on each other's findings.
-          </p>
-        </div>
-        <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1">
-          <h3 class="text-sm font-semibold">Cross-machine sync</h3>
-          <p class="text-xs text-base-content/60">
-            Use the same team across laptops, cloud VMs, CI, and multiple projects.
-            The relay keeps everything consistent without touching Git.
-          </p>
-        </div>
-        <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1">
-          <h3 class="text-sm font-semibold">Shareable and cloneable</h3>
-          <p class="text-xs text-base-content/60">
-            Make your team public and anyone can clone it with one command. Share
-            your agent setup the way you'd share a dotfiles repo.
+            Pre-built catalog across development, infrastructure, quality, and
+            research. Use them as-is, customize them, or start from scratch.
           </p>
         </div>
       </div>
