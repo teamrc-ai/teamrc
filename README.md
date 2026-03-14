@@ -151,30 +151,37 @@ OpenClaw requires explicit subagent spawn permissions. teamrc configures `subage
 
 ## Self-Hosting
 
-### Docker (recommended)
+### Install Elixir
 
+macOS:
 ```bash
-# Clone and start with Docker Compose
-git clone <repo-url> && cd teamrc
-cp .env.example .env
-# Edit .env and set SECRET_KEY_BASE, SESSION_SIGNING_SALT, LIVE_VIEW_SIGNING_SALT, SESSION_ENCRYPTION_SALT
-docker compose up
+brew install elixir
 ```
 
-The relay server will be available at `http://localhost:4000`. Postgres is included.
+Ubuntu/Debian:
+```bash
+sudo apt install elixir erlang
+```
 
-For production deployments (Coolify, etc.), set the required environment variables and point at the `Dockerfile`. See `.env.example` for the full list.
+Or use [asdf](https://asdf-vm.com/) for version management:
+```bash
+asdf plugin add erlang && asdf plugin add elixir
+asdf install erlang 27.2 && asdf install elixir 1.18.2-otp-27
+```
 
-### Without Docker
+See the [Elixir install guide](https://elixir-lang.org/install.html) for other platforms.
+
+### Run the relay
+
+Requires Elixir 1.18+ and PostgreSQL.
 
 ```bash
-# Requires Elixir 1.18+, PostgreSQL
 cd teamrc
 mix setup
 mix phx.server  # http://localhost:4000
 ```
 
-Point the CLI at your relay with `TEAMRC_RELAY=http://your-host:4000` or set `relay:` in `.teamrc.yaml`.
+Point the CLI at your relay with `TEAMRC_RELAY=http://localhost:4000` or set `relay:` in `.teamrc.yaml`.
 
 ## Sharing
 
