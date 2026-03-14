@@ -19,6 +19,7 @@ import {
   cleanupSkillDirs,
   resolveAgentSkills,
   enrichTeamKnowledgeSkill,
+  createBuiltInSkills,
   type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
@@ -186,6 +187,14 @@ export class GeminiAdapter implements PlatformAdapter {
           writeSkillDir(antigravityDir, skill);
         }
       }
+    }
+
+    // Write built-in teamrc skills (on-demand slash commands)
+    for (const skill of createBuiltInSkills(knowledgePath)) {
+      if (!fs.existsSync(skillDir)) fs.mkdirSync(skillDir, { recursive: true });
+      if (!fs.existsSync(antigravityDir)) fs.mkdirSync(antigravityDir, { recursive: true });
+      writeSkillDir(skillDir, skill);
+      writeSkillDir(antigravityDir, skill);
     }
 
     // Write GEMINI.md with team context and always-on skills (use enriched team)

@@ -16,6 +16,7 @@ import {
   cleanupSkillDirs,
   resolveAgentSkills,
   enrichTeamKnowledgeSkill,
+  createBuiltInSkills,
   type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
@@ -177,6 +178,12 @@ export class CursorAdapter implements PlatformAdapter {
           writeSkillDir(this.skillsDir(), skill);
         }
       }
+    }
+
+    // Write built-in teamrc skills (on-demand slash commands)
+    const knowledgePath = `.teamrc/${knowledgeFileName(this.teamSlug)}`;
+    for (const skill of createBuiltInSkills(knowledgePath)) {
+      writeSkillDir(this.skillsDir(), skill);
     }
 
     // Build set of desired agent filenames and delete orphans

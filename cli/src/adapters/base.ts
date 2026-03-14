@@ -16,6 +16,8 @@ export interface Skill {
   alwaysApply?: boolean;
   globs?: string[];
   userInvocable?: boolean;
+  disableModelInvocation?: boolean;
+  argumentHint?: string;
   body: string | { source: string };
 }
 
@@ -105,6 +107,8 @@ export function writeSkillDir(baseDir: string, skill: Skill): void {
   const lines: string[] = ["---"];
   lines.push(`name: trc-${skill.id}`);
   if (skill.description) lines.push(`description: ${JSON.stringify(skill.description)}`);
+  if (skill.disableModelInvocation) lines.push("disable-model-invocation: true");
+  if (skill.argumentHint) lines.push(`argument-hint: ${JSON.stringify(skill.argumentHint)}`);
   lines.push("---", "");
   lines.push(skill.body);
 
@@ -284,6 +288,94 @@ export function enrichTeamKnowledgeSkill(
   enrichedSkills[idx] = enrichedSkill;
 
   return { ...team, skills: enrichedSkills };
+}
+
+/** IDs for built-in teamrc skills (prefixed with trc- by writeSkillDir) */
+export const BUILTIN_SKILL_IDS = [
+  "save-knowledge",
+  "save-core",
+  "knowledge",
+  "status",
+] as const;
+
+/** Create built-in teamrc skills that get installed alongside every team.
+ *  These are on-demand slash commands, not alwaysApply rules. */
+export function createBuiltInSkills(knowledgePath: string): Skill[] {
+  return [
+    {
+      id: "save-knowledge",
+      title: "Save Knowledge",
+      description: "Save a finding or decision to the team knowledge file so other team members and future sessions benefit from it",
+      disableModelInvocation: true,
+      argumentHint: "<topic> <details>",
+      body: `Save a finding to the team knowledge file at \`${knowledgePath}\`.
+
+1. Read the current knowledge file
+2. Append a new \`## <topic>\` section at the end of the file with the provided details (3-5 lines)
+3. If a section with the same heading already exists, append to that section instead of creating a duplicate
+4. Write the updated file
+5. Report the current file size and how close it is to the 100KB relay cap
+6. If size > 90%, warn that oldest sections will be automatically pruned on next sync
+
+Sections are pruned oldest-first (FIFO) when the file exceeds 100KB. The preamble (content before the first \`## \` heading) is never pruned.`,
+    },
+    {
+      id: "save-core",
+      title: "Save Core Knowledge",
+      description: "Save permanent knowledge to the preamble section that is never pruned — use for test commands, architecture decisions, and key conventions",
+      disableModelInvocation: true,
+      argumentHint: "<details>",
+      body: `Save permanent knowledge to the preamble of the team knowledge file at \`${knowledgePath}\`.
+
+The preamble is everything before the first \`## \` heading. It is capped at 10KB and is **never pruned** — use it for essential, permanent information like:
+- Test commands
+- Architecture decisions
+- Key conventions
+- Important file paths
+
+1. Read the current knowledge file
+2. Add the provided information to the preamble (before the first \`## \` heading)
+3. Keep the preamble concise — it should stay well under 10KB
+4. Write the updated file
+5. Report the current preamble size`,
+    },
+    {
+      id: "knowledge",
+      title: "Team Knowledge",
+      description: "Display team knowledge contents, search for topics, and show size status. Use when you need to check what the team has documented or refresh knowledge mid-session.",
+      argumentHint: "[search-term]",
+      body: `Read and display the team knowledge file at \`${knowledgePath}\`.
+
+1. Read the file
+2. Display a summary:
+   - Number of \`## \` sections
+   - Total file size and percentage of 100KB relay cap
+   - Preamble size
+3. List all \`## \` headings
+4. If arguments were provided, search sections for matching content and display matches in full
+5. If size > 70% of cap, note that oldest sections will be pruned when cap is reached
+6. If size > 90%, warn urgently`,
+    },
+    {
+      id: "status",
+      title: "Team Status",
+      description: "Show current teamrc team status including members, skills, knowledge size, and sync info",
+      disableModelInvocation: true,
+      body: `Show the current teamrc team status.
+
+1. Read \`.teamrc.yaml\` and display:
+   - Team name and ID
+   - Members (name and role)
+   - Skills (name and whether alwaysApply)
+2. Read the knowledge file at \`${knowledgePath}\` and display:
+   - File path
+   - Total size and percentage of 100KB cap
+   - Preamble size
+   - Number of sections
+3. If size > 70% of cap, warn about upcoming pruning
+4. If size > 90%, warn urgently`,
+    },
+  ];
 }
 
 /** Resolve skills for an agent. Only returns explicitly assigned skills. */

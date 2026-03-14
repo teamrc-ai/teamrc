@@ -18,6 +18,8 @@ import {
   cleanupSkillDirs,
   resolveAgentSkills,
   enrichTeamKnowledgeSkill,
+  createBuiltInSkills,
+  writeSkillDir,
   type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
@@ -193,6 +195,9 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     // Use enriched team so knowledge content is written into the rule file
     this.writeSkillsAsNativeFiles(teamWithKnowledge, scope);
 
+    // Write built-in teamrc skills (on-demand slash commands)
+    this.writeBuiltInSkills(knowledgePath, scope);
+
     this.updateClaudeMd(team, scope);
   }
 
@@ -256,6 +261,16 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
         const content = `---\n${frontmatterLines.join("\n")}\n---\n\n${skill.body}\n`;
         fs.writeFileSync(path.join(skillDir, "SKILL.md"), content);
       }
+    }
+  }
+
+  private writeBuiltInSkills(knowledgePath: string, scope: TeamScope): void {
+    const skillsBaseDir = this.skillsDir(scope);
+    if (!fs.existsSync(skillsBaseDir)) {
+      fs.mkdirSync(skillsBaseDir, { recursive: true });
+    }
+    for (const skill of createBuiltInSkills(knowledgePath)) {
+      writeSkillDir(skillsBaseDir, skill);
     }
   }
 

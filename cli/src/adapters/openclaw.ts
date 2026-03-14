@@ -11,6 +11,7 @@ import {
   cleanupSkillDirs,
   resolveAgentSkills,
   enrichTeamKnowledgeSkill,
+  createBuiltInSkills,
   type FileAction,
   type PlatformAdapter,
   type TeamDefinition,
@@ -185,6 +186,15 @@ export class OpenClawAdapter implements PlatformAdapter {
       for (const skill of teamWithKnowledge.skills) {
         writeSkillDir(sharedDir, skill);
       }
+    }
+
+    // Write built-in teamrc skills (on-demand slash commands)
+    if (!fs.existsSync(sharedDir)) {
+      fs.mkdirSync(sharedDir, { recursive: true });
+    }
+    const knowledgePath = `~/.openclaw/${knowledgeFileName(this.teamSlug)}`;
+    for (const skill of createBuiltInSkills(knowledgePath)) {
+      writeSkillDir(sharedDir, skill);
     }
 
     // Register agents in openclaw.json

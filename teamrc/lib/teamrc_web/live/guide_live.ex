@@ -645,15 +645,33 @@ defmodule TeamrcWeb.GuideLive do
         together, so every agent benefits from what the others have learned.
       </p>
 
+      <.sub_heading id="knowledge-commands" title="Built-in slash commands" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        teamrc installs slash commands in editors that support them (Claude Code, Cursor):
+      </p>
+      <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-2">
+        <div class="space-y-1.5 text-xs font-mono text-base-content/70">
+          <div><span class="text-primary/60">/trc-save-knowledge</span> &mdash; save a finding as a <.code_inline>## &lt;topic&gt;</.code_inline> section (prunable)</div>
+          <div><span class="text-primary/60">/trc-save-core</span> &mdash; save permanent knowledge to the preamble (never pruned)</div>
+          <div><span class="text-primary/60">/trc-knowledge</span> &mdash; view knowledge contents, search, and size status</div>
+          <div><span class="text-primary/60">/trc-status</span> &mdash; show team info, members, skills, and knowledge size</div>
+        </div>
+      </div>
+
+      <.sub_heading id="knowledge-structure" title="Preamble vs. sections" />
+      <p class="text-sm text-base-content/70 leading-relaxed">
+        The knowledge file has two zones. The <span class="font-semibold">preamble</span> (everything before the first
+        <.code_inline>## </.code_inline> heading, up to 10KB) is permanent &mdash; it is never pruned. Use it for essentials like
+        test commands, architecture notes, and key conventions. <span class="font-semibold">Sections</span>
+        (<.code_inline>## &lt;topic&gt;</.code_inline> headings) are pruned oldest-first (FIFO) when the file exceeds 100KB.
+      </p>
+
       <.sub_heading id="knowledge-merge" title="How knowledge merges" />
       <p class="text-sm text-base-content/70 leading-relaxed">
         Knowledge uses <span class="font-semibold">append-only deduplication</span>.
         When syncing, new lines from the relay are appended to your local knowledge file,
-        skipping anything already present. This means knowledge can only grow.
-        It never loses information during sync.
-      </p>
-      <p class="text-sm text-base-content/70 text-xs">
-        When syncing through the relay, knowledge is capped at 100,000 bytes to prevent runaway growth.
+        skipping anything already present. When the file exceeds 100KB, the oldest
+        <.code_inline>## </.code_inline> sections are pruned automatically. The preamble is always preserved.
       </p>
     </section>
 
@@ -1200,6 +1218,10 @@ defmodule TeamrcWeb.GuideLive do
             <span class="text-base-content/50">on-demand skills →</span>
             .claude/skills/trc-&#123;id&#125;/SKILL.md
           </div>
+          <div>
+            <span class="text-base-content/50">built-in commands →</span>
+            .claude/skills/trc-&#123;save-knowledge,save-core,knowledge,status&#125;/
+          </div>
           <div><span class="text-base-content/50">knowledge →</span> .teamrc/knowledge-&#123;slug&#125;.md</div>
           <div><span class="text-base-content/50">team context →</span> updated in CLAUDE.md</div>
         </div>
@@ -1210,6 +1232,8 @@ defmodule TeamrcWeb.GuideLive do
         teamrc also appends a team context block to
         <.code_inline>CLAUDE.md</.code_inline>
         describing the team and its members.
+        Built-in slash commands (<.code_inline>/trc-save-knowledge</.code_inline>, <.code_inline>/trc-knowledge</.code_inline>, etc.)
+        are installed as on-demand skills for interacting with team knowledge mid-session.
       </p>
     </section>
 
@@ -1236,6 +1260,10 @@ defmodule TeamrcWeb.GuideLive do
           <div>
             <span class="text-base-content/50">on-demand skills →</span>
             .cursor/skills/trc-&#123;id&#125;/SKILL.md
+          </div>
+          <div>
+            <span class="text-base-content/50">built-in commands →</span>
+            .cursor/skills/trc-&#123;save-knowledge,save-core,knowledge,status&#125;/
           </div>
           <div><span class="text-base-content/50">knowledge →</span> .teamrc/knowledge-&#123;slug&#125;.md</div>
           <div><span class="text-base-content/50">routing →</span> .cursor/AGENTS.md</div>
@@ -2740,17 +2768,23 @@ defmodule TeamrcWeb.GuideLive do
 
       <.callout title="How does knowledge get written?">
         <p>
-          The <.code_inline>team-knowledge</.code_inline> skill handles both reading and writing.
-          As an <.code_inline>alwaysApply</.code_inline> rule, it automatically loads the knowledge file
-          into every agent's context at the start of each session. It also instructs agents to
-          append useful findings as <.code_inline>## &lt;topic&gt;</.code_inline> entries before finishing their work.
+          The <.code_inline>team-knowledge</.code_inline> skill handles automatic loading.
+          As an <.code_inline>alwaysApply</.code_inline> rule, it injects the knowledge file
+          into every agent's context at the start of each session and instructs agents to
+          append useful findings as <.code_inline>## &lt;topic&gt;</.code_inline> entries before finishing.
         </p>
         <p class="mt-2">
-          On the next <.code_inline>teamrc push</.code_inline>, new knowledge uploads to the relay.
-          On <.code_inline>teamrc pull</.code_inline>, every machine gets the merged result.
-          Duplicates are removed automatically.
-          The skill is added by default to new teams and can be removed from
-          <.code_inline>.teamrc.yaml</.code_inline> or the web dashboard if not wanted.
+          teamrc also installs built-in slash commands for manual control:
+          <.code_inline>/trc-save-knowledge</.code_inline> to save a finding,
+          <.code_inline>/trc-save-core</.code_inline> to save permanent preamble knowledge,
+          and <.code_inline>/trc-knowledge</.code_inline> to view and search knowledge mid-session.
+          These work in Claude Code and Cursor.
+        </p>
+        <p class="mt-2">
+          On <.code_inline>teamrc push</.code_inline> or <.code_inline>teamrc sync</.code_inline>, knowledge uploads to the relay.
+          On pull, every machine gets the merged result with duplicates removed.
+          When knowledge exceeds 100KB, the oldest <.code_inline>## </.code_inline> sections are pruned automatically.
+          The preamble (content before the first heading) is permanent and never pruned.
         </p>
       </.callout>
     </section>

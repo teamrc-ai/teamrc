@@ -88,6 +88,8 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
           ...(Array.isArray(s.globs) ? { globs: s.globs.filter((g: unknown): g is string => typeof g === "string") } : {}),
           ...(s.alwaysApply !== undefined ? { alwaysApply: Boolean(s.alwaysApply) } : {}),
           ...(s.userInvocable !== undefined ? { userInvocable: Boolean(s.userInvocable) } : {}),
+          ...(s.disableModelInvocation !== undefined ? { disableModelInvocation: Boolean(s.disableModelInvocation) } : {}),
+          ...(s.argumentHint ? { argumentHint: String(s.argumentHint) } : {}),
           body: parseBody(s.body),
         };
       })
@@ -159,6 +161,8 @@ export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
       if (s.alwaysApply !== undefined) entry.alwaysApply = s.alwaysApply;
       if (s.globs) entry.globs = s.globs;
       if (s.userInvocable !== undefined) entry.userInvocable = s.userInvocable;
+      if (s.disableModelInvocation !== undefined) entry.disableModelInvocation = s.disableModelInvocation;
+      if (s.argumentHint) entry.argumentHint = s.argumentHint;
       entry.body = s.body;
       return entry;
     });
