@@ -1,58 +1,94 @@
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import {
-  requireRelayContext,
   CLI_NAME,
+  globals,
+  cliCmd,
 } from "../utils.js";
+import { loadConfig } from "../config.js";
 import { loadKeypair, toToken } from "../auth.js";
-import { slugify } from "../adapters/base.js";
+import { getAdapter, slugify } from "../adapters/base.js";
+import { readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
+import { getRelayUrl, detectPlatforms } from "../config.js";
+import type { TeamDefinition } from "../adapters/base.js";
 
 export function registerDaemon(program: Command): void {
   program
     .command("daemon")
     .description("Start the knowledge sync daemon (WebSocket + REST fallback)")
-    .option("--scope <scope>", "Scope: project or global", "project")
     .option("--rest-only", "Force REST polling (no WebSocket)")
     .option("--poll-interval <seconds>", "REST poll interval in seconds", "120")
-    .action(async (opts: { scope: string; restOnly?: boolean; pollInterval: string }) => {
+    .action(async (opts: { restOnly?: boolean; pollInterval: string }) => {
       const pollSec = parseInt(opts.pollInterval, 10);
       if (isNaN(pollSec) || pollSec < 5) {
         p.log.error("--poll-interval must be at least 5 seconds.");
         process.exit(1);
       }
 
-      if (opts.scope !== "project" && opts.scope !== "global") {
-        p.log.error("--scope must be 'project' or 'global'.");
+      const config = loadConfig();
+      if (!config) {
+        p.log.error(`Not initialized. Run \`${cliCmd("init")}\` first.`);
         process.exit(1);
       }
 
-      const ctx = requireRelayContext();
-      const { client } = ctx;
       const kp = loadKeypair();
       if (!kp) {
-        p.log.error(`No keypair found. Run \`${CLI_NAME} init\` first.`);
+        p.log.error(`No keypair found. Run \`${cliCmd("init")}\` first.`);
         process.exit(1);
       }
 
-      const teamName = ctx.team.name || "team";
+      // Detect available scopes
+      let projectTeam: TeamDefinition | null = null;
+      let globalTeam: TeamDefinition | null = null;
+      try { projectTeam = readTeamYaml(TEAM_YAML); } catch { /* skip */ }
+      try { globalTeam = readTeamYaml(GLOBAL_TEAM_YAML); } catch { /* skip */ }
+
+      const hasProject = !!(projectTeam?.teamId);
+      const hasGlobal = !!(globalTeam?.teamId);
+
+      let scope: "project" | "global";
+      let team: TeamDefinition;
+
+      if (hasProject && hasGlobal) {
+        const choice = await p.select({
+          message: "Both project and global teams found. Which one should the daemon sync?",
+          options: [
+            { value: "project", label: `Project: ${projectTeam!.name}` },
+            { value: "global", label: `Global: ${globalTeam!.name}` },
+          ],
+        });
+        if (p.isCancel(choice)) {
+          p.cancel("Cancelled.");
+          process.exit(0);
+        }
+        scope = choice as "project" | "global";
+        team = scope === "project" ? projectTeam! : globalTeam!;
+      } else if (hasProject) {
+        scope = "project";
+        team = projectTeam!;
+      } else if (hasGlobal) {
+        scope = "global";
+        team = globalTeam!;
+      } else {
+        p.log.error(`No team found. Run \`${cliCmd("init")}\` first.`);
+        process.exit(1);
+      }
+
+      const teamName = team.name || "team";
       const teamSlug = slugify(teamName);
-      const teamId = ctx.team.teamId;
-      if (!teamId) {
-        p.log.error("No team ID found. Push your team first.");
-        process.exit(1);
-      }
+      const teamId = team.teamId!;
 
-      const relay = ctx.team.relay;
-      if (!relay) {
-        p.log.error("No relay URL configured.");
-        process.exit(1);
-      }
+      const relay = getRelayUrl(undefined, team.relay);
+      const platforms = team.platforms ?? detectPlatforms(scope);
+      const adapters = platforms.map((pl) => getAdapter(pl, teamSlug));
+      const token = toToken(kp.publicKey);
 
       const modeLabel = opts.restOnly ? "REST polling" : "WebSocket + REST fallback";
       p.intro(`${CLI_NAME} daemon`);
       p.log.info([
         `Team: "${teamName}" (${teamId})`,
-        `Platforms: ${ctx.platforms.join(", ")}`,
+        `Scope: ${scope}`,
+        `Platforms: ${platforms.join(", ")}`,
         `Mode: ${modeLabel}`,
         `Poll interval: ${pollSec}s`,
       ].join("\n"));
@@ -61,12 +97,12 @@ export function registerDaemon(program: Command): void {
       const daemon = startKnowledgeDaemon({
         relayUrl: relay,
         privateKey: kp.privateKey,
-        token: toToken(kp.publicKey),
+        token,
         teamId,
         teamSlug,
-        scope: opts.scope as "project" | "global",
-        adapters: ctx.adapters,
-        platforms: ctx.platforms,
+        scope,
+        adapters,
+        platforms,
         fallbackPollInterval: pollSec * 1000,
         restOnly: opts.restOnly,
       });

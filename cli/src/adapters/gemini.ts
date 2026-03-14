@@ -251,7 +251,7 @@ export class GeminiAdapter implements PlatformAdapter {
     upsertMarkerBlock(this.geminiMdPath(), marker, markerEnd, block);
   }
 
-  private knowledgePath(scope: TeamScope = "project"): string {
+  getKnowledgePath(scope: TeamScope = "project"): string {
     if (scope === "project") {
       return path.join(process.cwd(), ".teamrc", knowledgeFileName(this.teamSlug));
     }
@@ -260,7 +260,7 @@ export class GeminiAdapter implements PlatformAdapter {
 
   readKnowledge(): string {
     for (const scope of ["project", "global"] as TeamScope[]) {
-      const filePath = this.knowledgePath(scope);
+      const filePath = this.getKnowledgePath(scope);
       if (fs.existsSync(filePath)) {
         return fs.readFileSync(filePath, "utf-8");
       }
@@ -269,7 +269,7 @@ export class GeminiAdapter implements PlatformAdapter {
   }
 
   writeKnowledge(content: string): void {
-    const p = this.knowledgePath();
+    const p = this.getKnowledgePath();
     fs.mkdirSync(path.dirname(p), { recursive: true });
     fs.writeFileSync(p, content);
   }

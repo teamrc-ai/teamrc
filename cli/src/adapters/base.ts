@@ -94,6 +94,8 @@ export interface PlatformAdapter {
   planWrite(team: TeamDefinition, scope?: TeamScope): FileAction[];
   readKnowledge(): string;
   writeKnowledge(content: string): void;
+  /** Return the absolute path to this adapter's knowledge file. */
+  getKnowledgePath(scope?: TeamScope): string;
   /** Remove everything teamrc installed for this platform. Returns list of actions taken.
    *  When scope is provided, only removes files for that scope. */
   uninstall(scope?: TeamScope): string[];

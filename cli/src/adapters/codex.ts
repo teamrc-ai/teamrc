@@ -313,18 +313,18 @@ export class CodexAdapter implements PlatformAdapter {
     upsertMarkerBlock(this.agentsMdPath(), marker, markerEnd, block);
   }
 
-  private knowledgePath(): string {
+  getKnowledgePath(): string {
     return path.join(process.cwd(), ".teamrc", knowledgeFileName(this.teamSlug));
   }
 
   readKnowledge(): string {
-    const p = this.knowledgePath();
+    const p = this.getKnowledgePath();
     if (fs.existsSync(p)) return fs.readFileSync(p, "utf-8");
     return "";
   }
 
   writeKnowledge(content: string): void {
-    const p = this.knowledgePath();
+    const p = this.getKnowledgePath();
     fs.mkdirSync(path.dirname(p), { recursive: true });
     fs.writeFileSync(p, content);
   }

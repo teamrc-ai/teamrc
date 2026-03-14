@@ -11,10 +11,8 @@
  */
 
 import { createHash } from "node:crypto";
-import * as os from "node:os";
 import { watch } from "chokidar";
 import type { PlatformAdapter, TeamScope } from "./adapters/base.js";
-import { knowledgeFileName } from "./adapters/base.js";
 import {
   createChannelClient,
   type ChannelClient,
@@ -177,18 +175,12 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
   // -----------------------------------------------------------------------
 
   function setupFileWatcher(onLocalChange: (content: string) => void): void {
-    const fileName = knowledgeFileName(teamSlug);
-
-    // Watch the knowledge file in the .teamrc directory.
-    // Adapters read/write from platform-specific paths, but the canonical
-    // location is always `.teamrc/<knowledge-file>` (project) or
-    // `~/.teamrc/<knowledge-file>` (global).
-    const watchPatterns: string[] = [];
-    if (scope === "project") {
-      watchPatterns.push(`.teamrc/${fileName}`);
-    } else {
-      watchPatterns.push(`${os.homedir()}/.teamrc/${fileName}`);
-    }
+    // Watch all unique knowledge file paths across adapters.
+    // Each adapter may store knowledge in a different location
+    // (e.g. OpenClaw uses ~/.openclaw/ instead of .teamrc/).
+    const watchPatterns = [...new Set(
+      adapters.map((a) => a.getKnowledgePath(scope)),
+    )];
 
     watcher = watch(watchPatterns, {
       ignoreInitial: true,

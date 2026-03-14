@@ -254,12 +254,12 @@ export class OpenClawAdapter implements PlatformAdapter {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
   }
 
-  private knowledgePath(): string {
+  getKnowledgePath(): string {
     return path.join(this.openclawDir(), knowledgeFileName(this.teamSlug));
   }
 
   readKnowledge(): string {
-    const filePath = this.knowledgePath();
+    const filePath = this.getKnowledgePath();
     if (fs.existsSync(filePath)) {
       return fs.readFileSync(filePath, "utf-8");
     }
@@ -267,7 +267,7 @@ export class OpenClawAdapter implements PlatformAdapter {
   }
 
   writeKnowledge(content: string): void {
-    const filePath = this.knowledgePath();
+    const filePath = this.getKnowledgePath();
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });

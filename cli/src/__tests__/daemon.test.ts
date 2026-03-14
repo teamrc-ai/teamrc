@@ -30,6 +30,7 @@ function createMockAdapter(tmpDir: string): PlatformAdapter & { knowledgeContent
       adapter.knowledgeContent = content;
       adapter.writeCount++;
     },
+    getKnowledgePath: () => knowledgeFile,
     uninstall: () => [],
   };
 
@@ -67,6 +68,7 @@ function createInMemoryAdapter(opts?: {
       adapter.writeCount++;
       adapter.writtenContents.push(content);
     },
+    getKnowledgePath: () => "/tmp/mock-knowledge.md",
     uninstall: () => [],
   };
 
