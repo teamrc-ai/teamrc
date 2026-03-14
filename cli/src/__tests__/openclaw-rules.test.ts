@@ -406,4 +406,21 @@ describe("OpenClaw adapter (file-based agents)", () => {
 
     assert.ok(!fs.existsSync(path.join(tmpDir, ".agents")), "Should NOT create .agents directory");
   });
+
+  it("writes built-in teamrc skills to ~/.openclaw/skills/", async () => {
+    const { OpenClawAdapter } = await import("../adapters/openclaw.js");
+    const adapter = new OpenClawAdapter();
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [{ name: "coder", role: "write code" }],
+    });
+
+    const skillsDir = path.join(tmpDir, ".openclaw", "skills");
+    const builtInSkills = ["trc-save-knowledge", "trc-save-core", "trc-knowledge", "trc-status"];
+    for (const skillName of builtInSkills) {
+      const skillFile = path.join(skillsDir, skillName, "SKILL.md");
+      assert.ok(fs.existsSync(skillFile), `${skillName}/SKILL.md should exist`);
+    }
+  });
 });

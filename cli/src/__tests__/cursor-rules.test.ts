@@ -167,4 +167,27 @@ describe("Cursor adapter", () => {
     assert.ok(fs.existsSync(path.join(agentDir, "trc-alice.md")), "alice should remain");
     assert.ok(!fs.existsSync(path.join(agentDir, "trc-bob.md")), "bob should be deleted");
   });
+
+  it("writes built-in teamrc skills to .cursor/skills/", async () => {
+    const { CursorAdapter } = await import("../adapters/cursor.js");
+    const adapter = new CursorAdapter();
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [{ name: "coder", role: "write code" }],
+    });
+
+    const skillsDir = path.join(tmpDir, ".cursor", "skills");
+    const builtInSkills = ["trc-save-knowledge", "trc-save-core", "trc-knowledge", "trc-status"];
+    for (const skillName of builtInSkills) {
+      const skillFile = path.join(skillsDir, skillName, "SKILL.md");
+      assert.ok(fs.existsSync(skillFile), `${skillName}/SKILL.md should exist`);
+    }
+
+    // Verify disable-model-invocation is written
+    const saveContent = fs.readFileSync(
+      path.join(skillsDir, "trc-save-knowledge", "SKILL.md"), "utf-8"
+    );
+    assert.ok(saveContent.includes("disable-model-invocation: true"));
+  });
 });

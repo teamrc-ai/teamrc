@@ -143,4 +143,97 @@ describe("Claude Code agent file with skills", () => {
     assert.ok(fs.existsSync(path.join(agentDir, "trc-alice.md")), "alice should remain");
     assert.ok(!fs.existsSync(path.join(agentDir, "trc-bob.md")), "bob should be deleted");
   });
+
+  it("writes built-in teamrc skills to .claude/skills/", async () => {
+    const { ClaudeCodeAdapter } = await import("../adapters/claude-code.js");
+    const adapter = new ClaudeCodeAdapter();
+
+    const team = {
+      name: "test-team",
+      members: [{ name: "coder", role: "write code" }],
+    };
+
+    adapter.writeTeam(team, "global");
+
+    const skillsDir = path.join(tmpDir, ".claude", "skills");
+    assert.ok(fs.existsSync(skillsDir), "skills dir should exist");
+
+    // Check all four built-in skills are written
+    const builtInSkills = ["trc-save-knowledge", "trc-save-core", "trc-knowledge", "trc-status"];
+    for (const skillName of builtInSkills) {
+      const skillFile = path.join(skillsDir, skillName, "SKILL.md");
+      assert.ok(fs.existsSync(skillFile), `${skillName}/SKILL.md should exist`);
+    }
+  });
+
+  it("writes disable-model-invocation frontmatter in built-in skills", async () => {
+    const { ClaudeCodeAdapter } = await import("../adapters/claude-code.js");
+    const adapter = new ClaudeCodeAdapter();
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [{ name: "coder", role: "write code" }],
+    }, "global");
+
+    const skillsDir = path.join(tmpDir, ".claude", "skills");
+
+    // save-knowledge should have disable-model-invocation: true
+    const saveContent = fs.readFileSync(
+      path.join(skillsDir, "trc-save-knowledge", "SKILL.md"), "utf-8"
+    );
+    assert.ok(saveContent.includes("disable-model-invocation: true"),
+      "save-knowledge should have disable-model-invocation");
+    assert.ok(saveContent.includes("argument-hint:"),
+      "save-knowledge should have argument-hint");
+
+    // knowledge should NOT have disable-model-invocation (agent can auto-trigger)
+    const knowledgeContent = fs.readFileSync(
+      path.join(skillsDir, "trc-knowledge", "SKILL.md"), "utf-8"
+    );
+    assert.ok(!knowledgeContent.includes("disable-model-invocation"),
+      "knowledge should not have disable-model-invocation");
+  });
+
+  it("writes on-demand skills with new frontmatter fields", async () => {
+    const { ClaudeCodeAdapter } = await import("../adapters/claude-code.js");
+    const adapter = new ClaudeCodeAdapter();
+
+    const team = {
+      name: "test-team",
+      members: [{ name: "coder", role: "write code" }],
+      skills: [{
+        id: "my-skill",
+        description: "A custom skill",
+        disableModelInvocation: true,
+        argumentHint: "<file>",
+        body: "Do the thing.",
+      }],
+    };
+
+    adapter.writeTeam(team, "global");
+
+    const skillFile = path.join(tmpDir, ".claude", "skills", "trc-my-skill", "SKILL.md");
+    const content = fs.readFileSync(skillFile, "utf-8");
+    assert.ok(content.includes("disable-model-invocation: true"));
+    assert.ok(content.includes('argument-hint: "<file>"'));
+  });
+
+  it("cleans up built-in skills on uninstall", async () => {
+    const { ClaudeCodeAdapter } = await import("../adapters/claude-code.js");
+    const adapter = new ClaudeCodeAdapter();
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [{ name: "coder", role: "write code" }],
+    }, "global");
+
+    const skillsDir = path.join(tmpDir, ".claude", "skills");
+    assert.ok(fs.existsSync(path.join(skillsDir, "trc-save-knowledge")),
+      "built-in skill should exist before uninstall");
+
+    adapter.uninstall("global");
+
+    assert.ok(!fs.existsSync(path.join(skillsDir, "trc-save-knowledge")),
+      "built-in skill should be removed after uninstall");
+  });
 });

@@ -257,6 +257,12 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
         if (skill.description) {
           frontmatterLines.push(`description: "${escapeYamlString(skill.description)}"`);
         }
+        if (skill.disableModelInvocation) {
+          frontmatterLines.push("disable-model-invocation: true");
+        }
+        if (skill.argumentHint) {
+          frontmatterLines.push(`argument-hint: ${JSON.stringify(skill.argumentHint)}`);
+        }
 
         const content = `---\n${frontmatterLines.join("\n")}\n---\n\n${skill.body}\n`;
         fs.writeFileSync(path.join(skillDir, "SKILL.md"), content);

@@ -506,4 +506,27 @@ describe("writeTeamYaml atomic writes", () => {
     const files = fs.readdirSync(tmpDir);
     assert.equal(files.length, 1);
   });
+
+  it("round-trips disableModelInvocation and argumentHint fields", () => {
+    const filePath = path.join(tmpDir, ".teamrc.yaml");
+    const team = {
+      name: "test",
+      members: [{ name: "dev", role: "developer" }],
+      skills: [{
+        id: "my-cmd",
+        description: "A command",
+        disableModelInvocation: true,
+        argumentHint: "<file>",
+        body: "Do things.",
+      }],
+    };
+
+    writeTeamYaml(filePath, team);
+    const result = readTeamYaml(filePath);
+    assert.ok(result);
+    assert.equal(result.skills!.length, 1);
+    const skill = result.skills![0];
+    assert.equal(skill.disableModelInvocation, true);
+    assert.equal(skill.argumentHint, "<file>");
+  });
 });

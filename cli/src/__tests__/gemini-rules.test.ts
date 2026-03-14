@@ -214,4 +214,30 @@ describe("Gemini CLI adapter", () => {
     assert.equal(remainingSkills.length, 0);
   });
 
+  it("writes built-in teamrc skills to both skill dirs", async () => {
+    const { GeminiAdapter } = await import("../adapters/gemini.js");
+    const adapter = new GeminiAdapter();
+
+    adapter.writeTeam({
+      name: "test-team",
+      members: [{ name: "coder", role: "write code" }],
+    }, "project");
+
+    const builtInSkills = ["trc-save-knowledge", "trc-save-core", "trc-knowledge", "trc-status"];
+
+    // Check Gemini CLI path
+    const geminiSkillsDir = path.join(tmpDir, ".agents", "skills");
+    for (const skillName of builtInSkills) {
+      assert.ok(fs.existsSync(path.join(geminiSkillsDir, skillName, "SKILL.md")),
+        `${skillName}/SKILL.md should exist in .agents/skills/`);
+    }
+
+    // Check Antigravity path
+    const antigravityDir = path.join(tmpDir, ".agent", "skills");
+    for (const skillName of builtInSkills) {
+      assert.ok(fs.existsSync(path.join(antigravityDir, skillName, "SKILL.md")),
+        `${skillName}/SKILL.md should exist in .agent/skills/`);
+    }
+  });
+
 });
