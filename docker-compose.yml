@@ -1,6 +1,5 @@
-# docker compose up — starts Postgres + teamrc relay server
-# Runs migrations automatically on startup.
-# All secrets are preset for local development. For production, use the Coolify guide.
+# docker compose up --build — starts Postgres + teamrc in dev mode
+# No SSL, emails logged locally at /dev/mailbox, debug errors enabled.
 
 services:
   db:
@@ -8,7 +7,7 @@ services:
     environment:
       POSTGRES_USER: teamrc
       POSTGRES_PASSWORD: teamrc
-      POSTGRES_DB: teamrc
+      POSTGRES_DB: teamrc_dev
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
@@ -20,7 +19,9 @@ services:
       retries: 5
 
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
     depends_on:
       db:
         condition: service_healthy
@@ -30,15 +31,10 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL: "ecto://teamrc:teamrc@db/teamrc"
-      DATABASE_SSL: "false"
-      SECRET_KEY_BASE: "dev-only-secret-key-base-do-not-use-in-production-aaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      PHX_HOST: "${PHX_HOST:-localhost}"
-      PHX_SERVER: "true"
-      PORT: "4000"
-      SESSION_SIGNING_SALT: "dev-session-signing-salt"
-      LIVE_VIEW_SIGNING_SALT: "dev-live-view-signing-salt"
-      SESSION_ENCRYPTION_SALT: "dev-session-encryption-salt"
+      DATABASE_HOST: db
+      DATABASE_USER: teamrc
+      DATABASE_PASS: teamrc
+      DATABASE_NAME: teamrc_dev
 
 volumes:
   pgdata:

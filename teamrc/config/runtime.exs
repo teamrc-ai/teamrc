@@ -55,6 +55,15 @@ if otel_endpoint = System.get_env("OTEL_ENDPOINT") do
 
 end
 
+# Allow overriding dev DB connection via env vars (e.g. Docker)
+if config_env() == :dev and System.get_env("DATABASE_HOST") do
+  config :teamrc, Teamrc.Repo,
+    hostname: System.get_env("DATABASE_HOST"),
+    username: System.get_env("DATABASE_USER", "postgres"),
+    password: System.get_env("DATABASE_PASS", "postgres"),
+    database: System.get_env("DATABASE_NAME", "teamrc_dev")
+end
+
 if config_env() == :prod do
   config :teamrc, TeamrcWeb.Endpoint,
     http: [port: String.to_integer(System.get_env("PORT", "4000")), ip: {0, 0, 0, 0}]

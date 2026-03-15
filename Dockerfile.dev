@@ -1,0 +1,39 @@
+# Dockerfile.dev — runs teamrc in MIX_ENV=dev with mix phx.server
+# Used by docker-compose.yml for local development.
+
+FROM hexpm/elixir:1.18.3-erlang-27.3.3-debian-bookworm-20250407-slim
+
+RUN apt-get update -y && \
+    apt-get install -y build-essential git inotify-tools && \
+    apt-get clean && rm -f /var/lib/apt/lists/*_*
+
+WORKDIR /app/teamrc
+
+RUN mix local.hex --force && mix local.rebar --force
+
+ENV MIX_ENV=dev
+
+# Cache dependencies
+COPY teamrc/mix.exs teamrc/mix.lock ./
+RUN mix deps.get
+
+# Copy config
+COPY teamrc/config config
+
+# Compile deps separately for caching
+RUN mix deps.compile
+
+# Copy templates
+COPY templates /app/templates
+
+# Copy app source
+COPY teamrc/priv priv
+COPY teamrc/lib lib
+COPY teamrc/assets assets
+
+# Compile app
+RUN mix compile
+
+EXPOSE 4000
+
+CMD ["sh", "-c", "mix ecto.create --quiet && mix ecto.migrate && mix phx.server"]

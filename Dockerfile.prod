@@ -1,7 +1,8 @@
-# Dockerfile for teamrc relay server
+# Dockerfile.prod — production release for teamrc relay server
 # Multi-stage build using mix release for a minimal production image.
+# Used by Coolify for deployment. For local dev, use docker-compose.yml (Dockerfile.dev).
 #
-# Build:  docker build -t teamrc .
+# Build:  docker build -f Dockerfile.prod -t teamrc .
 # Run:    docker run -p 4000:4000 --env-file .env teamrc
 
 # =============================================================================
@@ -72,9 +73,7 @@ USER nobody
 
 EXPOSE 4000
 
-# Healthcheck defined in docker-compose.coolify.yml (not here) so Coolify/Traefik
-# picks up a single, consistent health status. Duplicate HEALTHCHECKs can cause
-# Traefik to route based on the wrong one, delaying traffic after deploys.
+# No HEALTHCHECK here — Coolify defines its own so Traefik picks up a single status.
 
 # Runs migrations then starts the server
 CMD ["/app/bin/docker-entrypoint"]
