@@ -8,7 +8,7 @@ import {
 import { loadConfig } from "../config.js";
 import { loadKeypair, toToken } from "../auth.js";
 import { getAdapter, slugify } from "../adapters/base.js";
-import { readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
+import { readTeamYaml, readLocalYaml, TEAM_YAML, GLOBAL_TEAM_YAML, LOCAL_YAML, GLOBAL_LOCAL_YAML } from "../team-yaml.js";
 import { getRelayUrl, detectPlatforms } from "../config.js";
 import type { TeamDefinition } from "../adapters/base.js";
 
@@ -94,6 +94,8 @@ export function registerDaemon(program: Command): void {
         `Poll interval: ${pollSec}s`,
       ].join("\n"));
 
+      const localConfig = readLocalYaml(scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML);
+
       const { startKnowledgeDaemon } = await import("../daemon.js");
       const daemon = startKnowledgeDaemon({
         relayUrl: relay,
@@ -106,7 +108,7 @@ export function registerDaemon(program: Command): void {
         platforms,
         fallbackPollInterval: pollSec * 1000,
         restOnly: opts.restOnly,
-        activeMembers: team.activeMembers,
+        activeMembers: localConfig.activeMembers,
         enableTasks: opts.experimental,
       });
 

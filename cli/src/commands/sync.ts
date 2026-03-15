@@ -3,7 +3,7 @@ import * as p from "@clack/prompts";
 import { remoteTeamToDefinition, SyncConflictError, TeamNotFoundError } from "../client.js";
 import { computeTeamHashes } from "../sync-hash.js";
 import { getAdapter, slugify, filterActiveMembers, type TeamScope } from "../adapters/base.js";
-import { writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, pruneKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
+import { writeTeamYaml, readLocalYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML, LOCAL_YAML, GLOBAL_LOCAL_YAML, mergeKnowledge, pruneKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import { logKnowledgeSize } from "../knowledge-log.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
 import {
@@ -151,7 +151,8 @@ export function registerSync(program: Command): void {
             syncHashSkills: serverHead.skills_hash,
             syncHashKnowledge: serverHead.knowledge_hash,
           });
-          const pullFiltered = filterActiveMembers(remoteDef);
+          const syncLocalConfig = readLocalYaml(scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML);
+          const pullFiltered = filterActiveMembers(remoteDef, syncLocalConfig.activeMembers);
           for (const pl of platforms) {
             const a = getAdapter(pl, slugify(remoteDef.name));
             a.writeTeam(pullFiltered, effectiveScope(pl, scope));
@@ -212,7 +213,8 @@ export function registerSync(program: Command): void {
             syncHashSkills: newHead.skills_hash,
             syncHashKnowledge: newHead.knowledge_hash,
           });
-          const knowledgeFiltered = filterActiveMembers(remoteDef);
+          const kSyncLocalConfig = readLocalYaml(scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML);
+          const knowledgeFiltered = filterActiveMembers(remoteDef, kSyncLocalConfig.activeMembers);
           for (const pl of platforms) {
             const a = getAdapter(pl, slugify(remoteDef.name));
             a.writeTeam(knowledgeFiltered, effectiveScope(pl, scope));
@@ -257,7 +259,8 @@ export function registerSync(program: Command): void {
           syncHashSkills: serverHead.skills_hash,
           syncHashKnowledge: serverHead.knowledge_hash,
         });
-        const bothFiltered = filterActiveMembers(remoteDef);
+        const bothSyncLocalConfig = readLocalYaml(scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML);
+        const bothFiltered = filterActiveMembers(remoteDef, bothSyncLocalConfig.activeMembers);
         for (const pl of platforms) {
           const a = getAdapter(pl, slugify(remoteDef.name));
           a.writeTeam(bothFiltered, effectiveScope(pl, scope));

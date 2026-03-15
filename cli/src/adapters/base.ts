@@ -37,13 +37,12 @@ export interface TeamDefinition {
   relay?: string;
   platforms?: string[];
   cloneToken?: string;
-  activeMembers?: string[];
 }
 
-/** Filter team members to only those in activeMembers (no-op if unset) */
-export function filterActiveMembers(team: TeamDefinition): TeamDefinition {
-  if (!team.activeMembers || team.activeMembers.length === 0) return team;
-  const active = new Set(team.activeMembers);
+/** Filter team members to only those in activeMembers (no-op if unset/empty) */
+export function filterActiveMembers(team: TeamDefinition, activeMembers?: string[]): TeamDefinition {
+  if (!activeMembers || activeMembers.length === 0) return team;
+  const active = new Set(activeMembers);
   return {
     ...team,
     members: team.members.filter((m) => active.has(m.name)),

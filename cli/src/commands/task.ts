@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import { requireRelayContext, cliCmd } from "../utils.js";
 import type { TaskItem } from "../client.js";
-import { readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
+import { readLocalYaml } from "../team-yaml.js";
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "TODO",
@@ -62,10 +62,10 @@ export function registerTask(program: Command): void {
 
         let tasks = await ctx.client.listTasks(listOpts);
 
-        // Filter --mine: use activeMembers from YAML, or all members
+        // Filter --mine: use activeMembers from local.yaml, or all members
         if (opts.mine) {
-          const yaml = readTeamYaml(TEAM_YAML) ?? readTeamYaml(GLOBAL_TEAM_YAML);
-          const activeNames = yaml?.activeMembers ?? yaml?.members.map((m) => m.name) ?? [];
+          const localConfig = readLocalYaml();
+          const activeNames = localConfig.activeMembers ?? ctx.team.members.map((m) => m.name);
           tasks = tasks.filter((t) => activeNames.includes(t.assignee));
         }
 

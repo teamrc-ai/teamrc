@@ -4,7 +4,7 @@ import { TeamrcClient, remoteTeamToDefinition, TeamNotFoundError } from "../clie
 import { toToken } from "../auth.js";
 import { getRelayUrl } from "../config.js";
 import { getAdapter, slugify, filterActiveMembers, type TeamScope } from "../adapters/base.js";
-import { readTeamYaml, writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, pruneKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
+import { readTeamYaml, readLocalYaml, writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML, LOCAL_YAML, GLOBAL_LOCAL_YAML, mergeKnowledge, pruneKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import { logKnowledgeSize } from "../knowledge-log.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
 import {
@@ -57,7 +57,8 @@ export function registerPull(program: Command): void {
           writeTeamYaml(yamlPath, team);
           s.stop(`Pulled "${team.name}" (${team.members.length} agents, read-only).`);
 
-          const cloneFiltered = filterActiveMembers(team);
+          const cloneLocalConfig = readLocalYaml(projectYaml ? LOCAL_YAML : GLOBAL_LOCAL_YAML);
+          const cloneFiltered = filterActiveMembers(team, cloneLocalConfig.activeMembers);
           for (const pl of platforms) {
             const a = getAdapter(pl, slugify(team.name));
             a.writeTeam(cloneFiltered, effectiveScope(pl, scope));
@@ -133,7 +134,8 @@ export function registerPull(program: Command): void {
           s.stop(`Pulled "${team.name}" (${team.members.length} agents).`);
 
           // Apply to platforms
-          const pullFiltered = filterActiveMembers(team);
+          const pullLocalConfig = readLocalYaml(scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML);
+          const pullFiltered = filterActiveMembers(team, pullLocalConfig.activeMembers);
           for (const pl of platforms) {
             const a = getAdapter(pl, slugify(team.name));
             a.writeTeam(pullFiltered, effectiveScope(pl, scope));

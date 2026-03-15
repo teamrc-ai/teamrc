@@ -5,7 +5,7 @@ import { toToken } from "../auth.js";
 import { TeamrcClient, remoteTeamToDefinition } from "../client.js";
 import { getRelayUrl, saveConfig } from "../config.js";
 import { getAdapter, slugify, filterActiveMembers } from "../adapters/base.js";
-import { writeTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, pruneKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
+import { writeTeamYaml, writeLocalYaml, readLocalYaml, TEAM_YAML, GLOBAL_TEAM_YAML, LOCAL_YAML, GLOBAL_LOCAL_YAML, mergeKnowledge, pruneKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import {
   isNonInteractive,
   handleCancel,
@@ -64,13 +64,15 @@ export function registerJoin(program: Command): void {
               process.exit(1);
             }
           }
-          teamDef.activeMembers = names;
+          const localYamlPath = scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML;
+          writeLocalYaml(localYamlPath, { activeMembers: names });
         }
 
         // Apply to each platform
         const s2 = p.spinner();
         s2.start("Applying to detected platforms...");
-        const filtered = filterActiveMembers(teamDef);
+        const localConfig = readLocalYaml(scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML);
+        const filtered = filterActiveMembers(teamDef, localConfig.activeMembers);
         const appliedLines: string[] = [];
         for (const pl of platforms) {
           const adapter = getAdapter(pl, slugify(teamDef.name));
