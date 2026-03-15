@@ -12,7 +12,7 @@ docker compose up  # http://localhost:4000
 
 ### Option B: Elixir
 
-Requires Elixir 1.18+ and PostgreSQL.
+Requires Elixir 1.15+ and PostgreSQL.
 
 Install Elixir:
 
@@ -96,9 +96,7 @@ MIX_ENV=test mix ecto.reset  # Reset test DB
 | Env var | Description |
 |---------|-------------|
 | `DATABASE_URL` | PostgreSQL connection string (`ecto://USER:PASS@HOST/DATABASE`) |
-| `DATABASE_SSL` | Enable SSL for database connections (default: `true`) |
 | `SECRET_KEY_BASE` | Cookie signing key (generate with `mix phx.gen.secret`) |
-| `PHX_HOST` | Public hostname for URL generation |
 | `SESSION_SIGNING_SALT` | Session cookie signing salt |
 | `LIVE_VIEW_SIGNING_SALT` | LiveView signing salt |
 | `SESSION_ENCRYPTION_SALT` | Session cookie encryption salt |
@@ -120,6 +118,8 @@ Without these, teamrc works fully. Team sync, CLI, and invites all function. OAu
 |---------|-------------|
 | `PORT` | HTTP port (default: `4000`) |
 | `POOL_SIZE` | Database connection pool size (default: `10`) |
+| `PHX_HOST` | Public hostname for URL generation (default: `teamrc.ai`) |
+| `DATABASE_SSL` | Enable SSL for database connections (default: `true`) |
 | `DNS_CLUSTER_QUERY` | DNS discovery query for clustering |
 
 Dev config: `config/dev.exs`. Production runtime config: `config/runtime.exs`.

@@ -46,7 +46,7 @@ Primary files:
 - Phoenix router and controllers for API and web traffic
 - LiveView UI for team management and onboarding
 - Ecto/Postgrex for persistence
-- In-memory GenServer for device auth (ephemeral state only)
+- Postgres-backed device auth (crash-resilient, multi-node)
 
 Primary files:
 - `teamrc/lib/teamrc_web/router.ex`
@@ -103,9 +103,9 @@ Teams created with `teamrc init --local` or via declining the relay prompt durin
 - `import`  --  import platform config into YAML
 - `status`  --  show team state (sync status shows "local-only")
 - `delete`  --  remove all teamrc files
-- `add-member`, `list-templates`, `list-agents`, `whoami`, `doctor`
+- `list-templates`, `list-agents`, `whoami`, `doctor`
 
-Commands that require relay (`sync`, `pull`, `diff`, `export`, `invite`, `share`, `claim`, `dashboard`, `daemon`) show: "This team is local-only. Run `teamrc push` to connect."
+Commands that require relay (`sync`, `pull`, `diff`, `export`, `invite`, `share`, `claim`, `dashboard`, `daemon`, `add-member`) show: "This team is local-only. Run `teamrc push` to connect."
 
 ### Connecting a local team (`teamrc push`)
 
@@ -150,13 +150,13 @@ The task system enables cross-agent task assignment across machines and platform
 
 - Ed25519 signatures verified by the `VerifySignature` plug
 - The token format embeds the public key: `trc_ak_<base64url(pubkey)>`
-- Timestamp drift window is 5 minutes
-- The signed message includes the timestamp and the raw request body (or `GET /path?query` for GET requests)
+- Timestamp drift window is 30 seconds
+- The signed message format is `<timestamp>.<raw_body>` (or `<timestamp>.GET /path?query` for GET requests)
 
-### Optional Clerk auth (account APIs and dashboard)
+### Session auth (account APIs and dashboard)
 
-- `VerifyClerkJWT` protects account endpoints
-- The reassociation endpoint requires both a Clerk JWT and a signature
+- `phx.gen.auth` with GitHub/Google OAuth (via UeberAuth) for user accounts
+- The reassociation endpoint requires both a session and a signature
 
 ## Runtime State and Concurrency Model
 
@@ -167,11 +167,10 @@ The task system enables cross-agent task assignment across machines and platform
 - Authorization checks (token-to-team_id mapping) use the `token_teams` table
 - Fully concurrent. Each Phoenix endpoint process runs its own queries independently.
 
-### `Teamrc.DeviceAuth` GenServer
+### `Teamrc.DeviceAuth` Context Module
 
-- Holds ephemeral device auth requests in memory
-- 15-minute TTL
-- Periodic sweep every 60 seconds
+- Postgres-backed device auth requests (previously in-memory GenServer)
+- 15-minute TTL with periodic sweep every 60 seconds
 - Capacity limits:
   - max 3 active requests per token
   - max 10,000 active requests globally
@@ -196,9 +195,11 @@ Core tables:
 - `token_teams`
   - Membership relation between a machine token and a team
 - `accounts`
-  - Clerk user mapping
-- `account_tokens`
+  - User accounts (OAuth via GitHub/Google)
+- `machine_tokens`
   - Machine tokens linked to accounts, with revocation metadata
+- `device_auth_requests`
+  - Ephemeral device auth flow state (15-min TTL)
 - `tasks`
   - Task records with status tracking, scoped by team. Fields: number, description, assignee, status, created_by, claimed_by, claimed_at, completed_at, result.
 
@@ -260,7 +261,7 @@ WebSocket:
 
 ### Local development
 
-- `docker-compose` starts Postgres 16 and the relay app container
+- `docker-compose` starts Postgres 18 and the relay app container
 - The relay runs migrations at startup through the release entrypoint
 
 ### Production
@@ -270,12 +271,12 @@ WebSocket:
   - `DATABASE_URL`
   - `POOL_SIZE` (default `10`)
   - Phoenix and session salts and secrets
-  - Optional Clerk JWKS/issuer/audience
+  - Optional OAuth provider credentials (GitHub, Google)
 
 ## Architectural Tradeoffs
 
 1. **Stateless team operations.** The Teams context is a plain Ecto module. Fully concurrent, with no serialization bottleneck.
-2. **GenServer only for ephemeral state.** DeviceAuth uses a GenServer for short-lived auth requests (15-min TTL). This fits because the state is transient and does not need persistence.
+2. **Postgres for business state.** All team, task, and device auth data lives in Postgres for crash resilience and multi-node support. GenServers are limited to infrastructure concerns (rate limiter ETS management, periodic cleanup).
 3. **No revision history.** The relay stores current state, not versioned diffs.
 4. **CLI-driven merge semantics.** Knowledge merge and diff logic lives in the CLI for deterministic local behavior.
 5. **Local-first by default.** Teams work fully offline. The relay is opt-in at init time and can be connected later via `push`. This makes `init` non-blocking for users who just want local agent management.

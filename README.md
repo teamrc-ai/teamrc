@@ -128,7 +128,7 @@ teamrc members
 
 ### Daemon auto-sync (experimental)
 
-Real-time task sync requires the `--experimental` flag. With it enabled, the daemon subscribes to task updates over WebSocket and writes task files locally for active members. With `--spawn`, it can optionally auto-spawn agents for claimed tasks:
+Real-time task sync requires the `--experimental` flag. With it enabled, the daemon subscribes to task updates over WebSocket and writes task files locally for active members. With `--auto-spawn`, it can optionally auto-spawn agents for claimed tasks:
 
 ```bash
 teamrc daemon --experimental
