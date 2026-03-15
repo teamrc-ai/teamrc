@@ -27,9 +27,35 @@ export interface KnowledgeChannel {
   leave(): void;
 }
 
+export interface TasksChannelEvents {
+  onJoin: (tasks: TaskChannelItem[]) => void;
+  onCreated: (task: TaskChannelItem) => void;
+  onUpdated: (task: TaskChannelItem) => void;
+  onError: (error: Error) => void;
+  onClose: () => void;
+}
+
+export interface TaskChannelItem {
+  number: number;
+  description: string;
+  assignee: string;
+  status: string;
+  created_by?: string;
+  claimed_by?: string;
+  claimed_at?: string;
+  completed_at?: string;
+  inserted_at?: string;
+  updated_at?: string;
+}
+
+export interface TasksChannel {
+  leave(): void;
+}
+
 export interface ChannelClient {
   connect(): Promise<void>;
   joinKnowledge(teamId: string, events: KnowledgeChannelEvents): Promise<KnowledgeChannel>;
+  joinTasks(teamId: string, events: TasksChannelEvents): Promise<TasksChannel>;
   disconnect(): void;
   isConnected(): boolean;
 }
@@ -307,6 +333,55 @@ export function createChannelClient(
             socket.send(JSON.stringify(msg));
           }
           eventHandlers.delete(`${topic}:knowledge:updated`);
+          eventHandlers.delete(`${topic}:error`);
+          eventHandlers.delete(`${topic}:close`);
+          joinRefs.delete(topic);
+        },
+      };
+    },
+
+    async joinTasks(
+      teamId: string,
+      events: TasksChannelEvents,
+    ): Promise<TasksChannel> {
+      const topic = `tasks:${teamId}`;
+      const joinRef = nextRef();
+
+      // Register event handlers before joining
+      eventHandlers.set(`${topic}:tasks:created`, (payload) => {
+        events.onCreated(payload.task as TaskChannelItem);
+      });
+
+      eventHandlers.set(`${topic}:tasks:updated`, (payload) => {
+        events.onUpdated(payload.task as TaskChannelItem);
+      });
+
+      eventHandlers.set(`${topic}:error`, (payload) => {
+        events.onError(new Error(`Tasks channel error: ${JSON.stringify(payload)}`));
+      });
+
+      eventHandlers.set(`${topic}:close`, () => {
+        events.onClose();
+      });
+
+      joinRefs.set(topic, joinRef);
+
+      // Send join message
+      const reply = await sendMessage(joinRef, topic, "phx_join", {});
+
+      events.onJoin(
+        (reply.tasks as TaskChannelItem[]) ?? [],
+      );
+
+      return {
+        leave(): void {
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            const ref = nextRef();
+            const msg: PhoenixMessage = [joinRefs.get(topic) ?? null, ref, topic, "phx_leave", {}];
+            socket.send(JSON.stringify(msg));
+          }
+          eventHandlers.delete(`${topic}:tasks:created`);
+          eventHandlers.delete(`${topic}:tasks:updated`);
           eventHandlers.delete(`${topic}:error`);
           eventHandlers.delete(`${topic}:close`);
           joinRefs.delete(topic);
