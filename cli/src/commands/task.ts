@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
-import { requireRelayContext, cliCmd } from "../utils.js";
+import { requireRelayContext, isNonInteractive, handleCancel, cliCmd } from "../utils.js";
 import type { TaskItem } from "../client.js";
 import { readLocalYaml } from "../team-yaml.js";
 
@@ -25,20 +25,37 @@ export function registerTask(program: Command): void {
     .command("create")
     .description("Create a new task")
     .argument("<description>", "Task description")
-    .requiredOption("--assign <member>", "Assign to team member")
-    .action(async (description: string, opts: { assign: string }) => {
+    .option("--assign <member>", "Assign to team member")
+    .action(async (description: string, opts: { assign?: string }) => {
       p.intro("teamrc");
       const ctx = requireRelayContext();
-
-      // Validate assignee exists
       const memberNames = ctx.team.members.map((m) => m.name);
-      if (!memberNames.includes(opts.assign)) {
-        p.log.error(`"${opts.assign}" is not a team member. Members: ${memberNames.join(", ")}`);
+
+      let assignee = opts.assign;
+      if (!assignee) {
+        if (isNonInteractive()) {
+          p.log.error("--assign is required in non-interactive mode.");
+          process.exit(1);
+        }
+        const choice = await p.select({
+          message: "Assign to",
+          options: ctx.team.members.map((m) => ({
+            value: m.name,
+            label: m.name,
+            hint: m.role,
+          })),
+        });
+        handleCancel(choice);
+        assignee = choice as string;
+      }
+
+      if (!memberNames.includes(assignee)) {
+        p.log.error(`"${assignee}" is not a team member. Members: ${memberNames.join(", ")}`);
         process.exit(1);
       }
 
       try {
-        const created = await ctx.client.createTask(description, opts.assign);
+        const created = await ctx.client.createTask(description, assignee);
         p.log.step(`Task #${created.number} created → ${created.assignee}`);
         p.outro("Done.");
       } catch (err) {
