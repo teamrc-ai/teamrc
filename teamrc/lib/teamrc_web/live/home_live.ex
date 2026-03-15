@@ -7,8 +7,14 @@ defmodule TeamrcWeb.HomeLive do
      assign(socket,
        page_title: "Keep Your AI Agents in Sync Across Machines and VMs",
        og_description:
-         "Claude Code on your laptop, OpenClaw on a VM? teamrc keeps your agent configs in sync across machines, platforms, and projects. Open-source CLI."
+         "Claude Code on your laptop, OpenClaw on a VM? teamrc keeps your agent configs in sync across machines, platforms, and projects. Open-source CLI.",
+       bottom_tab: "relay"
      )}
+  end
+
+  @impl true
+  def handle_event("set_bottom_tab", %{"tab" => tab}, socket) when tab in ["relay", "local"] do
+    {:noreply, assign(socket, :bottom_tab, tab)}
   end
 
   @impl true
@@ -78,34 +84,6 @@ defmodule TeamrcWeb.HomeLive do
       </p>
     </div>
 
-    <%!-- Pain points --%>
-    <section class="mt-12 space-y-3">
-      <h2 class="text-lg font-bold tracking-tight">AI team setup gets messy fast</h2>
-      <p class="text-sm text-base-content/60">If you use more than one AI tool or machine, you've already felt it:</p>
-      <ul class="space-y-1.5 text-sm text-base-content/60 list-none p-0">
-        <li class="flex items-start gap-2">
-          <span class="text-base-content/30 shrink-0">&mdash;</span>
-          <span>Prompts updated in one place but not another</span>
-        </li>
-        <li class="flex items-start gap-2">
-          <span class="text-base-content/30 shrink-0">&mdash;</span>
-          <span>Agent configs duplicated across tools with subtle differences</span>
-        </li>
-        <li class="flex items-start gap-2">
-          <span class="text-base-content/30 shrink-0">&mdash;</span>
-          <span>One machine knows the workaround, another doesn't</span>
-        </li>
-        <li class="flex items-start gap-2">
-          <span class="text-base-content/30 shrink-0">&mdash;</span>
-          <span>Onboarding a new machine means rebuilding everything by hand</span>
-        </li>
-        <li class="flex items-start gap-2">
-          <span class="text-base-content/30 shrink-0">&mdash;</span>
-          <span>Teammates end up with different agent behavior and different context</span>
-        </li>
-      </ul>
-    </section>
-
     <%!-- How it works --%>
     <section class="mt-16 space-y-4">
       <h2 class="text-lg font-bold tracking-tight">How it works</h2>
@@ -169,8 +147,8 @@ defmodule TeamrcWeb.HomeLive do
     <section class="mt-12 space-y-3">
       <h2 class="text-lg font-bold tracking-tight">Built for how people actually work</h2>
       <p class="text-sm text-base-content/70 leading-relaxed">
-        You have Claude Code on your laptop and OpenClaw running on a VM. Maybe
-        Cursor Cloud Agents too. Each platform has its own config format, and
+        You have Claude Code on your laptop and OpenClaw running on a VM. Cursor
+        in another project. Each platform has its own config format, and
         every machine has its own copy. You tweak an agent on one machine and the
         others fall behind.
       </p>
@@ -257,29 +235,46 @@ defmodule TeamrcWeb.HomeLive do
     <%!-- Bottom CTA --%>
     <div class="mt-16 mb-4 rounded-lg border border-base-300 bg-base-200/30 p-6 text-center space-y-4">
       <p class="text-sm font-semibold">Try it in the project you're working on right now.</p>
-      <div class="terminal-block rounded-lg overflow-hidden inline-block mx-auto">
-        <div class="flex items-center justify-between gap-6 px-4 py-3">
-          <div class="flex items-center gap-2">
-            <span class="text-white/30 font-mono text-sm select-none">$</span>
-            <code class="text-emerald-400 text-sm font-mono whitespace-nowrap">npx @teamrc/cli init</code>
-          </div>
+      <div class="inline-block">
+        <div class="flex justify-center gap-0 mb-0">
           <button
-            id="copy-init-bottom"
-            phx-click={JS.dispatch("trc:copy", detail: %{text: "npx @teamrc/cli init"})}
-            class="trc-focus text-white/25 hover:text-white/60 transition-colors rounded p-1 hover:bg-white/5"
-            aria-label="Copy command"
+            phx-click="set_bottom_tab"
+            phx-value-tab="relay"
+            class={"trc-focus text-xs font-mono px-3 py-1.5 rounded-t-md border border-b-0 transition-colors " <> if(@bottom_tab == "relay", do: "bg-zinc-900 text-white/80 border-zinc-700", else: "bg-base-200 text-base-content/40 border-base-300 hover:text-base-content/60")}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
-            </svg>
+            With relay
           </button>
+          <button
+            phx-click="set_bottom_tab"
+            phx-value-tab="local"
+            class={"trc-focus text-xs font-mono px-3 py-1.5 rounded-t-md border border-b-0 -ml-px transition-colors " <> if(@bottom_tab == "local", do: "bg-zinc-900 text-white/80 border-zinc-700", else: "bg-base-200 text-base-content/40 border-base-300 hover:text-base-content/60")}
+          >
+            Local only
+          </button>
+        </div>
+        <div class="terminal-block rounded-lg rounded-tl-none overflow-hidden">
+          <div class="flex items-center justify-between gap-6 px-4 py-3">
+            <div class="flex items-center gap-2">
+              <span class="text-white/30 font-mono text-sm select-none">$</span>
+              <code class="text-emerald-400 text-sm font-mono whitespace-nowrap">
+                {if @bottom_tab == "relay", do: "npx @teamrc/cli init", else: "npx @teamrc/cli init --local"}
+              </code>
+            </div>
+            <button
+              id="copy-init-bottom"
+              phx-click={JS.dispatch("trc:copy", detail: %{text: if(@bottom_tab == "relay", do: "npx @teamrc/cli init", else: "npx @teamrc/cli init --local")})}
+              class="trc-focus text-white/25 hover:text-white/60 transition-colors rounded p-1 hover:bg-white/5"
+              aria-label="Copy command"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
       <p class="text-xs text-base-content/40 font-mono">
-        No account required. No install. Runs via npx.
-      </p>
-      <p class="text-xs text-base-content/40 font-mono mt-1">
-        For local-only use: <code class="text-emerald-400/60">npx @teamrc/cli init --local</code>
+        {if @bottom_tab == "relay", do: "No account required. No install. Runs via npx.", else: "Works without a relay. Define and sync locally."}
       </p>
       <p class="text-sm text-base-content/50">
         or
