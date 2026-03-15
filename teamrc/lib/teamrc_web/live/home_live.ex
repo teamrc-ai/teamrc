@@ -160,26 +160,26 @@ defmodule TeamrcWeb.HomeLive do
     </section>
 
     <%!-- Use cases --%>
-    <section class="mt-12 space-y-3">
+    <section class="mt-12 space-y-4">
       <h2 class="text-lg font-bold tracking-tight">Useful when</h2>
-      <ul class="space-y-1.5 text-sm text-base-content/60 list-none p-0">
-        <li class="flex items-start gap-2">
-          <span class="text-base-content/30 shrink-0">&mdash;</span>
-          <span>You use Claude Code locally and OpenClaw on a VM</span>
-        </li>
-        <li class="flex items-start gap-2">
-          <span class="text-base-content/30 shrink-0">&mdash;</span>
-          <span>Your team mixes Cursor, Codex, and Gemini</span>
-        </li>
-        <li class="flex items-start gap-2">
-          <span class="text-base-content/30 shrink-0">&mdash;</span>
-          <span>You want consistent agent behavior across environments</span>
-        </li>
-        <li class="flex items-start gap-2">
-          <span class="text-base-content/30 shrink-0">&mdash;</span>
-          <span>You need to onboard a new machine or teammate quickly</span>
-        </li>
-      </ul>
+      <div class="grid gap-2 sm:grid-cols-2">
+        <div class="rounded-lg border border-base-300 bg-base-100 px-4 py-3 space-y-0.5">
+          <p class="text-sm font-semibold">Multiple machines</p>
+          <p class="text-xs text-base-content/60">Claude Code on your laptop, OpenClaw on a VM, Cursor in CI</p>
+        </div>
+        <div class="rounded-lg border border-base-300 bg-base-100 px-4 py-3 space-y-0.5">
+          <p class="text-sm font-semibold">Mixed platforms</p>
+          <p class="text-xs text-base-content/60">Your team uses Cursor, Codex, and Gemini across different projects</p>
+        </div>
+        <div class="rounded-lg border border-base-300 bg-base-100 px-4 py-3 space-y-0.5">
+          <p class="text-sm font-semibold">Fast onboarding</p>
+          <p class="text-xs text-base-content/60">New machine or new teammate gets the full agent setup in one command</p>
+        </div>
+        <div class="rounded-lg border border-base-300 bg-base-100 px-4 py-3 space-y-0.5">
+          <p class="text-sm font-semibold">Consistent behavior</p>
+          <p class="text-xs text-base-content/60">Same agents, same skills, same knowledge — everywhere they run</p>
+        </div>
+      </div>
     </section>
 
     <%!-- Platforms --%>
@@ -199,11 +199,11 @@ defmodule TeamrcWeb.HomeLive do
       <h2 class="text-lg font-bold tracking-tight">What you get</h2>
       <div class="grid gap-2 sm:grid-cols-2">
         <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1">
-          <h3 class="text-sm font-semibold">Relay sync, not git sync</h3>
+          <h3 class="text-sm font-semibold">Relay sync</h3>
           <p class="text-xs text-base-content/60">
-            The relay is a coordination point that works across machines, VMs, and
-            projects without requiring them to share a repo. Push from one, pull
-            from all.
+            Use the same team across different repos and projects. The relay
+            keeps everything aligned across machines and environments, no shared
+            repo required.
           </p>
         </div>
         <div class="rounded-lg border border-base-300 bg-base-100 p-4 space-y-1">
