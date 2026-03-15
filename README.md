@@ -6,6 +6,8 @@ One team definition. Every AI platform. Every machine.
 
 Sync your AI agents, skills, and shared knowledge across Claude Code, Cursor, Codex, Gemini, and OpenClaw. Define your team in `.teamrc.yaml` or from the web UI. Change something on one machine, every other machine picks it up.
 
+Your agents build shared context automatically. Findings from one session carry forward to the next, across machines, VMs, and teammates.
+
 ## Quick Start
 
 ```bash
