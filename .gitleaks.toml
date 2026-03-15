@@ -1,0 +1,6 @@
+[allowlist]
+description = "Dev/test secret_key_base values (not real credentials)"
+paths = [
+  '''config/dev\.exs''',
+  '''config/test\.exs''',
+]
