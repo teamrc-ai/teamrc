@@ -330,6 +330,7 @@ export const GLOBAL_LOCAL_YAML = path.join(os.homedir(), ".teamrc", "local.yaml"
 
 export interface LocalConfig {
   activeMembers?: string[];
+  platform?: string;
 }
 
 export function readLocalYaml(filePath?: string): LocalConfig {
@@ -341,6 +342,7 @@ export function readLocalYaml(filePath?: string): LocalConfig {
     if (!data || typeof data !== "object") return {};
     return {
       ...(Array.isArray(data.activeMembers) ? { activeMembers: data.activeMembers.map((m: unknown) => String(m)) } : {}),
+      ...(typeof data.platform === "string" ? { platform: data.platform } : {}),
     };
   } catch {
     return {};
@@ -348,13 +350,17 @@ export function readLocalYaml(filePath?: string): LocalConfig {
 }
 
 export function writeLocalYaml(filePath: string, config: LocalConfig): void {
-  if (config.activeMembers?.length) {
+  const data: Record<string, unknown> = {};
+  if (config.activeMembers?.length) data.activeMembers = config.activeMembers;
+  if (config.platform) data.platform = config.platform;
+
+  if (Object.keys(data).length > 0) {
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const yaml = YAML.stringify({ activeMembers: config.activeMembers });
+    const yaml = YAML.stringify(data);
     fs.writeFileSync(filePath, yaml);
   } else if (fs.existsSync(filePath)) {
-    // Clean up file when reverting to defaults (all members active)
+    // Clean up file when reverting to defaults
     fs.unlinkSync(filePath);
   }
 }

@@ -54,18 +54,24 @@ export function registerJoin(program: Command): void {
           p.log.info("Members:\n" + memberLines.join("\n"));
         }
 
-        // Validate and set --members
-        if (opts.members) {
-          const names = opts.members.split(",").map((s) => s.trim()).filter(Boolean);
-          const memberNames = teamDef.members.map((m) => m.name);
-          for (const n of names) {
-            if (!memberNames.includes(n)) {
-              p.log.error(`"${n}" is not a team member. Members: ${memberNames.join(", ")}`);
-              process.exit(1);
-            }
-          }
+        // Write platform to local.yaml and validate/set --members
+        {
           const localYamlPath = scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML;
-          writeLocalYaml(localYamlPath, { activeMembers: names });
+          const existingLocal = readLocalYaml(localYamlPath);
+          const localUpdate: typeof existingLocal = { ...existingLocal, platform: platforms[0] };
+
+          if (opts.members) {
+            const names = opts.members.split(",").map((s) => s.trim()).filter(Boolean);
+            const memberNames = teamDef.members.map((m) => m.name);
+            for (const n of names) {
+              if (!memberNames.includes(n)) {
+                p.log.error(`"${n}" is not a team member. Members: ${memberNames.join(", ")}`);
+                process.exit(1);
+              }
+            }
+            localUpdate.activeMembers = names;
+          }
+          writeLocalYaml(localYamlPath, localUpdate);
         }
 
         // Apply to each platform

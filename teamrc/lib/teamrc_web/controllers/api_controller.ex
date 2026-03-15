@@ -295,10 +295,13 @@ defmodule TeamrcWeb.ApiController do
     token = conn.assigns[:verified_token]
     team_id = params["team_id"]
     status = params["status"]
+    result = params["result"]
 
     with :ok <- validate_task_status(status),
+         :ok <- validate_task_result(result),
          {number, ""} <- Integer.parse(number_str) do
-      case Teamrc.Tasks.update_task_status(token, team_id, number, status) do
+      opts = if is_binary(result), do: [result: result], else: []
+      case Teamrc.Tasks.update_task_status(token, team_id, number, status, opts) do
         {:ok, task} ->
           json(conn, %{task: task_to_json(task)})
         {:error, :invalid_transition} ->
@@ -313,6 +316,7 @@ defmodule TeamrcWeb.ApiController do
     else
       {:error, reason} -> conn |> put_status(:bad_request) |> json(%{error: reason})
       :error -> conn |> put_status(:bad_request) |> json(%{error: "invalid task number"})
+      _ -> conn |> put_status(:bad_request) |> json(%{error: "invalid task number"})
     end
   end
 
@@ -343,6 +347,12 @@ defmodule TeamrcWeb.ApiController do
   defp validate_task_status(s) when s in @valid_task_statuses, do: :ok
   defp validate_task_status(_), do: {:error, "status must be one of: todo, in_progress, done, cancelled, failed"}
 
+  defp validate_task_result(nil), do: :ok
+  defp validate_task_result(r) when is_binary(r) do
+    if byte_size(r) > 10_000, do: {:error, "result must be 10000 characters or fewer"}, else: :ok
+  end
+  defp validate_task_result(_), do: {:error, "result must be a string"}
+
   defp task_to_json(%Teamrc.Schema.Task{} = task) do
     %{
       "number" => task.number,
@@ -353,6 +363,7 @@ defmodule TeamrcWeb.ApiController do
       "claimed_by" => task.claimed_by,
       "claimed_at" => task.claimed_at && DateTime.to_iso8601(task.claimed_at),
       "completed_at" => task.completed_at && DateTime.to_iso8601(task.completed_at),
+      "result" => task.result,
       "inserted_at" => DateTime.to_iso8601(task.inserted_at),
       "updated_at" => DateTime.to_iso8601(task.updated_at)
     }

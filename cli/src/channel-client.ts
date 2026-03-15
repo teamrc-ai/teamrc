@@ -44,6 +44,7 @@ export interface TaskChannelItem {
   claimed_by?: string;
   claimed_at?: string;
   completed_at?: string;
+  result?: string;
   inserted_at?: string;
   updated_at?: string;
 }
@@ -68,6 +69,7 @@ function sanitizeTaskItem(raw: unknown): TaskChannelItem | null {
     ...(typeof t.claimed_by === "string" ? { claimed_by: t.claimed_by.slice(0, 128) } : {}),
     ...(typeof t.claimed_at === "string" ? { claimed_at: t.claimed_at.slice(0, 30) } : {}),
     ...(typeof t.completed_at === "string" ? { completed_at: t.completed_at.slice(0, 30) } : {}),
+    ...(typeof t.result === "string" ? { result: t.result.slice(0, 10_000) } : {}),
     ...(typeof t.inserted_at === "string" ? { inserted_at: t.inserted_at.slice(0, 30) } : {}),
     ...(typeof t.updated_at === "string" ? { updated_at: t.updated_at.slice(0, 30) } : {}),
   };

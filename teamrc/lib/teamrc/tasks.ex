@@ -113,7 +113,7 @@ defmodule Teamrc.Tasks do
   end
 
   @doc "Update a task's status with state machine validation."
-  def update_task_status(token, team_id, task_number, new_status) do
+  def update_task_status(token, team_id, task_number, new_status, opts \\ []) do
     case Teams.resolve_team_id(token, team_id) do
       {:error, :team_id_required} ->
         {:error, :team_id_required}
@@ -122,11 +122,11 @@ defmodule Teamrc.Tasks do
         {:error, :not_found}
 
       resolved_id ->
-        do_update_task_status(resolved_id, token, task_number, new_status)
+        do_update_task_status(resolved_id, token, task_number, new_status, opts)
     end
   end
 
-  defp do_update_task_status(team_id, token, task_number, new_status) do
+  defp do_update_task_status(team_id, token, task_number, new_status, opts) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     result =
@@ -146,7 +146,9 @@ defmodule Teamrc.Tasks do
             case validate_transition(task.status, new_status) do
               :ok ->
                 extra_attrs = transition_attrs(task.status, new_status, token, now)
-                attrs = Map.merge(%{status: new_status}, extra_attrs)
+                result = Keyword.get(opts, :result)
+                result_attrs = if is_binary(result) and new_status in ~w(done failed), do: %{result: result}, else: %{}
+                attrs = Map.merge(%{status: new_status}, extra_attrs) |> Map.merge(result_attrs)
 
                 case task |> Task.changeset(attrs) |> Repo.update() do
                   {:ok, updated} -> updated

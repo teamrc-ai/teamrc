@@ -37,6 +37,7 @@ export interface TaskItem {
   claimed_by?: string;
   claimed_at?: string;
   completed_at?: string;
+  result?: string;
   inserted_at?: string;
   updated_at?: string;
 }
@@ -560,11 +561,12 @@ export class TeamrcClient {
     return data.tasks;
   }
 
-  async updateTask(number: number, status: string): Promise<TaskItem> {
+  async updateTask(number: number, status: string, result?: string): Promise<TaskItem> {
     const body = JSON.stringify({
       token: this.token,
       ...(this.teamId ? { team_id: this.teamId } : {}),
       status,
+      ...(result !== undefined ? { result } : {}),
     });
     const headers = await this.signedHeaders(body);
     const res = await fetch(`${this.baseUrl}/api/teams/tasks/${number}`, {

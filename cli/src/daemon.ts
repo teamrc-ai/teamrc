@@ -24,6 +24,7 @@ import {
 } from "./channel-client.js";
 import { TeamrcClient, TeamNotFoundError } from "./client.js";
 import { mergeKnowledge, pruneKnowledge } from "./team-yaml.js";
+import { TaskRunner, preflight as spawnPreflight } from "./spawn.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,6 +46,10 @@ export interface KnowledgeDaemonOptions {
   activeMembers?: string[];
   /** Enable experimental task sync (tasks channel + auto-claim). */
   enableTasks?: boolean;
+  /** Enable auto-spawning Claude Code agents for claimed tasks. */
+  autoSpawn?: boolean;
+  /** Timeout for spawned agents in ms (default 600_000). */
+  spawnTimeoutMs?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +144,24 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
 
   // REST client for last-resort fallback mode
   const restClient = new TeamrcClient(relayUrl, privateKey, token, teamId);
+
+  // Task runner for auto-spawn
+  let taskRunner: TaskRunner | null = null;
+  if (opts.autoSpawn && opts.enableTasks) {
+    const preflightErr = spawnPreflight();
+    if (preflightErr) {
+      warn(`Auto-spawn disabled: ${preflightErr}`);
+    } else {
+      taskRunner = new TaskRunner({
+        client: restClient,
+        timeoutMs: opts.spawnTimeoutMs,
+        teamSlug: teamSlug,
+        log,
+        warn,
+      });
+      log("Auto-spawn enabled.");
+    }
+  }
 
   // -----------------------------------------------------------------------
   // Knowledge read/write helpers
@@ -321,7 +344,7 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
           void refreshTaskCache();
           // Auto-claim: if task assignee is in activeMembers and status is todo
           if (activeMembers.includes(task.assignee) && task.status === "todo") {
-            void autoClaimTask(task.number);
+            void autoClaimTask(task);
           }
         },
         onUpdated(task) {
@@ -520,7 +543,12 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
       const label = { todo: "TODO", in_progress: "IN PROGRESS", done: "DONE", cancelled: "CANCELLED", failed: "FAILED" }[status] ?? status;
       lines.push(`## ${label}`, "");
       for (const t of grouped[status]) {
-        lines.push(`- **#${t.number}** [${t.assignee}] ${t.description}`);
+        let line = `- **#${t.number}** [${t.assignee}] ${t.description}`;
+        if (t.result && (t.status === "done" || t.status === "failed")) {
+          const truncated = t.result.length > 200 ? t.result.slice(0, 197) + "..." : t.result;
+          line += `\n  > ${truncated}`;
+        }
+        lines.push(line);
       }
       lines.push("");
     }
@@ -537,12 +565,20 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
     }
   }
 
-  async function autoClaimTask(taskNumber: number): Promise<void> {
+  async function autoClaimTask(task: TaskChannelItem): Promise<void> {
     try {
-      await restClient.updateTask(taskNumber, "in_progress");
-      log(`Auto-claimed task #${taskNumber}.`);
+      await restClient.updateTask(task.number, "in_progress");
+      log(`Auto-claimed task #${task.number}.`);
+      // Enqueue for auto-spawn if enabled
+      if (taskRunner) {
+        taskRunner.enqueue({
+          number: task.number,
+          description: task.description,
+          assignee: task.assignee,
+        });
+      }
     } catch (err) {
-      warn(`Failed to auto-claim task #${taskNumber}: ${(err as Error).message}`);
+      warn(`Failed to auto-claim task #${task.number}: ${(err as Error).message}`);
     }
   }
 
@@ -566,6 +602,9 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
   return {
     stop() {
       stopped = true;
+
+      // Stop task runner
+      taskRunner?.stop();
 
       // Clean up WebSocket
       tasksChannel?.leave();

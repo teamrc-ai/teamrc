@@ -68,6 +68,7 @@ defmodule TeamrcWeb.TasksChannel do
       claimed_by: task.claimed_by,
       claimed_at: task.claimed_at && DateTime.to_iso8601(task.claimed_at),
       completed_at: task.completed_at && DateTime.to_iso8601(task.completed_at),
+      result: task.result,
       inserted_at: DateTime.to_iso8601(task.inserted_at),
       updated_at: DateTime.to_iso8601(task.updated_at)
     }

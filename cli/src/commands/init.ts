@@ -8,7 +8,7 @@ import { TeamrcClient } from "../client.js";
 import { getRelayUrl } from "../config.js";
 import { getAdapter, slugify, createTeamKnowledgeSkill, createTeamTasksSkill } from "../adapters/base.js";
 import { templateToTeamDefinition } from "../catalog.js";
-import { writeTeamYaml, readTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
+import { writeTeamYaml, readTeamYaml, validateTeamName, writeLocalYaml, readLocalYaml, TEAM_YAML, GLOBAL_TEAM_YAML, LOCAL_YAML, GLOBAL_LOCAL_YAML } from "../team-yaml.js";
 import { sanitizeTeamDefinition } from "../client.js";
 import { loadConfig, saveConfig } from "../config.js";
 import { generateTeamName } from "../names.js";
@@ -157,6 +157,11 @@ export function registerInit(program: Command): void {
         p.log.step(`Wrote ${yamlPath}`);
         saveConfig({ ...loadConfig(), token });
 
+        // Write platform to local.yaml
+        const localYamlPath = scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML;
+        const existingLocal = readLocalYaml(localYamlPath);
+        writeLocalYaml(localYamlPath, { ...existingLocal, platform: platforms[0] });
+
         // Ensure .teamrc/ is gitignored for project-level teams
         if (scope !== "global") {
           const gitignorePath = path.join(process.cwd(), ".gitignore");
@@ -219,6 +224,13 @@ export function registerInit(program: Command): void {
         writeTeamYaml(yamlPath, team);
         p.log.step(`Wrote ${yamlPath}`);
         saveConfig({ ...loadConfig(), token });
+
+        // Write platform to local.yaml
+        {
+          const localYamlPath = scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML;
+          const existingLocal = readLocalYaml(localYamlPath);
+          writeLocalYaml(localYamlPath, { ...existingLocal, platform: platforms[0] });
+        }
 
         // Ensure .teamrc/ is gitignored for project-level teams
         if (scope !== "global") {

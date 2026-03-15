@@ -13,7 +13,12 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function formatTask(task: TaskItem): string {
-  return `  #${task.number}  ${task.assignee.padEnd(14)} ${task.description}`;
+  let line = `  #${task.number}  ${task.assignee.padEnd(14)} ${task.description}`;
+  if (task.result && (task.status === "done" || task.status === "failed")) {
+    const truncated = task.result.length > 120 ? task.result.slice(0, 117) + "..." : task.result;
+    line += `\n      ${truncated}`;
+  }
+  return line;
 }
 
 export function registerTask(program: Command): void {
