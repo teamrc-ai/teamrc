@@ -4,7 +4,7 @@ One team definition. Every AI platform. Every machine.
 
 **[teamrc.ai](https://teamrc.ai)** &middot; [Docs](https://github.com/teamrc-ai/teamrc/wiki)
 
-Define your AI agent team once in `.teamrc.yaml`. teamrc generates native files for Claude Code, Cursor, Codex, Gemini, and OpenClaw, and syncs them across machines, VMs, and projects.
+Sync your AI agents, skills, and shared knowledge across Claude Code, Cursor, Codex, Gemini, and OpenClaw. Define your team in `.teamrc.yaml` or from the web UI. Change something on one machine, every other machine picks it up.
 
 ## Quick Start
 
