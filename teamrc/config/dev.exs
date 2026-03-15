@@ -25,7 +25,7 @@ config :teamrc, TeamrcWeb.Endpoint,
     end,
   code_reloader: true,
   debug_errors: true,
-  secret_key_base: "REDACTED_DEV_SECRET",
+  secret_key_base: Base.encode64(:crypto.strong_rand_bytes(48)),
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:teamrc, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:teamrc, ~w(--watch)]}

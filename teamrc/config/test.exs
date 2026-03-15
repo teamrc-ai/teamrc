@@ -13,7 +13,7 @@ config :teamrc, Teamrc.Repo,
 # you can enable the server option below.
 config :teamrc, TeamrcWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
-  secret_key_base: "REDACTED_TEST_SECRET_KEY_BASE",
+  secret_key_base: Base.encode64(:crypto.strong_rand_bytes(48)),
   server: false
 
 # Skip signature verification in tests by default.
