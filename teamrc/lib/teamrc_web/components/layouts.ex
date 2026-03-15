@@ -39,7 +39,7 @@ defmodule TeamrcWeb.Layouts do
     ~H"""
     <header class="border-b border-base-300/60 bg-base-100/80 backdrop-blur-sm sticky top-0 z-40">
       <a href="#main-content" class="skip-link trc-focus">Skip to content</a>
-      <nav class="mx-auto max-w-3xl flex items-center justify-between px-4 sm:px-6 h-14">
+      <nav class="mx-auto max-w-4xl flex items-center justify-between px-4 sm:px-6 h-14">
         <div class="flex items-center gap-6">
           <a href="/" class="flex items-center gap-2.5 group" aria-label="teamrc home">
             <div class="text-primary">
@@ -167,7 +167,7 @@ defmodule TeamrcWeb.Layouts do
     </header>
 
     <main id="main-content" class="flex-1 px-4 py-8 sm:px-8 sm:py-16">
-      <div class="mx-auto max-w-2xl">
+      <div class="mx-auto max-w-4xl">
         <%= if assigns[:inner_content] do %>
           {@inner_content}
         <% else %>
@@ -177,7 +177,7 @@ defmodule TeamrcWeb.Layouts do
     </main>
 
     <footer class="border-t border-base-300/40 py-6 mt-auto">
-      <div class="mx-auto max-w-2xl px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="mx-auto max-w-4xl px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
         <p class="text-xs text-base-content/50">
           teamrc is pre-release software
         </p>
