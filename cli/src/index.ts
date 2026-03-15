@@ -25,6 +25,7 @@ import { registerAddMember } from "./commands/add-member.js";
 import { registerListTemplates } from "./commands/list-templates.js";
 import { registerListAgents } from "./commands/list-agents.js";
 import { registerTask } from "./commands/task.js";
+import { registerMembers } from "./commands/members.js";
 
 // Register all commands
 registerInit(program);
@@ -51,6 +52,7 @@ registerAddMember(program);
 registerListTemplates(program);
 registerListAgents(program);
 registerTask(program);
+registerMembers(program);
 // Use parseAsync so the process exits cleanly after async commands complete
 // (Node's fetch keep-alive connections would otherwise hold the event loop open)
 program.parseAsync().then(() => process.exit(0));

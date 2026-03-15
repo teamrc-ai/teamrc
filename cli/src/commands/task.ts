@@ -161,6 +161,26 @@ export function registerTask(program: Command): void {
     });
 
   task
+    .command("unclaim")
+    .description("Put a task back (in_progress → todo)")
+    .argument("<number>", "Task number")
+    .action(async (numberStr: string) => {
+      p.intro("teamrc");
+      const ctx = requireRelayContext();
+      const number = parseInt(numberStr, 10);
+      if (isNaN(number)) { p.log.error("Invalid task number."); process.exit(1); }
+
+      try {
+        const updated = await ctx.client.updateTask(number, "todo");
+        p.log.step(`Task #${updated.number} unclaimed.`);
+        p.outro("Done.");
+      } catch (err) {
+        p.log.error((err as Error).message);
+        process.exit(1);
+      }
+    });
+
+  task
     .command("cancel")
     .description("Cancel a task")
     .argument("<number>", "Task number")

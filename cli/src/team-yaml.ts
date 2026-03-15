@@ -348,11 +348,13 @@ export function readLocalYaml(filePath?: string): LocalConfig {
 }
 
 export function writeLocalYaml(filePath: string, config: LocalConfig): void {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   if (config.activeMembers?.length) {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     const yaml = YAML.stringify({ activeMembers: config.activeMembers });
     fs.writeFileSync(filePath, yaml);
+  } else if (fs.existsSync(filePath)) {
+    // Clean up file when reverting to defaults (all members active)
+    fs.unlinkSync(filePath);
   }
-  // Don't write file if there's nothing to persist
 }

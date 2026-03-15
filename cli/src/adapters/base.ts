@@ -277,7 +277,25 @@ export function createTeamTasksSkill(): Skill {
     title: "Team Tasks",
     description: "Check for and manage cross-agent tasks",
     alwaysApply: true,
-    body: `Check for assigned tasks at the start of each session:\n  teamrc task list --mine\n\nPick a TODO task and claim it before starting work:\n  teamrc task claim <number>\n\nWhen finished with a task, mark it done:\n  teamrc task done <number>\n\nTo assign work to another team member:\n  teamrc task create "<description>" --assign <member>`,
+    body: [
+      "Check for assigned tasks at the start of each session:",
+      "  teamrc task list --mine",
+      "",
+      "Pick a TODO task and claim it before starting work:",
+      "  teamrc task claim <number>",
+      "",
+      "When finished with a task, mark it done:",
+      "  teamrc task done <number>",
+      "",
+      "If you cannot complete a task, put it back for another agent:",
+      "  teamrc task unclaim <number>",
+      "",
+      "To assign work to another team member:",
+      '  teamrc task create "<description>" --assign <member>',
+      "",
+      "Workflow: always create a branch for your work, commit to the branch,",
+      "and push the branch. Never commit or push directly to main.",
+    ].join("\n"),
   };
 }
 

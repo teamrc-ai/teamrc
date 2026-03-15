@@ -178,6 +178,7 @@ defmodule Teamrc.Tasks do
   # State machine validation
   defp validate_transition("todo", "in_progress"), do: :ok
   defp validate_transition("in_progress", "done"), do: :ok
+  defp validate_transition("in_progress", "todo"), do: :ok  # unclaim / put back
   defp validate_transition("todo", "cancelled"), do: :ok
   defp validate_transition("in_progress", "cancelled"), do: :ok
   defp validate_transition("in_progress", "failed"), do: :ok
@@ -186,6 +187,10 @@ defmodule Teamrc.Tasks do
   # Extra attributes for specific transitions
   defp transition_attrs("todo", "in_progress", token, now) do
     %{claimed_by: token, claimed_at: now}
+  end
+
+  defp transition_attrs("in_progress", "todo", _token, _now) do
+    %{claimed_by: nil, claimed_at: nil}
   end
 
   defp transition_attrs("in_progress", "done", _token, now) do
