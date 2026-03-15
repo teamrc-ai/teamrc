@@ -18,10 +18,14 @@ config :teamrc, Teamrc.Repo,
 # to bundle .js and .css sources.
 config :teamrc, TeamrcWeb.Endpoint,
   http: [ip: {0, 0, 0, 0}],
-  check_origin: ["//localhost", "//127.0.0.1", "//dev.example.com"],
+  check_origin:
+    case System.get_env("DEV_HOST") do
+      nil -> ["//localhost", "//127.0.0.1"]
+      host -> ["//localhost", "//127.0.0.1", "//" <> host]
+    end,
   code_reloader: true,
   debug_errors: true,
-  secret_key_base: "REDACTED_DEV_SECRET_KEY_BASE",
+  secret_key_base: "REDACTED_DEV_SECRET",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:teamrc, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:teamrc, ~w(--watch)]}
