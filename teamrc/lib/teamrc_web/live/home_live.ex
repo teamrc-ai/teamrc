@@ -8,12 +8,18 @@ defmodule TeamrcWeb.HomeLive do
        page_title: "Keep Your AI Agents in Sync Across Machines and VMs",
        og_description:
          "Claude Code on your laptop, OpenClaw on a VM? teamrc keeps your agent configs in sync across machines, platforms, and projects. Open-source CLI.",
-       bottom_tab: "relay"
+       hero_tab: "new",
+       bottom_tab: "new"
      )}
   end
 
   @impl true
-  def handle_event("set_bottom_tab", %{"tab" => tab}, socket) when tab in ["relay", "local"] do
+  def handle_event("set_hero_tab", %{"tab" => tab}, socket) when tab in ["new", "clone", "local"] do
+    {:noreply, assign(socket, :hero_tab, tab)}
+  end
+
+  @impl true
+  def handle_event("set_bottom_tab", %{"tab" => tab}, socket) when tab in ["new", "clone", "local"] do
     {:noreply, assign(socket, :bottom_tab, tab)}
   end
 
@@ -50,29 +56,9 @@ defmodule TeamrcWeb.HomeLive do
         No account required for local use. Open source. Self-host or use the hosted relay.
       </p>
 
-      <%!-- Primary CTA: copyable CLI command --%>
+      <%!-- Primary CTA --%>
       <div class="mt-8">
-        <div class="terminal-block rounded-lg overflow-hidden inline-block w-full sm:w-auto">
-          <div class="flex items-center justify-between gap-6 px-4 py-3">
-            <div class="flex items-center gap-2">
-              <span class="text-white/30 font-mono text-sm select-none">$</span>
-              <code class="text-emerald-400 text-sm font-mono whitespace-nowrap">npx @teamrc/cli init</code>
-            </div>
-            <button
-              id="copy-init-hero"
-              phx-click={JS.dispatch("trc:copy", detail: %{text: "npx @teamrc/cli init"})}
-              class="trc-focus text-white/25 hover:text-white/60 transition-colors rounded p-1 hover:bg-white/5"
-              aria-label="Copy command"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        <p class="text-xs text-base-content/40 mt-2.5 font-mono">
-          Creates a .teamrc.yaml in your project and walks you through setup.
-        </p>
+        <.terminal_cta tab={@hero_tab} event="set_hero_tab" id_suffix="hero" />
       </div>
 
       <%!-- Secondary CTA --%>
@@ -235,47 +221,7 @@ defmodule TeamrcWeb.HomeLive do
     <%!-- Bottom CTA --%>
     <div class="mt-16 mb-4 rounded-lg border border-base-300 bg-base-200/30 p-6 text-center space-y-4">
       <p class="text-sm font-semibold">Try it in the project you're working on right now.</p>
-      <div class="inline-block">
-        <div class="flex justify-center gap-0 mb-0">
-          <button
-            phx-click="set_bottom_tab"
-            phx-value-tab="relay"
-            class={"trc-focus text-xs font-mono px-3 py-1.5 rounded-t-md border border-b-0 transition-colors " <> if(@bottom_tab == "relay", do: "bg-zinc-900 text-white/80 border-zinc-700", else: "bg-base-200 text-base-content/40 border-base-300 hover:text-base-content/60")}
-          >
-            With relay
-          </button>
-          <button
-            phx-click="set_bottom_tab"
-            phx-value-tab="local"
-            class={"trc-focus text-xs font-mono px-3 py-1.5 rounded-t-md border border-b-0 -ml-px transition-colors " <> if(@bottom_tab == "local", do: "bg-zinc-900 text-white/80 border-zinc-700", else: "bg-base-200 text-base-content/40 border-base-300 hover:text-base-content/60")}
-          >
-            Local only
-          </button>
-        </div>
-        <div class="terminal-block rounded-lg rounded-tl-none overflow-hidden">
-          <div class="flex items-center justify-between gap-6 px-4 py-3">
-            <div class="flex items-center gap-2">
-              <span class="text-white/30 font-mono text-sm select-none">$</span>
-              <code class="text-emerald-400 text-sm font-mono whitespace-nowrap">
-                {if @bottom_tab == "relay", do: "npx @teamrc/cli init", else: "npx @teamrc/cli init --local"}
-              </code>
-            </div>
-            <button
-              id="copy-init-bottom"
-              phx-click={JS.dispatch("trc:copy", detail: %{text: if(@bottom_tab == "relay", do: "npx @teamrc/cli init", else: "npx @teamrc/cli init --local")})}
-              class="trc-focus text-white/25 hover:text-white/60 transition-colors rounded p-1 hover:bg-white/5"
-              aria-label="Copy command"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-      <p class="text-xs text-base-content/40 font-mono">
-        {if @bottom_tab == "relay", do: "No account required. No install. Runs via npx.", else: "Works without a relay. Define and sync locally."}
-      </p>
+      <.terminal_cta tab={@bottom_tab} event="set_bottom_tab" id_suffix="bottom" />
       <p class="text-sm text-base-content/50">
         or
         <a href="/new" class="trc-focus text-primary/80 hover:text-primary underline underline-offset-2 transition-colors">
@@ -294,6 +240,71 @@ defmodule TeamrcWeb.HomeLive do
     <div class="rounded-lg border border-base-300 bg-base-100 px-3 py-2.5 space-y-0.5">
       <p class="text-sm font-semibold">{@name}</p>
       <p class="text-[11px] font-mono text-base-content/50">{@path}</p>
+    </div>
+    """
+  end
+
+  defp tab_command("new"), do: "npx @teamrc/cli init"
+  defp tab_command("clone"), do: "npx @teamrc/cli clone product-eng"
+  defp tab_command("local"), do: "npx @teamrc/cli init --local"
+
+  defp tab_description("new"), do: "Creates a .teamrc.yaml and walks you through setup."
+  defp tab_description("clone"), do: "Clones an existing team config into your project."
+  defp tab_description("local"), do: "Local only, no relay sync. Define everything in-project."
+
+  attr :tab, :string, required: true
+  attr :event, :string, required: true
+  attr :id_suffix, :string, required: true
+
+  defp terminal_cta(assigns) do
+    ~H"""
+    <div>
+      <div class="inline-flex rounded-md border border-base-300 bg-base-200/50 p-0.5 mb-2">
+        <button
+          phx-click={@event}
+          phx-value-tab="new"
+          class={"trc-focus px-3 py-1 text-xs font-mono rounded transition-colors " <> if(@tab == "new", do: "bg-white text-base-content shadow-sm", else: "text-base-content/50 hover:text-base-content/70")}
+        >
+          New team
+        </button>
+        <button
+          phx-click={@event}
+          phx-value-tab="clone"
+          class={"trc-focus px-3 py-1 text-xs font-mono rounded transition-colors " <> if(@tab == "clone", do: "bg-white text-base-content shadow-sm", else: "text-base-content/50 hover:text-base-content/70")}
+        >
+          Clone a team
+        </button>
+        <button
+          phx-click={@event}
+          phx-value-tab="local"
+          class={"trc-focus px-3 py-1 text-xs font-mono rounded transition-colors " <> if(@tab == "local", do: "bg-white text-base-content shadow-sm", else: "text-base-content/50 hover:text-base-content/70")}
+        >
+          Local only
+        </button>
+      </div>
+      <div class="terminal-block rounded-lg overflow-hidden inline-block w-full sm:w-auto">
+        <div class="flex items-center justify-between gap-6 px-4 py-3">
+          <div class="flex items-center gap-2">
+            <span class="text-white/30 font-mono text-sm select-none">$</span>
+            <code class="text-emerald-400 text-sm font-mono whitespace-nowrap">
+              {tab_command(@tab)}
+            </code>
+          </div>
+          <button
+            id={"copy-init-" <> @id_suffix}
+            phx-click={JS.dispatch("trc:copy", detail: %{text: tab_command(@tab)})}
+            class="trc-focus text-white/25 hover:text-white/60 transition-colors rounded p-1 hover:bg-white/5"
+            aria-label="Copy command"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <p class="text-xs text-base-content/40 mt-2.5 font-mono">
+        {tab_description(@tab)}
+      </p>
     </div>
     """
   end
