@@ -1,6 +1,6 @@
 # teamrc Architecture
 
-**Last updated:** 2026-03-13
+**Last updated:** 2026-03-15
 
 ## Overview
 
@@ -31,11 +31,13 @@ flowchart TD
 - Signs API requests with Ed25519 (`x-trc-signature`, `x-trc-timestamp`)
 - Polls for updates in daemon mode (every 120s by default)
 - Works offline for local teams (`init --local`, `apply`, `import`, `status`)
+- The daemon now uses WebSocket channels for real-time sync (not just polling)
 
 Primary files:
 - `cli/src/index.ts`
 - `cli/src/client.ts`
 - `cli/src/daemon.ts`
+- `cli/src/channel-client.ts` - WebSocket client for real-time channel sync
 - `cli/src/adapters/*`
 
 ### Relay (`teamrc/`)
@@ -43,7 +45,7 @@ Primary files:
 - Phoenix router and controllers for API and web traffic
 - LiveView UI for team management and onboarding
 - Ecto/Postgrex for persistence
-- In-memory GenServer for device auth (ephemeral state only)
+- Postgres-backed device auth (crash-resilient, multi-node)
 
 Primary files:
 - `teamrc/lib/teamrc_web/router.ex`
@@ -51,6 +53,13 @@ Primary files:
 - `teamrc/lib/teamrc_web/live/*`
 - `teamrc/lib/teamrc/teams.ex`
 - `teamrc/lib/teamrc/device_auth.ex`
+
+### WebSocket Channels
+
+The relay has WebSocket channels for real-time sync:
+
+- `TeamrcWeb.KnowledgeChannel` - Topic: `knowledge:<team_id>`. Handles real-time knowledge sync between CLI daemons. Supports `knowledge:push` incoming event. Rate limited to 1 push/sec per token via ETS. Uses PubSub (`team_knowledge:<team_id>`) to broadcast changes to other connected clients. Knowledge cap: 100,000 bytes.
+- `TeamrcWeb.UserSocket` - Authenticates connections via Ed25519 token.
 
 ## Request Flows
 
@@ -96,9 +105,9 @@ Teams created with `teamrc init --local` or via declining the relay prompt durin
 - `import`  --  import platform config into YAML
 - `status`  --  show team state (sync status shows "local-only")
 - `delete`  --  remove all teamrc files
-- `add-member`, `list-templates`, `list-agents`, `whoami`, `doctor`
+- `list-templates`, `list-agents`, `whoami`, `doctor`
 
-Commands that require relay (`sync`, `pull`, `diff`, `export`, `invite`, `share`, `claim`, `dashboard`, `daemon`) show: "This team is local-only. Run `teamrc push` to connect."
+Commands that require relay (`sync`, `pull`, `diff`, `export`, `invite`, `share`, `claim`, `dashboard`, `daemon`, `add-member`) show: "This team is local-only. Run `teamrc push` to connect."
 
 ### Connecting a local team (`teamrc push`)
 
@@ -123,13 +132,13 @@ When `push` detects a team with no `teamId`, it runs a "connect" flow:
 
 - Ed25519 signatures verified by the `VerifySignature` plug
 - The token format embeds the public key: `trc_ak_<base64url(pubkey)>`
-- Timestamp drift window is 5 minutes
-- The signed message includes the timestamp and the raw request body (or `GET /path?query` for GET requests)
+- Timestamp drift window is 30 seconds
+- The signed message format is `<timestamp>.<raw_body>` (or `<timestamp>.GET /path?query` for GET requests)
 
-### Optional Clerk auth (account APIs and dashboard)
+### Session auth (account APIs and dashboard)
 
-- `VerifyClerkJWT` protects account endpoints
-- The reassociation endpoint requires both a Clerk JWT and a signature
+- `phx.gen.auth` with GitHub/Google OAuth (via UeberAuth) for user accounts
+- The reassociation endpoint requires both a session and a signature
 
 ## Runtime State and Concurrency Model
 
@@ -140,11 +149,10 @@ When `push` detects a team with no `teamId`, it runs a "connect" flow:
 - Authorization checks (token-to-team_id mapping) use the `token_teams` table
 - Fully concurrent. Each Phoenix endpoint process runs its own queries independently.
 
-### `Teamrc.DeviceAuth` GenServer
+### `Teamrc.DeviceAuth` Context Module
 
-- Holds ephemeral device auth requests in memory
-- 15-minute TTL
-- Periodic sweep every 60 seconds
+- Postgres-backed device auth requests (previously in-memory GenServer)
+- 15-minute TTL with periodic sweep every 60 seconds
 - Capacity limits:
   - max 3 active requests per token
   - max 10,000 active requests globally
@@ -169,9 +177,11 @@ Core tables:
 - `token_teams`
   - Membership relation between a machine token and a team
 - `accounts`
-  - Clerk user mapping
-- `account_tokens`
+  - User accounts (OAuth via GitHub/Google)
+- `machine_tokens`
   - Machine tokens linked to accounts, with revocation metadata
+- `device_auth_requests`
+  - Ephemeral device auth flow state (15-min TTL)
 
 Notable constraints and indexes:
 
@@ -183,36 +193,52 @@ Notable constraints and indexes:
 
 ## API Surface (Current)
 
-Signed API:
+Signed API (`pipe_through :api`):
 
-- `POST /api/teams`
-- `GET /api/teams/:token`
-- `GET /api/teams/all/:token`
-- `POST /api/join`
-- `POST /api/teams/preview`
-- `POST /api/teams/invite`
-- `POST /api/auth/device`
-- `GET /api/auth/device/:device_code`
+- `POST /api/auth/device` - Start device auth flow
+- `GET /api/auth/device/:device_code` - Poll device auth status
+- `POST /api/join` - Join a team by invite code
+- `POST /api/teams` - Create/update team
+- `POST /api/teams/preview` - Preview team by invite code
+- `POST /api/teams/invite` - Generate invite code
+- `POST /api/teams/view-token` - Create public view token
+- `POST /api/teams/visibility` - Set team visibility
+- `POST /api/teams/knowledge` - Push knowledge content
+- `DELETE /token/:token/erase` - Erase token data
+- `GET /api/teams/all/:token` - Get all teams for token
+- `GET /api/teams/:token/head` - Check team hash (lightweight)
+- `GET /api/teams/:token` - Get full team data
+
+Signed API with auth rate limiting:
+
+- `POST /api/teams/claim` - Claim team ownership (Bcrypt-verified)
 
 Public API:
 
-- `GET /api/teams/clone/:clone_token`
+- `GET /api/teams/clone/:clone_token` - Clone team by token
 
-Clerk API:
+Session API (account management):
 
-- `GET /api/account`
-- `GET /api/account/teams`
-- `DELETE /api/account/machines/:token`
+- `GET /api/account` - Get account info
+- `GET /api/account/teams` - List account teams
+- `GET /api/account/export` - Export account data
+- `DELETE /api/account/machines/:token` - Revoke machine token
+- `DELETE /api/account` - Delete account
 
-Clerk + Signature API:
+Session + Signature API:
 
-- `POST /api/account/reassociate`
+- `POST /api/account/reassociate` - Reassociate machine token
+
+WebSocket:
+
+- `wss://.../socket/websocket` - Authenticated via Ed25519 token
+- Channels: `knowledge:<team_id>`
 
 ## Deployment Model
 
 ### Local development
 
-- `docker-compose` starts Postgres 16 and the relay app container
+- `docker-compose` starts Postgres 18 and the relay app container
 - The relay runs migrations at startup through the release entrypoint
 
 ### Production
@@ -222,15 +248,16 @@ Clerk + Signature API:
   - `DATABASE_URL`
   - `POOL_SIZE` (default `10`)
   - Phoenix and session salts and secrets
-  - Optional Clerk JWKS/issuer/audience
+  - Optional OAuth provider credentials (GitHub, Google)
 
 ## Architectural Tradeoffs
 
 1. **Stateless team operations.** The Teams context is a plain Ecto module. Fully concurrent, with no serialization bottleneck.
-2. **GenServer only for ephemeral state.** DeviceAuth uses a GenServer for short-lived auth requests (15-min TTL). This fits because the state is transient and does not need persistence.
+2. **Postgres for business state.** All team and device auth data lives in Postgres for crash resilience and multi-node support. GenServers are limited to infrastructure concerns (rate limiter ETS management, periodic cleanup).
 3. **No revision history.** The relay stores current state, not versioned diffs.
 4. **CLI-driven merge semantics.** Knowledge merge and diff logic lives in the CLI for deterministic local behavior.
 5. **Local-first by default.** Teams work fully offline. The relay is opt-in at init time and can be connected later via `push`. This makes `init` non-blocking for users who just want local agent management.
+6. **WebSocket for real-time sync.** Knowledge updates use Phoenix Channels over WebSocket for low-latency push. The REST API remains for request/response operations.
 
 ## Future Evolution
 

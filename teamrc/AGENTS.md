@@ -2,15 +2,16 @@
 
 ## Project-Specific
 
-- The main GenServer is `Teamrc.Teams`, which manages all in-memory sync state
-- Database schemas are in `Teamrc.Schema.*` (Team, Member, Invite, AccountToken, TokenTeam)
-- API controllers: `ApiController` (sync/push/join/teams), `AccountController` (Clerk-authed account management), `AuthController` (device auth flow)
-- Auth plugs: `VerifySignature` (Ed25519), `VerifyClerkJWT` (Clerk), `RateLimiter`, `CORS`
-- Invite codes are single-use with atomic claim (`update_all` with `where: is_nil(claimed_at)`)
-- Content cap: 50MB per team for sync state
+- `Teamrc.Teams` is a plain Ecto context module for team CRUD operations (no GenServer, no in-memory state)
+- Database schemas are in `Teamrc.Schema.*` (Team, Member, Invite, TokenTeam, DeviceAuthRequest). Machine tokens are in `Teamrc.Accounts.MachineToken`
+- API controllers: `ApiController` (teams/join/knowledge), `AccountController` (session-authed account management), `AuthController` (device auth flow)
+- Auth plugs: `VerifySignature` (Ed25519), `RateLimiter`, `CORS`, `VerifyOrigin`, `PIIHeader`
+- WebSocket channels: `KnowledgeChannel` (real-time knowledge sync)
+- Invite codes are checked by code and expiry, then `upsert_token_team()` links the token to the team
+- Content cap: 100KB per team for knowledge sync state
 - Rules/skills validation: max 50 each, max 10KB per rule body
 - The `pull` route was removed. Clients use `sync` for bidirectional exchange.
-- Run `mix test` to verify changes; all 108 tests should pass
+- Run `mix test` to verify changes
 
 ---
 

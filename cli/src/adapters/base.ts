@@ -39,6 +39,15 @@ export interface TeamDefinition {
   cloneToken?: string;
 }
 
+export function filterActiveMembers(team: TeamDefinition, activeMembers?: string[]): TeamDefinition {
+  if (!activeMembers || activeMembers.length === 0) return team;
+  const active = new Set(activeMembers);
+  return {
+    ...team,
+    members: team.members.filter((m) => active.has(m.name)),
+  };
+}
+
 export const VALID_PLATFORMS = [
   "claude-code",
   "cursor",
