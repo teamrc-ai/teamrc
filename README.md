@@ -1,45 +1,91 @@
-# teamrc
+# Teamrc
 
-One team definition. Every AI platform. Every machine.
+**Define your AI team once. Sync it everywhere.**
 
-**[teamrc.ai](https://teamrc.ai)** &middot; [Docs](https://github.com/teamrc-ai/teamrc/wiki)
+[teamrc.ai](https://teamrc.ai) &middot; [Docs](https://github.com/teamrc-ai/teamrc/wiki)
 
-Sync your AI agents, skills, and shared knowledge across Claude Code, Cursor, Codex, Gemini, and OpenClaw. Define your team in `.teamrc.yaml` or from the web UI. Change something on one machine, every other machine picks it up.
+---
 
-Your agents build shared context automatically. Findings from one session carry forward to the next, across machines, VMs, and teammates.
+Teamrc keeps your agents, skills, and shared knowledge consistent across Claude Code, Cursor, Codex, Gemini, and OpenClaw. Define everything once in `.teamrc.yaml` and sync it where your team works. Change something on one machine, every other machine picks it up.
+
+- **Consistent agents** across every AI tool you use
+- **Shared skills and knowledge** across teammates and machines
+- **One command to onboard** a new machine or VM
+- **No manual duplication** of prompt files across platforms
+
+Works locally with no server required. Connect to a relay (hosted at [teamrc.ai](https://teamrc.ai) or self-hosted) to sync changes across machines, VMs, and teammates in real time.
 
 ## Quick Start
 
 ```bash
-# Create a team from a template
+# Create a new team config
 npx @teamrc/cli init
 
 # Or join an existing team
 npx @teamrc/cli join <invite-code>
 
-# Edit .teamrc.yaml, then sync
+# Sync config into your installed AI tools
 npx @teamrc/cli sync
 ```
 
-No server required for local use:
+For local-only use:
 
 ```bash
 npx @teamrc/cli init --local
 ```
 
-## How It Works
+## How it works
 
+```mermaid
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD
+    R["Teamrc Relay"] <--> A["Machine A"]
+    R <--> B["Machine B"]
+    R <--> C["CI / VM"]
+
+    A --> A1["Claude Code\nGemini"]
+    B --> B1["Cursor\nOpenClaw"]
+    C --> C1["Codex\n..."]
+
+    style R fill:#e0e7ff,stroke:#6366f1,color:#312e81
+    style A fill:#f4f4f5,stroke:#a1a1aa,color:#27272a
+    style B fill:#f4f4f5,stroke:#a1a1aa,color:#27272a
+    style C fill:#f4f4f5,stroke:#a1a1aa,color:#27272a
+    style A1 fill:#fff,stroke:#d4d4d8,color:#52525b
+    style B1 fill:#fff,stroke:#d4d4d8,color:#52525b
+    style C1 fill:#fff,stroke:#d4d4d8,color:#52525b
 ```
-.teamrc.yaml     (source of truth, version-controlled)
-       |
-  CLI commands   (init, apply, sync, push)
-       |
-platform adapters (Claude Code, Cursor, Codex, OpenClaw, Gemini)
-       |
-native agent files (.claude/agents/, .cursor/rules/, etc.)
-       |
-  relay server   (optional, cross-machine sync via teamrc.ai)
+
+Each machine runs `teamrc sync` to write native files for its installed AI tools. The relay keeps `.teamrc.yaml`, skills, and shared knowledge in sync across all of them.
+
+## Example
+
+```yaml
+name: my-team
+
+members:
+  - name: researcher
+    role: Finds and summarizes relevant information
+  - name: builder
+    role: Implements and iterates on ideas
+
+skills:
+  - id: write-tests
+    body: Always write tests for new functionality.
+    alwaysApply: true
 ```
+
+Then:
+
+```bash
+npx @teamrc/cli sync
+```
+
+And teamrc writes the right files for the tools you use.
 
 ## Self-Hosting
 
