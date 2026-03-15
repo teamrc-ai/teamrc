@@ -39,7 +39,9 @@ defmodule TeamrcWeb.HomeLive do
         Claude Code on your laptop. OpenClaw on a VM. Cursor in the cloud. teamrc
         keeps your agents, skills, and shared knowledge in sync across all of them.
         Change something on one machine. Every other machine picks it up.
-        Open source. Self-host or use the hosted relay.
+      </p>
+      <p class="text-sm text-base-content/50 mt-2">
+        No account required for local use. Open source. Self-host or use the hosted relay.
       </p>
 
       <%!-- Primary CTA: copyable CLI command --%>
@@ -75,6 +77,34 @@ defmodule TeamrcWeb.HomeLive do
         </a>
       </p>
     </div>
+
+    <%!-- Pain points --%>
+    <section class="mt-12 space-y-3">
+      <h2 class="text-lg font-bold tracking-tight">AI team setup gets messy fast</h2>
+      <p class="text-sm text-base-content/60">If you use more than one AI tool or machine, you've already felt it:</p>
+      <ul class="space-y-1.5 text-sm text-base-content/60 list-none p-0">
+        <li class="flex items-start gap-2">
+          <span class="text-base-content/30 shrink-0">&mdash;</span>
+          <span>Prompts updated in one place but not another</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-base-content/30 shrink-0">&mdash;</span>
+          <span>Agent configs duplicated across tools with subtle differences</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-base-content/30 shrink-0">&mdash;</span>
+          <span>One machine knows the workaround, another doesn't</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-base-content/30 shrink-0">&mdash;</span>
+          <span>Onboarding a new machine means rebuilding everything by hand</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-base-content/30 shrink-0">&mdash;</span>
+          <span>Teammates end up with different agent behavior and different context</span>
+        </li>
+      </ul>
+    </section>
 
     <%!-- How it works --%>
     <section class="mt-16 space-y-4">
@@ -151,6 +181,29 @@ defmodule TeamrcWeb.HomeLive do
       </p>
     </section>
 
+    <%!-- Use cases --%>
+    <section class="mt-12 space-y-3">
+      <h2 class="text-lg font-bold tracking-tight">Useful when</h2>
+      <ul class="space-y-1.5 text-sm text-base-content/60 list-none p-0">
+        <li class="flex items-start gap-2">
+          <span class="text-base-content/30 shrink-0">&mdash;</span>
+          <span>You use Claude Code locally and OpenClaw on a VM</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-base-content/30 shrink-0">&mdash;</span>
+          <span>Your team mixes Cursor, Codex, and Gemini</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-base-content/30 shrink-0">&mdash;</span>
+          <span>You want consistent agent behavior across environments</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-base-content/30 shrink-0">&mdash;</span>
+          <span>You need to onboard a new machine or teammate quickly</span>
+        </li>
+      </ul>
+    </section>
+
     <%!-- Platforms --%>
     <section class="mt-12 space-y-4">
       <h2 class="text-lg font-bold tracking-tight">Supported platforms</h2>
@@ -224,6 +277,9 @@ defmodule TeamrcWeb.HomeLive do
       </div>
       <p class="text-xs text-base-content/40 font-mono">
         No account required. No install. Runs via npx.
+      </p>
+      <p class="text-xs text-base-content/40 font-mono mt-1">
+        For local-only use: <code class="text-emerald-400/60">npx @teamrc/cli init --local</code>
       </p>
       <p class="text-sm text-base-content/50">
         or
