@@ -1,6 +1,6 @@
 # teamrc Architecture
 
-**Last updated:** 2026-03-13
+**Last updated:** 2026-03-15
 
 ## Overview
 
@@ -31,11 +31,14 @@ flowchart TD
 - Signs API requests with Ed25519 (`x-trc-signature`, `x-trc-timestamp`)
 - Polls for updates in daemon mode (every 120s by default)
 - Works offline for local teams (`init --local`, `apply`, `import`, `status`)
+- The daemon now uses WebSocket channels for real-time knowledge and task sync (not just polling)
 
 Primary files:
 - `cli/src/index.ts`
 - `cli/src/client.ts`
 - `cli/src/daemon.ts`
+- `cli/src/spawn.ts` - Agent spawning and process management
+- `cli/src/channel-client.ts` - WebSocket client for real-time channel sync
 - `cli/src/adapters/*`
 
 ### Relay (`teamrc/`)
@@ -51,6 +54,14 @@ Primary files:
 - `teamrc/lib/teamrc_web/live/*`
 - `teamrc/lib/teamrc/teams.ex`
 - `teamrc/lib/teamrc/device_auth.ex`
+
+### WebSocket Channels
+
+The relay has WebSocket channels for real-time sync:
+
+- `TeamrcWeb.KnowledgeChannel` - Topic: `knowledge:<team_id>`. Handles real-time knowledge sync between CLI daemons. Supports `knowledge:push` incoming event. Rate limited to 1 push/sec per token via ETS. Uses PubSub (`team_knowledge:<team_id>`) to broadcast changes to other connected clients. Knowledge cap: 100,000 bytes.
+- `TeamrcWeb.TasksChannel` - Topic: `tasks:<team_id>`. Pushes `tasks:created` and `tasks:updated` events to connected clients. Uses PubSub (`team_tasks:<team_id>`) for cross-process broadcasting.
+- `TeamrcWeb.UserSocket` - Authenticates connections via Ed25519 token.
 
 ## Request Flows
 
@@ -113,6 +124,26 @@ When `push` detects a team with no `teamId`, it runs a "connect" flow:
 - The diff is computed in the CLI, not stored server-side.
 - The CLI compares the local adapter-read team against the relay `GET /api/teams/:token` payload.
 
+### Task System
+
+The task system enables cross-agent task assignment across machines and platforms.
+
+**Schema** (`tasks` table):
+- Fields: `number`, `description`, `assignee`, `status`, `created_by`, `claimed_by`, `claimed_at`, `completed_at`, `result`
+- Valid statuses: `todo`, `in_progress`, `done`, `cancelled`, `failed`
+- Scoped per team via `team_id` foreign key
+- Unique constraint on `(team_id, number)`
+
+**REST endpoints:**
+- `POST /api/teams/tasks` - Create a task
+- `GET /api/teams/tasks/:token` - List tasks for a team
+- `PATCH /api/teams/tasks/:number` - Update task status
+
+**Real-time sync:**
+- CLI daemon connects to `tasks:<team_id>` channel on WebSocket
+- Task mutations broadcast via PubSub to all connected daemons
+- Daemons auto-claim tasks assigned to active members
+
 ## Authentication and Authorization
 
 ### Signed API auth (most API paths)
@@ -168,6 +199,8 @@ Core tables:
   - Clerk user mapping
 - `account_tokens`
   - Machine tokens linked to accounts, with revocation metadata
+- `tasks`
+  - Task records with status tracking, scoped by team. Fields: number, description, assignee, status, created_by, claimed_by, claimed_at, completed_at, result.
 
 Notable constraints and indexes:
 
@@ -179,30 +212,49 @@ Notable constraints and indexes:
 
 ## API Surface (Current)
 
-Signed API:
+Signed API (`pipe_through :api`):
 
-- `POST /api/teams`
-- `GET /api/teams/:token`
-- `GET /api/teams/all/:token`
-- `POST /api/join`
-- `POST /api/teams/preview`
-- `POST /api/teams/invite`
-- `POST /api/auth/device`
-- `GET /api/auth/device/:device_code`
+- `POST /api/auth/device` - Start device auth flow
+- `GET /api/auth/device/:device_code` - Poll device auth status
+- `POST /api/join` - Join a team by invite code
+- `POST /api/teams` - Create/update team
+- `POST /api/teams/preview` - Preview team by invite code
+- `POST /api/teams/invite` - Generate invite code
+- `POST /api/teams/view-token` - Create public view token
+- `POST /api/teams/visibility` - Set team visibility
+- `POST /api/teams/knowledge` - Push knowledge content
+- `POST /api/teams/tasks` - Create task
+- `GET /api/teams/tasks/:token` - List tasks
+- `PATCH /api/teams/tasks/:number` - Update task
+- `DELETE /token/:token/erase` - Erase token data
+- `GET /api/teams/all/:token` - Get all teams for token
+- `GET /api/teams/:token/head` - Check team hash (lightweight)
+- `GET /api/teams/:token` - Get full team data
+
+Signed API with auth rate limiting:
+
+- `POST /api/teams/claim` - Claim team ownership (Bcrypt-verified)
 
 Public API:
 
-- `GET /api/teams/clone/:clone_token`
+- `GET /api/teams/clone/:clone_token` - Clone team by token
 
-Clerk API:
+Session API (account management):
 
-- `GET /api/account`
-- `GET /api/account/teams`
-- `DELETE /api/account/machines/:token`
+- `GET /api/account` - Get account info
+- `GET /api/account/teams` - List account teams
+- `GET /api/account/export` - Export account data
+- `DELETE /api/account/machines/:token` - Revoke machine token
+- `DELETE /api/account` - Delete account
 
-Clerk + Signature API:
+Session + Signature API:
 
-- `POST /api/account/reassociate`
+- `POST /api/account/reassociate` - Reassociate machine token
+
+WebSocket:
+
+- `wss://.../socket/websocket` - Authenticated via Ed25519 token
+- Channels: `knowledge:<team_id>`, `tasks:<team_id>`
 
 ## Deployment Model
 
@@ -227,8 +279,9 @@ Clerk + Signature API:
 3. **No revision history.** The relay stores current state, not versioned diffs.
 4. **CLI-driven merge semantics.** Knowledge merge and diff logic lives in the CLI for deterministic local behavior.
 5. **Local-first by default.** Teams work fully offline. The relay is opt-in at init time and can be connected later via `push`. This makes `init` non-blocking for users who just want local agent management.
+6. **WebSocket for real-time sync.** Knowledge and task updates use Phoenix Channels over WebSocket for low-latency push. The REST API remains for request/response operations.
 
 ## Future Evolution
 
 1. Add an optional revision table (`team_revisions`) if server-side history or audit logging is needed.
-2. Introduce ETag or revision-based pull checks to reduce unnecessary daemon poll payloads.
+2. Add conflict resolution for concurrent task status transitions.

@@ -107,6 +107,7 @@ teamrc task list --mine
 
 # Update task status
 teamrc task claim 1
+teamrc task unclaim 1
 teamrc task done 1
 teamrc task cancel 1
 ```
@@ -120,17 +121,20 @@ By default, all team members are active. To scope a project to a subset of the t
 ```bash
 # A frontend repo only needs two of your six agents
 teamrc join <invite-code> --members frontend,designer
+
+# List current team members and their status
+teamrc members
 ```
 
 ### Daemon auto-sync (experimental)
 
-Real-time task sync requires the `--experimental` flag. With it enabled, the daemon subscribes to task updates over WebSocket and auto-claims incoming tasks assigned to your active members:
+Real-time task sync requires the `--experimental` flag. With it enabled, the daemon subscribes to task updates over WebSocket and writes task files locally for active members. With `--spawn`, it can optionally auto-spawn agents for claimed tasks:
 
 ```bash
 teamrc daemon --experimental
 ```
 
-The task CLI commands (`create`, `list`, `claim`, `done`, `cancel`) work today. Daemon auto-sync is experimental.
+The task CLI commands (`create`, `list`, `claim`, `unclaim`, `done`, `cancel`) work today. Daemon auto-sync is experimental.
 
 ## Self-Hosting
 

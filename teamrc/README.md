@@ -35,35 +35,51 @@ mix phx.server  # http://localhost:4000
 
 ## Architecture
 
-- **GenServer** (`Teamrc.Teams`): In-memory sync state. Stores file hashes per platform, file content (24h TTL), and token-to-team mapping.
+- **Ecto context** (`Teamrc.Teams`): Plain context module for all team CRUD operations. Queries Postgres directly, no in-memory state.
 - **PostgreSQL** (via Ecto): Persistent storage for teams, members, invites, and account tokens.
+- **WebSocket Channels**: Real-time knowledge sync (`KnowledgeChannel`) and task updates (`TasksChannel`) via Phoenix Channels.
 - **LiveView**: Web UI for team creation with template catalog.
 - **Ed25519 signature verification**: All API endpoints authenticated via the `VerifySignature` plug.
-- **phx.gen.auth + UeberAuth**: Session-based auth with GitHub/Google OAuth for user accounts (dashboard, machine management, recovery).
+- **OAuth + phx.gen.auth**: Session-based auth with GitHub/Google OAuth (via UeberAuth) for user accounts (dashboard, machine management, recovery).
 
 ## API Pipelines
 
-| Pipeline | Auth | Endpoints |
-|----------|------|-----------|
-| `:api` | Ed25519 signature + rate limit | `/api/sync`, `/api/push`, `/api/join`, `/api/teams`, `/api/teams/preview`, `/api/teams/invite`, `/api/log` |
-| `:session_api` | Session auth + rate limit | `/api/account`, `/api/account/teams` |
-| `:session_and_signature_api` | Session + Ed25519 signature | `/api/account/reassociate` |
+| Pipeline | Auth |
+|----------|------|
+| `:api` | Ed25519 signature + rate limit |
+| `:auth_rate_limit` | Additional Bcrypt rate limiting for ownership claims |
+| `:session_api` | Session auth + rate limit (account endpoints) |
+| `:session_and_signature_api` | Session + Ed25519 signature |
+| `:public_api` | No auth (clone endpoint) |
 
 ## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/teams` | Create a new team |
+| `POST` | `/api/teams` | Create or update a team |
 | `GET` | `/api/teams/:token` | Get team for a token |
-| `POST` | `/api/teams/preview` | Preview a team by invite code (read-only, no join) |
-| `POST` | `/api/teams/invite` | Generate a new invite code for your team |
+| `GET` | `/api/teams/:token/head` | Check team hash (lightweight) |
+| `GET` | `/api/teams/all/:token` | Get all teams for a token |
+| `POST` | `/api/teams/preview` | Preview a team by invite code |
+| `POST` | `/api/teams/invite` | Generate invite code |
+| `POST` | `/api/teams/view-token` | Create public view token |
+| `POST` | `/api/teams/visibility` | Set team visibility |
+| `POST` | `/api/teams/knowledge` | Push knowledge content |
+| `POST` | `/api/teams/tasks` | Create a task |
+| `GET` | `/api/teams/tasks/:token` | List tasks |
+| `PATCH` | `/api/teams/tasks/:number` | Update task status |
+| `POST` | `/api/teams/claim` | Claim team ownership |
 | `POST` | `/api/join` | Join a team by invite code |
-| `POST` | `/api/sync` | Sync local state with relay (push + pull) |
-| `GET` | `/api/sync/check` | Check if remote has changes since timestamp |
-| `POST` | `/api/push` | Push team knowledge entries |
-| `GET` | `/api/log` | Get recent sync activity with attribution |
 | `POST` | `/api/auth/device` | Start device auth flow |
 | `GET` | `/api/auth/device/:device_code` | Poll device auth status |
+| `GET` | `/api/teams/clone/:clone_token` | Clone team (public, no auth) |
+| `DELETE` | `/token/:token/erase` | Erase token data |
+| `GET` | `/api/account` | Get account info |
+| `GET` | `/api/account/teams` | List account teams |
+| `GET` | `/api/account/export` | Export account data |
+| `DELETE` | `/api/account/machines/:token` | Revoke machine token |
+| `DELETE` | `/api/account` | Delete account |
+| `POST` | `/api/account/reassociate` | Reassociate machine token |
 
 ## Testing
 
