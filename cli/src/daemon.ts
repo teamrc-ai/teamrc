@@ -43,6 +43,8 @@ export interface KnowledgeDaemonOptions {
   restOnly?: boolean;
   /** Member names that run on this machine (used for auto-claiming tasks). */
   activeMembers?: string[];
+  /** Enable experimental task sync (tasks channel + auto-claim). */
+  enableTasks?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -306,8 +308,8 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
 
     log(`Joined knowledge channel for team ${teamId}.`);
 
-    // Join tasks channel
-    try {
+    // Join tasks channel (experimental — requires --experimental flag)
+    if (opts.enableTasks) try {
       tasksChannel = await channelClient!.joinTasks(teamId, {
         onJoin(tasks) {
           writeTaskCache(tasks, teamSlug);

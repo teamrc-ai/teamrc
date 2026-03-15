@@ -18,7 +18,8 @@ export function registerDaemon(program: Command): void {
     .description("Start the knowledge sync daemon (WebSocket + REST fallback)")
     .option("--rest-only", "Force REST polling (no WebSocket)")
     .option("--poll-interval <seconds>", "REST poll interval in seconds", "120")
-    .action(async (opts: { restOnly?: boolean; pollInterval: string }) => {
+    .option("--experimental", "Enable experimental features (task sync)")
+    .action(async (opts: { restOnly?: boolean; pollInterval: string; experimental?: boolean }) => {
       const pollSec = parseInt(opts.pollInterval, 10);
       if (isNaN(pollSec) || pollSec < 5) {
         p.log.error("--poll-interval must be at least 5 seconds.");
@@ -105,6 +106,8 @@ export function registerDaemon(program: Command): void {
         platforms,
         fallbackPollInterval: pollSec * 1000,
         restOnly: opts.restOnly,
+        activeMembers: team.activeMembers,
+        enableTasks: opts.experimental,
       });
 
       // Keep the process alive until signal

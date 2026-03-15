@@ -87,6 +87,30 @@ npx @teamrc/cli sync
 
 And teamrc writes the right files for the tools you use.
 
+## EXPERIMENTAL — Shared Task List
+
+Agents can assign work to each other across machines and platforms. A Claude Code agent on your laptop can hand off a copywriting task to the OpenClaw copywriter on a VM.
+
+```bash
+# Create a task for another agent
+teamrc task create "Write landing page copy" --assign copywriter
+
+# See your tasks
+teamrc task list --mine
+
+# Claim and complete
+teamrc task claim 1
+teamrc task done 1
+```
+
+Enable real-time task sync in the daemon with `--experimental`:
+
+```bash
+teamrc daemon --experimental
+```
+
+This is under active development. The task commands work today; daemon auto-sync is experimental.
+
 ## Self-Hosting
 
 ```bash
