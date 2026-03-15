@@ -568,3 +568,45 @@ export async function handleTeamNotFound(ctx: TeamContext & { client: TeamrcClie
 
   return true;
 }
+
+// ---------------------------------------------------------------------------
+// Active-member selection  --  interactive picker or --members flag parsing
+// ---------------------------------------------------------------------------
+export async function selectActiveMembers(
+  allMembers: { name: string; role: string }[],
+  membersFlag?: string,
+): Promise<string[] | undefined> {
+  const allNames = allMembers.map((m) => m.name);
+
+  if (membersFlag) {
+    const names = membersFlag.split(",").map((s) => s.trim()).filter(Boolean);
+    for (const n of names) {
+      if (!allNames.includes(n)) {
+        p.log.error(`"${n}" is not a team member. Members: ${allNames.join(", ")}`);
+        process.exit(1);
+      }
+    }
+    return names.length === allNames.length && allNames.every((n) => names.includes(n))
+      ? undefined
+      : names;
+  }
+
+  if (isNonInteractive()) return undefined;
+
+  const choices = await p.multiselect({
+    message: "Which agents should be active on this machine?",
+    options: allMembers.map((m) => ({
+      value: m.name,
+      label: m.name,
+      hint: m.role,
+    })),
+    initialValues: allNames,
+    required: true,
+  });
+  handleCancel(choices);
+  const selected = choices as string[];
+
+  return selected.length === allNames.length && allNames.every((n) => selected.includes(n))
+    ? undefined
+    : selected;
+}

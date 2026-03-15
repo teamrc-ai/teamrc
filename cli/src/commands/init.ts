@@ -6,7 +6,7 @@ import * as p from "@clack/prompts";
 import { toToken } from "../auth.js";
 import { TeamrcClient } from "../client.js";
 import { getRelayUrl } from "../config.js";
-import { getAdapter, slugify, createTeamKnowledgeSkill, createTeamTasksSkill } from "../adapters/base.js";
+import { getAdapter, slugify, filterActiveMembers, createTeamKnowledgeSkill, createTeamTasksSkill } from "../adapters/base.js";
 import { templateToTeamDefinition } from "../catalog.js";
 import { writeTeamYaml, readTeamYaml, validateTeamName, writeLocalYaml, readLocalYaml, TEAM_YAML, GLOBAL_TEAM_YAML, LOCAL_YAML, GLOBAL_LOCAL_YAML } from "../team-yaml.js";
 import { sanitizeTeamDefinition } from "../client.js";
@@ -23,6 +23,7 @@ import {
   selectTemplate,
   promptTeamName,
   deviceAuthFlow,
+  selectActiveMembers,
   cliCmd,
 } from "../utils.js";
 
@@ -36,8 +37,9 @@ export function registerInit(program: Command): void {
     .option("--name <name>", "Team name")
     .option("--team <id>", "Team template (fullstack, backend, frontend, security, devops, custom, ...)")
     .option("--no-knowledge", "Skip creating the team knowledge file")
+    .option("--members <names>", "Comma-separated active members for this machine")
     .option("--local", "Create team locally without connecting to relay")
-    .action(async (opts: { relay?: string; platform?: string; global?: boolean; name?: string; team?: string; knowledge?: boolean; local?: boolean }) => {
+    .action(async (opts: { relay?: string; platform?: string; global?: boolean; name?: string; team?: string; knowledge?: boolean; members?: string; local?: boolean }) => {
       p.intro("teamrc");
 
       const scope = await selectScope(opts);
@@ -115,6 +117,9 @@ export function registerInit(program: Command): void {
         team.skills.push(createTeamTasksSkill());
       }
 
+      // Select which members should be active on this machine
+      const activeMembers = await selectActiveMembers(team.members, opts.members);
+
       // Determine whether to connect to relay
       const firstAdapter = getAdapter(platforms[0], slugify(team.name));
       let useRelay: boolean;
@@ -141,9 +146,10 @@ export function registerInit(program: Command): void {
         // Local-only: write files without relay
         team.platforms = platforms;
 
+        const filtered = filterActiveMembers(team, activeMembers);
         for (const pl of platforms) {
           const adapter = getAdapter(pl, slugify(team.name));
-          adapter.writeTeam(team, effectiveScope(pl, scope));
+          adapter.writeTeam(filtered, effectiveScope(pl, scope));
         }
         p.log.step(`Applied to: ${platforms.join(", ")}`);
 
@@ -157,10 +163,10 @@ export function registerInit(program: Command): void {
         p.log.step(`Wrote ${yamlPath}`);
         saveConfig({ ...loadConfig(), token });
 
-        // Write platform to local.yaml
+        // Write platform + active members to local.yaml
         const localYamlPath = scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML;
         const existingLocal = readLocalYaml(localYamlPath);
-        writeLocalYaml(localYamlPath, { ...existingLocal, platform: platforms[0] });
+        writeLocalYaml(localYamlPath, { ...existingLocal, platform: platforms[0], ...(activeMembers ? { activeMembers } : {}) });
 
         // Ensure .teamrc/ is gitignored for project-level teams
         if (scope !== "global") {
@@ -199,10 +205,11 @@ export function registerInit(program: Command): void {
         client.setTeamId(relayTeam.id);
 
         // Apply to each platform's native format
+        const filtered = filterActiveMembers(team, activeMembers);
         const platformSummary: string[] = [];
         for (const pl of platforms) {
           const adapter = getAdapter(pl, slugify(team.name));
-          adapter.writeTeam(team, effectiveScope(pl, scope));
+          adapter.writeTeam(filtered, effectiveScope(pl, scope));
           platformSummary.push(pl);
         }
         p.log.step(`Applied to: ${platformSummary.join(", ")}`);
@@ -225,11 +232,11 @@ export function registerInit(program: Command): void {
         p.log.step(`Wrote ${yamlPath}`);
         saveConfig({ ...loadConfig(), token });
 
-        // Write platform to local.yaml
+        // Write platform + active members to local.yaml
         {
           const localYamlPath = scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML;
           const existingLocal = readLocalYaml(localYamlPath);
-          writeLocalYaml(localYamlPath, { ...existingLocal, platform: platforms[0] });
+          writeLocalYaml(localYamlPath, { ...existingLocal, platform: platforms[0], ...(activeMembers ? { activeMembers } : {}) });
         }
 
         // Ensure .teamrc/ is gitignored for project-level teams
