@@ -25,48 +25,39 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 const DAEMON_PATH = path.resolve(import.meta.dirname, "..", "daemon.ts");
+const TASK_DAEMON_PATH = path.resolve(import.meta.dirname, "..", "task-daemon.ts");
 const CHANNEL_CLIENT_PATH = path.resolve(import.meta.dirname, "..", "channel-client.ts");
 
-describe("tasks channel error handling in daemon", () => {
-  const daemonSource = fs.readFileSync(DAEMON_PATH, "utf-8");
+describe("tasks channel error handling in task-daemon", () => {
+  const taskDaemonSource = fs.readFileSync(TASK_DAEMON_PATH, "utf-8");
 
   it("catches tasks channel join failures without crashing", () => {
     // The tasks channel join is inside a try/catch
     // Verify the structure: joinTasks call is wrapped in try/catch
     assert.ok(
-      daemonSource.includes("catch (err)") || daemonSource.includes("catch(err)"),
-      "Daemon should have try/catch around tasks channel operations",
+      taskDaemonSource.includes("catch (err)") || taskDaemonSource.includes("catch(err)"),
+      "Task daemon should have try/catch around tasks channel operations",
     );
 
     // Specifically check that joinTasks failure is caught
-    const joinTasksSection = daemonSource.slice(
-      daemonSource.indexOf("joinTasks"),
-      daemonSource.indexOf("joinTasks") + 500,
-    );
-    // The catch should be nearby (within the same try block)
     assert.ok(
-      daemonSource.includes("Failed to join tasks channel"),
-      "Daemon should have a specific error message for tasks channel join failure",
+      taskDaemonSource.includes("Failed to join tasks channel"),
+      "Task daemon should have a specific error message for tasks channel join failure",
     );
   });
 
   it("should provide user-friendly context in tasks channel error messages", () => {
     // Find the tasks channel error handling section
-    const errorLineIdx = daemonSource.indexOf("Failed to join tasks channel");
+    const errorLineIdx = taskDaemonSource.indexOf("Failed to join tasks channel");
     assert.ok(errorLineIdx > -1, "Should find tasks channel error message");
 
     // Extract surrounding context (200 chars around the error message)
-    const context = daemonSource.slice(
+    const context = taskDaemonSource.slice(
       Math.max(0, errorLineIdx - 100),
       errorLineIdx + 300,
     );
 
     // The error message should include actionable guidance, not just the raw error.
-    // Acceptable patterns:
-    // - Mention that the relay may not support tasks
-    // - Suggest checking relay version
-    // - Suggest removing --experimental
-    // - Explain what "unmatched topic" means
     const hasActionableGuidance =
       context.includes("relay") ||
       context.includes("server") ||
@@ -85,19 +76,18 @@ describe("tasks channel error handling in daemon", () => {
     );
   });
 
-  it("daemon continues knowledge sync after tasks channel failure", () => {
-    // After the tasks channel try/catch, the daemon should continue
-    // to set up the file watcher (knowledge sync). Verify the structure:
-    // 1. joinTasks try/catch
-    // 2. setupFileWatcher call after it
-    const joinTasksIdx = daemonSource.indexOf("joinTasks");
-    const setupWatcherIdx = daemonSource.indexOf("setupFileWatcher", joinTasksIdx);
+  it("task daemon is loaded after knowledge channel in daemon.ts", () => {
+    // After task extraction, daemon.ts should dynamically import task-daemon
+    // only after the knowledge channel is successfully joined.
+    const daemonSource = fs.readFileSync(DAEMON_PATH, "utf-8");
+    const knowledgeChannelIdx = daemonSource.indexOf("Joined knowledge channel");
+    const taskDaemonIdx = daemonSource.indexOf("initTaskDaemon");
 
-    assert.ok(joinTasksIdx > -1, "Should find joinTasks call");
-    assert.ok(setupWatcherIdx > -1, "Should find setupFileWatcher after joinTasks");
+    assert.ok(knowledgeChannelIdx > -1, "Should find knowledge channel join");
+    assert.ok(taskDaemonIdx > -1, "Should find initTaskDaemon call");
     assert.ok(
-      setupWatcherIdx > joinTasksIdx,
-      "setupFileWatcher should come after joinTasks (daemon continues after tasks failure)",
+      taskDaemonIdx > knowledgeChannelIdx,
+      "initTaskDaemon should come after knowledge channel join (daemon continues after tasks failure)",
     );
   });
 });
@@ -158,21 +148,21 @@ describe("tasks channel error scenarios", () => {
     assert.ok(err instanceof ChannelReplyError);
   });
 
-  it("daemon detects 'unmatched topic' and shows user-friendly message", () => {
-    const daemonSource = fs.readFileSync(DAEMON_PATH, "utf-8");
+  it("task-daemon detects 'unmatched topic' and shows user-friendly message", () => {
+    const taskDaemonSource = fs.readFileSync(TASK_DAEMON_PATH, "utf-8");
 
-    // The daemon should check for ChannelReplyError with reason "unmatched topic"
+    // The task daemon should check for ChannelReplyError with reason "unmatched topic"
     assert.ok(
-      daemonSource.includes('err.reason === "unmatched topic"') ||
-      daemonSource.includes("err.reason === 'unmatched topic'"),
-      "Daemon should detect 'unmatched topic' reason from ChannelReplyError",
+      taskDaemonSource.includes('err.reason === "unmatched topic"') ||
+      taskDaemonSource.includes("err.reason === 'unmatched topic'"),
+      "Task daemon should detect 'unmatched topic' reason from ChannelReplyError",
     );
 
     // And show a user-friendly message instead of the raw error
     assert.ok(
-      daemonSource.includes("relay does not support tasks") ||
-      daemonSource.includes("relay does not support task"),
-      "Daemon should show a user-friendly message for unmatched topic errors",
+      taskDaemonSource.includes("relay does not support tasks") ||
+      taskDaemonSource.includes("relay does not support task"),
+      "Task daemon should show a user-friendly message for unmatched topic errors",
     );
   });
 });

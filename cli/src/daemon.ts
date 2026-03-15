@@ -17,15 +17,11 @@ import { watch } from "chokidar";
 import type { PlatformAdapter, TeamScope } from "./adapters/base.js";
 import {
   createChannelClient,
-  ChannelReplyError,
   type ChannelClient,
   type KnowledgeChannel,
-  type TasksChannel,
-  type TaskChannelItem,
 } from "./channel-client.js";
 import { TeamrcClient, TeamNotFoundError } from "./client.js";
 import { mergeKnowledge, pruneKnowledge } from "./team-yaml.js";
-import { TaskRunner, preflight as spawnPreflight } from "./spawn.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -110,7 +106,49 @@ function logSizeWarning(size: number, cap: number): void {
 // Daemon
 // ---------------------------------------------------------------------------
 
+/**
+ * Acquire a lockfile to prevent multiple daemons in the same project.
+ * Returns a release function, or throws if another daemon is running.
+ */
+function acquireLock(scope: TeamScope): () => void {
+  const lockDir = scope === "global"
+    ? path.join(process.env.HOME || "~", ".teamrc")
+    : path.join(process.cwd(), ".teamrc");
+  if (!fs.existsSync(lockDir)) fs.mkdirSync(lockDir, { recursive: true });
+  const lockFile = path.join(lockDir, "daemon.lock");
+
+  // Check for stale lock
+  try {
+    const content = fs.readFileSync(lockFile, "utf-8").trim();
+    const pid = parseInt(content, 10);
+    if (pid && pid !== process.pid) {
+      try {
+        process.kill(pid, 0); // Check if process exists
+        throw new Error(`Another daemon is already running (PID ${pid}). Stop it first or remove ${lockFile}.`);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "ESRCH") throw e;
+        // Process doesn't exist — stale lock, safe to overwrite
+      }
+    }
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+  }
+
+  fs.writeFileSync(lockFile, String(process.pid));
+
+  return () => {
+    try {
+      const content = fs.readFileSync(lockFile, "utf-8").trim();
+      if (content === String(process.pid)) {
+        fs.unlinkSync(lockFile);
+      }
+    } catch { /* ignore cleanup errors */ }
+  };
+}
+
 export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () => void } {
+  const releaseLock = acquireLock(opts.scope);
+
   const {
     relayUrl,
     privateKey,
@@ -135,9 +173,9 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
   // WebSocket state
   let channelClient: ChannelClient | null = null;
   let knowledgeChannel: KnowledgeChannel | null = null;
-  let tasksChannel: TasksChannel | null = null;
 
-  const activeMembers = opts.activeMembers ?? [];
+  // Task daemon handle (set by startWebSocketMode when enableTasks is true)
+  let taskHandle: { stop: () => void } | null = null;
 
   // File watcher
   let watcher: ReturnType<typeof watch> | null = null;
@@ -145,24 +183,6 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
 
   // REST client for last-resort fallback mode
   const restClient = new TeamrcClient(relayUrl, privateKey, token, teamId);
-
-  // Task runner for auto-spawn
-  let taskRunner: TaskRunner | null = null;
-  if (opts.autoSpawn && opts.enableTasks) {
-    const preflightErr = spawnPreflight();
-    if (preflightErr) {
-      warn(`Auto-spawn disabled: ${preflightErr}`);
-    } else {
-      taskRunner = new TaskRunner({
-        client: restClient,
-        timeoutMs: opts.spawnTimeoutMs,
-        teamSlug: teamSlug,
-        log,
-        warn,
-      });
-      log("Auto-spawn enabled.");
-    }
-  }
 
   // -----------------------------------------------------------------------
   // Knowledge read/write helpers
@@ -332,43 +352,20 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
 
     log(`Joined knowledge channel for team ${teamId}.`);
 
-    // Join tasks channel (experimental — requires --experimental flag)
-    if (opts.enableTasks) try {
-      tasksChannel = await channelClient!.joinTasks(teamId, {
-        onJoin(tasks) {
-          writeTaskCache(tasks, teamSlug);
-          log(`Tasks: ${tasks.length} loaded.`);
-        },
-        onCreated(task) {
-          if (stopped) return;
-          log(`Task #${task.number} created -> ${task.assignee}`);
-          void refreshTaskCache();
-          // Auto-claim: if task assignee is in activeMembers and status is todo
-          if (activeMembers.includes(task.assignee) && task.status === "todo") {
-            void autoClaimTask(task);
-          }
-        },
-        onUpdated(task) {
-          if (stopped) return;
-          log(`Task #${task.number} -> ${task.status}`);
-          void refreshTaskCache();
-        },
-        onError(error) {
-          warn(`Tasks channel error: ${error.message}`);
-        },
-        onClose() {
-          if (stopped) return;
-          log("Tasks channel closed.");
-          tasksChannel = null;
-        },
+    // Initialize task daemon if enabled (dynamic import — never loaded otherwise)
+    if (opts.enableTasks) {
+      const { initTaskDaemon } = await import("./task-daemon.js");
+      taskHandle = await initTaskDaemon({
+        channelClient: channelClient!,
+        restClient,
+        teamId,
+        teamSlug,
+        activeMembers: opts.activeMembers ?? [],
+        autoSpawn: !!opts.autoSpawn,
+        spawnTimeoutMs: opts.spawnTimeoutMs,
+        log,
+        warn,
       });
-      log(`Joined tasks channel for team ${teamId}.`);
-    } catch (err) {
-      if (err instanceof ChannelReplyError && err.reason === "unmatched topic") {
-        warn("Task sync unavailable — the relay does not support tasks for this team yet.");
-      } else {
-        warn(`Failed to join tasks channel: ${(err as Error).message}`);
-      }
     }
 
     // Set up file watcher for local changes -> push via channel
@@ -529,65 +526,6 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
   }
 
   // -----------------------------------------------------------------------
-  // Task cache
-  // -----------------------------------------------------------------------
-
-  function writeTaskCache(tasks: TaskChannelItem[], slug: string): void {
-    if (!/^[a-z0-9-]+$/.test(slug)) return; // reject unsafe slugs
-    const cacheDir = path.join(process.cwd(), ".teamrc");
-    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
-
-    const grouped: Record<string, TaskChannelItem[]> = {};
-    for (const t of tasks) {
-      (grouped[t.status] ??= []).push(t);
-    }
-
-    const lines: string[] = ["# Team Tasks", ""];
-    for (const status of ["todo", "in_progress", "done", "cancelled", "failed"]) {
-      if (!grouped[status]) continue;
-      const label = { todo: "TODO", in_progress: "IN PROGRESS", done: "DONE", cancelled: "CANCELLED", failed: "FAILED" }[status] ?? status;
-      lines.push(`## ${label}`, "");
-      for (const t of grouped[status]) {
-        let line = `- **#${t.number}** [${t.assignee}] ${t.description}`;
-        if (t.result && (t.status === "done" || t.status === "failed")) {
-          const truncated = t.result.length > 200 ? t.result.slice(0, 197) + "..." : t.result;
-          line += `\n  > ${truncated}`;
-        }
-        lines.push(line);
-      }
-      lines.push("");
-    }
-
-    fs.writeFileSync(path.join(cacheDir, `tasks-${slug}.md`), lines.join("\n"));
-  }
-
-  async function refreshTaskCache(): Promise<void> {
-    try {
-      const tasks = await restClient.listTasks();
-      writeTaskCache(tasks, teamSlug);
-    } catch (err) {
-      warn(`Failed to refresh task cache: ${(err as Error).message}`);
-    }
-  }
-
-  async function autoClaimTask(task: TaskChannelItem): Promise<void> {
-    try {
-      await restClient.updateTask(task.number, "in_progress");
-      log(`Auto-claimed task #${task.number}.`);
-      // Enqueue for auto-spawn if enabled
-      if (taskRunner) {
-        taskRunner.enqueue({
-          number: task.number,
-          description: task.description,
-          assignee: task.assignee,
-        });
-      }
-    } catch (err) {
-      warn(`Failed to auto-claim task #${task.number}: ${(err as Error).message}`);
-    }
-  }
-
-  // -----------------------------------------------------------------------
   // Start
   // -----------------------------------------------------------------------
 
@@ -608,16 +546,15 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
     stop() {
       stopped = true;
 
-      // Stop task runner
-      taskRunner?.stop();
+      // Stop task daemon
+      taskHandle?.stop();
+      taskHandle = null;
 
       // Clean up WebSocket
-      tasksChannel?.leave();
       knowledgeChannel?.leave();
       channelClient?.disconnect();
       channelClient = null;
       knowledgeChannel = null;
-      tasksChannel = null;
 
       // Clean up timers
       if (pollTimeout) clearTimeout(pollTimeout);
@@ -626,6 +563,9 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
 
       // Clean up file watcher
       if (watcher) void watcher.close();
+
+      // Release lockfile
+      releaseLock();
 
       log("Knowledge daemon stopped.");
     },
