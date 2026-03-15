@@ -40,12 +40,12 @@ defmodule TeamrcWeb.TasksChannel do
   end
 
   @impl true
-  def handle_info({:task_created, %{task: task}}, socket) do
+  def handle_info({:task_created, %Teamrc.Schema.Task{} = task}, socket) do
     push(socket, "tasks:created", %{task: task_to_map(task)})
     {:noreply, socket}
   end
 
-  def handle_info({:task_updated, %{task: task}}, socket) do
+  def handle_info({:task_updated, %Teamrc.Schema.Task{} = task}, socket) do
     push(socket, "tasks:updated", %{task: task_to_map(task)})
     {:noreply, socket}
   end

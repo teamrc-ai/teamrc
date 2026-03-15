@@ -32,12 +32,16 @@ defmodule Teamrc.Tasks do
   defp do_create_task(team_id, token, description, assignee, attrs) do
     result =
       Repo.transaction(fn ->
-        # Lock tasks for this team to safely auto-increment number
+        # Advisory lock on team_id to safely auto-increment task number.
+        # We use pg_advisory_xact_lock with a hash of the team_id so the
+        # lock is scoped to this transaction and released on commit/rollback.
+        lock_key = :erlang.phash2(team_id)
+        Repo.query!("SELECT pg_advisory_xact_lock($1)", [lock_key])
+
         next_number =
           from(t in Task,
             where: t.team_id == ^team_id,
-            select: max(t.number),
-            lock: "FOR UPDATE"
+            select: max(t.number)
           )
           |> Repo.one()
           |> case do
