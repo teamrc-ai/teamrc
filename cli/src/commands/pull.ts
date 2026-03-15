@@ -3,7 +3,7 @@ import * as p from "@clack/prompts";
 import { TeamrcClient, remoteTeamToDefinition, TeamNotFoundError } from "../client.js";
 import { toToken } from "../auth.js";
 import { getRelayUrl } from "../config.js";
-import { getAdapter, slugify, type TeamScope } from "../adapters/base.js";
+import { getAdapter, slugify, filterActiveMembers, type TeamScope } from "../adapters/base.js";
 import { readTeamYaml, writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, pruneKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import { logKnowledgeSize } from "../knowledge-log.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
@@ -57,9 +57,10 @@ export function registerPull(program: Command): void {
           writeTeamYaml(yamlPath, team);
           s.stop(`Pulled "${team.name}" (${team.members.length} agents, read-only).`);
 
+          const cloneFiltered = filterActiveMembers(team);
           for (const pl of platforms) {
             const a = getAdapter(pl, slugify(team.name));
-            a.writeTeam(team, effectiveScope(pl, scope));
+            a.writeTeam(cloneFiltered, effectiveScope(pl, scope));
             p.log.step(`Applied to ${pl} (${effectiveScope(pl, scope)} scope).`);
           }
 
@@ -132,9 +133,10 @@ export function registerPull(program: Command): void {
           s.stop(`Pulled "${team.name}" (${team.members.length} agents).`);
 
           // Apply to platforms
+          const pullFiltered = filterActiveMembers(team);
           for (const pl of platforms) {
             const a = getAdapter(pl, slugify(team.name));
-            a.writeTeam(team, effectiveScope(pl, scope));
+            a.writeTeam(pullFiltered, effectiveScope(pl, scope));
             p.log.step(`Applied to ${pl} (${effectiveScope(pl, scope)} scope).`);
           }
 

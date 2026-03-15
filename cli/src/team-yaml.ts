@@ -128,6 +128,11 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
       });
   }
 
+  let activeMembers: string[] | undefined;
+  if (Array.isArray(data.activeMembers)) {
+    activeMembers = data.activeMembers.map((m: unknown) => String(m));
+  }
+
   return {
     name: teamName,
     members,
@@ -136,6 +141,7 @@ export function readTeamYaml(filePath: string): TeamDefinition | null {
     ...(cloneToken ? { cloneToken } : {}),
     ...(relay ? { relay } : {}),
     ...(platforms ? { platforms } : {}),
+    ...(activeMembers ? { activeMembers } : {}),
   };
 }
 
@@ -146,6 +152,7 @@ export function writeTeamYaml(filePath: string, team: TeamDefinition): void {
     ...(team.cloneToken ? { cloneToken: team.cloneToken } : {}),
     ...(team.relay ? { relay: team.relay } : {}),
     ...(team.platforms ? { platforms: team.platforms } : {}),
+    ...(team.activeMembers?.length ? { activeMembers: team.activeMembers } : {}),
     members: team.members.map((m) => {
       const entry: Record<string, unknown> = { name: m.name, role: m.role };
       if (m.description) entry.description = m.description;

@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
-import { getAdapter, slugify } from "../adapters/base.js";
+import { getAdapter, slugify, filterActiveMembers } from "../adapters/base.js";
 import { readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import {
   requirePlatforms,
@@ -47,10 +47,11 @@ export function registerApply(program: Command): void {
       const s = p.spinner();
       s.start(`Applying "${team.name}" to ${platforms.length} platform(s)...`);
 
+      const filtered = filterActiveMembers(team);
       const appliedLines: string[] = [];
       for (const pl of platforms) {
         const adapter = getAdapter(pl, slugify(team.name));
-        adapter.writeTeam(team, effectiveScope(pl, scope));
+        adapter.writeTeam(filtered, effectiveScope(pl, scope));
         const skillCount = team.skills?.length ?? 0;
         const parts = [`${team.members.length} agents`];
         if (skillCount > 0) parts.push(`${skillCount} skills`);

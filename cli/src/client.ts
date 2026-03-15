@@ -28,6 +28,19 @@ export interface TeamHeadResponse {
   knowledge_hash: string;
 }
 
+export interface TaskItem {
+  number: number;
+  description: string;
+  assignee: string;
+  status: string;
+  created_by?: string;
+  claimed_by?: string;
+  claimed_at?: string;
+  completed_at?: string;
+  inserted_at?: string;
+  updated_at?: string;
+}
+
 export class SyncConflictError extends Error {
   serverHash: string;
   constructor(message: string, serverHash: string) {
@@ -514,6 +527,56 @@ export class TeamrcClient {
     this.checkUpgradeRequired(res);
     if (!res.ok) throw new Error(await this.errorMessage(res, "createViewToken failed"));
     return (await res.json()) as { view_token: string; team_id: string; expires_at: string };
+  }
+
+  async createTask(description: string, assignee: string): Promise<TaskItem> {
+    const body = JSON.stringify({
+      token: this.token,
+      ...(this.teamId ? { team_id: this.teamId } : {}),
+      description,
+      assignee,
+    });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/teams/tasks`, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
+    });
+    this.checkUpgradeRequired(res);
+    if (!res.ok) throw new Error(await this.errorMessage(res, "createTask failed"));
+    const data = (await res.json()) as { task: TaskItem };
+    return data.task;
+  }
+
+  async listTasks(opts?: { status?: string; assignee?: string }): Promise<TaskItem[]> {
+    const params = new URLSearchParams();
+    if (this.teamId) params.set("team_id", this.teamId);
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.assignee) params.set("assignee", opts.assignee);
+    const qs = params.toString();
+    const path = `/api/teams/tasks/${this.token}${qs ? `?${qs}` : ""}`;
+    const data = await this.signedGet<{ tasks: TaskItem[] }>(path);
+    return data.tasks;
+  }
+
+  async updateTask(number: number, status: string): Promise<TaskItem> {
+    const body = JSON.stringify({
+      token: this.token,
+      ...(this.teamId ? { team_id: this.teamId } : {}),
+      status,
+    });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/teams/tasks/${number}`, {
+      method: "PATCH",
+      headers,
+      body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
+    });
+    this.checkUpgradeRequired(res);
+    if (!res.ok) throw new Error(await this.errorMessage(res, "updateTask failed"));
+    const data = (await res.json()) as { task: TaskItem };
+    return data.task;
   }
 
 }

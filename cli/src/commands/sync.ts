@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import { remoteTeamToDefinition, SyncConflictError, TeamNotFoundError } from "../client.js";
 import { computeTeamHashes } from "../sync-hash.js";
-import { getAdapter, slugify, type TeamScope } from "../adapters/base.js";
+import { getAdapter, slugify, filterActiveMembers, type TeamScope } from "../adapters/base.js";
 import { writeTeamYaml, validateTeamName, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, pruneKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import { logKnowledgeSize } from "../knowledge-log.js";
 import { readSyncState, writeSyncState, migrateLegacyYamlHashes } from "../sync-state.js";
@@ -151,9 +151,10 @@ export function registerSync(program: Command): void {
             syncHashSkills: serverHead.skills_hash,
             syncHashKnowledge: serverHead.knowledge_hash,
           });
+          const pullFiltered = filterActiveMembers(remoteDef);
           for (const pl of platforms) {
             const a = getAdapter(pl, slugify(remoteDef.name));
-            a.writeTeam(remoteDef, effectiveScope(pl, scope));
+            a.writeTeam(pullFiltered, effectiveScope(pl, scope));
           }
           s.stop("Pulled and applied remote changes.");
           p.outro("Synced.");
@@ -211,9 +212,10 @@ export function registerSync(program: Command): void {
             syncHashSkills: newHead.skills_hash,
             syncHashKnowledge: newHead.knowledge_hash,
           });
+          const knowledgeFiltered = filterActiveMembers(remoteDef);
           for (const pl of platforms) {
             const a = getAdapter(pl, slugify(remoteDef.name));
-            a.writeTeam(remoteDef, effectiveScope(pl, scope));
+            a.writeTeam(knowledgeFiltered, effectiveScope(pl, scope));
           }
           s.stop("Synced knowledge and pulled.");
           p.outro("Synced.");
@@ -255,9 +257,10 @@ export function registerSync(program: Command): void {
           syncHashSkills: serverHead.skills_hash,
           syncHashKnowledge: serverHead.knowledge_hash,
         });
+        const bothFiltered = filterActiveMembers(remoteDef);
         for (const pl of platforms) {
           const a = getAdapter(pl, slugify(remoteDef.name));
-          a.writeTeam(remoteDef, effectiveScope(pl, scope));
+          a.writeTeam(bothFiltered, effectiveScope(pl, scope));
         }
         s.stop("Pulled remote changes.");
         p.outro(`Synced. Run \`${cliCmd("push")}\` to push local changes.`);

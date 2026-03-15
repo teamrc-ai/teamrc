@@ -4,7 +4,7 @@ import * as p from "@clack/prompts";
 import { toToken } from "../auth.js";
 import { TeamrcClient, remoteTeamToDefinition } from "../client.js";
 import { getRelayUrl, saveConfig } from "../config.js";
-import { getAdapter, slugify } from "../adapters/base.js";
+import { getAdapter, slugify, filterActiveMembers } from "../adapters/base.js";
 import { writeTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML, mergeKnowledge, pruneKnowledge, MAX_KNOWLEDGE_SIZE } from "../team-yaml.js";
 import {
   isNonInteractive,
@@ -26,7 +26,8 @@ export function registerJoin(program: Command): void {
     .option("--platform <platform>", "Override platform detection")
     .option("--global", "Join as global team")
     .option("--no-knowledge", "Skip creating the team knowledge file")
-    .action(async (inviteCode: string, opts: { relay?: string; platform?: string; global?: boolean; knowledge?: boolean }) => {
+    .option("--members <names>", "Comma-separated active members for this project")
+    .action(async (inviteCode: string, opts: { relay?: string; platform?: string; global?: boolean; knowledge?: boolean; members?: string }) => {
       p.intro("teamrc");
 
       const scope = await selectScope(opts);
@@ -53,17 +54,31 @@ export function registerJoin(program: Command): void {
           p.log.info("Members:\n" + memberLines.join("\n"));
         }
 
+        // Validate and set --members
+        if (opts.members) {
+          const names = opts.members.split(",").map((s) => s.trim()).filter(Boolean);
+          const memberNames = teamDef.members.map((m) => m.name);
+          for (const n of names) {
+            if (!memberNames.includes(n)) {
+              p.log.error(`"${n}" is not a team member. Members: ${memberNames.join(", ")}`);
+              process.exit(1);
+            }
+          }
+          teamDef.activeMembers = names;
+        }
+
         // Apply to each platform
         const s2 = p.spinner();
         s2.start("Applying to detected platforms...");
+        const filtered = filterActiveMembers(teamDef);
         const appliedLines: string[] = [];
         for (const pl of platforms) {
           const adapter = getAdapter(pl, slugify(teamDef.name));
-          adapter.writeTeam(teamDef, effectiveScope(pl, scope));
-          const skillCount = teamDef.skills?.length ?? 0;
+          adapter.writeTeam(filtered, effectiveScope(pl, scope));
+          const skillCount = filtered.skills?.length ?? 0;
           const detail = skillCount > 0
-            ? `${teamDef.members.length} agents, ${skillCount} skills`
-            : `${teamDef.members.length} agents`;
+            ? `${filtered.members.length} agents, ${skillCount} skills`
+            : `${filtered.members.length} agents`;
           appliedLines.push(`  ${pl.padEnd(14)} ${detail}`);
         }
         s2.stop("Applied.");
