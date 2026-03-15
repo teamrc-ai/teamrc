@@ -13,6 +13,7 @@ import {
   requireKeypair,
   selectScope,
   effectiveScope,
+  selectActiveMembers,
   deviceAuthFlow,
   cliCmd,
 } from "../utils.js";
@@ -51,6 +52,16 @@ export function registerJoin(program: Command): void {
             (m) => `  ${m.name.padEnd(14)} ${m.role}`,
           );
           p.log.info("Members:\n" + memberLines.join("\n"));
+        }
+
+        // Select which members should be active on this machine
+        const activeMembers = await selectActiveMembers(teamDef.members, opts.members);
+
+        // Write platform + active members to local.yaml
+        {
+          const localYamlPath = scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML;
+          const existingLocal = readLocalYaml(localYamlPath);
+          writeLocalYaml(localYamlPath, { ...existingLocal, platform: platforms[0], ...(activeMembers ? { activeMembers } : {}) });
         }
 
         // Apply to each platform

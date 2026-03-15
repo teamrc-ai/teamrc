@@ -87,6 +87,25 @@ npx @teamrc/cli sync
 
 And teamrc writes the right files for the tools you use.
 
+### Active Members
+
+`activeMembers` controls which agents are installed in the current project. It is local to each machine and project -- it does not change the team on the relay.
+
+By default, all team members are active. During `init` and `join`, an interactive chooser lets you pick which agents should be active on this machine. You can also pass `--members` explicitly:
+
+```bash
+# Interactive: prompts you to select active agents
+teamrc init
+teamrc join <invite-code>
+
+# Explicit: skip the picker
+teamrc join <invite-code> --members frontend,designer
+teamrc init --members frontend,designer
+
+# Change active members later
+teamrc members
+```
+
 ## Self-Hosting
 
 ```bash
