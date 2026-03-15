@@ -249,7 +249,7 @@ defmodule TeamrcWeb.HomeLive do
   defp tab_command("local"), do: "npx @teamrc/cli init --local"
 
   defp tab_description("new"), do: "Creates a .teamrc.yaml and walks you through setup."
-  defp tab_description("clone"), do: "Clones an existing team config into your project."
+  defp tab_description("clone"), do: "Clones a prebuilt product team into your project."
   defp tab_description("local"), do: "Local only, no relay sync. Define everything in-project."
 
   attr :tab, :string, required: true
@@ -272,7 +272,7 @@ defmodule TeamrcWeb.HomeLive do
           phx-value-tab="clone"
           class={"trc-focus px-3 py-1 text-xs font-mono rounded transition-colors " <> if(@tab == "clone", do: "bg-white text-base-content shadow-sm", else: "text-base-content/50 hover:text-base-content/70")}
         >
-          Clone a team
+          Clone a product team
         </button>
         <button
           phx-click={@event}
