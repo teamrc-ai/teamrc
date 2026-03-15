@@ -27,6 +27,9 @@ export interface KnowledgeChannel {
   leave(): void;
 }
 
+// ---------------------------------------------------------------------------
+// Task system (experimental) — remove this section to revert task support
+// ---------------------------------------------------------------------------
 export interface TasksChannelEvents {
   onJoin: (tasks: TaskChannelItem[]) => void;
   onCreated: (task: TaskChannelItem) => void;
@@ -74,6 +77,9 @@ function sanitizeTaskItem(raw: unknown): TaskChannelItem | null {
     ...(typeof t.updated_at === "string" ? { updated_at: t.updated_at.slice(0, 30) } : {}),
   };
 }
+// ---------------------------------------------------------------------------
+// End task system
+// ---------------------------------------------------------------------------
 
 export interface ChannelClient {
   connect(): Promise<void>;
@@ -382,6 +388,9 @@ export function createChannelClient(
       };
     },
 
+    // ---------------------------------------------------------------------------
+    // Task system (experimental) — remove this section to revert task support
+    // ---------------------------------------------------------------------------
     async joinTasks(
       teamId: string,
       events: TasksChannelEvents,
@@ -433,6 +442,9 @@ export function createChannelClient(
         },
       };
     },
+    // ---------------------------------------------------------------------------
+    // End task system
+    // ---------------------------------------------------------------------------
 
     disconnect(): void {
       stopHeartbeat();

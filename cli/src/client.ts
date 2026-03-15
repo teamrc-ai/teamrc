@@ -28,6 +28,9 @@ export interface TeamHeadResponse {
   knowledge_hash: string;
 }
 
+// ---------------------------------------------------------------------------
+// Task system (experimental) — remove this section to revert task support
+// ---------------------------------------------------------------------------
 export interface TaskItem {
   number: number;
   description: string;
@@ -41,6 +44,9 @@ export interface TaskItem {
   inserted_at?: string;
   updated_at?: string;
 }
+// ---------------------------------------------------------------------------
+// End task system
+// ---------------------------------------------------------------------------
 
 export class SyncConflictError extends Error {
   serverHash: string;
@@ -530,6 +536,9 @@ export class TeamrcClient {
     return (await res.json()) as { view_token: string; team_id: string; expires_at: string };
   }
 
+  // ---------------------------------------------------------------------------
+  // Task system (experimental) — remove this section to revert task support
+  // ---------------------------------------------------------------------------
   async createTask(description: string, assignee: string): Promise<TaskItem> {
     const body = JSON.stringify({
       token: this.token,
@@ -580,5 +589,8 @@ export class TeamrcClient {
     const data = (await res.json()) as { task: TaskItem };
     return data.task;
   }
+  // ---------------------------------------------------------------------------
+  // End task system
+  // ---------------------------------------------------------------------------
 
 }
