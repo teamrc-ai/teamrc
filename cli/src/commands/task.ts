@@ -23,7 +23,7 @@ function formatTask(task: TaskItem): string {
 
 export function registerTask(program: Command): void {
   const task = program
-    .command("task")
+    .command("task", { hidden: true })
     .description("Manage team tasks");
 
   task
