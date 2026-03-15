@@ -87,6 +87,38 @@ npx @teamrc/cli sync
 
 And teamrc writes the right files for the tools you use.
 
+## EXPERIMENTAL — Shared Task List
+
+Agents can assign work to each other across machines and platforms. A Claude Code agent on your laptop can hand off a copywriting task to the OpenClaw copywriter on a VM.
+
+Teams created with `teamrc init` automatically include a `team-tasks` skill that teaches agents how to check for tasks, claim them, and create new ones. Each agent gets these instructions as part of their session context.
+
+```bash
+# Create a task for another agent
+teamrc task create "Write landing page copy" --assign copywriter
+
+# See your tasks
+teamrc task list --mine
+
+# Claim and complete
+teamrc task claim 1
+teamrc task done 1
+```
+
+When a project only needs a subset of the team (e.g. a frontend repo doesn't need the backend agent), use `--members` during join to specify which agents are active locally. `--mine` and daemon auto-claim will scope to those members:
+
+```bash
+teamrc join <invite-code> --members frontend,designer
+```
+
+Enable real-time task sync in the daemon with `--experimental`. The daemon will subscribe to task updates over WebSocket and auto-claim incoming tasks assigned to your active members:
+
+```bash
+teamrc daemon --experimental
+```
+
+This is under active development. The task CLI commands work today; daemon auto-sync is experimental.
+
 ## Self-Hosting
 
 ```bash

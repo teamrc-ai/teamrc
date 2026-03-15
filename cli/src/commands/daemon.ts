@@ -8,7 +8,7 @@ import {
 import { loadConfig } from "../config.js";
 import { loadKeypair, toToken } from "../auth.js";
 import { getAdapter, slugify } from "../adapters/base.js";
-import { readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
+import { readTeamYaml, readLocalYaml, TEAM_YAML, GLOBAL_TEAM_YAML, LOCAL_YAML, GLOBAL_LOCAL_YAML } from "../team-yaml.js";
 import { getRelayUrl, detectPlatforms } from "../config.js";
 import type { TeamDefinition } from "../adapters/base.js";
 
@@ -18,7 +18,8 @@ export function registerDaemon(program: Command): void {
     .description("Start the knowledge sync daemon (WebSocket + REST fallback)")
     .option("--rest-only", "Force REST polling (no WebSocket)")
     .option("--poll-interval <seconds>", "REST poll interval in seconds", "120")
-    .action(async (opts: { restOnly?: boolean; pollInterval: string }) => {
+    .option("--experimental", "Enable experimental features (task sync)")
+    .action(async (opts: { restOnly?: boolean; pollInterval: string; experimental?: boolean }) => {
       const pollSec = parseInt(opts.pollInterval, 10);
       if (isNaN(pollSec) || pollSec < 5) {
         p.log.error("--poll-interval must be at least 5 seconds.");
@@ -93,6 +94,8 @@ export function registerDaemon(program: Command): void {
         `Poll interval: ${pollSec}s`,
       ].join("\n"));
 
+      const localConfig = readLocalYaml(scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML);
+
       const { startKnowledgeDaemon } = await import("../daemon.js");
       const daemon = startKnowledgeDaemon({
         relayUrl: relay,
@@ -105,6 +108,8 @@ export function registerDaemon(program: Command): void {
         platforms,
         fallbackPollInterval: pollSec * 1000,
         restOnly: opts.restOnly,
+        activeMembers: localConfig.activeMembers,
+        enableTasks: opts.experimental,
       });
 
       // Keep the process alive until signal

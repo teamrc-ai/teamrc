@@ -27,9 +27,56 @@ export interface KnowledgeChannel {
   leave(): void;
 }
 
+export interface TasksChannelEvents {
+  onJoin: (tasks: TaskChannelItem[]) => void;
+  onCreated: (task: TaskChannelItem) => void;
+  onUpdated: (task: TaskChannelItem) => void;
+  onError: (error: Error) => void;
+  onClose: () => void;
+}
+
+export interface TaskChannelItem {
+  number: number;
+  description: string;
+  assignee: string;
+  status: string;
+  created_by?: string;
+  claimed_by?: string;
+  claimed_at?: string;
+  completed_at?: string;
+  inserted_at?: string;
+  updated_at?: string;
+}
+
+export interface TasksChannel {
+  leave(): void;
+}
+
+/** Validate and cap fields on a task item received from the relay. */
+function sanitizeTaskItem(raw: unknown): TaskChannelItem | null {
+  if (!raw || typeof raw !== "object") return null;
+  const t = raw as Record<string, unknown>;
+  if (typeof t.number !== "number") return null;
+  if (typeof t.description !== "string") return null;
+  if (typeof t.assignee !== "string") return null;
+  return {
+    number: t.number,
+    description: t.description.slice(0, 2000),
+    assignee: t.assignee.slice(0, 64),
+    status: typeof t.status === "string" ? t.status.slice(0, 20) : "unknown",
+    ...(typeof t.created_by === "string" ? { created_by: t.created_by.slice(0, 128) } : {}),
+    ...(typeof t.claimed_by === "string" ? { claimed_by: t.claimed_by.slice(0, 128) } : {}),
+    ...(typeof t.claimed_at === "string" ? { claimed_at: t.claimed_at.slice(0, 30) } : {}),
+    ...(typeof t.completed_at === "string" ? { completed_at: t.completed_at.slice(0, 30) } : {}),
+    ...(typeof t.inserted_at === "string" ? { inserted_at: t.inserted_at.slice(0, 30) } : {}),
+    ...(typeof t.updated_at === "string" ? { updated_at: t.updated_at.slice(0, 30) } : {}),
+  };
+}
+
 export interface ChannelClient {
   connect(): Promise<void>;
   joinKnowledge(teamId: string, events: KnowledgeChannelEvents): Promise<KnowledgeChannel>;
+  joinTasks(teamId: string, events: TasksChannelEvents): Promise<TasksChannel>;
   disconnect(): void;
   isConnected(): boolean;
 }
@@ -307,6 +354,58 @@ export function createChannelClient(
             socket.send(JSON.stringify(msg));
           }
           eventHandlers.delete(`${topic}:knowledge:updated`);
+          eventHandlers.delete(`${topic}:error`);
+          eventHandlers.delete(`${topic}:close`);
+          joinRefs.delete(topic);
+        },
+      };
+    },
+
+    async joinTasks(
+      teamId: string,
+      events: TasksChannelEvents,
+    ): Promise<TasksChannel> {
+      const topic = `tasks:${teamId}`;
+      const joinRef = nextRef();
+
+      // Register event handlers before joining
+      eventHandlers.set(`${topic}:tasks:created`, (payload) => {
+        const task = sanitizeTaskItem(payload.task);
+        if (task) events.onCreated(task);
+      });
+
+      eventHandlers.set(`${topic}:tasks:updated`, (payload) => {
+        const task = sanitizeTaskItem(payload.task);
+        if (task) events.onUpdated(task);
+      });
+
+      eventHandlers.set(`${topic}:error`, (payload) => {
+        events.onError(new Error(`Tasks channel error: ${JSON.stringify(payload)}`));
+      });
+
+      eventHandlers.set(`${topic}:close`, () => {
+        events.onClose();
+      });
+
+      joinRefs.set(topic, joinRef);
+
+      // Send join message
+      const reply = await sendMessage(joinRef, topic, "phx_join", {});
+
+      const rawTasks = Array.isArray(reply.tasks) ? reply.tasks : [];
+      events.onJoin(
+        rawTasks.map(sanitizeTaskItem).filter((t): t is TaskChannelItem => t !== null),
+      );
+
+      return {
+        leave(): void {
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            const ref = nextRef();
+            const msg: PhoenixMessage = [joinRefs.get(topic) ?? null, ref, topic, "phx_leave", {}];
+            socket.send(JSON.stringify(msg));
+          }
+          eventHandlers.delete(`${topic}:tasks:created`);
+          eventHandlers.delete(`${topic}:tasks:updated`);
           eventHandlers.delete(`${topic}:error`);
           eventHandlers.delete(`${topic}:close`);
           joinRefs.delete(topic);

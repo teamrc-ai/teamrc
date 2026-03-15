@@ -39,6 +39,16 @@ export interface TeamDefinition {
   cloneToken?: string;
 }
 
+/** Filter team members to only those in activeMembers (no-op if unset/empty) */
+export function filterActiveMembers(team: TeamDefinition, activeMembers?: string[]): TeamDefinition {
+  if (!activeMembers || activeMembers.length === 0) return team;
+  const active = new Set(activeMembers);
+  return {
+    ...team,
+    members: team.members.filter((m) => active.has(m.name)),
+  };
+}
+
 export const VALID_PLATFORMS = [
   "claude-code",
   "cursor",
@@ -256,6 +266,20 @@ export function escapeYamlString(s: string): string {
 
 /** Constant skill ID for the team knowledge skill */
 export const TEAM_KNOWLEDGE_SKILL_ID = "team-knowledge";
+
+/** Constant skill ID for the team tasks skill */
+export const TEAM_TASKS_SKILL_ID = "team-tasks";
+
+/** Create the team-tasks skill for inclusion in new teams */
+export function createTeamTasksSkill(): Skill {
+  return {
+    id: TEAM_TASKS_SKILL_ID,
+    title: "Team Tasks",
+    description: "Check for and manage cross-agent tasks",
+    alwaysApply: true,
+    body: `Check for assigned tasks at the start of each session:\n  teamrc task list --mine\n\nPick a TODO task and claim it before starting work:\n  teamrc task claim <number>\n\nWhen finished with a task, mark it done:\n  teamrc task done <number>\n\nTo assign work to another team member:\n  teamrc task create "<description>" --assign <member>`,
+  };
+}
 
 /** Create the team-knowledge skill for inclusion in new teams */
 export function createTeamKnowledgeSkill(): Skill {

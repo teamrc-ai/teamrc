@@ -13,6 +13,7 @@ defmodule TeamrcWeb.UserSocket do
   use Phoenix.Socket
 
   channel "knowledge:*", TeamrcWeb.KnowledgeChannel
+  channel "tasks:*", TeamrcWeb.TasksChannel
 
   @max_ticket_age_seconds 30
 

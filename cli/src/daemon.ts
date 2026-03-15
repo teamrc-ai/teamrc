@@ -11,12 +11,16 @@
  */
 
 import { createHash } from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { watch } from "chokidar";
 import type { PlatformAdapter, TeamScope } from "./adapters/base.js";
 import {
   createChannelClient,
   type ChannelClient,
   type KnowledgeChannel,
+  type TasksChannel,
+  type TaskChannelItem,
 } from "./channel-client.js";
 import { TeamrcClient, TeamNotFoundError } from "./client.js";
 import { mergeKnowledge, pruneKnowledge } from "./team-yaml.js";
@@ -37,6 +41,10 @@ export interface KnowledgeDaemonOptions {
   fallbackPollInterval?: number; // default 120_000 (2 min)
   /** Force REST-only mode (no WebSocket). */
   restOnly?: boolean;
+  /** Member names that run on this machine (used for auto-claiming tasks). */
+  activeMembers?: string[];
+  /** Enable experimental task sync (tasks channel + auto-claim). */
+  enableTasks?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,6 +129,9 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
   // WebSocket state
   let channelClient: ChannelClient | null = null;
   let knowledgeChannel: KnowledgeChannel | null = null;
+  let tasksChannel: TasksChannel | null = null;
+
+  const activeMembers = opts.activeMembers ?? [];
 
   // File watcher
   let watcher: ReturnType<typeof watch> | null = null;
@@ -297,6 +308,41 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
 
     log(`Joined knowledge channel for team ${teamId}.`);
 
+    // Join tasks channel (experimental — requires --experimental flag)
+    if (opts.enableTasks) try {
+      tasksChannel = await channelClient!.joinTasks(teamId, {
+        onJoin(tasks) {
+          writeTaskCache(tasks, teamSlug);
+          log(`Tasks: ${tasks.length} loaded.`);
+        },
+        onCreated(task) {
+          if (stopped) return;
+          log(`Task #${task.number} created -> ${task.assignee}`);
+          void refreshTaskCache();
+          // Auto-claim: if task assignee is in activeMembers and status is todo
+          if (activeMembers.includes(task.assignee) && task.status === "todo") {
+            void autoClaimTask(task.number);
+          }
+        },
+        onUpdated(task) {
+          if (stopped) return;
+          log(`Task #${task.number} -> ${task.status}`);
+          void refreshTaskCache();
+        },
+        onError(error) {
+          warn(`Tasks channel error: ${error.message}`);
+        },
+        onClose() {
+          if (stopped) return;
+          log("Tasks channel closed.");
+          tasksChannel = null;
+        },
+      });
+      log(`Joined tasks channel for team ${teamId}.`);
+    } catch (err) {
+      warn(`Failed to join tasks channel: ${(err as Error).message}`);
+    }
+
     // Set up file watcher for local changes -> push via channel
     setupFileWatcher((content) => {
       if (!knowledgeChannel) return;
@@ -455,6 +501,52 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
   }
 
   // -----------------------------------------------------------------------
+  // Task cache
+  // -----------------------------------------------------------------------
+
+  function writeTaskCache(tasks: TaskChannelItem[], slug: string): void {
+    if (!/^[a-z0-9-]+$/.test(slug)) return; // reject unsafe slugs
+    const cacheDir = path.join(process.cwd(), ".teamrc");
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+
+    const grouped: Record<string, TaskChannelItem[]> = {};
+    for (const t of tasks) {
+      (grouped[t.status] ??= []).push(t);
+    }
+
+    const lines: string[] = ["# Team Tasks", ""];
+    for (const status of ["todo", "in_progress", "done", "cancelled", "failed"]) {
+      if (!grouped[status]) continue;
+      const label = { todo: "TODO", in_progress: "IN PROGRESS", done: "DONE", cancelled: "CANCELLED", failed: "FAILED" }[status] ?? status;
+      lines.push(`## ${label}`, "");
+      for (const t of grouped[status]) {
+        lines.push(`- **#${t.number}** [${t.assignee}] ${t.description}`);
+      }
+      lines.push("");
+    }
+
+    fs.writeFileSync(path.join(cacheDir, `tasks-${slug}.md`), lines.join("\n"));
+  }
+
+  async function refreshTaskCache(): Promise<void> {
+    try {
+      const tasks = await restClient.listTasks();
+      writeTaskCache(tasks, teamSlug);
+    } catch (err) {
+      warn(`Failed to refresh task cache: ${(err as Error).message}`);
+    }
+  }
+
+  async function autoClaimTask(taskNumber: number): Promise<void> {
+    try {
+      await restClient.updateTask(taskNumber, "in_progress");
+      log(`Auto-claimed task #${taskNumber}.`);
+    } catch (err) {
+      warn(`Failed to auto-claim task #${taskNumber}: ${(err as Error).message}`);
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // Start
   // -----------------------------------------------------------------------
 
@@ -476,10 +568,12 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
       stopped = true;
 
       // Clean up WebSocket
+      tasksChannel?.leave();
       knowledgeChannel?.leave();
       channelClient?.disconnect();
       channelClient = null;
       knowledgeChannel = null;
+      tasksChannel = null;
 
       // Clean up timers
       if (pollTimeout) clearTimeout(pollTimeout);

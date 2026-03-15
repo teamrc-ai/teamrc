@@ -238,6 +238,9 @@ defmodule TeamrcWeb.Router do
     post "/teams/view-token", ApiController, :create_view_token
     post "/teams/visibility", ApiController, :set_visibility
     post "/teams/knowledge", ApiController, :push_knowledge
+    post "/teams/tasks", ApiController, :create_task
+    get "/teams/tasks/:token", ApiController, :list_tasks
+    patch "/teams/tasks/:number", ApiController, :update_task
     delete "/token/:token/erase", ApiController, :erase_token
     get "/teams/all/:token", ApiController, :get_teams
     get "/teams/:token/head", ApiController, :head_team

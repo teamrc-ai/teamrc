@@ -1227,3 +1227,96 @@ describe("mergeKnowledge edge cases for daemon usage", () => {
     assert.ok(alphaPos < betaPos, "Remote content (Alpha) should appear before local additions (Beta)");
   });
 });
+
+describe("enableTasks flag", () => {
+  let tmpDir: string;
+  let originalCwd: string;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    originalCwd = process.cwd();
+    process.chdir(tmpDir);
+    fs.mkdirSync(path.join(tmpDir, ".teamrc"), { recursive: true });
+  });
+
+  afterEach(() => {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("does not mention tasks when enableTasks is not set", async () => {
+    const adapter = createMockAdapter(tmpDir);
+    const kp = await generateKeypair();
+    const token = toToken(kp.publicKey);
+
+    const { logs } = await captureConsoleAsync(() => {
+      const daemon = startKnowledgeDaemon({
+        relayUrl: "http://localhost:4000",
+        privateKey: kp.privateKey,
+        token,
+        teamId: "test-id",
+        teamSlug: "test-team",
+        scope: "project",
+        adapters: [adapter],
+        platforms: ["claude-code"],
+        restOnly: true,
+        fallbackPollInterval: 60000,
+      });
+      daemon.stop();
+    });
+
+    const taskLogs = logs.filter((l) => l.toLowerCase().includes("task"));
+    assert.equal(taskLogs.length, 0, "Should not log any task-related messages without enableTasks");
+  });
+
+  it("does not write task cache file when enableTasks is not set", async () => {
+    const adapter = createMockAdapter(tmpDir);
+    const kp = await generateKeypair();
+    const token = toToken(kp.publicKey);
+
+    const daemon = startKnowledgeDaemon({
+      relayUrl: "http://localhost:4000",
+      privateKey: kp.privateKey,
+      token,
+      teamId: "test-id",
+      teamSlug: "test-team",
+      scope: "project",
+      adapters: [adapter],
+      platforms: ["claude-code"],
+      restOnly: true,
+      fallbackPollInterval: 60000,
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    daemon.stop();
+
+    const taskCachePath = path.join(tmpDir, ".teamrc", "tasks-test-team.md");
+    assert.equal(fs.existsSync(taskCachePath), false, "Task cache file should not exist without enableTasks");
+  });
+
+  it("accepts enableTasks option without error", async () => {
+    const adapter = createMockAdapter(tmpDir);
+    const kp = await generateKeypair();
+    const token = toToken(kp.publicKey);
+
+    // restOnly mode won't actually join tasks channel (that's WebSocket-only),
+    // but the option should be accepted without error
+    const daemon = startKnowledgeDaemon({
+      relayUrl: "http://localhost:4000",
+      privateKey: kp.privateKey,
+      token,
+      teamId: "test-id",
+      teamSlug: "test-team",
+      scope: "project",
+      adapters: [adapter],
+      platforms: ["claude-code"],
+      restOnly: true,
+      fallbackPollInterval: 60000,
+      enableTasks: true,
+      activeMembers: ["dev"],
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    daemon.stop();
+  });
+});

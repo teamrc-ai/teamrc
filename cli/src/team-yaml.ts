@@ -320,3 +320,39 @@ export function resolveBody(
   }
   return "";
 }
+
+// ---------------------------------------------------------------------------
+// Local config (.teamrc/local.yaml) — per-machine, gitignored
+// ---------------------------------------------------------------------------
+
+export const LOCAL_YAML = ".teamrc/local.yaml";
+export const GLOBAL_LOCAL_YAML = path.join(os.homedir(), ".teamrc", "local.yaml");
+
+export interface LocalConfig {
+  activeMembers?: string[];
+}
+
+export function readLocalYaml(filePath?: string): LocalConfig {
+  const p = filePath ?? LOCAL_YAML;
+  if (!fs.existsSync(p)) return {};
+  try {
+    const content = fs.readFileSync(p, "utf-8");
+    const data = YAML.parse(content);
+    if (!data || typeof data !== "object") return {};
+    return {
+      ...(Array.isArray(data.activeMembers) ? { activeMembers: data.activeMembers.map((m: unknown) => String(m)) } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
+export function writeLocalYaml(filePath: string, config: LocalConfig): void {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  if (config.activeMembers?.length) {
+    const yaml = YAML.stringify({ activeMembers: config.activeMembers });
+    fs.writeFileSync(filePath, yaml);
+  }
+  // Don't write file if there's nothing to persist
+}
