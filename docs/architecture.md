@@ -95,6 +95,10 @@ The relay has WebSocket channels for real-time sync:
 10. All future `pull`/`push`/`sync` operate on the new team  --  no connection to the original
 11. If the user declines the relay prompt (or uses `--local`), the team is created locally without a relay connection. Running `teamrc push` later will register it on the relay.
 
+### Active member selection (experimental)
+
+Both `init` and `join` present an interactive multiselect chooser so users can pick which agents should be active on the current machine. This writes `activeMembers` to `local.yaml` and only the selected agents are applied to platform files. The picker can be bypassed with `--members name1,name2` or skipped entirely in non-interactive mode (all members default to active). The same selection can be changed later with `teamrc members`.
+
 ### Local-only teams
 
 Teams created with `teamrc init --local` or via declining the relay prompt during interactive init have no `teamId` or `relay` fields in `.teamrc.yaml`. They support:

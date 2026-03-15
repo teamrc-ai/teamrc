@@ -116,13 +116,18 @@ teamrc task cancel 1
 
 `activeMembers` controls which agents are installed in the current project **and** which tasks appear when you run `--mine`. It is local to each machine and project -- it does not change the team on the relay.
 
-By default, all team members are active. To scope a project to a subset of the team, pass `--members` when you join:
+By default, all team members are active. During `init` and `join`, an interactive chooser lets you pick which agents should be active on this machine (experimental). You can also pass `--members` explicitly:
 
 ```bash
-# A frontend repo only needs two of your six agents
-teamrc join <invite-code> --members frontend,designer
+# Interactive: prompts you to select active agents
+teamrc init
+teamrc join <invite-code>
 
-# List current team members and their status
+# Explicit: skip the picker
+teamrc join <invite-code> --members frontend,designer
+teamrc init --members frontend,designer
+
+# Change active members later
 teamrc members
 ```
 
