@@ -8,6 +8,7 @@ import {
   handleCancel,
   requireRelayContext,
   effectiveScope,
+  cliCmd,
 } from "../utils.js";
 
 export function registerAddMember(program: Command): void {
@@ -26,7 +27,8 @@ export function registerAddMember(program: Command): void {
       let name = agentName;
       if (!name) {
         if (isNonInteractive()) {
-          p.log.error("Agent name is required in non-interactive mode.\n  Usage: teamrc add-member <agent-name>");
+          p.log.error(`Agent name is required in non-interactive mode.\n  Usage: ${cliCmd("add-member <agent-name>")}`);
+
           process.exit(1);
         }
 
