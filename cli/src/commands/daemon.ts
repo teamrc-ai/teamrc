@@ -112,6 +112,9 @@ export function registerDaemon(program: Command): void {
         `Platforms: ${platforms.join(", ")}`,
         `Mode: ${modeLabel}`,
         `Poll interval: ${pollSec}s`,
+        opts.experimental
+          ? `Experimental: task sync enabled`
+          : `Experimental: off (use --experimental to enable task sync)`,
         ...(opts.autoSpawn ? [`Auto-spawn: enabled (timeout ${spawnTimeoutSec}s)`] : []),
       ].join("\n"));
 

@@ -17,6 +17,7 @@ import { watch } from "chokidar";
 import type { PlatformAdapter, TeamScope } from "./adapters/base.js";
 import {
   createChannelClient,
+  ChannelReplyError,
   type ChannelClient,
   type KnowledgeChannel,
   type TasksChannel,
@@ -363,7 +364,11 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
       });
       log(`Joined tasks channel for team ${teamId}.`);
     } catch (err) {
-      warn(`Failed to join tasks channel: ${(err as Error).message}`);
+      if (err instanceof ChannelReplyError && err.reason === "unmatched topic") {
+        warn("Task sync unavailable — the relay does not support tasks for this team yet.");
+      } else {
+        warn(`Failed to join tasks channel: ${(err as Error).message}`);
+      }
     }
 
     // Set up file watcher for local changes -> push via channel

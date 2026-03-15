@@ -133,7 +133,7 @@ export function registerJoin(program: Command): void {
         }
 
         p.log.info(`Tip: Run \`${cliCmd("dashboard")}\` to manage this team in your browser.`);
-        p.outro("Next: Run teamrc daemon to start live sync");
+        p.outro(`Next: Run \`${cliCmd("daemon")}\` to start live sync`);
       } catch (err) {
         s.error("Failed to join team.");
         p.log.error((err as Error).message);

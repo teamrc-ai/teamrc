@@ -182,7 +182,7 @@ export function registerInit(program: Command): void {
           }
         }
 
-        p.outro("Customize agents and skills in .teamrc.yaml, then run teamrc apply");
+        p.outro(`Customize agents and skills in .teamrc.yaml, then run \`${cliCmd("apply")}\``);
         return;
       }
 
@@ -301,7 +301,7 @@ export function registerInit(program: Command): void {
         }
 
         p.log.info(`Tip: Run \`${cliCmd("dashboard")}\` to open this team in your browser.`);
-        p.outro("Customize agents and skills in .teamrc.yaml, then run teamrc apply");
+        p.outro(`Customize agents and skills in .teamrc.yaml, then run \`${cliCmd("apply")}\``);
       } catch (err) {
         s.error("Failed to create team on relay.");
         p.log.warn(`Relay error: ${(err as Error).message}`);

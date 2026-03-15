@@ -142,6 +142,25 @@ function nextRef(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Error types
+// ---------------------------------------------------------------------------
+
+/**
+ * Error returned when a Phoenix channel reply has a non-ok status.
+ * The `reason` field contains the server-provided reason string (e.g.
+ * "unmatched topic", "unauthorized") for programmatic detection.
+ */
+export class ChannelReplyError extends Error {
+  readonly reason: string;
+
+  constructor(reason: string) {
+    super(`Channel reply error: ${reason}`);
+    this.name = "ChannelReplyError";
+    this.reason = reason;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Channel client factory
 // ---------------------------------------------------------------------------
 
@@ -187,7 +206,7 @@ export function createChannelClient(
           pending.resolve(response ?? {});
         } else {
           const reason = (response as Record<string, unknown> | undefined)?.reason ?? payload.status;
-          pending.reject(new Error(`Channel reply error: ${String(reason)}`));
+          pending.reject(new ChannelReplyError(String(reason)));
         }
       }
       return;
