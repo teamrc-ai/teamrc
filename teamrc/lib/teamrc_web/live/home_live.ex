@@ -62,12 +62,20 @@ defmodule TeamrcWeb.HomeLive do
       </div>
 
       <%!-- Secondary CTA --%>
-      <p class="mt-4 text-sm text-base-content/50">
-        or
-        <a href="/new" class="trc-focus text-primary/80 hover:text-primary underline underline-offset-2 transition-colors">
-          build your team on the web
+      <div class="mt-5">
+        <a
+          href="/new"
+          class="trc-focus inline-flex items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-4 py-2.5 text-sm font-medium text-base-content/80 hover:text-base-content hover:border-base-content/20 transition-colors"
+        >
+          Or start on the web
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+          </svg>
         </a>
-      </p>
+        <p class="text-xs text-base-content/40 mt-2">
+          Browse 60+ agents, pick a template, generate your config.
+        </p>
+      </div>
     </div>
 
     <%!-- How it works --%>
@@ -112,6 +120,31 @@ defmodule TeamrcWeb.HomeLive do
           </div>
         </li>
       </ol>
+    </section>
+
+    <%!-- Web wizard --%>
+    <section class="mt-12">
+      <div class="rounded-lg border border-base-300 bg-base-100 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div class="flex-1 space-y-1">
+          <h2 class="text-sm font-bold tracking-tight">Build your team visually</h2>
+          <p class="text-sm text-base-content/60 leading-relaxed">
+            Browse the agent and skill catalog, pick a template, and configure your
+            team — no YAML required. The web wizard generates a
+            <code class="font-mono bg-base-200 rounded px-1.5 py-0.5 text-xs">.teamrc.yaml</code>
+            you can pull down with
+            <code class="font-mono bg-base-200 rounded px-1.5 py-0.5 text-xs">teamrc sync</code>.
+          </p>
+        </div>
+        <a
+          href="/new"
+          class="trc-focus shrink-0 inline-flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
+        >
+          Open the wizard
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+          </svg>
+        </a>
+      </div>
     </section>
 
     <%!-- Knowledge sync --%>
@@ -222,12 +255,15 @@ defmodule TeamrcWeb.HomeLive do
     <div class="mt-16 mb-4 rounded-lg border border-base-300 bg-base-200/30 p-6 text-center space-y-4">
       <p class="text-sm font-semibold">Try it in the project you're working on right now.</p>
       <.terminal_cta tab={@bottom_tab} event="set_bottom_tab" id_suffix="bottom" />
-      <p class="text-sm text-base-content/50">
-        or
-        <a href="/new" class="trc-focus text-primary/80 hover:text-primary underline underline-offset-2 transition-colors">
-          build your team on the web
-        </a>
-      </p>
+      <a
+        href="/new"
+        class="trc-focus inline-flex items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-base-content/70 hover:text-base-content hover:border-base-content/20 transition-colors"
+      >
+        Or start on the web
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+        </svg>
+      </a>
     </div>
     """
   end
