@@ -113,7 +113,12 @@ export function registerTask(program: Command): void {
         p.log.step(`Task #${updated.number} marked done.`);
         p.outro("Done.");
       } catch (err) {
-        p.log.error((err as Error).message);
+        const msg = (err as Error).message;
+        if (msg.includes("invalid status transition")) {
+          p.log.error(`Task #${number} must be claimed first. Run \`teamrc task claim ${number}\` then retry.`);
+        } else {
+          p.log.error(msg);
+        }
         process.exit(1);
       }
     });

@@ -505,6 +505,7 @@ export function startKnowledgeDaemon(opts: KnowledgeDaemonOptions): { stop: () =
   // -----------------------------------------------------------------------
 
   function writeTaskCache(tasks: TaskChannelItem[], slug: string): void {
+    if (!/^[a-z0-9-]+$/.test(slug)) return; // reject unsafe slugs
     const cacheDir = path.join(process.cwd(), ".teamrc");
     if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
 

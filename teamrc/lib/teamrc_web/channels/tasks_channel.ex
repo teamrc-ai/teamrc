@@ -36,6 +36,9 @@ defmodule TeamrcWeb.TasksChannel do
         task_list = Enum.map(tasks, &task_to_map/1)
 
         {:ok, %{tasks: task_list}, socket}
+
+      _other ->
+        {:error, %{reason: "not_found"}}
     end
   end
 

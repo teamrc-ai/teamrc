@@ -259,6 +259,8 @@ defmodule TeamrcWeb.ApiController do
           conn |> put_status(:not_found) |> json(%{error: "not_found"})
         {:error, :invalid_assignee} ->
           conn |> put_status(:bad_request) |> json(%{error: "assignee is not a team member"})
+        {:error, :task_limit_exceeded} ->
+          conn |> put_status(:unprocessable_entity) |> json(%{error: "task limit exceeded (max 1000 per team)"})
         {:error, reason} ->
           conn |> put_status(:bad_request) |> json(%{error: to_string(reason)})
       end
@@ -269,22 +271,28 @@ defmodule TeamrcWeb.ApiController do
 
   def list_tasks(conn, %{"token" => token} = params) do
     team_id = params["team_id"]
-    opts = []
-    opts = if params["status"], do: [{:status, params["status"]} | opts], else: opts
-    opts = if params["assignee"], do: [{:assignee, params["assignee"]} | opts], else: opts
 
-    case Teamrc.Tasks.list_tasks(token, team_id, opts) do
-      {:ok, tasks} ->
-        json(conn, %{tasks: Enum.map(tasks, &task_to_json/1)})
-      {:error, :team_id_required} ->
-        conn |> put_status(:conflict) |> json(%{error: "team_id required: token belongs to multiple teams"})
-      {:error, :not_found} ->
-        conn |> put_status(:not_found) |> json(%{error: "not_found"})
+    with :ok <- (if params["status"], do: validate_task_status(params["status"]), else: :ok),
+         :ok <- (if params["assignee"], do: validate_assignee_name(params["assignee"]), else: :ok) do
+      opts = []
+      opts = if params["status"], do: [{:status, params["status"]} | opts], else: opts
+      opts = if params["assignee"], do: [{:assignee, params["assignee"]} | opts], else: opts
+
+      case Teamrc.Tasks.list_tasks(token, team_id, opts) do
+        {:ok, tasks} ->
+          json(conn, %{tasks: Enum.map(tasks, &task_to_json/1)})
+        {:error, :team_id_required} ->
+          conn |> put_status(:conflict) |> json(%{error: "team_id required: token belongs to multiple teams"})
+        {:error, :not_found} ->
+          conn |> put_status(:not_found) |> json(%{error: "not_found"})
+      end
+    else
+      {:error, reason} -> conn |> put_status(:bad_request) |> json(%{error: reason})
     end
   end
 
   def update_task(conn, %{"number" => number_str} = params) do
-    token = conn.assigns[:verified_token] || params["token"]
+    token = conn.assigns[:verified_token]
     team_id = params["team_id"]
     status = params["status"]
 

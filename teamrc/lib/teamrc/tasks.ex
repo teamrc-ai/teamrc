@@ -29,14 +29,19 @@ defmodule Teamrc.Tasks do
     end
   end
 
+  @max_tasks_per_team 1000
+
   defp do_create_task(team_id, token, description, assignee, attrs) do
     result =
       Repo.transaction(fn ->
         # Advisory lock on team_id to safely auto-increment task number.
-        # We use pg_advisory_xact_lock with a hash of the team_id so the
-        # lock is scoped to this transaction and released on commit/rollback.
-        lock_key = :erlang.phash2(team_id)
+        # Use a 64-bit hash to avoid cross-team collisions (phash2 is only 27-bit).
+        <<lock_key::signed-integer-64, _rest::binary>> = :crypto.hash(:sha256, team_id)
         Repo.query!("SELECT pg_advisory_xact_lock($1)", [lock_key])
+
+        # Guard against unbounded task creation
+        count = from(t in Task, where: t.team_id == ^team_id, select: count(t.id)) |> Repo.one()
+        if count >= @max_tasks_per_team, do: Repo.rollback(:task_limit_exceeded)
 
         next_number =
           from(t in Task,
