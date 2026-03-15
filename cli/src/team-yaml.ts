@@ -335,12 +335,16 @@ export interface LocalConfig {
 export function readLocalYaml(filePath?: string): LocalConfig {
   const p = filePath ?? LOCAL_YAML;
   if (!fs.existsSync(p)) return {};
-  const content = fs.readFileSync(p, "utf-8");
-  const data = YAML.parse(content);
-  if (!data || typeof data !== "object") return {};
-  return {
-    ...(Array.isArray(data.activeMembers) ? { activeMembers: data.activeMembers.map((m: unknown) => String(m)) } : {}),
-  };
+  try {
+    const content = fs.readFileSync(p, "utf-8");
+    const data = YAML.parse(content);
+    if (!data || typeof data !== "object") return {};
+    return {
+      ...(Array.isArray(data.activeMembers) ? { activeMembers: data.activeMembers.map((m: unknown) => String(m)) } : {}),
+    };
+  } catch {
+    return {};
+  }
 }
 
 export function writeLocalYaml(filePath: string, config: LocalConfig): void {
