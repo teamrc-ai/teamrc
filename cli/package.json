@@ -1,6 +1,6 @@
 {
   "name": "@teamrc/cli",
-  "version": "0.1.24",
+  "version": "0.1.25",
   "description": "teamrc CLI - sync multi-agent teams across platforms",
   "main": "dist/index.js",
   "bin": {
