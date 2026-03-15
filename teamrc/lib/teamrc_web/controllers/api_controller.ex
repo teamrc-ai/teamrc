@@ -217,6 +217,24 @@ defmodule TeamrcWeb.ApiController do
     end
   end
 
+  def create_view_token(conn, params) do
+    token = conn.assigns[:verified_token]
+    ttl = params["ttl_hours"] |> safe_integer(24) |> max(1) |> min(168)
+    team_id = params["team_id"]
+
+    case Teams.resolve_team_id(token, team_id) do
+      {:error, :team_id_required} ->
+        conn |> put_status(:conflict) |> json(%{error: "team_id required: token belongs to multiple teams"})
+
+      nil ->
+        conn |> put_status(:forbidden) |> json(%{error: "not a team member"})
+
+      resolved_team_id ->
+        {view_token, expires_at} = Teamrc.ViewToken.create(resolved_team_id, ttl)
+        json(conn, %{view_token: view_token, team_id: resolved_team_id, expires_at: DateTime.to_iso8601(expires_at)})
+    end
+  end
+
   def erase_token(conn, params) do
     token = conn.assigns[:verified_token]
     team_id = params["team_id"]

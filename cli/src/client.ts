@@ -498,4 +498,22 @@ export class TeamrcClient {
     return (await res.json()) as { invite_code: string; expires_at: string };
   }
 
+  async createViewToken(ttlHours: number = 24): Promise<{ view_token: string; team_id: string; expires_at: string }> {
+    const body = JSON.stringify({
+      token: this.token,
+      ttl_hours: ttlHours,
+      ...(this.teamId ? { team_id: this.teamId } : {}),
+    });
+    const headers = await this.signedHeaders(body);
+    const res = await fetch(`${this.baseUrl}/api/teams/view-token`, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(TeamrcClient.FETCH_TIMEOUT_MS),
+    });
+    this.checkUpgradeRequired(res);
+    if (!res.ok) throw new Error(await this.errorMessage(res, "createViewToken failed"));
+    return (await res.json()) as { view_token: string; team_id: string; expires_at: string };
+  }
+
 }

@@ -92,6 +92,13 @@ defmodule TeamrcWeb.TeamDetailLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
+    # Check for view token (HMAC-signed dashboard link, no DB record)
+    socket =
+      case params["vt"] do
+        nil -> socket
+        vt -> handle_view_token(socket, vt, socket.assigns.team_id)
+      end
+
     # Check for invite code in query params (e.g. /teams/:id?invite=CODE) or flash
     invite_code = params["invite"] || socket.assigns.flash["invite_code"]
 
@@ -121,6 +128,46 @@ defmodule TeamrcWeb.TeamDetailLive do
       end
 
     {:noreply, socket}
+  end
+
+  defp handle_view_token(socket, vt, team_id) do
+    case Teamrc.ViewToken.verify(vt) do
+      {:ok, ^team_id} ->
+        # Valid view token for this team - grant viewer access if currently gated
+        case socket.assigns.access_level do
+          :private_gate ->
+            reload_with_view_token(socket, team_id)
+
+          _ ->
+            # Already have access, no-op
+            socket
+        end
+
+      _ ->
+        put_flash(socket, :error, "This dashboard link has expired or is invalid.")
+    end
+  end
+
+  defp reload_with_view_token(socket, team_id) do
+    team = Teams.get_team_by_id(team_id)
+
+    case team do
+      nil ->
+        put_flash(socket, :error, "Team not found.")
+
+      team ->
+        assign(socket,
+          team: team,
+          page_title: team.name,
+          access_level: :viewer,
+          can_edit: false,
+          is_owner: false,
+          clone_token: nil,
+          participants: [],
+          invites: [],
+          edit_team_name: team.name
+        )
+    end
   end
 
   defp reload_with_invite(socket, invite_code, team_id) do

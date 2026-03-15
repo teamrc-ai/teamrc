@@ -5,6 +5,11 @@ export function buildInviteUrl(relayUrl: string, inviteCode: string): string {
   return `${base}/invite/${encodeURIComponent(inviteCode)}`;
 }
 
+export function buildDashboardUrl(relayUrl: string, teamId: string, viewToken: string): string {
+  const base = relayUrl.replace(/\/$/, "");
+  return `${base}/teams/${encodeURIComponent(teamId)}?vt=${encodeURIComponent(viewToken)}`;
+}
+
 export function hasSameOrigin(url: string, baseUrl: string): boolean {
   try {
     return new URL(url).origin === new URL(baseUrl).origin;

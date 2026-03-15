@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import * as p from "@clack/prompts";
 import { getRelayUrl } from "../config.js";
-import { buildInviteUrl, openBrowser } from "../browser.js";
+import { buildDashboardUrl, openBrowser } from "../browser.js";
 import {
   requireRelayContext,
 } from "../utils.js";
@@ -25,9 +25,9 @@ export function registerDashboard(program: Command): void {
       const s = p.spinner();
       try {
         s.start("Creating dashboard link...");
-        const result = await ctx.client.createInvite(ttlHours);
+        const result = await ctx.client.createViewToken(ttlHours);
         const relayUrl = getRelayUrl(undefined, ctx.team.relay);
-        const dashboardUrl = buildInviteUrl(relayUrl, result.invite_code);
+        const dashboardUrl = buildDashboardUrl(relayUrl, result.team_id, result.view_token);
         const opened = openBrowser(dashboardUrl);
         s.stop("Dashboard link ready.");
 

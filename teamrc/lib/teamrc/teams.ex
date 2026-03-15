@@ -775,7 +775,12 @@ defmodule Teamrc.Teams do
 
   # --- Private helpers ---
 
-  defp resolve_team_id(token, nil) do
+  @doc """
+  Resolves a team_id for the given token. If team_id is nil and the token
+  belongs to exactly one team, returns that team's id. Returns `{:error, :team_id_required}`
+  when the token belongs to multiple teams and no team_id is specified.
+  """
+  def resolve_team_id(token, nil) do
     case from(tt in TokenTeam, where: tt.token == ^token, select: tt.team_id) |> Repo.all() do
       [] -> nil
       [single_id] -> single_id
@@ -783,7 +788,7 @@ defmodule Teamrc.Teams do
     end
   end
 
-  defp resolve_team_id(token, team_id) do
+  def resolve_team_id(token, team_id) do
     from(tt in TokenTeam,
       where: tt.token == ^token and tt.team_id == ^team_id,
       select: tt.team_id
