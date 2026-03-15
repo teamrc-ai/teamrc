@@ -255,15 +255,6 @@ defmodule TeamrcWeb.HomeLive do
     <div class="mt-16 mb-4 rounded-lg border border-base-300 bg-base-200/30 p-6 text-center space-y-4">
       <p class="text-sm font-semibold">Try it in the project you're working on right now.</p>
       <.terminal_cta tab={@bottom_tab} event="set_bottom_tab" id_suffix="bottom" />
-      <a
-        href="/new"
-        class="trc-focus inline-flex items-center gap-2 rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm font-medium text-base-content/70 hover:text-base-content hover:border-base-content/20 transition-colors"
-      >
-        Or start on the web
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-        </svg>
-      </a>
     </div>
     """
   end

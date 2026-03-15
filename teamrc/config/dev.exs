@@ -16,13 +16,15 @@ config :teamrc, Teamrc.Repo,
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
+check_origins =
+  case System.get_env("DEV_HOST") do
+    nil -> ["//localhost", "//127.0.0.1"]
+    host -> ["//localhost", "//127.0.0.1", "//" <> host]
+  end
+
 config :teamrc, TeamrcWeb.Endpoint,
   http: [ip: {0, 0, 0, 0}],
-  check_origin:
-    case System.get_env("DEV_HOST") do
-      nil -> ["//localhost", "//127.0.0.1"]
-      host -> ["//localhost", "//127.0.0.1", "//" <> host]
-    end,
+  check_origin: check_origins,
   code_reloader: true,
   debug_errors: true,
   secret_key_base: "Lt/9zIPEN0434Z+Z/UEI6BYjXVNFUDlcIrOhspuWq5YzTsKgDNyZn7dNiwvtt1KU",
