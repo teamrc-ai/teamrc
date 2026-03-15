@@ -245,7 +245,7 @@ defmodule TeamrcWeb.HomeLive do
   end
 
   defp tab_command("new"), do: "npx @teamrc/cli init"
-  defp tab_command("clone"), do: "npx @teamrc/cli clone product-eng"
+  defp tab_command("clone"), do: "npx @teamrc/cli clone trc_cl_NtxNUMHh0WfvS5HOkPpbT_ND"
   defp tab_command("local"), do: "npx @teamrc/cli init --local"
 
   defp tab_description("new"), do: "Creates a .teamrc.yaml and walks you through setup."
@@ -258,8 +258,8 @@ defmodule TeamrcWeb.HomeLive do
 
   defp terminal_cta(assigns) do
     ~H"""
-    <div>
-      <div class="inline-flex rounded-md border border-base-300 bg-base-200/50 p-0.5 mb-2">
+    <div class="inline-flex flex-col">
+      <div class="flex rounded-md border border-base-300 bg-base-200/50 p-0.5 mb-2">
         <button
           phx-click={@event}
           phx-value-tab="new"
@@ -282,7 +282,7 @@ defmodule TeamrcWeb.HomeLive do
           Local only
         </button>
       </div>
-      <div class="terminal-block rounded-lg overflow-hidden inline-block w-full sm:w-auto">
+      <div class="terminal-block rounded-lg overflow-hidden">
         <div class="flex items-center justify-between gap-6 px-4 py-3">
           <div class="flex items-center gap-2">
             <span class="text-white/30 font-mono text-sm select-none">$</span>
