@@ -14,7 +14,9 @@ import {
   upsertMarkerBlock,
   removeMarkerBlock,
   cleanupSkillDirs,
-  listSkillDirIds,
+  readSkillManifest,
+  writeSkillManifest,
+  removeSkillManifest,
   collectTeamSkillIds,
   resolveAgentSkills,
   enrichTeamKnowledgeSkill,
@@ -169,7 +171,10 @@ export class CursorAdapter implements PlatformAdapter {
     for (const f of oldRules) {
       fs.unlinkSync(path.join(this.rulesDir(), f));
     }
-    cleanupSkillDirs(this.skillsDir(), collectTeamSkillIds(teamWithKnowledge));
+    const currentSkillIds = collectTeamSkillIds(teamWithKnowledge);
+    const previousIds = readSkillManifest(this.skillsDir(), this.teamSlug);
+    const allIdsToClean = [...new Set([...previousIds, ...currentSkillIds])];
+    cleanupSkillDirs(this.skillsDir(), allIdsToClean);
 
     // Route skills: alwaysApply/globs → .mdc rule, otherwise → SKILL.md
     if (teamWithKnowledge.skills) {
@@ -187,6 +192,8 @@ export class CursorAdapter implements PlatformAdapter {
     for (const skill of createBuiltInSkills(knowledgePath)) {
       writeSkillDir(this.skillsDir(), skill);
     }
+
+    writeSkillManifest(this.skillsDir(), this.teamSlug, currentSkillIds);
 
     // Build set of desired agent filenames and delete orphans
     const desiredFiles = new Set<string>();
@@ -371,12 +378,13 @@ ${body}
       actions.push(`Deleted ${trcRules.length} teamrc cursor rule(s)`);
     }
 
-    // Clean up skill directories — scoped to known skill IDs when available
-    const idsToClean = skillIds ?? listSkillDirIds(this.skillsDir());
+    // Clean up skill directories — use manifest to know what we own
+    const idsToClean = skillIds ?? readSkillManifest(this.skillsDir(), this.teamSlug);
     const skillCount = cleanupSkillDirs(this.skillsDir(), idsToClean);
     if (skillCount > 0) {
       actions.push(`Deleted ${skillCount} teamrc cursor skill(s)`);
     }
+    removeSkillManifest(this.skillsDir(), this.teamSlug);
 
     // Clean up knowledge
     for (const deleted of deleteKnowledgeFiles(path.join(process.cwd(), ".teamrc"), this.teamSlug)) {

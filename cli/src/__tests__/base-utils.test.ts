@@ -10,6 +10,9 @@ import {
   escapeYamlString,
   cleanupSkillDirs,
   listSkillDirIds,
+  readSkillManifest,
+  writeSkillManifest,
+  removeSkillManifest,
   collectTeamSkillIds,
   deleteKnowledgeFiles,
   knowledgeFileName,
@@ -318,5 +321,57 @@ describe("collectTeamSkillIds", () => {
     const team: TeamDefinition = { name: "test", members: [], skills: [] };
     const ids = collectTeamSkillIds(team);
     assert.deepEqual(ids, [...BUILTIN_SKILL_IDS]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// readSkillManifest / writeSkillManifest / removeSkillManifest
+// ---------------------------------------------------------------------------
+
+describe("skill manifest", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trc-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("round-trips skill IDs through write and read", () => {
+    writeSkillManifest(tmpDir, "my-team", ["foo", "bar", "baz"]);
+    const ids = readSkillManifest(tmpDir, "my-team");
+    assert.deepEqual(ids, ["foo", "bar", "baz"]);
+  });
+
+  it("returns empty array when no manifest exists", () => {
+    assert.deepEqual(readSkillManifest(tmpDir, "no-team"), []);
+  });
+
+  it("returns empty array for non-existent directory", () => {
+    assert.deepEqual(readSkillManifest("/nonexistent/path", "team"), []);
+  });
+
+  it("isolates manifests by team slug", () => {
+    writeSkillManifest(tmpDir, "team-a", ["skill-1"]);
+    writeSkillManifest(tmpDir, "team-b", ["skill-2"]);
+    assert.deepEqual(readSkillManifest(tmpDir, "team-a"), ["skill-1"]);
+    assert.deepEqual(readSkillManifest(tmpDir, "team-b"), ["skill-2"]);
+  });
+
+  it("removeSkillManifest cleans up the file", () => {
+    writeSkillManifest(tmpDir, "my-team", ["foo"]);
+    removeSkillManifest(tmpDir, "my-team");
+    assert.deepEqual(readSkillManifest(tmpDir, "my-team"), []);
+  });
+
+  it("removeSkillManifest is safe when no manifest exists", () => {
+    removeSkillManifest(tmpDir, "no-team"); // should not throw
+  });
+
+  it("handles corrupted manifest gracefully", () => {
+    fs.writeFileSync(path.join(tmpDir, ".trc-manifest-bad.json"), "not json");
+    assert.deepEqual(readSkillManifest(tmpDir, "bad"), []);
   });
 });

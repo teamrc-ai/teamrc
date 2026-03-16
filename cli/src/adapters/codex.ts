@@ -12,7 +12,9 @@ import {
   removeMarkerBlock,
   writeSkillDir,
   cleanupSkillDirs,
-  listSkillDirIds,
+  readSkillManifest,
+  writeSkillManifest,
+  removeSkillManifest,
   collectTeamSkillIds,
   resolveAgentSkills,
   enrichTeamKnowledgeSkill,
@@ -134,7 +136,10 @@ export class CodexAdapter implements PlatformAdapter {
     const teamWithKnowledge = enrichTeamKnowledgeSkill(team, `.teamrc/${knowledgeFileName(this.teamSlug)}`, this.readKnowledge());
 
     // Route skills: alwaysApply/globs → inline in AGENTS.md, on-demand → .agents/skills/
-    cleanupSkillDirs(this.skillsDir(), collectTeamSkillIds(teamWithKnowledge));
+    const currentSkillIds = collectTeamSkillIds(teamWithKnowledge);
+    const previousIds = readSkillManifest(this.skillsDir(), this.teamSlug);
+    const allIdsToClean = [...new Set([...previousIds, ...currentSkillIds])];
+    cleanupSkillDirs(this.skillsDir(), allIdsToClean);
     if (teamWithKnowledge.skills) {
       const dir = this.skillsDir();
       for (const skill of teamWithKnowledge.skills) {
@@ -143,6 +148,7 @@ export class CodexAdapter implements PlatformAdapter {
         }
       }
     }
+    writeSkillManifest(this.skillsDir(), this.teamSlug, currentSkillIds);
 
     // Build set of desired agent filenames and delete orphans
     const desiredFiles = new Set<string>();
@@ -349,12 +355,13 @@ export class CodexAdapter implements PlatformAdapter {
       actions.push("Removed teamrc section from .codex/config.toml");
     }
 
-    // Clean up skill directories — scoped to known skill IDs when available
-    const idsToClean = skillIds ?? listSkillDirIds(this.skillsDir());
+    // Clean up skill directories — use manifest to know what we own
+    const idsToClean = skillIds ?? readSkillManifest(this.skillsDir(), this.teamSlug);
     const skillCount = cleanupSkillDirs(this.skillsDir(), idsToClean);
     if (skillCount > 0) {
       actions.push(`Deleted ${skillCount} teamrc codex skill(s)`);
     }
+    removeSkillManifest(this.skillsDir(), this.teamSlug);
 
     // Clean up knowledge
     for (const deleted of deleteKnowledgeFiles(path.join(process.cwd(), ".teamrc"), this.teamSlug)) {

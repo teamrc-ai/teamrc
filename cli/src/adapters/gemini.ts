@@ -17,7 +17,9 @@ import {
   removeMarkerBlock,
   writeSkillDir,
   cleanupSkillDirs,
-  listSkillDirIds,
+  readSkillManifest,
+  writeSkillManifest,
+  removeSkillManifest,
   collectTeamSkillIds,
   resolveAgentSkills,
   enrichTeamKnowledgeSkill,
@@ -178,9 +180,13 @@ export class GeminiAdapter implements PlatformAdapter {
     // Write to both .agents/skills/ (Gemini CLI) and .agent/skills/ (Antigravity)
     const skillDir = this.skillsDir(scope);
     const antigravityDir = this.antigravitySkillsDir(scope);
-    const allSkillIds = collectTeamSkillIds(teamWithKnowledge);
-    cleanupSkillDirs(skillDir, allSkillIds);
-    cleanupSkillDirs(antigravityDir, allSkillIds);
+    const currentSkillIds = collectTeamSkillIds(teamWithKnowledge);
+    const previousIds = readSkillManifest(skillDir, this.teamSlug);
+    const previousAntigravityIds = readSkillManifest(antigravityDir, this.teamSlug);
+    const allIdsToClean = [...new Set([...previousIds, ...currentSkillIds])];
+    const allAntigravityIds = [...new Set([...previousAntigravityIds, ...currentSkillIds])];
+    cleanupSkillDirs(skillDir, allIdsToClean);
+    cleanupSkillDirs(antigravityDir, allAntigravityIds);
     if (teamWithKnowledge.skills) {
       for (const skill of teamWithKnowledge.skills) {
         if (!skill.alwaysApply && !(skill.globs && skill.globs.length > 0)) {
@@ -199,6 +205,9 @@ export class GeminiAdapter implements PlatformAdapter {
       writeSkillDir(skillDir, skill);
       writeSkillDir(antigravityDir, skill);
     }
+
+    writeSkillManifest(skillDir, this.teamSlug, currentSkillIds);
+    writeSkillManifest(antigravityDir, this.teamSlug, currentSkillIds);
 
     // Write GEMINI.md with team context and always-on skills (use enriched team)
     this.updateGeminiMd(teamWithKnowledge);
@@ -292,13 +301,15 @@ export class GeminiAdapter implements PlatformAdapter {
       actions.push(`Deleted ${trcFiles.length} agent file(s) from ${dir}`);
     }
 
-    // Delete native skill directories (Gemini CLI + Antigravity)
+    // Delete native skill directories — use manifest to know what we own
     const skillsDir = this.skillsDir(scope);
     const antigravityDir = this.antigravitySkillsDir(scope);
-    const idsToClean = skillIds ?? listSkillDirIds(skillsDir);
-    const antigravityIds = skillIds ?? listSkillDirIds(antigravityDir);
+    const idsToClean = skillIds ?? readSkillManifest(skillsDir, this.teamSlug);
+    const antigravityIds = skillIds ?? readSkillManifest(antigravityDir, this.teamSlug);
     const skillCount = cleanupSkillDirs(skillsDir, idsToClean);
     const antigravityCount = cleanupSkillDirs(antigravityDir, antigravityIds);
+    removeSkillManifest(skillsDir, this.teamSlug);
+    removeSkillManifest(antigravityDir, this.teamSlug);
     if (skillCount > 0) {
       actions.push(`Deleted ${skillCount} skill directory(ies) from ${skillsDir}`);
     }

@@ -9,7 +9,9 @@ import {
   deleteKnowledgeFiles,
   writeSkillDir,
   cleanupSkillDirs,
-  listSkillDirIds,
+  readSkillManifest,
+  writeSkillManifest,
+  removeSkillManifest,
   collectTeamSkillIds,
   resolveAgentSkills,
   enrichTeamKnowledgeSkill,
@@ -180,7 +182,10 @@ export class OpenClawAdapter implements PlatformAdapter {
 
     // Write skills to ~/.openclaw/skills/
     const sharedDir = this.sharedSkillsDir();
-    cleanupSkillDirs(sharedDir, collectTeamSkillIds(teamWithKnowledge));
+    const currentSkillIds = collectTeamSkillIds(teamWithKnowledge);
+    const previousIds = readSkillManifest(sharedDir, this.teamSlug);
+    const allIdsToClean = [...new Set([...previousIds, ...currentSkillIds])];
+    cleanupSkillDirs(sharedDir, allIdsToClean);
     if (teamWithKnowledge.skills) {
       if (!fs.existsSync(sharedDir)) {
         fs.mkdirSync(sharedDir, { recursive: true });
@@ -198,6 +203,9 @@ export class OpenClawAdapter implements PlatformAdapter {
     for (const skill of createBuiltInSkills(knowledgePath)) {
       writeSkillDir(sharedDir, skill);
     }
+
+    // Record installed skills for future cleanup
+    writeSkillManifest(sharedDir, this.teamSlug, currentSkillIds);
 
     // Register agents in openclaw.json
     this.writeAgentsConfig(team);
@@ -310,10 +318,11 @@ export class OpenClawAdapter implements PlatformAdapter {
       }
     }
 
-    // Remove trc- skill directories — scoped to known skill IDs when available
+    // Remove trc- skill directories — use manifest to know what we own
     const sharedDir = this.sharedSkillsDir();
-    const idsToClean = skillIds ?? listSkillDirIds(sharedDir);
+    const idsToClean = skillIds ?? readSkillManifest(sharedDir, this.teamSlug);
     const skillCount = cleanupSkillDirs(sharedDir, idsToClean);
+    removeSkillManifest(sharedDir, this.teamSlug);
     if (skillCount > 0) {
       actions.push(`Deleted ${skillCount} shared skill directory(ies) from ${sharedDir}`);
     }
