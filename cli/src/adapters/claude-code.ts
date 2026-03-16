@@ -16,6 +16,8 @@ import {
   upsertMarkerBlock,
   removeMarkerBlock,
   cleanupSkillDirs,
+  listSkillDirIds,
+  collectTeamSkillIds,
   resolveAgentSkills,
   enrichTeamKnowledgeSkill,
   createBuiltInSkills,
@@ -202,10 +204,11 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
   }
 
   private writeSkillsAsNativeFiles(team: TeamDefinition, scope: TeamScope): void {
+    const allSkillIds = collectTeamSkillIds(team);
     if (!team.skills || team.skills.length === 0) {
-      // Still clean up old files even if no skills
+      // Still clean up old files even if no skills — use existing dirs to find our stale skills
       deleteTrcFiles(this.rulesDir(scope));
-      cleanupSkillDirs(this.skillsDir(scope));
+      cleanupSkillDirs(this.skillsDir(scope), listSkillDirIds(this.skillsDir(scope)));
       return;
     }
 
@@ -214,7 +217,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
 
     // Clean up old files before writing new ones
     deleteTrcFiles(rulesDir);
-    cleanupSkillDirs(skillsBaseDir);
+    cleanupSkillDirs(skillsBaseDir, allSkillIds);
 
     for (const skill of team.skills) {
       if (typeof skill.body !== "string") continue;
@@ -311,7 +314,7 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     fs.writeFileSync(p, content);
   }
 
-  uninstall(requestedScope?: TeamScope): string[] {
+  uninstall(requestedScope?: TeamScope, skillIds?: string[]): string[] {
     const actions: string[] = [];
     const { dir, scope } = requestedScope
       ? { dir: this.agentsDir(requestedScope), scope: requestedScope }
@@ -336,18 +339,12 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       actions.push(`Deleted ${ruleFiles.length} native skill rule(s) from ${rulesDir}`);
     }
 
-    // Delete native skill directories
+    // Delete native skill directories — scoped to known skill IDs when available
     const skillsDir = this.skillsDir(scope);
-    if (fs.existsSync(skillsDir)) {
-      const trcSkillDirs = fs.readdirSync(skillsDir).filter((f) => {
-        return f.startsWith("trc-") && fs.statSync(path.join(skillsDir, f)).isDirectory();
-      });
-      for (const f of trcSkillDirs) {
-        fs.rmSync(path.join(skillsDir, f), { recursive: true, force: true });
-      }
-      if (trcSkillDirs.length > 0) {
-        actions.push(`Deleted ${trcSkillDirs.length} native skill directory(ies) from ${skillsDir}`);
-      }
+    const idsToClean = skillIds ?? listSkillDirIds(skillsDir);
+    const skillCount = cleanupSkillDirs(skillsDir, idsToClean);
+    if (skillCount > 0) {
+      actions.push(`Deleted ${skillCount} native skill directory(ies) from ${skillsDir}`);
     }
 
     // Delete team knowledge
