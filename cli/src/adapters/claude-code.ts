@@ -16,7 +16,9 @@ import {
   upsertMarkerBlock,
   removeMarkerBlock,
   cleanupSkillDirs,
-  listSkillDirIds,
+  readSkillManifest,
+  writeSkillManifest,
+  removeSkillManifest,
   collectTeamSkillIds,
   resolveAgentSkills,
   enrichTeamKnowledgeSkill,
@@ -204,20 +206,24 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
   }
 
   private writeSkillsAsNativeFiles(team: TeamDefinition, scope: TeamScope): void {
-    const allSkillIds = collectTeamSkillIds(team);
+    const currentSkillIds = collectTeamSkillIds(team);
+    const skillsBaseDir = this.skillsDir(scope);
+    // Union of previously installed + current IDs so stale dirs from renames get cleaned
+    const previousIds = readSkillManifest(skillsBaseDir, this.teamSlug);
+    const allIdsToClean = [...new Set([...previousIds, ...currentSkillIds])];
+
     if (!team.skills || team.skills.length === 0) {
-      // Still clean up old files even if no skills — use existing dirs to find our stale skills
       deleteTrcFiles(this.rulesDir(scope));
-      cleanupSkillDirs(this.skillsDir(scope), listSkillDirIds(this.skillsDir(scope)));
+      cleanupSkillDirs(skillsBaseDir, allIdsToClean);
+      removeSkillManifest(skillsBaseDir, this.teamSlug);
       return;
     }
 
     const rulesDir = this.rulesDir(scope);
-    const skillsBaseDir = this.skillsDir(scope);
 
     // Clean up old files before writing new ones
     deleteTrcFiles(rulesDir);
-    cleanupSkillDirs(skillsBaseDir, allSkillIds);
+    cleanupSkillDirs(skillsBaseDir, allIdsToClean);
 
     for (const skill of team.skills) {
       if (typeof skill.body !== "string") continue;
@@ -271,6 +277,9 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
         fs.writeFileSync(path.join(skillDir, "SKILL.md"), content);
       }
     }
+
+    // Record what we installed so future syncs can clean stale dirs
+    writeSkillManifest(skillsBaseDir, this.teamSlug, currentSkillIds);
   }
 
   private writeBuiltInSkills(knowledgePath: string, scope: TeamScope): void {
@@ -339,13 +348,14 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       actions.push(`Deleted ${ruleFiles.length} native skill rule(s) from ${rulesDir}`);
     }
 
-    // Delete native skill directories — scoped to known skill IDs when available
+    // Delete native skill directories — use manifest to know what we own
     const skillsDir = this.skillsDir(scope);
-    const idsToClean = skillIds ?? listSkillDirIds(skillsDir);
+    const idsToClean = skillIds ?? readSkillManifest(skillsDir, this.teamSlug);
     const skillCount = cleanupSkillDirs(skillsDir, idsToClean);
     if (skillCount > 0) {
       actions.push(`Deleted ${skillCount} native skill directory(ies) from ${skillsDir}`);
     }
+    removeSkillManifest(skillsDir, this.teamSlug);
 
     // Delete team knowledge
     const projectKnowledgeDir = path.join(process.cwd(), ".teamrc");

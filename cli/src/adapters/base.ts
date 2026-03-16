@@ -151,6 +151,36 @@ export function listSkillDirIds(baseDir: string): string[] {
     .map((d) => d.slice(4));
 }
 
+/** Manifest file name for tracking which skill IDs a team installed in a directory */
+function skillManifestPath(baseDir: string, teamSlug: string): string {
+  return path.join(baseDir, `.trc-manifest-${teamSlug}.json`);
+}
+
+/** Read the skill manifest for a team from a skills directory.
+ *  Returns the list of skill IDs this team previously installed, or empty if no manifest. */
+export function readSkillManifest(baseDir: string, teamSlug: string): string[] {
+  const p = skillManifestPath(baseDir, teamSlug);
+  if (!fs.existsSync(p)) return [];
+  try {
+    const data = JSON.parse(fs.readFileSync(p, "utf-8"));
+    return Array.isArray(data.skillIds) ? data.skillIds : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Write the skill manifest for a team to a skills directory. */
+export function writeSkillManifest(baseDir: string, teamSlug: string, skillIds: string[]): void {
+  if (!fs.existsSync(baseDir)) fs.mkdirSync(baseDir, { recursive: true });
+  fs.writeFileSync(skillManifestPath(baseDir, teamSlug), JSON.stringify({ skillIds }) + "\n");
+}
+
+/** Remove the skill manifest for a team from a skills directory. */
+export function removeSkillManifest(baseDir: string, teamSlug: string): void {
+  const p = skillManifestPath(baseDir, teamSlug);
+  if (fs.existsSync(p)) fs.unlinkSync(p);
+}
+
 /** List trc-* files in a directory, filtered by extension */
 export function listTrcFiles(dir: string, ext: string = ".md"): string[] {
   if (!fs.existsSync(dir)) return [];
