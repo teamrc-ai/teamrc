@@ -12,6 +12,8 @@ import {
   removeMarkerBlock,
   writeSkillDir,
   cleanupSkillDirs,
+  listSkillDirIds,
+  collectTeamSkillIds,
   resolveAgentSkills,
   enrichTeamKnowledgeSkill,
   type FileAction,
@@ -132,7 +134,7 @@ export class CodexAdapter implements PlatformAdapter {
     const teamWithKnowledge = enrichTeamKnowledgeSkill(team, `.teamrc/${knowledgeFileName(this.teamSlug)}`, this.readKnowledge());
 
     // Route skills: alwaysApply/globs → inline in AGENTS.md, on-demand → .agents/skills/
-    cleanupSkillDirs(this.skillsDir());
+    cleanupSkillDirs(this.skillsDir(), collectTeamSkillIds(teamWithKnowledge));
     if (teamWithKnowledge.skills) {
       const dir = this.skillsDir();
       for (const skill of teamWithKnowledge.skills) {
@@ -330,7 +332,7 @@ export class CodexAdapter implements PlatformAdapter {
     fs.writeFileSync(p, content);
   }
 
-  uninstall(_scope?: TeamScope): string[] {
+  uninstall(_scope?: TeamScope, skillIds?: string[]): string[] {
     const actions: string[] = [];
 
     // Clean up subagent TOML files
@@ -347,8 +349,9 @@ export class CodexAdapter implements PlatformAdapter {
       actions.push("Removed teamrc section from .codex/config.toml");
     }
 
-    // Clean up skill directories
-    const skillCount = cleanupSkillDirs(this.skillsDir());
+    // Clean up skill directories — scoped to known skill IDs when available
+    const idsToClean = skillIds ?? listSkillDirIds(this.skillsDir());
+    const skillCount = cleanupSkillDirs(this.skillsDir(), idsToClean);
     if (skillCount > 0) {
       actions.push(`Deleted ${skillCount} teamrc codex skill(s)`);
     }

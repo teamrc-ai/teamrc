@@ -17,6 +17,8 @@ import {
   removeMarkerBlock,
   writeSkillDir,
   cleanupSkillDirs,
+  listSkillDirIds,
+  collectTeamSkillIds,
   resolveAgentSkills,
   enrichTeamKnowledgeSkill,
   createBuiltInSkills,
@@ -176,8 +178,9 @@ export class GeminiAdapter implements PlatformAdapter {
     // Write to both .agents/skills/ (Gemini CLI) and .agent/skills/ (Antigravity)
     const skillDir = this.skillsDir(scope);
     const antigravityDir = this.antigravitySkillsDir(scope);
-    cleanupSkillDirs(skillDir);
-    cleanupSkillDirs(antigravityDir);
+    const allSkillIds = collectTeamSkillIds(teamWithKnowledge);
+    cleanupSkillDirs(skillDir, allSkillIds);
+    cleanupSkillDirs(antigravityDir, allSkillIds);
     if (teamWithKnowledge.skills) {
       for (const skill of teamWithKnowledge.skills) {
         if (!skill.alwaysApply && !(skill.globs && skill.globs.length > 0)) {
@@ -274,7 +277,7 @@ export class GeminiAdapter implements PlatformAdapter {
     fs.writeFileSync(p, content);
   }
 
-  uninstall(requestedScope?: TeamScope): string[] {
+  uninstall(requestedScope?: TeamScope, skillIds?: string[]): string[] {
     const actions: string[] = [];
     const { dir, scope } = requestedScope
       ? { dir: this.agentsDir(requestedScope), scope: requestedScope }
@@ -292,8 +295,10 @@ export class GeminiAdapter implements PlatformAdapter {
     // Delete native skill directories (Gemini CLI + Antigravity)
     const skillsDir = this.skillsDir(scope);
     const antigravityDir = this.antigravitySkillsDir(scope);
-    const skillCount = cleanupSkillDirs(skillsDir);
-    const antigravityCount = cleanupSkillDirs(antigravityDir);
+    const idsToClean = skillIds ?? listSkillDirIds(skillsDir);
+    const antigravityIds = skillIds ?? listSkillDirIds(antigravityDir);
+    const skillCount = cleanupSkillDirs(skillsDir, idsToClean);
+    const antigravityCount = cleanupSkillDirs(antigravityDir, antigravityIds);
     if (skillCount > 0) {
       actions.push(`Deleted ${skillCount} skill directory(ies) from ${skillsDir}`);
     }

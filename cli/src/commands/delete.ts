@@ -4,7 +4,7 @@ import * as p from "@clack/prompts";
 import { loadKeypair, toToken } from "../auth.js";
 import { TeamrcClient } from "../client.js";
 import { loadConfig, detectPlatforms, getRelayUrl } from "../config.js";
-import { getAdapter, slugify } from "../adapters/base.js";
+import { getAdapter, slugify, collectTeamSkillIds } from "../adapters/base.js";
 import { readTeamYaml, TEAM_YAML, GLOBAL_TEAM_YAML } from "../team-yaml.js";
 import {
   globals,
@@ -144,7 +144,8 @@ export function registerDelete(program: Command): void {
       // Disconnect from relay (scoped to match deletion scope)
       if (kp) {
         const token = toToken(kp.publicKey);
-        const relay = projectTeam?.relay ?? globalTeam?.relay;
+        const scopedTeam = deleteScope === "project" ? projectTeam : globalTeam;
+        const relay = scopedTeam?.relay;
         const relayUrl = getRelayUrl(undefined, relay);
         try {
           if (deleteScope === "project") {
@@ -169,11 +170,13 @@ export function registerDelete(program: Command): void {
 
       // Uninstall from each platform
       const uninstallScope = deleteScope;
-      const deleteTeamName = projectTeam?.name ?? globalTeam?.name;
+      const selectedTeam = deleteScope === "project" ? projectTeam : globalTeam;
+      const deleteTeamName = selectedTeam?.name;
       const deleteTeamSlug = deleteTeamName ? slugify(deleteTeamName) : undefined;
+      const teamSkillIds = selectedTeam ? collectTeamSkillIds(selectedTeam) : undefined;
       for (const pl of platforms) {
         const adapter = getAdapter(pl, deleteTeamSlug);
-        const actions = adapter.uninstall(uninstallScope);
+        const actions = adapter.uninstall(uninstallScope, teamSkillIds);
         for (const action of actions) {
           actionLines.push(action);
         }

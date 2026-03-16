@@ -106,8 +106,9 @@ export interface PlatformAdapter {
   /** Return the absolute path to this adapter's knowledge file. */
   getKnowledgePath(scope?: TeamScope): string;
   /** Remove everything teamrc installed for this platform. Returns list of actions taken.
-   *  When scope is provided, only removes files for that scope. */
-  uninstall(scope?: TeamScope): string[];
+   *  When scope is provided, only removes files for that scope.
+   *  When skillIds is provided, only removes skill dirs for those IDs (avoids deleting other teams' skills in shared roots). */
+  uninstall(scope?: TeamScope, skillIds?: string[]): string[];
 }
 
 /** Write a native SKILL.md file for a skill in the given base directory */
@@ -127,14 +128,27 @@ export function writeSkillDir(baseDir: string, skill: Skill): void {
   fs.writeFileSync(path.join(skillDir, "SKILL.md"), lines.join("\n") + "\n");
 }
 
-/** Remove all trc-* skill directories under a base directory */
-export function cleanupSkillDirs(baseDir: string): number {
-  if (!fs.existsSync(baseDir)) return 0;
-  const dirs = fs.readdirSync(baseDir).filter((d) => d.startsWith("trc-"));
-  for (const d of dirs) {
-    fs.rmSync(path.join(baseDir, d), { recursive: true, force: true });
+/** Remove trc-* skill directories for the given skill IDs under a base directory.
+ *  Only removes directories matching the provided IDs, leaving other teams' skills intact. */
+export function cleanupSkillDirs(baseDir: string, skillIds: string[]): number {
+  if (!fs.existsSync(baseDir) || skillIds.length === 0) return 0;
+  let count = 0;
+  for (const id of skillIds) {
+    const dirPath = path.join(baseDir, `trc-${id}`);
+    if (fs.existsSync(dirPath)) {
+      fs.rmSync(dirPath, { recursive: true, force: true });
+      count++;
+    }
   }
-  return dirs.length;
+  return count;
+}
+
+/** List skill IDs from existing trc-* directories under a base directory */
+export function listSkillDirIds(baseDir: string): string[] {
+  if (!fs.existsSync(baseDir)) return [];
+  return fs.readdirSync(baseDir)
+    .filter((d) => d.startsWith("trc-") && fs.statSync(path.join(baseDir, d)).isDirectory())
+    .map((d) => d.slice(4));
 }
 
 /** List trc-* files in a directory, filtered by extension */
@@ -234,26 +248,17 @@ export function knowledgeFileName(teamSlug: string): string {
   return `knowledge-${teamSlug || "team"}.md`;
 }
 
-/** Delete knowledge file(s) in a directory. When slug is the fallback "team",
- *  glob-deletes all knowledge-*.md to handle the case where the real slug is unknown.
- *  Otherwise deletes only the specific slug's file. Returns list of deleted paths. */
+/** Delete the knowledge file for a specific team slug. If slug is empty/falsy,
+ *  deletes nothing (fail closed) to avoid wiping unrelated teams' files.
+ *  Returns list of deleted paths. */
 export function deleteKnowledgeFiles(dir: string, teamSlug: string): string[] {
   if (!fs.existsSync(dir)) return [];
+  if (!teamSlug) return [];
   const deleted: string[] = [];
-  if (teamSlug === "team") {
-    // Slug unknown (e.g., YAML already deleted)  --  clean up all knowledge files
-    const files = fs.readdirSync(dir).filter((f) => f.startsWith("knowledge-") && f.endsWith(".md"));
-    for (const f of files) {
-      const full = path.join(dir, f);
-      fs.unlinkSync(full);
-      deleted.push(full);
-    }
-  } else {
-    const full = path.join(dir, knowledgeFileName(teamSlug));
-    if (fs.existsSync(full)) {
-      fs.unlinkSync(full);
-      deleted.push(full);
-    }
+  const full = path.join(dir, knowledgeFileName(teamSlug));
+  if (fs.existsSync(full)) {
+    fs.unlinkSync(full);
+    deleted.push(full);
   }
   return deleted;
 }
@@ -407,6 +412,21 @@ export function resolveAgentSkills(
     (s) => s.alwaysApply && !assigned.some((a) => a.id === s.id),
   );
   return [...alwaysOn, ...assigned];
+}
+
+/** Collect all skill IDs from a team definition, including built-in skill IDs.
+ *  Used to scope cleanupSkillDirs to only this team's skills. */
+export function collectTeamSkillIds(team: TeamDefinition): string[] {
+  const ids: string[] = [];
+  if (team.skills) {
+    for (const skill of team.skills) {
+      ids.push(skill.id);
+    }
+  }
+  for (const id of BUILTIN_SKILL_IDS) {
+    ids.push(id);
+  }
+  return ids;
 }
 
 export function getAdapter(platform: string, teamSlug?: string): PlatformAdapter {

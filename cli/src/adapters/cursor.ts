@@ -14,6 +14,8 @@ import {
   upsertMarkerBlock,
   removeMarkerBlock,
   cleanupSkillDirs,
+  listSkillDirIds,
+  collectTeamSkillIds,
   resolveAgentSkills,
   enrichTeamKnowledgeSkill,
   createBuiltInSkills,
@@ -167,7 +169,7 @@ export class CursorAdapter implements PlatformAdapter {
     for (const f of oldRules) {
       fs.unlinkSync(path.join(this.rulesDir(), f));
     }
-    cleanupSkillDirs(this.skillsDir());
+    cleanupSkillDirs(this.skillsDir(), collectTeamSkillIds(teamWithKnowledge));
 
     // Route skills: alwaysApply/globs → .mdc rule, otherwise → SKILL.md
     if (teamWithKnowledge.skills) {
@@ -348,7 +350,7 @@ ${body}
     fs.writeFileSync(p, content);
   }
 
-  uninstall(_scope?: TeamScope): string[] {
+  uninstall(_scope?: TeamScope, skillIds?: string[]): string[] {
     const actions: string[] = [];
 
     // Clean up subagent .md files
@@ -369,8 +371,9 @@ ${body}
       actions.push(`Deleted ${trcRules.length} teamrc cursor rule(s)`);
     }
 
-    // Clean up skill directories
-    const skillCount = cleanupSkillDirs(this.skillsDir());
+    // Clean up skill directories — scoped to known skill IDs when available
+    const idsToClean = skillIds ?? listSkillDirIds(this.skillsDir());
+    const skillCount = cleanupSkillDirs(this.skillsDir(), idsToClean);
     if (skillCount > 0) {
       actions.push(`Deleted ${skillCount} teamrc cursor skill(s)`);
     }
