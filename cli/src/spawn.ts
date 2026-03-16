@@ -43,12 +43,32 @@ export interface TaskRunnerOptions {
 const MAX_QUEUE_DEPTH = 20;
 
 /**
- * Minimal environment for the spawned agent.
- * Only PATH so the OS can locate the claude binary.
+ * Allowlisted environment for the spawned agent.
+ * Only the vars needed to locate binaries and Claude Code credentials.
+ * Everything else is excluded to prevent leaking secrets.
  */
-const SPAWN_ENV: Record<string, string> = {
-  PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
-};
+const ALLOWED_ENV_VARS = [
+  "PATH",
+  "HOME",
+  "USERPROFILE",          // Windows HOME equivalent
+  "XDG_CONFIG_HOME",      // Non-default config location
+  "XDG_DATA_HOME",        // Non-default data location
+  "TMPDIR",               // macOS temp dir
+  "LANG",                 // Locale (needed by some CLIs)
+  "TERM",                 // Terminal type
+  "SHELL",                // Shell (used by claude for subprocesses)
+  "CLAUDE_CODE_OAUTH_TOKEN", // Long-lived token for headless claude -p
+];
+
+function baseSpawnEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const key of ALLOWED_ENV_VARS) {
+    if (process.env[key]) {
+      env[key] = process.env[key]!;
+    }
+  }
+  return env;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers (exported for testing)
@@ -82,7 +102,7 @@ function sanitizeForPrompt(s: string): string {
  * env vars from the daemon process.
  */
 export function buildSpawnEnv(): Record<string, string> {
-  return { ...SPAWN_ENV };
+  return baseSpawnEnv();
 }
 
 /**

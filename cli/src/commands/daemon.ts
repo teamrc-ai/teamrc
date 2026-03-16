@@ -4,6 +4,7 @@ import {
   CLI_NAME,
   globals,
   cliCmd,
+  isNonInteractive,
 } from "../utils.js";
 import { loadConfig } from "../config.js";
 import { loadKeypair, toToken } from "../auth.js";
@@ -28,9 +29,9 @@ export function registerDaemon(program: Command): void {
         process.exit(1);
       }
 
-      if (opts.autoSpawn && !opts.experimental) {
-        p.log.error("--auto-spawn requires --experimental.");
-        process.exit(1);
+      // --experimental implies --auto-spawn
+      if (opts.experimental) {
+        opts.autoSpawn = true;
       }
 
 
@@ -119,6 +120,30 @@ export function registerDaemon(program: Command): void {
       ].join("\n"));
 
       const localConfig = readLocalYaml(scope === "global" ? GLOBAL_LOCAL_YAML : LOCAL_YAML);
+
+      // Warn about auto-spawn risks
+      if (opts.autoSpawn) {
+        p.log.warn([
+          "Auto-spawn will run Claude Code with --dangerously-skip-permissions.",
+          "Spawned agents can execute ANY command on your machine without approval,",
+          "including reading/writing files outside this project, running arbitrary",
+          "shell commands, and making network requests. This is equivalent to giving",
+          "full shell access to whoever can create tasks for this team.",
+          "",
+          "Only use this if ALL task creators are trusted and you accept the risk.",
+        ].join("\n"));
+
+        if (!isNonInteractive()) {
+          const confirm = await p.confirm({
+            message: "Continue with auto-spawn enabled?",
+            initialValue: false,
+          });
+          if (p.isCancel(confirm) || !confirm) {
+            p.cancel("Cancelled.");
+            process.exit(0);
+          }
+        }
+      }
 
       const { startKnowledgeDaemon } = await import("../daemon.js");
       const daemon = startKnowledgeDaemon({
