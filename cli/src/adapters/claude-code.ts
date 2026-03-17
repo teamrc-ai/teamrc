@@ -202,6 +202,9 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     // Write built-in teamrc skills (on-demand slash commands)
     this.writeBuiltInSkills(knowledgePath, scope);
 
+    // Record all installed skill IDs (custom + built-in) for future cleanup
+    writeSkillManifest(this.skillsDir(scope), this.teamSlug, collectTeamSkillIds(teamWithKnowledge));
+
     this.updateClaudeMd(team, scope);
   }
 
@@ -213,9 +216,9 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     const allIdsToClean = [...new Set([...previousIds, ...currentSkillIds])];
 
     if (!team.skills || team.skills.length === 0) {
+      // Clean up custom skill files — built-in skills are written separately
       deleteTrcFiles(this.rulesDir(scope));
       cleanupSkillDirs(skillsBaseDir, allIdsToClean);
-      removeSkillManifest(skillsBaseDir, this.teamSlug);
       return;
     }
 
@@ -278,8 +281,6 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       }
     }
 
-    // Record what we installed so future syncs can clean stale dirs
-    writeSkillManifest(skillsBaseDir, this.teamSlug, currentSkillIds);
   }
 
   private writeBuiltInSkills(knowledgePath: string, scope: TeamScope): void {
