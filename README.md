@@ -6,33 +6,68 @@
 
 ---
 
-Teamrc keeps your agents, skills, and shared knowledge consistent across Claude Code, Cursor, Codex, Gemini, and OpenClaw. Define everything once in `.teamrc.yaml` and sync it where your team works. Change something on one machine, every other machine picks it up.
+If you keep recreating the same agents, skills, and prompts across Claude Code, Cursor, Codex, Gemini, OpenClaw, and different machines, teamrc gives you one source of truth.
 
-- **Consistent agents** across every AI tool you use
-- **Shared skills and knowledge** across teammates and machines
-- **One command to onboard** a new machine or VM
-- **No manual duplication** of prompt files across platforms
+Define your setup once in `.teamrc.yaml`, then run `teamrc sync` to write the native files your installed AI tools expect.
 
-Works locally with no server required. Connect to a relay (hosted at [teamrc.ai](https://teamrc.ai) or self-hosted) to sync changes across machines, VMs, and teammates in real time.
+- **One shared definition** for agents, skills, and team knowledge
+- **Local-first** — no server required for solo use
+- **Optional relay sync** for multi-machine and team workflows
+- **Native output** for Claude Code, Cursor, Codex, Gemini, and OpenClaw
 
-## Quick Start
+## Quick start
 
-```bash
-# Create a new team config
-npx @teamrc/cli init
-
-# Or join an existing team
-npx @teamrc/cli join <invite-code>
-
-# Sync config into your installed AI tools
-npx @teamrc/cli sync
-```
-
-For local-only use:
+### Local-only
 
 ```bash
 npx @teamrc/cli init --local
+npx @teamrc/cli sync
 ```
+
+No account, no server. Your files stay local unless you later connect a relay.
+
+### Shared / multi-machine
+
+```bash
+npx @teamrc/cli join <invite-code>
+npx @teamrc/cli sync
+```
+
+After `sync`, teamrc writes native agent, skill, and config files for the AI tools installed on this machine.
+
+## Commands
+
+| Command | What it does |
+|---------|-------------|
+| `init` | Create a new team |
+| `init --local` | Create a team without any server or account |
+| `push` | Connect an existing local team to a relay |
+| `join <invite-code>` | Join a shared team |
+| `clone <token>` | Copy a public team as a starting point |
+| `sync` | Write current team config into installed AI tools |
+
+## Example
+
+```yaml
+name: my-team
+
+members:
+  - name: researcher
+    role: Finds and summarizes relevant information
+  - name: builder
+    role: Implements and iterates on ideas
+
+skills:
+  - id: write-tests
+    body: Always write tests for new functionality.
+    alwaysApply: true
+```
+
+```bash
+npx @teamrc/cli sync
+```
+
+This writes native config files for each installed tool — agent definitions, skill rules, and shared knowledge — so `researcher` and `builder` are available everywhere.
 
 ## How it works
 
@@ -60,36 +95,11 @@ graph TD
     style C1 fill:#fff,stroke:#d4d4d8,color:#52525b
 ```
 
-Each machine runs `teamrc sync` to write native files for its installed AI tools. The relay keeps `.teamrc.yaml`, skills, and shared knowledge in sync across all of them.
+Each machine runs `teamrc sync` to write native files for its installed AI tools. If you connect a relay, team config and shared knowledge stay in sync across machines and teammates.
 
-## Example
+## Active members
 
-```yaml
-name: my-team
-
-members:
-  - name: researcher
-    role: Finds and summarizes relevant information
-  - name: builder
-    role: Implements and iterates on ideas
-
-skills:
-  - id: write-tests
-    body: Always write tests for new functionality.
-    alwaysApply: true
-```
-
-Then:
-
-```bash
-npx @teamrc/cli sync
-```
-
-And teamrc writes the right files for the tools you use.
-
-### Active Members
-
-`activeMembers` controls which agents are installed in the current project. It is local to each machine and project -- it does not change the team on the relay.
+`activeMembers` controls which agents are installed in the current project. It is local to each machine and project — it does not change the team on the relay.
 
 By default, all team members are active. During `init` and `join`, an interactive chooser lets you pick which agents should be active on this machine. You can also pass `--members` explicitly:
 
@@ -106,7 +116,7 @@ teamrc init --members frontend,designer
 teamrc members
 ```
 
-## Self-Hosting
+## Self-hosting
 
 ```bash
 docker compose up   # starts Postgres + relay at http://localhost:4000
@@ -118,11 +128,16 @@ See [docs/deploy-coolify.md](docs/deploy-coolify.md) for production deployment.
 
 ## Documentation
 
-- **[Get Started](https://github.com/teamrc-ai/teamrc/wiki/Get-Started)** - Create a synced team in 2 minutes
-- **[CLI Reference](https://github.com/teamrc-ai/teamrc/wiki/CLI-Reference)** - All commands with flags and examples
-- **[Configuration](https://github.com/teamrc-ai/teamrc/wiki/Configuration)** - `.teamrc.yaml` format and options
-- **[Platforms](https://github.com/teamrc-ai/teamrc/wiki/Platforms)** - How teamrc works on each AI platform
-- **[Template Catalog](https://github.com/teamrc-ai/teamrc/wiki/Template-Catalog)** - 12 team templates, 68 agents, 49 skills
-- **[Sharing & Access](https://github.com/teamrc-ai/teamrc/wiki/Sharing-&-Access)** - Public sharing, access roles, clone/fork
-- **[Architecture](https://github.com/teamrc-ai/teamrc/wiki/Architecture)** - System design, auth, sync protocol
-- **[API Reference](https://github.com/teamrc-ai/teamrc/wiki/API-Reference)** - REST and WebSocket API
+### Start here
+- **[Get Started](https://github.com/teamrc-ai/teamrc/wiki/Get-Started)** — Create a synced team in 2 minutes
+- **[Platforms](https://github.com/teamrc-ai/teamrc/wiki/Platforms)** — How teamrc works on each AI platform
+- **[Configuration](https://github.com/teamrc-ai/teamrc/wiki/Configuration)** — `.teamrc.yaml` format and options
+
+### Operate
+- **[CLI Reference](https://github.com/teamrc-ai/teamrc/wiki/CLI-Reference)** — All commands with flags and examples
+- **[Sharing & Access](https://github.com/teamrc-ai/teamrc/wiki/Sharing-&-Access)** — Public sharing, access roles, clone/fork
+- **[Template Catalog](https://github.com/teamrc-ai/teamrc/wiki/Template-Catalog)** — 12 team templates, 68 agents, 49 skills
+
+### Extend
+- **[Architecture](https://github.com/teamrc-ai/teamrc/wiki/Architecture)** — System design, auth, sync protocol
+- **[API Reference](https://github.com/teamrc-ai/teamrc/wiki/API-Reference)** — REST and WebSocket API
