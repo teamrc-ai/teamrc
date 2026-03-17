@@ -53,7 +53,7 @@ export function registerInit(program: Command): void {
       } catch {
         // Corrupt YAML is treated as not existing  --  init will overwrite it
       }
-      if (existingYaml) {
+      if (existingYaml && existingYaml.teamId) {
         p.log.error(`Already initialized: "${existingYaml.name}" (${yamlPath}).`);
         p.log.info(`To add platforms, run: ${cliCmd("apply --platform <platforms>")}`);
         p.log.info(`To start over, run: ${cliCmd("delete")}`);
@@ -85,17 +85,29 @@ export function registerInit(program: Command): void {
 
       let team;
       if (existingYaml && !existingYaml.teamId) {
+        const isClone = !!existingYaml.cloneToken;
+        const memberNames = existingYaml.members.map((m: { name: string }) => m.name).join(", ");
+
+        if (isClone) {
+          p.log.info(`Cloned team "${existingYaml.name}" (${existingYaml.members.length} agents: ${memberNames}).`);
+          p.log.info("This will create your own independent copy.");
+        } else {
+          p.log.info(`Found local team "${existingYaml.name}" (${existingYaml.members.length} agents: ${memberNames}).`);
+        }
+
+        // Let user rename if they want (interactive only, unless --name provided)
         if (opts.name) {
           validateTeamName(opts.name);
           existingYaml.name = opts.name;
+        } else if (isClone && !isNonInteractive()) {
+          const newName = await promptTeamName(generateTeamName(existingYaml.name));
+          existingYaml.name = newName;
         }
         validateTeamName(existingYaml.name);
         // Strip clone token  --  this will be a new team
         delete existingYaml.cloneToken;
         // Sanitize: cap lengths, strip frontmatter injection, drop source-body skills
         team = sanitizeTeamDefinition(existingYaml);
-        const memberNames = team.members.map((m) => m.name).join(", ");
-        p.log.info(`Found existing team "${team.name}" (${team.members.length} agents: ${memberNames}).`);
       } else {
         // Select a team template
         const template = await selectTemplate(opts.team);
