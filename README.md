@@ -31,7 +31,7 @@ Teamrc keeps one source of truth in `.teamrc.yaml` and writes the native config 
 
 ### Option A: local-only
 
-Use this if you want one setup across your own tools and machines, without using a relay.
+Use this if you want to try teamrc on one machine first, without using a relay.
 
 ```bash
 npx @teamrc/cli init --local
@@ -47,14 +47,14 @@ npx @teamrc/cli join <invite-code>
 npx @teamrc/cli sync
 ```
 
-After `sync`, teamrc writes native agent, skill, and config files for the supported AI tools installed on this machine.
+After `sync`, teamrc writes native agent, skill, and config files for the supported AI tools installed on this machine. For example, on Codex it writes `.codex/config.toml`, `AGENTS.md`, and per-agent files under `.codex/agents/`.
 
 ## Which command do I want?
 
 - `init` — create a new team here
 - `init --local` — try teamrc without any server or account
-- `push` — connect a local team to a relay later
-- `join <invite-code>` — join an existing synced team
+- `push` — connect your existing local team to a relay later
+- `join <invite-code>` — join an existing shared team
 - `clone <token>` — copy a public/read-only team as a starting point
 - `sync` — write the current team config into the AI tools installed on this machine
 
@@ -102,6 +102,8 @@ Platform scope differs by tool. See [Platforms](https://github.com/teamrc-ai/tea
 ## Local-first by default
 
 You do not need a server or account to use teamrc locally.
+
+No account, no server, and your files stay local unless you later connect a relay.
 
 Start with a local-only team:
 
